@@ -111,6 +111,10 @@ export async function savePhotoObject({
     return;
   }
 
+  if (process.env.VERCEL) {
+    throw new Error("Local file uploads are disabled on Vercel. Set STORAGE_DRIVER to r2 and redeploy.");
+  }
+
   const filePath = getLocalUploadPath(r2Key);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, bytes);
