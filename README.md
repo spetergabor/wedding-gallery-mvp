@@ -35,6 +35,10 @@ After an admin exists, registration is locked and admins sign in at:
 /admin/login
 ```
 
+## Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ## Scope
 
 This first version only covers gallery management and public gallery viewing. Stripe, webshop flows, ordering, Cloudflare R2, multi-admin, and customer registration are intentionally not included.
