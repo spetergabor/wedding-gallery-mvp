@@ -1,13 +1,21 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Camera } from "lucide-react";
 import { loginAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
+import { Alert } from "@/components/alert";
+import { hasAnyAdmin } from "@/lib/auth";
 
 export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; registered?: string }>;
 }) {
-  const params = await searchParams;
+  const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
+
+  if (!alreadyHasAdmin) {
+    redirect("/admin/register");
+  }
 
   return (
     <main className="grid min-h-screen place-items-center bg-paper px-5">
@@ -22,11 +30,10 @@ export default async function AdminLoginPage({
           </div>
         </div>
 
-        {params.error ? (
-          <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            Hibás email vagy jelszó.
-          </div>
-        ) : null}
+        <div className="mb-5 space-y-3">
+          {params.error ? <Alert title="Hibás email vagy jelszó." variant="error" /> : null}
+          {params.registered ? <Alert title="Admin már létezik." variant="info">Új regisztráció helyett jelentkezz be.</Alert> : null}
+        </div>
 
         <form action={loginAction} className="space-y-4">
           <label className="block space-y-2">
@@ -51,6 +58,13 @@ export default async function AdminLoginPage({
 
           <Button type="submit" className="w-full">Belépés</Button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-graphite/70">
+          Admin hozzáférés adatbázisból, hash-elt jelszóval működik.{" "}
+          <Link href="/admin/register" className="font-medium text-ink hover:underline">
+            Regisztráció
+          </Link>
+        </p>
       </section>
     </main>
   );

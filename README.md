@@ -21,7 +21,19 @@ npm run prisma:migrate
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000` or the port printed by Next.js.
+
+On first launch, create the first admin user at:
+
+```text
+/admin/register
+```
+
+After an admin exists, registration is locked and admins sign in at:
+
+```text
+/admin/login
+```
 
 ## Scope
 

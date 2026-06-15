@@ -7,7 +7,8 @@ import path from "node:path";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
-import { requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
+import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
+import { hashPassword } from "@/lib/password";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -31,6 +32,40 @@ export async function loginAction(formData: FormData) {
     redirect("/admin/login?error=1");
   }
 
+  redirect("/admin/dashboard");
+}
+
+export async function registerAdminAction(formData: FormData) {
+  const alreadyHasAdmin = await hasAnyAdmin();
+
+  if (alreadyHasAdmin) {
+    redirect("/admin/login?registered=1");
+  }
+
+  const name = formString(formData, "name");
+  const email = formString(formData, "email").toLowerCase();
+  const password = formString(formData, "password");
+  const confirmPassword = formString(formData, "confirmPassword");
+
+  if (!name || !email || !password || password.length < 8) {
+    redirect("/admin/register?error=missing");
+  }
+
+  if (password !== confirmPassword) {
+    redirect("/admin/register?error=password");
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  await prisma.admin.create({
+    data: {
+      name,
+      email,
+      passwordHash
+    }
+  });
+
+  await signInAdmin(email, password);
   redirect("/admin/dashboard");
 }
 
