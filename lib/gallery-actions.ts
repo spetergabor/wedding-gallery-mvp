@@ -9,18 +9,16 @@ import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
+import {
+  createPhotoObjectKey,
+  getLocalUploadPath,
+  getPhotoPublicUrl,
+  localPublicPath
+} from "@/lib/storage";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
-}
-
-function localPublicPath(publicUrl: string) {
-  if (!publicUrl.startsWith("/uploads/")) {
-    return null;
-  }
-
-  return path.join(process.cwd(), "public", publicUrl);
 }
 
 export async function loginAction(formData: FormData) {
@@ -202,10 +200,16 @@ export async function deleteGalleryAction(id: string) {
     where: { id }
   });
 
-  await rm(path.join(process.cwd(), "public", "uploads", gallery.slug), {
-    recursive: true,
-    force: true
-  });
+  await Promise.all([
+    rm(path.join(process.cwd(), "public", "uploads", "galleries", gallery.slug), {
+      recursive: true,
+      force: true
+    }),
+    rm(path.join(process.cwd(), "public", "uploads", gallery.slug), {
+      recursive: true,
+      force: true
+    })
+  ]);
 
   revalidatePath("/admin/galleries");
   revalidatePath(`/g/${gallery.slug}`);
@@ -232,7 +236,7 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
     redirect(`/admin/galleries/${galleryId}?photoError=missing`);
   }
 
-  const uploadDir = path.join(process.cwd(), "public", "uploads", gallery.slug);
+  const uploadDir = path.join(process.cwd(), "public", "uploads", "galleries", gallery.slug, "photos");
   await mkdir(uploadDir, { recursive: true });
 
   const latestPhoto = await prisma.photo.findFirst({
@@ -244,18 +248,21 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
 
   const createdPhotos = await Promise.all(
     uploads.map(async (file, index) => {
-      const extension = path.extname(file.name) || ".jpg";
-      const baseName = normalizeSlug(path.basename(file.name, extension)) || "photo";
-      const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+      const r2Key = createPhotoObjectKey({
+        gallerySlug: gallery.slug,
+        originalFilename: file.name
+      });
       const bytes = Buffer.from(await file.arrayBuffer());
-      const filePath = path.join(uploadDir, uniqueName);
-      const publicUrl = `/uploads/${gallery.slug}/${uniqueName}`;
+      const filePath = getLocalUploadPath(r2Key);
+      const publicUrl = getPhotoPublicUrl(r2Key);
 
+      await mkdir(path.dirname(filePath), { recursive: true });
       await writeFile(filePath, bytes);
 
       return {
         galleryId,
         filename: file.name,
+        r2Key,
         imageUrl: publicUrl,
         thumbnailUrl: publicUrl,
         sortOrder: nextSortOrder + index
@@ -281,7 +288,7 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   });
   const photo = await prisma.photo.findUnique({
     where: { id: photoId },
-    select: { imageUrl: true, thumbnailUrl: true }
+    select: { imageUrl: true, r2Key: true, thumbnailUrl: true }
   });
 
   await prisma.photo.delete({
@@ -302,9 +309,10 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   }
 
   if (photo) {
-    const paths = [photo.imageUrl, photo.thumbnailUrl]
+    const pathsFromUrls = [photo.imageUrl, photo.thumbnailUrl]
       .map(localPublicPath)
       .filter((value): value is string => Boolean(value));
+    const paths = photo.r2Key ? [...pathsFromUrls, getLocalUploadPath(photo.r2Key)] : pathsFromUrls;
 
     await Promise.all([...new Set(paths)].map((filePath) => unlink(filePath).catch(() => undefined)));
   }

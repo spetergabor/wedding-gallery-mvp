@@ -39,6 +39,10 @@ After an admin exists, registration is locked and admins sign in at:
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md).
 
+## Storage Direction
+
+The project is prepared for Cloudflare R2. Photos now use an R2-ready object key structure (`Photo.r2Key`) plus public image URLs. Local filesystem uploads remain as a development fallback until the R2 upload adapter is implemented.
+
 ## Scope
 
 This first version only covers gallery management and public gallery viewing. Stripe, webshop flows, ordering, Cloudflare R2, multi-admin, and customer registration are intentionally not included.

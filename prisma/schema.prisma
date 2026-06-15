@@ -33,6 +33,7 @@ model Photo {
   id           String   @id @default(cuid())
   galleryId    String
   filename     String
+  r2Key        String   @default("")
   imageUrl     String
   thumbnailUrl String
   sortOrder    Int      @default(0)
@@ -40,6 +41,7 @@ model Photo {
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
 
   @@index([galleryId])
+  @@index([r2Key])
   @@index([galleryId, sortOrder])
 }
 

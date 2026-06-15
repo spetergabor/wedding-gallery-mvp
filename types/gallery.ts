@@ -3,6 +3,7 @@ export type GalleryStatus = "active" | "inactive";
 export type GalleryPhoto = {
   id: string;
   filename: string;
+  r2Key: string;
   imageUrl: string;
   thumbnailUrl: string;
   createdAt: Date;
