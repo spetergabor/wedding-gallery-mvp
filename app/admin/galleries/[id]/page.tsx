@@ -72,7 +72,12 @@ export default async function GalleryDetailPage({
           <Alert title="Ez a slug már foglalt." variant="error">Adj meg egy egyedi publikus linket.</Alert>
         ) : null}
         {flags.error === "missing" ? <Alert title="Hiányzó kötelező mező." variant="error" /> : null}
-        {flags.photoError ? <Alert title="Nem választottál ki fotót." variant="error" /> : null}
+        {flags.photoError === "missing" ? <Alert title="Nem választottál ki fotót." variant="error" /> : null}
+        {flags.photoError === "storage" ? (
+          <Alert title="A feltöltés nem sikerült." variant="error">
+            Ellenőrizd az R2 bucket nevét, endpointját és a hozzáférési kulcsokat Vercelben.
+          </Alert>
+        ) : null}
       </div>
 
       <div className="space-y-8">

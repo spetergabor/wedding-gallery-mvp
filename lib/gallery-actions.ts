@@ -250,11 +250,21 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
       const bytes = Buffer.from(await file.arrayBuffer());
       const publicUrl = getPhotoPublicUrl(r2Key);
 
-      await savePhotoObject({
-        r2Key,
-        bytes,
-        contentType: file.type
-      });
+      try {
+        await savePhotoObject({
+          r2Key,
+          bytes,
+          contentType: file.type
+        });
+      } catch (error) {
+        console.error("Photo upload failed", {
+          galleryId,
+          r2Key,
+          storageDriver: process.env.STORAGE_DRIVER,
+          error
+        });
+        redirect(`/admin/galleries/${galleryId}?photoError=storage`);
+      }
 
       return {
         galleryId,
