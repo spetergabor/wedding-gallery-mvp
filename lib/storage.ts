@@ -1,9 +1,51 @@
 import path from "node:path";
+import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { normalizeSlug } from "@/lib/slug";
 
 export const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME ?? "wedding-gallery";
 export const R2_PUBLIC_BASE_URL =
   process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL ?? "https://cdn.hochzeitsfotografgraz.at";
+export const STORAGE_DRIVER = process.env.STORAGE_DRIVER ?? "local";
+
+let r2Client: S3Client | null = null;
+
+function r2Endpoint() {
+  if (process.env.R2_ENDPOINT) {
+    return process.env.R2_ENDPOINT;
+  }
+
+  if (process.env.CLOUDFLARE_ACCOUNT_ID) {
+    return `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  }
+
+  return null;
+}
+
+function getR2Client() {
+  if (r2Client) {
+    return r2Client;
+  }
+
+  const endpoint = r2Endpoint();
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+
+  if (!endpoint || !accessKeyId || !secretAccessKey) {
+    throw new Error("Missing Cloudflare R2 configuration. Check R2_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY.");
+  }
+
+  r2Client = new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    }
+  });
+
+  return r2Client;
+}
 
 export function createPhotoObjectKey({
   gallerySlug,
@@ -32,7 +74,7 @@ export function getLocalUploadUrl(r2Key: string) {
 }
 
 export function getPhotoPublicUrl(r2Key: string) {
-  if (process.env.STORAGE_DRIVER === "r2") {
+  if (STORAGE_DRIVER === "r2") {
     return getPublicR2Url(r2Key);
   }
 
@@ -45,4 +87,71 @@ export function localPublicPath(publicUrl: string) {
   }
 
   return path.join(process.cwd(), "public", publicUrl);
+}
+
+export async function savePhotoObject({
+  r2Key,
+  bytes,
+  contentType
+}: {
+  r2Key: string;
+  bytes: Buffer;
+  contentType?: string;
+}) {
+  if (STORAGE_DRIVER === "r2") {
+    await getR2Client().send(
+      new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        Body: bytes,
+        ContentType: contentType || "application/octet-stream"
+      })
+    );
+
+    return;
+  }
+
+  const filePath = getLocalUploadPath(r2Key);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, bytes);
+}
+
+export async function deletePhotoObject(r2Key: string) {
+  if (!r2Key) {
+    return;
+  }
+
+  if (STORAGE_DRIVER === "r2") {
+    await getR2Client()
+      .send(
+        new DeleteObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key
+        })
+      )
+      .catch(() => undefined);
+
+    return;
+  }
+
+  await unlink(getLocalUploadPath(r2Key)).catch(() => undefined);
+}
+
+export async function deleteGalleryObjects(gallerySlug: string, r2Keys: string[]) {
+  const uniqueKeys = [...new Set(r2Keys.filter(Boolean))];
+
+  await Promise.all(uniqueKeys.map((r2Key) => deletePhotoObject(r2Key)));
+
+  if (STORAGE_DRIVER !== "r2") {
+    await Promise.all([
+      rm(path.join(process.cwd(), "public", "uploads", "galleries", gallerySlug), {
+        recursive: true,
+        force: true
+      }),
+      rm(path.join(process.cwd(), "public", "uploads", gallerySlug), {
+        recursive: true,
+        force: true
+      })
+    ]);
+  }
 }

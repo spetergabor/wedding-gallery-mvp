@@ -2,8 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
@@ -11,9 +9,10 @@ import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth
 import { hashPassword } from "@/lib/password";
 import {
   createPhotoObjectKey,
-  getLocalUploadPath,
+  deleteGalleryObjects,
+  deletePhotoObject,
   getPhotoPublicUrl,
-  localPublicPath
+  savePhotoObject
 } from "@/lib/storage";
 
 function formString(formData: FormData, key: string) {
@@ -189,7 +188,12 @@ export async function deleteGalleryAction(id: string) {
 
   const gallery = await prisma.gallery.findUnique({
     where: { id },
-    select: { slug: true }
+    select: {
+      slug: true,
+      photos: {
+        select: { r2Key: true }
+      }
+    }
   });
 
   if (!gallery) {
@@ -200,16 +204,10 @@ export async function deleteGalleryAction(id: string) {
     where: { id }
   });
 
-  await Promise.all([
-    rm(path.join(process.cwd(), "public", "uploads", "galleries", gallery.slug), {
-      recursive: true,
-      force: true
-    }),
-    rm(path.join(process.cwd(), "public", "uploads", gallery.slug), {
-      recursive: true,
-      force: true
-    })
-  ]);
+  await deleteGalleryObjects(
+    gallery.slug,
+    gallery.photos.map((photo) => photo.r2Key)
+  );
 
   revalidatePath("/admin/galleries");
   revalidatePath(`/g/${gallery.slug}`);
@@ -236,9 +234,6 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
     redirect(`/admin/galleries/${galleryId}?photoError=missing`);
   }
 
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "galleries", gallery.slug, "photos");
-  await mkdir(uploadDir, { recursive: true });
-
   const latestPhoto = await prisma.photo.findFirst({
     where: { galleryId },
     orderBy: { sortOrder: "desc" },
@@ -253,11 +248,13 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
         originalFilename: file.name
       });
       const bytes = Buffer.from(await file.arrayBuffer());
-      const filePath = getLocalUploadPath(r2Key);
       const publicUrl = getPhotoPublicUrl(r2Key);
 
-      await mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, bytes);
+      await savePhotoObject({
+        r2Key,
+        bytes,
+        contentType: file.type
+      });
 
       return {
         galleryId,
@@ -288,7 +285,7 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   });
   const photo = await prisma.photo.findUnique({
     where: { id: photoId },
-    select: { imageUrl: true, r2Key: true, thumbnailUrl: true }
+    select: { r2Key: true }
   });
 
   await prisma.photo.delete({
@@ -308,14 +305,7 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
     });
   }
 
-  if (photo) {
-    const pathsFromUrls = [photo.imageUrl, photo.thumbnailUrl]
-      .map(localPublicPath)
-      .filter((value): value is string => Boolean(value));
-    const paths = photo.r2Key ? [...pathsFromUrls, getLocalUploadPath(photo.r2Key)] : pathsFromUrls;
-
-    await Promise.all([...new Set(paths)].map((filePath) => unlink(filePath).catch(() => undefined)));
-  }
+  await deletePhotoObject(photo?.r2Key ?? "");
 
   revalidatePath(`/admin/galleries/${galleryId}`);
 
