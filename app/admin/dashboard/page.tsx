@@ -1,0 +1,88 @@
+import Image from "next/image";
+import { Camera } from "lucide-react";
+import { AdminShell } from "@/components/admin-shell";
+import { ButtonLink } from "@/components/button";
+import { StatCard } from "@/components/stat-card";
+import { requireAdmin } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export default async function AdminDashboardPage() {
+  await requireAdmin();
+
+  const [galleryCount, activeCount, photoCount, latestGalleries] = await Promise.all([
+    prisma.gallery.count(),
+    prisma.gallery.count({ where: { isActive: true } }),
+    prisma.photo.count(),
+    prisma.gallery.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: {
+        _count: { select: { photos: true } },
+        photos: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: { id: true, thumbnailUrl: true, filename: true }
+        }
+      }
+    })
+  ]);
+
+  return (
+    <AdminShell>
+      <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div>
+          <p className="text-sm uppercase tracking-[0.24em] text-brass">Admin</p>
+          <h1 className="mt-2 text-4xl font-semibold text-ink">Dashboard</h1>
+        </div>
+        <ButtonLink href="/admin/galleries/new">Új galéria</ButtonLink>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Galériák" value={galleryCount} detail="Összes létrehozott galéria" />
+        <StatCard label="Aktív" value={activeCount} detail="Publikusan elérhető galériák" />
+        <StatCard label="Fotók" value={photoCount} detail="Adatbázisban rögzített képek" />
+      </div>
+
+      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
+        <div className="border-b border-ink/10 px-5 py-4">
+          <h2 className="text-lg font-semibold text-ink">Legutóbbi galériák</h2>
+        </div>
+        <div className="divide-y divide-ink/10">
+          {latestGalleries.map((gallery) => (
+            <a
+              key={gallery.id}
+              href={`/admin/galleries/${gallery.id}`}
+              className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-ink/[0.03]"
+            >
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-paper">
+                  {(() => {
+                    const cover = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0];
+
+                    return cover ? (
+                      <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="56px" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-graphite/50">
+                        <Camera size={18} />
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ink">{gallery.title}</p>
+                  <p className="truncate text-sm text-graphite/70">/g/{gallery.slug}</p>
+                </div>
+              </div>
+              <div className="text-right text-sm text-graphite/70">
+                <p>{gallery._count.photos} fotó</p>
+                <p>{gallery.isActive ? "Aktív" : "Inaktív"}</p>
+              </div>
+            </a>
+          ))}
+          {latestGalleries.length === 0 ? (
+            <div className="px-5 py-10 text-sm text-graphite/70">Még nincs galéria.</div>
+          ) : null}
+        </div>
+      </section>
+    </AdminShell>
+  );
+}

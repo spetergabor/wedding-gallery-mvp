@@ -1,0 +1,105 @@
+import { notFound } from "next/navigation";
+import Image from "next/image";
+import { Camera, Lock } from "lucide-react";
+import { PublicGallery } from "@/components/public-gallery";
+import { prisma } from "@/lib/prisma";
+import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
+import { Button } from "@/components/button";
+
+export default async function PublicGalleryPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { slug } = await params;
+  const flags = await searchParams;
+  const gallery = await prisma.gallery.findUnique({
+    where: { slug },
+    include: { photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } }
+  });
+
+  if (!gallery || !gallery.isActive) {
+    notFound();
+  }
+
+  const canView = await canViewGallery(slug, gallery.password);
+  const coverPhoto =
+    gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ??
+    gallery.photos[0] ??
+    null;
+
+  if (!canView) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-paper px-5">
+        <section className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-7 text-center shadow-soft">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-ink text-white">
+            <Lock size={20} />
+          </div>
+          <h1 className="mt-5 text-2xl font-semibold text-ink">{gallery.title}</h1>
+          <p className="mt-2 text-sm text-graphite/70">Ez a galéria jelszóval védett.</p>
+
+          {flags.error ? (
+            <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Hibás galéria jelszó.
+            </div>
+          ) : null}
+
+          <form action={unlockGalleryAction.bind(null, slug)} className="mt-6 space-y-4">
+            <input
+              name="password"
+              type="password"
+              required
+              placeholder="Galéria jelszó"
+              className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-left outline-none transition focus:border-ink/50"
+            />
+            <Button type="submit" className="w-full">Megnyitás</Button>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-paper">
+      <header className="relative min-h-[72vh] overflow-hidden bg-ink text-white">
+        {coverPhoto ? (
+          <Image
+            src={coverPhoto.imageUrl}
+            alt={gallery.title}
+            fill
+            priority
+            className="object-cover"
+            sizes="100vw"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-graphite" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-ink/35 via-ink/20 to-ink/70" />
+        <div className="relative mx-auto flex min-h-[72vh] w-full max-w-7xl flex-col justify-end px-5 pb-14 pt-24 lg:px-8">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-white/80">
+              <Camera size={16} />
+              Privát galéria
+            </div>
+            <h1 className="mt-5 text-5xl font-semibold text-white sm:text-6xl md:text-7xl">
+              {gallery.title}
+            </h1>
+            <p className="mt-5 text-sm text-white/75">{gallery.photos.length} fotó</p>
+          </div>
+        </div>
+      </header>
+
+      <section className="mx-auto -mt-8 w-full max-w-7xl px-5 pb-28 lg:px-8">
+        {gallery.photos.length > 0 ? (
+          <PublicGallery galleryId={gallery.id} title={gallery.title} photos={gallery.photos} />
+        ) : (
+          <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
+            Ez a galéria még nem tartalmaz fotókat.
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
