@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, DragEvent, FormEvent, useMemo, useRef, useState } from "react";
+import * as exifr from "exifr";
 import { ImagePlus, UploadCloud } from "lucide-react";
 import {
   completePhotoUploadsAction,
@@ -14,6 +15,14 @@ type PreparedUpload = {
   imageUrl: string;
   thumbnailUrl: string;
   uploadUrl: string;
+  capturedAt?: string | null;
+  originalIndex?: number;
+};
+
+type SelectedPhotoFile = {
+  file: File;
+  capturedAt: string | null;
+  originalIndex: number;
 };
 
 function uploadStatusLabel({
@@ -31,8 +40,9 @@ function uploadStatusLabel({
 }
 
 export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isReadingExif, setIsReadingExif] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [uploadError, setUploadError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -46,14 +56,64 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     return Math.max(8, Math.round((uploadedCount / selectedFiles.length) * 100));
   }, [isUploading, selectedFiles.length, uploadedCount]);
 
-  function setFiles(files: File[]) {
-    setSelectedFiles(files.filter((file) => file.type.startsWith("image/")));
+  async function readCapturedAt(file: File) {
+    try {
+      const tags = await exifr.parse(file, ["DateTimeOriginal", "CreateDate", "ModifyDate"]);
+      const value = tags?.DateTimeOriginal ?? tags?.CreateDate ?? tags?.ModifyDate;
+
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.toISOString();
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  async function setFiles(files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+
+    setIsReadingExif(true);
     setUploadedCount(0);
     setUploadError("");
+
+    const enrichedFiles = await Promise.all(
+      imageFiles.map(async (file, index) => ({
+        file,
+        capturedAt: await readCapturedAt(file),
+        originalIndex: index
+      }))
+    );
+
+    enrichedFiles.sort((a, b) => {
+      const aTime = a.capturedAt ? Date.parse(a.capturedAt) : Number.POSITIVE_INFINITY;
+      const bTime = b.capturedAt ? Date.parse(b.capturedAt) : Number.POSITIVE_INFINITY;
+
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
+
+      return a.originalIndex - b.originalIndex;
+    });
+
+    setSelectedFiles(enrichedFiles);
+    setIsReadingExif(false);
+  }
+
+  function captureDateLabel(value: string | null) {
+    if (!value) {
+      return "Nincs EXIF idő";
+    }
+
+    return new Date(value).toLocaleString("hu-HU", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    });
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    setFiles(Array.from(event.target.files ?? []));
+    void setFiles(Array.from(event.target.files ?? []));
   }
 
   function handleDragOver(event: DragEvent<HTMLLabelElement>) {
@@ -69,7 +129,16 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
   function handleDrop(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
     setIsDragging(false);
-    setFiles(Array.from(event.dataTransfer.files));
+    void setFiles(Array.from(event.dataTransfer.files));
+  }
+
+  function resetSelection() {
+    setSelectedFiles([]);
+    setUploadedCount(0);
+    setUploadError("");
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   }
 
   async function uploadFile(file: File, target: PreparedUpload) {
@@ -101,8 +170,8 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       const targetResult = await createPhotoUploadTargetsAction(
         galleryId,
         selectedFiles.map((file) => ({
-          filename: file.name,
-          contentType: file.type
+          filename: file.file.name,
+          contentType: file.file.type
         }))
       );
 
@@ -113,15 +182,19 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       const uploadTargets = targetResult.uploads ?? [];
       const completedUploads: PreparedUpload[] = [];
 
-      for (const [index, file] of selectedFiles.entries()) {
+      for (const [index, selectedFile] of selectedFiles.entries()) {
         const target = uploadTargets[index];
 
         if (!target) {
-          throw new Error(`${file.name} feltöltése nem lett előkészítve.`);
+          throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
         }
 
-        await uploadFile(file, target);
-        completedUploads.push(target);
+        await uploadFile(selectedFile.file, target);
+        completedUploads.push({
+          ...target,
+          capturedAt: selectedFile.capturedAt,
+          originalIndex: selectedFile.originalIndex
+        });
         setUploadedCount((current) => current + 1);
       }
 
@@ -156,7 +229,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             accept="image/*"
             multiple
             required
-            disabled={isUploading}
+            disabled={isUploading || isReadingExif}
             onChange={handleFileChange}
             className="sr-only"
           />
@@ -165,7 +238,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
           </div>
           <h2 className="mt-5 text-2xl font-semibold text-ink">Fotók feltöltése</h2>
           <p className="mt-2 max-w-md text-sm text-graphite/70">
-            Húzd ide a képeket, vagy kattints a fájlok kiválasztásához. A képek közvetlenül a Cloudflare R2 tárhelyre kerülnek.
+            Húzd ide a képeket, vagy kattints a fájlok kiválasztásához. A sorrend EXIF capture time alapján készül.
           </p>
           <span className="mt-5 inline-flex h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white">
             Fájlok kiválasztása
@@ -177,14 +250,19 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             <p className="text-sm font-medium text-graphite">Kiválasztott képek</p>
             <p className="mt-2 text-3xl font-semibold text-ink">{selectedFiles.length}</p>
             <p className="mt-1 text-sm text-graphite/70">
-              {selectedFiles.length > 0 ? "Ellenőrizd a listát, majd indítsd a feltöltést." : "Még nincs kiválasztott fájl."}
+              {isReadingExif
+                ? "EXIF adatok olvasása..."
+                : selectedFiles.length > 0
+                  ? "A lista már capture time szerint rendezve látszik."
+                  : "Még nincs kiválasztott fájl."}
             </p>
 
             {selectedFiles.length > 0 ? (
               <div className="mt-5 max-h-32 space-y-2 overflow-auto pr-1">
-                {selectedFiles.slice(0, 5).map((file) => (
-                  <div key={`${file.name}-${file.size}`} className="truncate rounded-md bg-white px-3 py-2 text-sm text-graphite">
-                    {file.name}
+                {selectedFiles.slice(0, 5).map((item) => (
+                  <div key={`${item.file.name}-${item.file.size}`} className="rounded-md bg-white px-3 py-2 text-sm text-graphite">
+                    <p className="truncate">{item.file.name}</p>
+                    <p className="mt-0.5 text-xs text-graphite/60">{captureDateLabel(item.capturedAt)}</p>
                   </div>
                 ))}
                 {selectedFiles.length > 5 ? (
@@ -194,10 +272,17 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             ) : null}
           </div>
 
-          <Button type="submit" disabled={isUploading || selectedFiles.length === 0} className="mt-5 w-full">
-            <UploadCloud size={16} />
-            {isUploading ? "Feltöltés..." : selectedFiles.length > 0 ? `${selectedFiles.length} kép feltöltése` : "Fotók feltöltése"}
-          </Button>
+          <div className="mt-5 grid gap-2">
+            <Button type="submit" disabled={isUploading || isReadingExif || selectedFiles.length === 0} className="w-full">
+              <UploadCloud size={16} />
+              {isUploading ? "Feltöltés..." : selectedFiles.length > 0 ? `${selectedFiles.length} kép feltöltése` : "Fotók feltöltése"}
+            </Button>
+            {selectedFiles.length > 0 && !isUploading ? (
+              <button type="button" onClick={resetSelection} className="h-10 rounded-md text-sm font-medium text-graphite hover:bg-ink/5">
+                Kiválasztás törlése
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 

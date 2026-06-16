@@ -38,12 +38,14 @@ model Photo {
   imageUrl     String
   thumbnailUrl String
   sortOrder    Int      @default(0)
+  capturedAt   DateTime?
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
 
   @@index([galleryId])
   @@index([r2Key])
   @@index([galleryId, sortOrder])
+  @@index([capturedAt])
 }
 
 model GalleryDownload {

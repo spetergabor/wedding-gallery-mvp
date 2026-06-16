@@ -32,6 +32,8 @@ type CompletedPhotoUpload = {
   r2Key: string;
   imageUrl: string;
   thumbnailUrl: string;
+  capturedAt?: string | null;
+  originalIndex?: number;
 };
 
 export async function loginAction(formData: FormData) {
@@ -402,13 +404,25 @@ export async function completePhotoUploadsAction(galleryId: string, uploads: Com
   });
   const nextSortOrder = (latestPhoto?.sortOrder ?? 0) + 1;
 
+  const sortedUploads = [...validUploads].sort((a, b) => {
+    const aTime = a.capturedAt ? Date.parse(a.capturedAt) : Number.POSITIVE_INFINITY;
+    const bTime = b.capturedAt ? Date.parse(b.capturedAt) : Number.POSITIVE_INFINITY;
+
+    if (aTime !== bTime) {
+      return aTime - bTime;
+    }
+
+    return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
+  });
+
   await prisma.photo.createMany({
-    data: validUploads.map((upload, index) => ({
+    data: sortedUploads.map((upload, index) => ({
       galleryId,
       filename: upload.filename,
       r2Key: upload.r2Key,
       imageUrl: upload.imageUrl,
       thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
+      capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
       sortOrder: nextSortOrder + index
     }))
   });
