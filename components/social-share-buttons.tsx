@@ -14,13 +14,16 @@ export function SocialShareButtons({
   variant?: "light" | "card";
 }) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = typeof window === "undefined" ? path : new URL(path, window.location.origin).toString();
   const shareText = `${title} galéria`;
   const buttonClass = variant === "light" ? "border-white/25 bg-white/15 text-white hover:bg-white/25" : "";
 
+  function getShareUrl() {
+    return new URL(path, window.location.origin).toString();
+  }
+
   async function copyLink() {
     try {
-      await window.navigator.clipboard.writeText(shareUrl);
+      await window.navigator.clipboard.writeText(getShareUrl());
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -38,11 +41,15 @@ export function SocialShareButtons({
       await navigator.share({
         title: shareText,
         text: "Nézd meg az esküvői galériánkat.",
-        url: shareUrl
+        url: getShareUrl()
       });
     } catch {
       // A share sheet bezárása nem hiba a felhasználó szempontjából.
     }
+  }
+
+  function openShareWindow(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer,width=720,height=640");
   }
 
   return (
@@ -51,28 +58,26 @@ export function SocialShareButtons({
         <Share2 size={16} />
         Megosztás
       </Button>
-      <a
-        href={`https://wa.me/?text=${encodeURIComponent(`${shareText}: ${shareUrl}`)}`}
-        target="_blank"
-        rel="noreferrer"
+      <button
+        type="button"
+        onClick={() => openShareWindow(`https://wa.me/?text=${encodeURIComponent(`${shareText}: ${getShareUrl()}`)}`)}
         className={`inline-flex h-11 items-center justify-center gap-2 rounded-md border px-4 text-sm font-medium transition ${
           variant === "light" ? "border-white/25 bg-white/15 text-white hover:bg-white/25" : "border-ink/15 bg-white text-ink hover:border-ink/30"
         }`}
       >
         <MessageCircle size={16} />
         WhatsApp
-      </a>
-      <a
-        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
-        target="_blank"
-        rel="noreferrer"
+      </button>
+      <button
+        type="button"
+        onClick={() => openShareWindow(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getShareUrl())}`)}
         className={`inline-flex h-11 items-center justify-center gap-2 rounded-md border px-4 text-sm font-medium transition ${
           variant === "light" ? "border-white/25 bg-white/15 text-white hover:bg-white/25" : "border-ink/15 bg-white text-ink hover:border-ink/30"
         }`}
       >
         <Facebook size={16} />
         Facebook
-      </a>
+      </button>
       <Button type="button" variant="secondary" onClick={copyLink} className={buttonClass}>
         {copied ? <Check size={16} /> : <Copy size={16} />}
         {copied ? "Másolva" : "Link"}
