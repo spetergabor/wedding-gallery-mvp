@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
+import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
@@ -70,10 +71,13 @@ export default async function GalleryDetailPage({
             </span>
           </div>
         </div>
-        <ButtonLink href={`/g/${gallery.slug}`} variant="secondary">
-          <ExternalLink size={16} />
-          Publikus nézet
-        </ButtonLink>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <CopyPublicLinkButton slug={gallery.slug} />
+          <ButtonLink href={`/g/${gallery.slug}`} variant="secondary">
+            <ExternalLink size={16} />
+            Publikus nézet
+          </ButtonLink>
+        </div>
       </div>
 
       <div className="mb-5 space-y-3">
