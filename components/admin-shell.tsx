@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { Camera, LayoutDashboard, LogOut, Plus, ShieldCheck } from "lucide-react";
+import { Bell, Camera, LayoutDashboard, LogOut, Plus, ShieldCheck } from "lucide-react";
 import { logoutAction } from "@/lib/gallery-actions";
+import { prisma } from "@/lib/prisma";
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export async function AdminShell({ children }: { children: React.ReactNode }) {
+  const unreadNotifications = await prisma.adminNotification.count({
+    where: { readAt: null }
+  });
+
   return (
     <div className="min-h-screen bg-paper">
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-ink/10 bg-white/70 px-5 py-6 backdrop-blur lg:block">
@@ -29,6 +34,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Plus size={17} />
             Új galéria
           </Link>
+          <Link className="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/notifications">
+            <span className="flex items-center gap-3">
+              <Bell size={17} />
+              Értesítések
+            </span>
+            {unreadNotifications > 0 ? (
+              <span className="rounded-full bg-brass px-2 py-0.5 text-xs font-medium text-white">{unreadNotifications}</span>
+            ) : null}
+          </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/security">
             <ShieldCheck size={17} />
             Biztonság
@@ -49,9 +63,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <Link href="/admin/dashboard" className="text-sm font-semibold">
               Wedding Gallery
             </Link>
-            <Link href="/admin/galleries/new" className="rounded-md bg-ink px-3 py-2 text-xs font-medium text-white">
-              Új
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/admin/notifications" className="relative rounded-md border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink">
+                Értesítések
+                {unreadNotifications > 0 ? (
+                  <span className="absolute -right-1 -top-1 size-4 rounded-full bg-brass text-[10px] leading-4 text-white">{unreadNotifications}</span>
+                ) : null}
+              </Link>
+              <Link href="/admin/galleries/new" className="rounded-md bg-ink px-3 py-2 text-xs font-medium text-white">
+                Új
+              </Link>
+            </div>
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl px-5 py-8 lg:px-10">{children}</main>

@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { Camera } from "lucide-react";
+import Link from "next/link";
+import { Bell, Camera } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { StatCard } from "@/components/stat-card";
@@ -9,10 +10,15 @@ import { prisma } from "@/lib/prisma";
 export default async function AdminDashboardPage() {
   await requireAdmin();
 
-  const [galleryCount, activeCount, photoCount, latestGalleries] = await Promise.all([
+  const [galleryCount, activeCount, photoCount, unreadNotifications, latestNotifications, latestGalleries] = await Promise.all([
     prisma.gallery.count(),
     prisma.gallery.count({ where: { isActive: true } }),
     prisma.photo.count(),
+    prisma.adminNotification.count({ where: { readAt: null } }),
+    prisma.adminNotification.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 4
+    }),
     prisma.gallery.findMany({
       orderBy: { createdAt: "desc" },
       take: 5,
@@ -36,11 +42,47 @@ export default async function AdminDashboardPage() {
         <ButtonLink href="/admin/galleries/new">Új galéria</ButtonLink>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Galériák" value={galleryCount} detail="Összes létrehozott galéria" />
         <StatCard label="Aktív" value={activeCount} detail="Publikusan elérhető galériák" />
         <StatCard label="Fotók" value={photoCount} detail="Adatbázisban rögzített képek" />
+        <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
       </div>
+
+      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
+        <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
+          <h2 className="text-lg font-semibold text-ink">Értesítések</h2>
+          <Link href="/admin/notifications" className="text-sm font-medium text-ink hover:underline">
+            Összes
+          </Link>
+        </div>
+        <div className="divide-y divide-ink/10">
+          {latestNotifications.map((notification) => (
+            <Link
+              key={notification.id}
+              href={notification.href ?? "/admin/notifications"}
+              className="flex items-start gap-4 px-5 py-4 hover:bg-ink/[0.03]"
+            >
+              <span className={`mt-1 flex size-9 shrink-0 items-center justify-center rounded-md ${notification.readAt ? "bg-paper text-graphite" : "bg-brass/15 text-brass"}`}>
+                <Bell size={17} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-medium text-ink">{notification.title}</span>
+                <span className="mt-1 block text-sm text-graphite/70">{notification.message}</span>
+                <span className="mt-2 block text-xs text-graphite/60">
+                  {notification.createdAt.toLocaleString("hu-HU", {
+                    dateStyle: "medium",
+                    timeStyle: "short"
+                  })}
+                </span>
+              </span>
+            </Link>
+          ))}
+          {latestNotifications.length === 0 ? (
+            <div className="px-5 py-10 text-sm text-graphite/70">Még nincs értesítés.</div>
+          ) : null}
+        </div>
+      </section>
 
       <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
         <div className="border-b border-ink/10 px-5 py-4">

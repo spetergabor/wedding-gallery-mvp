@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
@@ -156,7 +157,14 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
       galleryId,
       gallery: { isActive: true }
     },
-    select: { id: true }
+    select: {
+      id: true,
+      gallery: {
+        select: {
+          title: true
+        }
+      }
+    }
   });
 
   if (!photo) {
@@ -166,20 +174,35 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
     };
   }
 
-  const list = await prisma.galleryFavoriteList.upsert({
+  const existingList = await prisma.galleryFavoriteList.findUnique({
     where: {
       galleryId_email: {
         galleryId,
         email: normalizedEmail
       }
     },
-    create: {
-      galleryId,
-      email: normalizedEmail
-    },
-    update: {},
-    select: { id: true }
+    select: {
+      id: true,
+      _count: {
+        select: { items: true }
+      }
+    }
   });
+
+  const list =
+    existingList ??
+    (await prisma.galleryFavoriteList.create({
+      data: {
+        galleryId,
+        email: normalizedEmail
+      },
+      select: {
+        id: true,
+        _count: {
+          select: { items: true }
+        }
+      }
+    }));
 
   const existingItem = await prisma.galleryFavoriteItem.findUnique({
     where: {
@@ -231,6 +254,20 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   const count = await prisma.galleryFavoriteItem.count({
     where: { listId: list.id }
   });
+
+  if (list._count.items === 0 && count === 1) {
+    await prisma.adminNotification.create({
+      data: {
+        type: "favorite_list_created",
+        title: "Új kedvenc lista",
+        message: `${normalizedEmail} kedvenc listát kezdett a(z) ${photo.gallery.title} galériában.`,
+        href: `/admin/galleries/${galleryId}`
+      }
+    });
+
+    revalidatePath("/admin/dashboard");
+    revalidatePath("/admin/notifications");
+  }
 
   return {
     ok: true,

@@ -18,6 +18,19 @@ model Admin {
   updatedAt    DateTime @updatedAt
 }
 
+model AdminNotification {
+  id        String   @id @default(cuid())
+  type      String
+  title     String
+  message   String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([readAt])
+  @@index([createdAt])
+}
+
 model Gallery {
   id           String   @id @default(cuid())
   title        String

@@ -133,6 +133,18 @@ export async function disableTwoFactorAction(formData: FormData) {
   redirect("/admin/security?disabled=1");
 }
 
+export async function markAllNotificationsReadAction() {
+  await requireAdmin();
+
+  await prisma.adminNotification.updateMany({
+    where: { readAt: null },
+    data: { readAt: new Date() }
+  });
+
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/notifications");
+}
+
 export async function createGalleryAction(formData: FormData) {
   await requireAdmin();
 
