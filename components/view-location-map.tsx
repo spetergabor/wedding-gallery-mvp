@@ -35,7 +35,13 @@ export function ViewLocationMap({ points }: { points: ViewLocationPoint[] }) {
 
       <div className="grid lg:grid-cols-[1fr_320px]">
         <div className="relative min-h-[360px] overflow-hidden bg-mist">
-          <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${TILE_COUNT}, minmax(0, 1fr))` }}>
+          <div
+            className="absolute inset-0 grid"
+            style={{
+              gridTemplateColumns: `repeat(${TILE_COUNT}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${TILE_COUNT}, minmax(0, 1fr))`
+            }}
+          >
             {Array.from({ length: TILE_COUNT * TILE_COUNT }, (_, index) => {
               const x = index % TILE_COUNT;
               const y = Math.floor(index / TILE_COUNT);
@@ -45,7 +51,7 @@ export function ViewLocationMap({ points }: { points: ViewLocationPoint[] }) {
                   key={`${x}-${y}`}
                   src={`https://tile.openstreetmap.org/${ZOOM}/${x}/${y}.png`}
                   alt=""
-                  className="h-full w-full object-cover opacity-80 saturate-0"
+                  className="h-full w-full opacity-80 saturate-0"
                   loading="lazy"
                 />
               );
