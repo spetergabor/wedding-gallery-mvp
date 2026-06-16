@@ -38,6 +38,7 @@ model Gallery {
   password     String?
   isActive     Boolean  @default(false)
   coverPhotoId String?
+  clientAccessToken String? @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   photos       Photo[]
@@ -55,6 +56,8 @@ model Photo {
   thumbnailUrl String
   sortOrder    Int      @default(0)
   capturedAt   DateTime?
+  isClientHidden Boolean @default(false)
+  clientHiddenAt DateTime?
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   favoriteItems GalleryFavoriteItem[]

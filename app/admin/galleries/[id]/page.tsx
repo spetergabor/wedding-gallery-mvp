@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, KeyRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
-import { ButtonLink } from "@/components/button";
+import { Button, ButtonLink } from "@/components/button";
+import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
@@ -13,6 +14,7 @@ import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { StatCard } from "@/components/stat-card";
 import { ViewLog } from "@/components/view-log";
 import { requireAdmin } from "@/lib/auth";
+import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 
 export default async function GalleryDetailPage({
@@ -24,6 +26,8 @@ export default async function GalleryDetailPage({
     activated?: string;
     archived?: string;
     coverSet?: string;
+    clientLink?: string;
+    clientRestored?: string;
     error?: string;
     ordered?: string;
     photoAdded?: string;
@@ -78,6 +82,7 @@ export default async function GalleryDetailPage({
   const latestLocation = latestView
     ? [latestView.city, latestView.region, latestView.country].filter(Boolean).join(", ") || "Ismeretlen hely"
     : "Nincs adat";
+  const hiddenByClientCount = gallery.photos.filter((photo) => photo.isClientHidden).length;
 
   return (
     <AdminShell>
@@ -105,6 +110,8 @@ export default async function GalleryDetailPage({
         {flags.saved ? <Alert title="Galéria mentve." variant="success" /> : null}
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
+        {flags.clientLink ? <Alert title="Ügyfél kezelő link elkészítve." variant="success" /> : null}
+        {flags.clientRestored ? <Alert title="Fotó visszaállítva a publikus galériába." variant="success" /> : null}
         {flags.ordered ? <Alert title="Fotósorrend frissítve." variant="success" /> : null}
         {flags.archived ? <Alert title="Galéria archiválva." variant="success">A publikus link most nem elérhető.</Alert> : null}
         {flags.activated ? <Alert title="Galéria aktiválva." variant="success">A publikus link újra elérhető.</Alert> : null}
@@ -125,11 +132,37 @@ export default async function GalleryDetailPage({
           <StatCard label="Fotók" value={gallery.photos.length} detail="Feltöltött képek száma" />
           <StatCard label="Megtekintések" value={gallery._count.views} detail={`Legutóbbi: ${latestLocation}`} />
           <StatCard label="Kedvenc listák" value={gallery._count.favoriteLists} detail="Emailhez mentett válogatások" />
-          <StatCard label="ZIP letöltések" value={gallery.downloads.length} detail="Email címmel rögzített letöltések" />
+          <StatCard label="Elrejtve" value={hiddenByClientCount} detail="Ügyfél által publikusból kivéve" />
           <StatCard label="Állapot" value={gallery.isActive ? "Aktív" : "Archivált"} detail="Publikus elérhetőség" />
         </div>
 
         <GalleryForm gallery={gallery} />
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+            <div>
+              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                <KeyRound size={15} />
+                Ügyfél kezelő
+              </div>
+              <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link a párnak</h2>
+              <p className="mt-1 text-sm text-graphite/70">
+                Ezen a linken a pár elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {gallery.clientAccessToken ? (
+                <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+              ) : (
+                <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                  <Button type="submit" variant="secondary">
+                    <KeyRound size={16} />
+                    Ügyfél link generálása
+                  </Button>
+                </form>
+              )}
+            </div>
+          </div>
+        </section>
         <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
         <PhotoUploadForm galleryId={gallery.id} />
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">

@@ -26,9 +26,10 @@ export default async function PublicGalleryPage({
   }
 
   const canView = await canViewGallery(slug, gallery.password);
+  const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden);
   const coverPhoto =
-    gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ??
-    gallery.photos[0] ??
+    visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId) ??
+    visiblePhotos[0] ??
     null;
 
   if (!canView) {
@@ -88,14 +89,14 @@ export default async function PublicGalleryPage({
             <h1 className="mt-5 text-5xl font-semibold text-white sm:text-6xl md:text-7xl">
               {gallery.title}
             </h1>
-            <p className="mt-5 text-sm text-white/75">{gallery.photos.length} fotó</p>
+            <p className="mt-5 text-sm text-white/75">{visiblePhotos.length} fotó</p>
           </div>
         </div>
       </header>
 
       <section className="mx-auto -mt-8 w-full max-w-7xl px-5 pb-28 lg:px-8">
-        {gallery.photos.length > 0 ? (
-          <PublicGallery galleryId={gallery.id} title={gallery.title} photos={gallery.photos} />
+        {visiblePhotos.length > 0 ? (
+          <PublicGallery galleryId={gallery.id} title={gallery.title} photos={visiblePhotos} />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
             Ez a galéria még nem tartalmaz fotókat.

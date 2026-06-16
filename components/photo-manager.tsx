@@ -1,8 +1,9 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUp, ImageIcon, Star, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, ImageIcon, Star, Trash2 } from "lucide-react";
 import {
   deletePhotoAction,
   movePhotoAction,
+  restoreClientHiddenPhotoAction,
   setCoverPhotoAction
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -14,6 +15,8 @@ type Photo = {
   imageUrl: string;
   thumbnailUrl: string;
   sortOrder: number;
+  isClientHidden: boolean;
+  clientHiddenAt: Date | null;
 };
 
 export function PhotoManager({
@@ -48,11 +51,26 @@ export function PhotoManager({
                   Borító
                 </span>
               ) : null}
+              {photo.isClientHidden ? (
+                <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">
+                  <EyeOff size={13} />
+                  Ügyfél elrejtette
+                </span>
+              ) : null}
             </div>
             <div className="space-y-3 p-3">
               <div>
                 <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
                 <p className="mt-1 text-xs text-graphite/70">Sorrend: {index + 1}</p>
+                {photo.clientHiddenAt ? (
+                  <p className="mt-1 text-xs text-brass">
+                    Elrejtve:{" "}
+                    {photo.clientHiddenAt.toLocaleString("hu-HU", {
+                      dateStyle: "medium",
+                      timeStyle: "short"
+                    })}
+                  </p>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -97,6 +115,15 @@ export function PhotoManager({
                   </ConfirmSubmitButton>
                 </form>
               </div>
+
+              {photo.isClientHidden ? (
+                <form action={restoreClientHiddenPhotoAction.bind(null, galleryId, photo.id)}>
+                  <button className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-3 text-sm text-brass transition hover:bg-brass/15">
+                    <Eye size={15} />
+                    Visszatenni publikusba
+                  </button>
+                </form>
+              ) : null}
             </div>
           </div>
         ))}

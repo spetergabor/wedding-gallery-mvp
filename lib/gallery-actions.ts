@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
@@ -21,6 +22,10 @@ import { verifyTotpCode } from "@/lib/totp";
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function createClientAccessToken() {
+  return randomBytes(24).toString("base64url");
 }
 
 type PhotoUploadRequest = {
@@ -145,6 +150,50 @@ export async function markAllNotificationsReadAction() {
   revalidatePath("/admin/notifications");
 }
 
+export async function generateClientAccessLinkAction(galleryId: string) {
+  await requireAdmin();
+
+  const gallery = await prisma.gallery.update({
+    where: { id: galleryId },
+    data: { clientAccessToken: createClientAccessToken() },
+    select: { slug: true }
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/client/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?clientLink=1`);
+}
+
+export async function restoreClientHiddenPhotoAction(galleryId: string, photoId: string) {
+  await requireAdmin();
+
+  const photo = await prisma.photo.findFirst({
+    where: { id: photoId, galleryId },
+    select: {
+      gallery: {
+        select: { slug: true }
+      }
+    }
+  });
+
+  if (!photo) {
+    redirect(`/admin/galleries/${galleryId}?photoError=missing`);
+  }
+
+  await prisma.photo.update({
+    where: { id: photoId },
+    data: {
+      isClientHidden: false,
+      clientHiddenAt: null
+    }
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${photo.gallery.slug}`);
+  revalidatePath(`/client/${photo.gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?clientRestored=1`);
+}
+
 export async function createGalleryAction(formData: FormData) {
   await requireAdmin();
 
@@ -166,7 +215,8 @@ export async function createGalleryAction(formData: FormData) {
         title,
         slug,
         password: password || null,
-        isActive
+        isActive,
+        clientAccessToken: createClientAccessToken()
       }
     });
   } catch (error) {
