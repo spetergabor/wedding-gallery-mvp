@@ -12,7 +12,13 @@ let r2Client: S3Client | null = null;
 
 function r2Endpoint() {
   if (process.env.R2_ENDPOINT) {
-    return process.env.R2_ENDPOINT;
+    const endpoint = process.env.R2_ENDPOINT.trim();
+
+    if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
+      return endpoint;
+    }
+
+    return `https://${endpoint}.r2.cloudflarestorage.com`;
   }
 
   if (process.env.CLOUDFLARE_ACCOUNT_ID) {
