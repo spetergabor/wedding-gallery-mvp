@@ -28,6 +28,7 @@ model Gallery {
   photos       Photo[]
   downloads    GalleryDownload[]
   views        GalleryView[]
+  favoriteLists GalleryFavoriteList[]
 }
 
 model Photo {
@@ -41,6 +42,7 @@ model Photo {
   capturedAt   DateTime?
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  favoriteItems GalleryFavoriteItem[]
 
   @@index([galleryId])
   @@index([r2Key])
@@ -73,4 +75,30 @@ model GalleryView {
   @@index([galleryId])
   @@index([createdAt])
   @@index([country])
+}
+
+model GalleryFavoriteList {
+  id        String   @id @default(cuid())
+  galleryId String
+  email     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  items     GalleryFavoriteItem[]
+
+  @@unique([galleryId, email])
+  @@index([galleryId])
+  @@index([email])
+}
+
+model GalleryFavoriteItem {
+  id        String   @id @default(cuid())
+  listId    String
+  photoId   String
+  createdAt DateTime @default(now())
+  list      GalleryFavoriteList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, photoId])
+  @@index([photoId])
 }

@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
+import { FavoriteListsLog } from "@/components/favorite-lists-log";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
 import { PhotoManager } from "@/components/photo-manager";
@@ -38,13 +39,33 @@ export default async function GalleryDetailPage({
     where: { id },
     include: {
       downloads: { orderBy: { createdAt: "desc" } },
+      favoriteLists: {
+        orderBy: { updatedAt: "desc" },
+        include: {
+          items: {
+            orderBy: { createdAt: "asc" },
+            include: {
+              photo: {
+                select: {
+                  id: true,
+                  filename: true,
+                  thumbnailUrl: true
+                }
+              }
+            }
+          }
+        }
+      },
       photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
       views: {
         orderBy: { createdAt: "desc" },
         take: 25
       },
       _count: {
-        select: { views: true }
+        select: {
+          favoriteLists: true,
+          views: true
+        }
       }
     }
   });
@@ -100,9 +121,10 @@ export default async function GalleryDetailPage({
       </div>
 
       <div className="space-y-8">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <StatCard label="Fotók" value={gallery.photos.length} detail="Feltöltött képek száma" />
           <StatCard label="Megtekintések" value={gallery._count.views} detail={`Legutóbbi: ${latestLocation}`} />
+          <StatCard label="Kedvenc listák" value={gallery._count.favoriteLists} detail="Emailhez mentett válogatások" />
           <StatCard label="ZIP letöltések" value={gallery.downloads.length} detail="Email címmel rögzített letöltések" />
           <StatCard label="Állapot" value={gallery.isActive ? "Aktív" : "Archivált"} detail="Publikus elérhetőség" />
         </div>
@@ -110,9 +132,12 @@ export default async function GalleryDetailPage({
         <GalleryForm gallery={gallery} />
         <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
         <PhotoUploadForm galleryId={gallery.id} />
-        <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+        <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
           <ViewLog views={gallery.views} />
-          <DownloadLog downloads={gallery.downloads} />
+          <div className="space-y-6">
+            <FavoriteListsLog lists={gallery.favoriteLists} />
+            <DownloadLog downloads={gallery.downloads} />
+          </div>
         </div>
         <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
       </div>

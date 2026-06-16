@@ -3,9 +3,13 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import JSZip from "jszip";
-import { ChevronLeft, ChevronRight, Download, Images, Mail, Maximize2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, X } from "lucide-react";
 import { Button } from "@/components/button";
-import { recordGalleryDownloadAction } from "@/lib/public-actions";
+import {
+  getFavoritePhotoIdsAction,
+  recordGalleryDownloadAction,
+  toggleFavoritePhotoAction
+} from "@/lib/public-actions";
 
 type PublicPhoto = {
   id: string;
@@ -47,6 +51,12 @@ export function PublicGallery({
   const [emailError, setEmailError] = useState("");
   const [isEmailOpen, setIsEmailOpen] = useState(false);
   const [zipProgress, setZipProgress] = useState("");
+  const [favoriteEmail, setFavoriteEmail] = useState("");
+  const [favoriteEmailDraft, setFavoriteEmailDraft] = useState("");
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
+  const [favoriteError, setFavoriteError] = useState("");
+  const [favoritePromptPhotoId, setFavoritePromptPhotoId] = useState<string | null>(null);
+  const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
 
   const selectedPhoto = useMemo(() => {
     if (selectedIndex === null) {
@@ -57,6 +67,23 @@ export function PublicGallery({
   }, [photos, selectedIndex]);
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
+  const favoriteCount = favoriteIds.size;
+
+  useEffect(() => {
+    const storedEmail = window.localStorage.getItem(`wgm-favorite-email-${galleryId}`);
+
+    if (!storedEmail) {
+      return;
+    }
+
+    setFavoriteEmail(storedEmail);
+    setFavoriteEmailDraft(storedEmail);
+    getFavoritePhotoIdsAction(galleryId, storedEmail).then((result) => {
+      if (result.ok) {
+        setFavoriteIds(new Set(result.photoIds));
+      }
+    });
+  }, [galleryId]);
 
   function showPreviousPhoto() {
     setSelectedIndex((current) => {
@@ -158,28 +185,114 @@ export function PublicGallery({
     await createZipDownload();
   }
 
+  async function toggleFavorite(photoId: string, emailOverride?: string) {
+    const emailForFavorite = emailOverride ?? favoriteEmail;
+
+    if (!emailForFavorite) {
+      setFavoritePromptPhotoId(photoId);
+      setFavoriteError("");
+      return;
+    }
+
+    setPendingFavoriteId(photoId);
+    setFavoriteError("");
+
+    try {
+      const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite);
+
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+
+      setFavoriteIds((current) => {
+        const next = new Set(current);
+
+        if (result.isFavorite) {
+          next.add(photoId);
+        } else {
+          next.delete(photoId);
+        }
+
+        return next;
+      });
+    } catch (error) {
+      setFavoriteError(error instanceof Error ? error.message : "Nem sikerült menteni a kedvencet.");
+    } finally {
+      setPendingFavoriteId(null);
+    }
+  }
+
+  async function submitFavoriteEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedEmail = favoriteEmailDraft.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setFavoriteError("Adj meg egy email címet.");
+      return;
+    }
+
+    setFavoriteEmail(normalizedEmail);
+    window.localStorage.setItem(`wgm-favorite-email-${galleryId}`, normalizedEmail);
+    const queuedPhotoId = favoritePromptPhotoId;
+    setFavoritePromptPhotoId(null);
+
+    const favorites = await getFavoritePhotoIdsAction(galleryId, normalizedEmail);
+
+    if (favorites.ok) {
+      setFavoriteIds(new Set(favorites.photoIds));
+    }
+
+    if (queuedPhotoId) {
+      await toggleFavorite(queuedPhotoId, normalizedEmail);
+    }
+  }
+
+  function favoriteButtonClass(photoId: string) {
+    return favoriteIds.has(photoId)
+      ? "bg-ink text-white"
+      : "bg-white/90 text-ink hover:bg-white";
+  }
+
   return (
     <>
       <section className="masonry-grid">
         {photos.map((photo, index) => (
-          <button
+          <div
             key={photo.id}
-            onClick={() => setSelectedIndex(index)}
             className="group mb-4 block w-full break-inside-avoid overflow-hidden rounded-lg bg-mist text-left"
           >
             <span className={`relative block w-full ${tileAspects[index % tileAspects.length]}`}>
-              <Image
-                src={photo.thumbnailUrl}
-                alt={photo.filename}
-                fill
-                className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-              />
-              <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 transition group-hover:opacity-100">
-                <Maximize2 size={16} />
-              </span>
+              <button
+                type="button"
+                title="Kép megnyitása"
+                aria-label={`${photo.filename} megnyitása`}
+                onClick={() => setSelectedIndex(index)}
+                className="absolute inset-0 z-0"
+              >
+                <Image
+                  src={photo.thumbnailUrl}
+                  alt={photo.filename}
+                  fill
+                  className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                  sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                />
+                <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 transition group-hover:opacity-100">
+                  <Maximize2 size={16} />
+                </span>
+              </button>
+              <button
+                type="button"
+                title="Kedvenc"
+                aria-label={`${photo.filename} kedvencekhez adása`}
+                onClick={() => void toggleFavorite(photo.id)}
+                className={`absolute left-3 top-3 z-10 flex size-9 items-center justify-center rounded-md transition ${favoriteButtonClass(photo.id)} ${
+                  pendingFavoriteId === photo.id ? "opacity-60" : ""
+                }`}
+              >
+                <Heart size={16} fill={favoriteIds.has(photo.id) ? "currentColor" : "none"} />
+              </button>
             </span>
-          </button>
+          </div>
         ))}
       </section>
 
@@ -187,6 +300,10 @@ export function PublicGallery({
         <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
           <Images size={16} />
           {photos.length} fotó
+        </span>
+        <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
+          <Heart size={16} />
+          {favoriteCount} kedvenc
         </span>
         <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
           <Download size={16} />
@@ -254,11 +371,74 @@ export function PublicGallery({
         </div>
       ) : null}
 
+      {favoritePromptPhotoId ? (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-ink/60 px-5 backdrop-blur-sm">
+          <form onSubmit={submitFavoriteEmail} className="w-full max-w-md rounded-lg bg-white p-6 shadow-soft">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
+                  <Heart size={20} />
+                </div>
+                <h2 className="mt-4 text-xl font-semibold text-ink">Kedvencek mentése</h2>
+                <p className="mt-2 text-sm text-graphite/70">
+                  Add meg az email címed, és ehhez mentjük a kiválasztott kedvenc képeket.
+                </p>
+              </div>
+              <button
+                type="button"
+                title="Bezárás"
+                onClick={() => setFavoritePromptPhotoId(null)}
+                className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <label className="mt-5 block space-y-2">
+              <span className="text-sm font-medium text-graphite">Email cím</span>
+              <input
+                value={favoriteEmailDraft}
+                onChange={(event) => setFavoriteEmailDraft(event.target.value)}
+                type="email"
+                required
+                placeholder="email@example.com"
+                className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+
+            {favoriteError ? (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {favoriteError}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Button type="submit" className="sm:flex-1">
+                <Heart size={16} />
+                Kedvenc mentése
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setFavoritePromptPhotoId(null)}>
+                Mégsem
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
       {selectedPhoto ? (
         <div className="fixed inset-0 z-50 bg-ink/95 p-4 text-white">
           <div className="mb-4 flex items-center justify-between gap-4">
             <p className="truncate text-sm text-white/80">{selectedPhoto.filename}</p>
             <div className="flex items-center gap-2">
+              <button
+                title="Kedvenc"
+                aria-label={`${selectedPhoto.filename} kedvencekhez adása`}
+                onClick={() => void toggleFavorite(selectedPhoto.id)}
+                className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium ${favoriteIds.has(selectedPhoto.id) ? "bg-white text-ink" : "bg-white/10 text-white hover:bg-white/20"}`}
+              >
+                <Heart size={16} fill={favoriteIds.has(selectedPhoto.id) ? "currentColor" : "none"} />
+                Kedvenc
+              </button>
               <a
                 href={selectedPhoto.imageUrl}
                 download={selectedPhoto.filename}
