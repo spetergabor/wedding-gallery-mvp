@@ -4,13 +4,23 @@ import { Bell, Camera } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { StatCard } from "@/components/stat-card";
+import { ViewLocationMap } from "@/components/view-location-map";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createViewLocationPoints } from "@/lib/view-location-points";
 
 export default async function AdminDashboardPage() {
   await requireAdmin();
 
-  const [galleryCount, activeCount, photoCount, unreadNotifications, latestNotifications, latestGalleries] = await Promise.all([
+  const [
+    galleryCount,
+    activeCount,
+    photoCount,
+    unreadNotifications,
+    latestNotifications,
+    latestGalleries,
+    viewLocations
+  ] = await Promise.all([
     prisma.gallery.count(),
     prisma.gallery.count({ where: { isActive: true } }),
     prisma.photo.count(),
@@ -29,8 +39,17 @@ export default async function AdminDashboardPage() {
           select: { id: true, thumbnailUrl: true, filename: true }
         }
       }
+    }),
+    prisma.galleryView.findMany({
+      select: {
+        city: true,
+        country: true,
+        latitude: true,
+        longitude: true
+      }
     })
   ]);
+  const locationPoints = createViewLocationPoints(viewLocations);
 
   return (
     <AdminShell>
@@ -127,6 +146,8 @@ export default async function AdminDashboardPage() {
           </div>
         </section>
       </div>
+
+      <ViewLocationMap points={locationPoints} />
     </AdminShell>
   );
 }

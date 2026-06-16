@@ -30,6 +30,16 @@ function decodeLocationHeader(value: string | null) {
   }
 }
 
+function parseCoordinateHeader(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const coordinate = Number.parseFloat(value);
+
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
+
 export async function recordGalleryView({
   galleryId,
   headers
@@ -40,6 +50,8 @@ export async function recordGalleryView({
   const country = decodeLocationHeader(headers.get("x-vercel-ip-country"));
   const region = decodeLocationHeader(headers.get("x-vercel-ip-country-region"));
   const city = decodeLocationHeader(headers.get("x-vercel-ip-city"));
+  const latitude = parseCoordinateHeader(headers.get("x-vercel-ip-latitude"));
+  const longitude = parseCoordinateHeader(headers.get("x-vercel-ip-longitude"));
   const referrer = cleanHeader(headers.get("referer") ?? headers.get("referrer"), 500);
   const userAgent = cleanHeader(headers.get("user-agent"), 500);
   const dedupeSince = new Date(Date.now() - VIEW_DEDUPE_WINDOW_MS);
@@ -70,6 +82,8 @@ export async function recordGalleryView({
       country,
       region,
       city,
+      latitude,
+      longitude,
       referrer,
       userAgent
     }

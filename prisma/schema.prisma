@@ -85,6 +85,8 @@ model GalleryView {
   country     String?
   region      String?
   city        String?
+  latitude    Float?
+  longitude   Float?
   referrer    String?
   userAgent   String?
   createdAt   DateTime @default(now())
