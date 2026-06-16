@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Check, Copy, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/button";
+import { SocialShareButtons } from "@/components/social-share-buttons";
 import { toggleClientPhotoVisibilityAction } from "@/lib/client-gallery-actions";
 
 type ClientPhoto = {
@@ -17,11 +18,13 @@ type ClientPhoto = {
 export function ClientGalleryReview({
   galleryId,
   publicSlug,
+  title,
   token,
   photos
 }: {
   galleryId: string;
   publicSlug: string;
+  title: string;
   token: string;
   photos: ClientPhoto[];
 }) {
@@ -163,6 +166,9 @@ export function ClientGalleryReview({
             <ExternalLink size={16} />
             Publikus galéria megosztása
           </a>
+        </div>
+        <div className="mt-4 flex justify-center">
+          <SocialShareButtons path={publicHref} title={title} variant="card" />
         </div>
       </section>
     </>

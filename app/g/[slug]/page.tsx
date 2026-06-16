@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Camera, Lock } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
 import { PublicGallery } from "@/components/public-gallery";
+import { SocialShareButtons } from "@/components/social-share-buttons";
 import { prisma } from "@/lib/prisma";
 import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { Button } from "@/components/button";
@@ -90,6 +91,9 @@ export default async function PublicGalleryPage({
               {gallery.title}
             </h1>
             <p className="mt-5 text-sm text-white/75">{visiblePhotos.length} fotó</p>
+            <div className="mt-6">
+              <SocialShareButtons path={`/g/${gallery.slug}`} title={gallery.title} />
+            </div>
           </div>
         </div>
       </header>
