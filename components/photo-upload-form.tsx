@@ -1,28 +1,42 @@
 "use client";
 
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { addPhotoAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 
-function UploadButton({ selectedCount }: { selectedCount: number }) {
+function UploadButton({
+  selectedCount,
+  isSubmitting
+}: {
+  selectedCount: number;
+  isSubmitting: boolean;
+}) {
   const { pending } = useFormStatus();
+  const isUploading = pending || isSubmitting;
 
   return (
-    <Button type="submit" disabled={pending || selectedCount === 0}>
+    <Button type="submit" disabled={isUploading || selectedCount === 0}>
       <UploadCloud size={16} />
-      {pending ? "Feltöltés..." : selectedCount > 0 ? `${selectedCount} kép feltöltése` : "Fotók feltöltése"}
+      {isUploading ? "Feltöltés..." : selectedCount > 0 ? `${selectedCount} kép feltöltése` : "Fotók feltöltése"}
     </Button>
   );
 }
 
-function UploadProgress({ selectedCount }: { selectedCount: number }) {
+function UploadProgress({
+  selectedCount,
+  isSubmitting
+}: {
+  selectedCount: number;
+  isSubmitting: boolean;
+}) {
   const { pending } = useFormStatus();
   const [progress, setProgress] = useState(0);
+  const isUploading = pending || isSubmitting;
 
   useEffect(() => {
-    if (!pending) {
+    if (!isUploading) {
       setProgress(0);
       return;
     }
@@ -39,9 +53,9 @@ function UploadProgress({ selectedCount }: { selectedCount: number }) {
     }, 650);
 
     return () => window.clearInterval(interval);
-  }, [pending]);
+  }, [isUploading]);
 
-  if (!pending) {
+  if (!isUploading) {
     return null;
   }
 
@@ -70,13 +84,31 @@ function UploadProgress({ selectedCount }: { selectedCount: number }) {
 
 export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
   const [selectedCount, setSelectedCount] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     setSelectedCount(event.target.files?.length ?? 0);
+    setIsSubmitting(false);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const formData = new FormData(event.currentTarget);
+    const selectedFiles = formData
+      .getAll("photos")
+      .filter((value): value is File => value instanceof File && value.size > 0);
+
+    if (selectedFiles.length > 0) {
+      setSelectedCount(selectedFiles.length);
+      setIsSubmitting(true);
+    }
   }
 
   return (
-    <form action={addPhotoAction.bind(null, galleryId)} className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+    <form
+      action={addPhotoAction.bind(null, galleryId)}
+      onSubmit={handleSubmit}
+      className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft"
+    >
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-ink">Fotók feltöltése</h2>
         <p className="mt-1 text-sm text-graphite/70">Több kép egyszerre feltölthető. A feltöltési sorrend lesz az alap galéria sorrend.</p>
@@ -98,9 +130,9 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             {selectedCount > 0 ? `${selectedCount} fájl kiválasztva.` : "Nincs kiválasztott fájl."}
           </span>
         </label>
-        <UploadButton selectedCount={selectedCount} />
+        <UploadButton selectedCount={selectedCount} isSubmitting={isSubmitting} />
       </div>
-      <UploadProgress selectedCount={selectedCount} />
+      <UploadProgress selectedCount={selectedCount} isSubmitting={isSubmitting} />
     </form>
   );
 }
