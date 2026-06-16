@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Check, Copy, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/button";
 import { toggleClientPhotoVisibilityAction } from "@/lib/client-gallery-actions";
 
@@ -16,10 +16,12 @@ type ClientPhoto = {
 
 export function ClientGalleryReview({
   galleryId,
+  publicSlug,
   token,
   photos
 }: {
   galleryId: string;
+  publicSlug: string;
   token: string;
   photos: ClientPhoto[];
 }) {
@@ -28,6 +30,20 @@ export function ClientGalleryReview({
   );
   const [pendingPhotoId, setPendingPhotoId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const publicHref = `/g/${publicSlug}`;
+
+  async function copyPublicLink() {
+    const publicUrl = new URL(publicHref, window.location.origin).toString();
+
+    try {
+      await window.navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
 
   async function togglePhoto(photoId: string) {
     const nextHidden = !hiddenPhotoIds.has(photoId);
@@ -68,10 +84,27 @@ export function ClientGalleryReview({
       ) : null}
 
       <div className="mb-5 rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-        <p className="text-sm font-medium text-ink">{hiddenPhotoIds.size} kép elrejtve a publikus galériából</p>
-        <p className="mt-1 text-sm text-graphite/70">
-          Az elrejtett képek itt továbbra is láthatók, de a normál publikus galériában nem jelennek meg.
-        </p>
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <p className="text-sm font-medium text-ink">{hiddenPhotoIds.size} kép elrejtve a publikus galériából</p>
+            <p className="mt-1 text-sm text-graphite/70">
+              Az elrejtett képek itt továbbra is láthatók, de a normál publikus galériában nem jelennek meg.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button type="button" variant="secondary" onClick={copyPublicLink}>
+              {copied ? <Check size={16} /> : <Copy size={16} />}
+              {copied ? "Publikus link másolva" : "Publikus link másolása"}
+            </Button>
+            <a
+              href={publicHref}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+            >
+              <ExternalLink size={16} />
+              Publikus galéria megosztása
+            </a>
+          </div>
+        </div>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -111,6 +144,26 @@ export function ClientGalleryReview({
             </article>
           );
         })}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 text-center shadow-soft">
+        <p className="text-lg font-semibold text-ink">Elkészültetek az elrejtéssel?</p>
+        <p className="mx-auto mt-2 max-w-2xl text-sm text-graphite/70">
+          A publikus galériában már csak azok a képek jelennek meg, amelyeket nem rejtettetek el. Ezt a linket küldhetitek tovább családnak és vendégeknek.
+        </p>
+        <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+          <Button type="button" variant="secondary" onClick={copyPublicLink}>
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            {copied ? "Publikus link másolva" : "Publikus link másolása"}
+          </Button>
+          <a
+            href={publicHref}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+          >
+            <ExternalLink size={16} />
+            Publikus galéria megosztása
+          </a>
+        </div>
       </section>
     </>
   );

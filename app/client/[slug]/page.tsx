@@ -56,7 +56,7 @@ export default async function ClientGalleryReviewPage({
       </header>
 
       <section className="mx-auto w-full max-w-7xl px-5 py-8 lg:px-8">
-        <ClientGalleryReview galleryId={gallery.id} token={token} photos={gallery.photos} />
+        <ClientGalleryReview galleryId={gallery.id} publicSlug={gallery.slug} token={token} photos={gallery.photos} />
       </section>
     </main>
   );
