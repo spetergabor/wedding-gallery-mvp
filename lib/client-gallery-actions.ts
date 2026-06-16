@@ -21,8 +21,7 @@ export async function toggleClientPhotoVisibilityAction({
     },
     select: {
       id: true,
-      slug: true,
-      title: true
+      slug: true
     }
   });
 
@@ -39,9 +38,7 @@ export async function toggleClientPhotoVisibilityAction({
       galleryId
     },
     select: {
-      id: true,
-      filename: true,
-      isClientHidden: true
+      id: true
     }
   });
 
@@ -60,22 +57,9 @@ export async function toggleClientPhotoVisibilityAction({
     }
   });
 
-  if (hidden && !photo.isClientHidden) {
-    await prisma.adminNotification.create({
-      data: {
-        type: "photo_hidden_by_client",
-        title: "Ügyfél elrejtett egy képet",
-        message: `${photo.filename} el lett rejtve a(z) ${gallery.title} galériában.`,
-        href: `/admin/galleries/${gallery.id}`
-      }
-    });
-  }
-
   revalidatePath(`/g/${gallery.slug}`);
   revalidatePath(`/client/${gallery.slug}`);
   revalidatePath(`/admin/galleries/${gallery.id}`);
-  revalidatePath("/admin/dashboard");
-  revalidatePath("/admin/notifications");
 
   return {
     ok: true,
