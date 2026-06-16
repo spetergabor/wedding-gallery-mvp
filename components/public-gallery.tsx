@@ -463,7 +463,7 @@ export function PublicGallery({
                 type="button"
                 title="Előző kép"
                 onClick={showPreviousPhoto}
-                className="absolute left-4 top-1/2 z-10 hidden size-12 -translate-y-1/2 items-center justify-center rounded-md bg-white/10 text-white backdrop-blur transition hover:bg-white/20 md:flex"
+                className="absolute left-3 top-1/2 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-md bg-white/15 text-white backdrop-blur transition hover:bg-white/25 md:left-4 md:size-12"
               >
                 <ChevronLeft size={26} />
               </button>
@@ -471,7 +471,7 @@ export function PublicGallery({
                 type="button"
                 title="Következő kép"
                 onClick={showNextPhoto}
-                className="absolute right-4 top-1/2 z-10 hidden size-12 -translate-y-1/2 items-center justify-center rounded-md bg-white/10 text-white backdrop-blur transition hover:bg-white/20 md:flex"
+                className="absolute right-3 top-1/2 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-md bg-white/15 text-white backdrop-blur transition hover:bg-white/25 md:right-4 md:size-12"
               >
                 <ChevronRight size={26} />
               </button>
@@ -488,22 +488,7 @@ export function PublicGallery({
               priority
             />
           </div>
-
-          {photos.length > 1 ? (
-            <div className="mt-3 flex items-center justify-between gap-3 md:hidden">
-              <Button type="button" variant="secondary" onClick={showPreviousPhoto} className="bg-white/10 text-white hover:bg-white/20">
-                <ChevronLeft size={18} />
-                Előző
-              </Button>
-              <p className="text-sm text-white/70">
-                {selectedPosition}/{photos.length}
-              </p>
-              <Button type="button" variant="secondary" onClick={showNextPhoto} className="bg-white/10 text-white hover:bg-white/20">
-                Következő
-                <ChevronRight size={18} />
-              </Button>
-            </div>
-          ) : null}
+          {photos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{photos.length}</p> : null}
         </div>
       ) : null}
     </>
