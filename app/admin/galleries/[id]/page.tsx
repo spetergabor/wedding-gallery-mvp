@@ -7,6 +7,7 @@ import { DownloadLog } from "@/components/download-log";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
 import { PhotoManager } from "@/components/photo-manager";
+import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { StatCard } from "@/components/stat-card";
 import { ViewLog } from "@/components/view-log";
 import { requireAdmin } from "@/lib/auth";
@@ -104,8 +105,11 @@ export default async function GalleryDetailPage({
 
         <GalleryForm gallery={gallery} />
         <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
-        <ViewLog views={gallery.views} />
-        <DownloadLog downloads={gallery.downloads} />
+        <PhotoUploadForm galleryId={gallery.id} />
+        <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+          <ViewLog views={gallery.views} />
+          <DownloadLog downloads={gallery.downloads} />
+        </div>
         <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
       </div>
     </AdminShell>

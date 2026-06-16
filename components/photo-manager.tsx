@@ -7,7 +7,6 @@ import {
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
-import { PhotoUploadForm } from "@/components/photo-upload-form";
 
 type Photo = {
   id: string;
@@ -27,9 +26,11 @@ export function PhotoManager({
   photos: Photo[];
 }) {
   return (
-    <section className="space-y-6">
-      <PhotoUploadForm galleryId={galleryId} />
-
+    <section>
+      <div className="mb-5">
+        <h2 className="text-xl font-semibold text-ink">Fotók kezelése</h2>
+        <p className="mt-1 text-sm text-graphite/70">Rendezés, borítókép választás és egyedi törlés.</p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {photos.map((photo, index) => (
           <div key={photo.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white">
