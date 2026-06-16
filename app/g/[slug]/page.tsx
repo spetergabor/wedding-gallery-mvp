@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { headers } from "next/headers";
 import { Camera, Lock } from "lucide-react";
+import { GalleryViewTracker } from "@/components/gallery-view-tracker";
 import { PublicGallery } from "@/components/public-gallery";
 import { prisma } from "@/lib/prisma";
 import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { Button } from "@/components/button";
-import { recordGalleryView } from "@/lib/gallery-view-tracking";
 
 export default async function PublicGalleryPage({
   params,
@@ -63,19 +62,9 @@ export default async function PublicGalleryPage({
     );
   }
 
-  const requestHeaders = await headers();
-  await recordGalleryView({
-    galleryId: gallery.id,
-    headers: requestHeaders
-  }).catch((error) => {
-    console.error("Gallery view tracking failed", {
-      galleryId: gallery.id,
-      error
-    });
-  });
-
   return (
     <main className="min-h-screen bg-paper">
+      <GalleryViewTracker galleryId={gallery.id} />
       <header className="relative min-h-[72vh] overflow-hidden bg-ink text-white">
         {coverPhoto ? (
           <Image

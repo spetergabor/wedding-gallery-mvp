@@ -1,8 +1,10 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { recordGalleryView } from "@/lib/gallery-view-tracking";
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;
@@ -74,5 +76,28 @@ export async function recordGalleryDownloadAction(galleryId: string, email: stri
   return {
     ok: true,
     message: "Email mentve."
+  };
+}
+
+export async function recordGalleryViewAction(galleryId: string) {
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { id: true, isActive: true }
+  });
+
+  if (!gallery || !gallery.isActive) {
+    return {
+      ok: false
+    };
+  }
+
+  const requestHeaders = await headers();
+  await recordGalleryView({
+    galleryId,
+    headers: requestHeaders
+  });
+
+  return {
+    ok: true
   };
 }

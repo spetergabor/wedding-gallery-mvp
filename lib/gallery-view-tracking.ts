@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
+const VIEW_DEDUPE_WINDOW_MS = 1000 * 60 * 60 * 12;
+
 function cleanHeader(value: string | null, maxLength = 240) {
   if (!value) {
     return null;
@@ -40,6 +42,27 @@ export async function recordGalleryView({
   const city = decodeLocationHeader(headers.get("x-vercel-ip-city"));
   const referrer = cleanHeader(headers.get("referer") ?? headers.get("referrer"), 500);
   const userAgent = cleanHeader(headers.get("user-agent"), 500);
+  const dedupeSince = new Date(Date.now() - VIEW_DEDUPE_WINDOW_MS);
+
+  const recentView = await prisma.galleryView.findFirst({
+    where: {
+      galleryId,
+      country,
+      region,
+      city,
+      userAgent,
+      createdAt: {
+        gte: dedupeSince
+      }
+    },
+    select: { id: true }
+  });
+
+  if (recentView) {
+    return {
+      created: false
+    };
+  }
 
   await prisma.galleryView.create({
     data: {
@@ -51,4 +74,8 @@ export async function recordGalleryView({
       userAgent
     }
   });
+
+  return {
+    created: true
+  };
 }
