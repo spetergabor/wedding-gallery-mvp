@@ -5,20 +5,31 @@ import type { ViewLocationPoint } from "@/lib/view-location-points";
 
 const ZOOM = 3;
 const TILE_COUNT = 2 ** ZOOM;
+const MAP_ASPECT_RATIO = 2;
 
-function markerPosition(latitude: number, longitude: number) {
+function mercatorPosition(latitude: number, longitude: number) {
   const x = ((longitude + 180) / 360) * 100;
   const sinLatitude = Math.sin((latitude * Math.PI) / 180);
   const y = (0.5 - Math.log((1 + sinLatitude) / (1 - sinLatitude)) / (4 * Math.PI)) * 100;
 
+  return { x, y };
+}
+
+function markerPosition(latitude: number, longitude: number, centerY: number) {
+  const { x, y } = mercatorPosition(latitude, longitude);
+
   return {
     left: `${Math.min(100, Math.max(0, x))}%`,
-    top: `${Math.min(100, Math.max(0, y))}%`
+    top: `${50 + (y - centerY) * MAP_ASPECT_RATIO}%`
   };
 }
 
 export function ViewLocationMap({ points }: { points: ViewLocationPoint[] }) {
   const totalViews = points.reduce((sum, point) => sum + point.count, 0);
+  const centerY =
+    points.length > 0
+      ? points.reduce((sum, point) => sum + mercatorPosition(point.latitude, point.longitude).y, 0) / points.length
+      : 42;
 
   return (
     <section className="mt-8 overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
@@ -34,12 +45,14 @@ export function ViewLocationMap({ points }: { points: ViewLocationPoint[] }) {
       </div>
 
       <div className="grid lg:grid-cols-[1fr_320px]">
-        <div className="relative min-h-[360px] overflow-hidden bg-mist">
+        <div className="relative aspect-[2/1] min-h-[320px] overflow-hidden bg-mist">
           <div
-            className="absolute inset-0 grid"
+            className="absolute left-0 grid w-full"
             style={{
+              top: `${50 - centerY * MAP_ASPECT_RATIO}%`,
               gridTemplateColumns: `repeat(${TILE_COUNT}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${TILE_COUNT}, minmax(0, 1fr))`
+              gridTemplateRows: `repeat(${TILE_COUNT}, minmax(0, 1fr))`,
+              aspectRatio: "1 / 1"
             }}
           >
             {Array.from({ length: TILE_COUNT * TILE_COUNT }, (_, index) => {
@@ -63,7 +76,7 @@ export function ViewLocationMap({ points }: { points: ViewLocationPoint[] }) {
             <div
               key={point.id}
               className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
-              style={markerPosition(point.latitude, point.longitude)}
+              style={markerPosition(point.latitude, point.longitude, centerY)}
               title={`${point.label}: ${point.count}`}
             >
               <div className="grid size-10 place-items-center rounded-full bg-brass text-sm font-semibold text-white shadow-soft ring-4 ring-white/80">
