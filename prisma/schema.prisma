@@ -12,6 +12,8 @@ model Admin {
   name         String
   email        String   @unique
   passwordHash String
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

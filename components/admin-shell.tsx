@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera, LayoutDashboard, LogOut, Plus } from "lucide-react";
+import { Camera, LayoutDashboard, LogOut, Plus, ShieldCheck } from "lucide-react";
 import { logoutAction } from "@/lib/gallery-actions";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -28,6 +28,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries/new">
             <Plus size={17} />
             Új galéria
+          </Link>
+          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/security">
+            <ShieldCheck size={17} />
+            Biztonság
           </Link>
         </nav>
 

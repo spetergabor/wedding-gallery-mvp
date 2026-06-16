@@ -1,0 +1,2 @@
+ALTER TABLE "Admin" ADD COLUMN "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Admin" ADD COLUMN "twoFactorSecret" TEXT;

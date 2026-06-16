@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
@@ -16,6 +16,7 @@ import {
   isR2StorageEnabled,
   savePhotoObject
 } from "@/lib/storage";
+import { verifyTotpCode } from "@/lib/totp";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -39,7 +40,8 @@ type CompletedPhotoUpload = {
 export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
-  const success = await signInAdmin(email, password);
+  const twoFactorCode = formString(formData, "twoFactorCode");
+  const success = await signInAdmin(email, password, twoFactorCode);
 
   if (!success) {
     redirect("/admin/login?error=1");
@@ -85,6 +87,50 @@ export async function registerAdminAction(formData: FormData) {
 export async function logoutAction() {
   await signOutAdmin();
   redirect("/admin/login");
+}
+
+export async function enableTwoFactorAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const secret = formString(formData, "secret").replace(/\s/g, "").toUpperCase();
+  const code = formString(formData, "code");
+
+  if (!secret || !verifyTotpCode(secret, code)) {
+    redirect("/admin/security?error=code");
+  }
+
+  await prisma.admin.update({
+    where: { id: admin.id },
+    data: {
+      twoFactorEnabled: true,
+      twoFactorSecret: secret
+    }
+  });
+
+  redirect("/admin/security?enabled=1");
+}
+
+export async function disableTwoFactorAction(formData: FormData) {
+  const adminSession = await requireAdmin();
+  const password = formString(formData, "password");
+
+  const admin = await prisma.admin.findUnique({
+    where: { id: adminSession.id },
+    select: { passwordHash: true }
+  });
+
+  if (!admin || !password || !(await verifyPassword(password, admin.passwordHash))) {
+    redirect("/admin/security?error=password");
+  }
+
+  await prisma.admin.update({
+    where: { id: adminSession.id },
+    data: {
+      twoFactorEnabled: false,
+      twoFactorSecret: null
+    }
+  });
+
+  redirect("/admin/security?disabled=1");
 }
 
 export async function createGalleryAction(formData: FormData) {

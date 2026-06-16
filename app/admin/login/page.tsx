@@ -31,7 +31,7 @@ export default async function AdminLoginPage({
         </div>
 
         <div className="mb-5 space-y-3">
-          {params.error ? <Alert title="Hibás email vagy jelszó." variant="error" /> : null}
+          {params.error ? <Alert title="Hibás belépési adatok." variant="error">Ha be van kapcsolva a kétfaktoros hitelesítés, a 6 jegyű kód is szükséges.</Alert> : null}
           {params.registered ? <Alert title="Admin már létezik." variant="info">Új regisztráció helyett jelentkezz be.</Alert> : null}
         </div>
 
@@ -52,6 +52,18 @@ export default async function AdminLoginPage({
               name="password"
               type="password"
               required
+              className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+            />
+          </label>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Kétfaktoros kód</span>
+            <input
+              name="twoFactorCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9 ]*"
+              placeholder="123456"
               className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
             />
           </label>

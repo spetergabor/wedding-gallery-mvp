@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { verifyTotpCode } from "@/lib/totp";
 
 const ADMIN_COOKIE = "wgm_admin";
 const SESSION_MAX_AGE = 60 * 60 * 8;
@@ -70,7 +71,7 @@ export async function hasAnyAdmin() {
   return count > 0;
 }
 
-export async function signInAdmin(email: string, password: string) {
+export async function signInAdmin(email: string, password: string, twoFactorCode?: string) {
   const admin = await prisma.admin.findUnique({
     where: { email: email.toLowerCase() }
   });
@@ -83,6 +84,12 @@ export async function signInAdmin(email: string, password: string) {
 
   if (!isValidPassword) {
     return false;
+  }
+
+  if (admin.twoFactorEnabled) {
+    if (!admin.twoFactorSecret || !twoFactorCode || !verifyTotpCode(admin.twoFactorSecret, twoFactorCode)) {
+      return false;
+    }
   }
 
   const cookieStore = await cookies();
