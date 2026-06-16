@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { addPhotoAction } from "@/lib/gallery-actions";
@@ -14,6 +14,57 @@ function UploadButton({ selectedCount }: { selectedCount: number }) {
       <UploadCloud size={16} />
       {pending ? "Feltöltés..." : selectedCount > 0 ? `${selectedCount} kép feltöltése` : "Fotók feltöltése"}
     </Button>
+  );
+}
+
+function UploadProgress({ selectedCount }: { selectedCount: number }) {
+  const { pending } = useFormStatus();
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (!pending) {
+      setProgress(0);
+      return;
+    }
+
+    setProgress(12);
+    const interval = window.setInterval(() => {
+      setProgress((current) => {
+        if (current >= 92) {
+          return current;
+        }
+
+        return current + Math.max(2, Math.round((92 - current) * 0.12));
+      });
+    }, 650);
+
+    return () => window.clearInterval(interval);
+  }, [pending]);
+
+  if (!pending) {
+    return null;
+  }
+
+  return (
+    <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4" aria-live="polite">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm font-medium text-ink">
+          Feltöltés folyamatban
+        </p>
+        <p className="text-sm text-graphite/70">
+          {selectedCount} kép előkészítése és mentése
+        </p>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+        <div
+          className="h-full rounded-full bg-ink transition-all duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="mt-3 text-xs text-graphite/70">
+        Nagyobb albumoknál ez eltarthat pár percig. Az oldalt hagyd nyitva a folyamat végéig.
+      </p>
+    </div>
   );
 }
 
@@ -49,6 +100,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         </label>
         <UploadButton selectedCount={selectedCount} />
       </div>
+      <UploadProgress selectedCount={selectedCount} />
     </form>
   );
 }
