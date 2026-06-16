@@ -8,6 +8,7 @@ import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
 import { PhotoManager } from "@/components/photo-manager";
 import { StatCard } from "@/components/stat-card";
+import { ViewLog } from "@/components/view-log";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -35,13 +36,25 @@ export default async function GalleryDetailPage({
     where: { id },
     include: {
       downloads: { orderBy: { createdAt: "desc" } },
-      photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }
+      photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      views: {
+        orderBy: { createdAt: "desc" },
+        take: 25
+      },
+      _count: {
+        select: { views: true }
+      }
     }
   });
 
   if (!gallery) {
     notFound();
   }
+
+  const latestView = gallery.views[0];
+  const latestLocation = latestView
+    ? [latestView.city, latestView.region, latestView.country].filter(Boolean).join(", ") || "Ismeretlen hely"
+    : "Nincs adat";
 
   return (
     <AdminShell>
@@ -84,13 +97,14 @@ export default async function GalleryDetailPage({
       <div className="space-y-8">
         <div className="grid gap-4 md:grid-cols-4">
           <StatCard label="Fotók" value={gallery.photos.length} detail="Feltöltött képek száma" />
+          <StatCard label="Megtekintések" value={gallery._count.views} detail={`Legutóbbi: ${latestLocation}`} />
           <StatCard label="ZIP letöltések" value={gallery.downloads.length} detail="Email címmel rögzített letöltések" />
           <StatCard label="Állapot" value={gallery.isActive ? "Aktív" : "Archivált"} detail="Publikus elérhetőség" />
-          <StatCard label="Védelem" value={gallery.password ? "Jelszavas" : "Nyitott"} detail="Galéria hozzáférés" />
         </div>
 
         <GalleryForm gallery={gallery} />
         <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
+        <ViewLog views={gallery.views} />
         <DownloadLog downloads={gallery.downloads} />
         <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
       </div>

@@ -27,6 +27,7 @@ model Gallery {
   updatedAt    DateTime @updatedAt
   photos       Photo[]
   downloads    GalleryDownload[]
+  views        GalleryView[]
 }
 
 model Photo {
@@ -54,4 +55,20 @@ model GalleryDownload {
 
   @@index([galleryId])
   @@index([email])
+}
+
+model GalleryView {
+  id          String   @id @default(cuid())
+  galleryId   String
+  country     String?
+  region      String?
+  city        String?
+  referrer    String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  gallery     Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId])
+  @@index([createdAt])
+  @@index([country])
 }
