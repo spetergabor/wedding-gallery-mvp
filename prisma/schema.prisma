@@ -54,6 +54,7 @@ model Photo {
   r2Key        String   @default("")
   imageUrl     String
   thumbnailUrl String
+  fileSize     Int      @default(0)
   sortOrder    Int      @default(0)
   capturedAt   DateTime?
   isClientHidden Boolean @default(false)

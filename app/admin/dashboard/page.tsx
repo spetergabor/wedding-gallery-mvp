@@ -9,6 +9,18 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
+function formatStorageSize(bytes: number) {
+  if (bytes <= 0) {
+    return "0 MB";
+  }
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** exponent;
+
+  return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
+}
+
 export default async function AdminDashboardPage() {
   await requireAdmin();
 
@@ -16,6 +28,7 @@ export default async function AdminDashboardPage() {
     galleryCount,
     activeCount,
     photoCount,
+    photoStorage,
     unreadNotifications,
     latestNotifications,
     latestGalleries,
@@ -24,6 +37,7 @@ export default async function AdminDashboardPage() {
     prisma.gallery.count(),
     prisma.gallery.count({ where: { isActive: true } }),
     prisma.photo.count(),
+    prisma.photo.aggregate({ _sum: { fileSize: true } }),
     prisma.adminNotification.count({ where: { readAt: null } }),
     prisma.adminNotification.findMany({
       orderBy: { createdAt: "desc" },
@@ -50,6 +64,7 @@ export default async function AdminDashboardPage() {
     })
   ]);
   const locationPoints = createViewLocationPoints(viewLocations);
+  const totalStorageBytes = photoStorage._sum.fileSize ?? 0;
 
   return (
     <AdminShell>
@@ -61,10 +76,11 @@ export default async function AdminDashboardPage() {
         <ButtonLink href="/admin/galleries/new">Új galéria</ButtonLink>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Galériák" value={galleryCount} detail="Összes létrehozott galéria" />
         <StatCard label="Aktív" value={activeCount} detail="Publikusan elérhető galériák" />
         <StatCard label="Fotók" value={photoCount} detail="Adatbázisban rögzített képek" />
+        <StatCard label="R2 tárhely" value={formatStorageSize(totalStorageBytes)} detail="Feltöltött képek összmérete" />
         <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
       </div>
 

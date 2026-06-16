@@ -38,6 +38,7 @@ type CompletedPhotoUpload = {
   r2Key: string;
   imageUrl: string;
   thumbnailUrl: string;
+  fileSize?: number;
   capturedAt?: string | null;
   originalIndex?: number;
 };
@@ -396,6 +397,7 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
         r2Key,
         imageUrl: publicUrl,
         thumbnailUrl: publicUrl,
+        fileSize: bytes.length,
         sortOrder: nextSortOrder + index
       };
     })
@@ -530,6 +532,7 @@ export async function completePhotoUploadsAction(galleryId: string, uploads: Com
       r2Key: upload.r2Key,
       imageUrl: upload.imageUrl,
       thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
+      fileSize: upload.fileSize ?? 0,
       capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
       sortOrder: nextSortOrder + index
     }))

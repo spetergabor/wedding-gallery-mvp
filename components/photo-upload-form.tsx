@@ -15,6 +15,7 @@ type PreparedUpload = {
   imageUrl: string;
   thumbnailUrl: string;
   uploadUrl: string;
+  fileSize?: number;
   capturedAt?: string | null;
   originalIndex?: number;
 };
@@ -192,6 +193,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         await uploadFile(selectedFile.file, target);
         completedUploads.push({
           ...target,
+          fileSize: selectedFile.file.size,
           capturedAt: selectedFile.capturedAt,
           originalIndex: selectedFile.originalIndex
         });
