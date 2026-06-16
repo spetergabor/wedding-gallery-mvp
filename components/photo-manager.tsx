@@ -88,7 +88,7 @@ export function PhotoManager({
                 <form action={deletePhotoAction.bind(null, photo.id, galleryId)}>
                   <ConfirmSubmitButton
                     title="Fotó törlése"
-                    message="Biztosan törlöd ezt a fotót? A local fájl is törlődik."
+                    message="Biztosan törlöd ezt a fotót? A feltöltött képfájl is törlődik."
                     variant="danger"
                     className="size-9 px-0"
                   >

@@ -7,6 +7,7 @@ import { DownloadLog } from "@/components/download-log";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
 import { PhotoManager } from "@/components/photo-manager";
+import { StatCard } from "@/components/stat-card";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -81,10 +82,17 @@ export default async function GalleryDetailPage({
       </div>
 
       <div className="space-y-8">
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard label="Fotók" value={gallery.photos.length} detail="Feltöltött képek száma" />
+          <StatCard label="ZIP letöltések" value={gallery.downloads.length} detail="Email címmel rögzített letöltések" />
+          <StatCard label="Állapot" value={gallery.isActive ? "Aktív" : "Archivált"} detail="Publikus elérhetőség" />
+          <StatCard label="Védelem" value={gallery.password ? "Jelszavas" : "Nyitott"} detail="Galéria hozzáférés" />
+        </div>
+
         <GalleryForm gallery={gallery} />
-        <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
-        <DownloadLog downloads={gallery.downloads} />
         <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
+        <DownloadLog downloads={gallery.downloads} />
+        <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
       </div>
     </AdminShell>
   );

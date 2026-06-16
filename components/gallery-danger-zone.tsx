@@ -20,7 +20,7 @@ export function GalleryDangerZone({
         <div>
           <h2 className="text-xl font-semibold text-ink">Publikálás és törlés</h2>
           <p className="mt-1 max-w-2xl text-sm text-graphite/70">
-            Archiváláskor a galéria megmarad adminban, de a publikus link nem lesz elérhető. Törléskor a galéria, a fotó rekordok és a local feltöltött fájlok is törlődnek.
+            Archiváláskor a galéria megmarad adminban, de a publikus link nem lesz elérhető. Törléskor a galéria, a fotó rekordok és a feltöltött képfájlok is törlődnek.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -43,7 +43,7 @@ export function GalleryDangerZone({
           <form action={deleteGalleryAction.bind(null, galleryId)}>
             <ConfirmSubmitButton
               variant="danger"
-              message="Biztosan törlöd ezt a galériát? Ez a fotó rekordokat és a local feltöltött fájlokat is törli."
+              message="Biztosan törlöd ezt a galériát? Ez a fotó rekordokat és a feltöltött képfájlokat is törli."
               className="w-full sm:w-auto"
             >
               <Trash2 size={16} />
