@@ -74,6 +74,8 @@ export default async function PublicGalleryPage({
             alt={gallery.title}
             fill
             priority
+            quality={100}
+            unoptimized
             className="object-cover"
             sizes="100vw"
           />
