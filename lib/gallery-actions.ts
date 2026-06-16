@@ -8,10 +8,12 @@ import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import {
+  createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
   deleteGalleryObjects,
   deletePhotoObject,
   getPhotoPublicUrl,
+  isR2StorageEnabled,
   savePhotoObject
 } from "@/lib/storage";
 
@@ -19,6 +21,18 @@ function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
 }
+
+type PhotoUploadRequest = {
+  filename: string;
+  contentType?: string;
+};
+
+type CompletedPhotoUpload = {
+  filename: string;
+  r2Key: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+};
 
 export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
@@ -284,6 +298,128 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);
   redirect(`/admin/galleries/${galleryId}?photoAdded=1`);
+}
+
+export async function createPhotoUploadTargetsAction(galleryId: string, files: PhotoUploadRequest[]) {
+  await requireAdmin();
+
+  if (!isR2StorageEnabled()) {
+    return {
+      ok: false,
+      message: "A közvetlen feltöltés csak R2 storage módban érhető el."
+    };
+  }
+
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { slug: true }
+  });
+
+  if (!gallery) {
+    return {
+      ok: false,
+      message: "A galéria nem található."
+    };
+  }
+
+  const validFiles = files.filter((file) => file.filename.trim());
+
+  if (validFiles.length === 0) {
+    return {
+      ok: false,
+      message: "Nem választottál ki fotót."
+    };
+  }
+
+  try {
+    const uploads = await Promise.all(
+      validFiles.map(async (file) => {
+        const r2Key = createPhotoObjectKey({
+          gallerySlug: gallery.slug,
+          originalFilename: file.filename
+        });
+        const publicUrl = getPhotoPublicUrl(r2Key);
+
+        return {
+          filename: file.filename,
+          r2Key,
+          imageUrl: publicUrl,
+          thumbnailUrl: publicUrl,
+          uploadUrl: await createPresignedPhotoUploadUrl({
+            r2Key,
+            contentType: file.contentType
+          })
+        };
+      })
+    );
+
+    return {
+      ok: true,
+      uploads
+    };
+  } catch (error) {
+    console.error("Photo upload target creation failed", {
+      galleryId,
+      storageDriver: process.env.STORAGE_DRIVER,
+      error
+    });
+
+    return {
+      ok: false,
+      message: "Nem sikerült előkészíteni az R2 feltöltést."
+    };
+  }
+}
+
+export async function completePhotoUploadsAction(galleryId: string, uploads: CompletedPhotoUpload[]) {
+  await requireAdmin();
+
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { slug: true }
+  });
+
+  if (!gallery) {
+    return {
+      ok: false,
+      message: "A galéria nem található."
+    };
+  }
+
+  const validUploads = uploads.filter((upload) => upload.filename && upload.r2Key && upload.imageUrl);
+
+  if (validUploads.length === 0) {
+    return {
+      ok: false,
+      message: "Nincs menthető feltöltés."
+    };
+  }
+
+  const latestPhoto = await prisma.photo.findFirst({
+    where: { galleryId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true }
+  });
+  const nextSortOrder = (latestPhoto?.sortOrder ?? 0) + 1;
+
+  await prisma.photo.createMany({
+    data: validUploads.map((upload, index) => ({
+      galleryId,
+      filename: upload.filename,
+      r2Key: upload.r2Key,
+      imageUrl: upload.imageUrl,
+      thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
+      sortOrder: nextSortOrder + index
+    }))
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+
+  return {
+    ok: true,
+    redirectTo: `/admin/galleries/${galleryId}?photoAdded=1`
+  };
 }
 
 export async function deletePhotoAction(photoId: string, galleryId: string) {

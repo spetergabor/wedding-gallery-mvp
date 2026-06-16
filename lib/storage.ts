@@ -1,6 +1,7 @@
 import path from "node:path";
 import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { normalizeSlug } from "@/lib/slug";
 
 export const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME ?? "wedding-gallery";
@@ -51,6 +52,10 @@ function getR2Client() {
   });
 
   return r2Client;
+}
+
+export function isR2StorageEnabled() {
+  return STORAGE_DRIVER === "r2";
 }
 
 export function createPhotoObjectKey({
@@ -124,6 +129,22 @@ export async function savePhotoObject({
   const filePath = getLocalUploadPath(r2Key);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, bytes);
+}
+
+export async function createPresignedPhotoUploadUrl({
+  r2Key,
+  contentType
+}: {
+  r2Key: string;
+  contentType?: string;
+}) {
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: r2Key,
+    ContentType: contentType || "application/octet-stream"
+  });
+
+  return getSignedUrl(getR2Client(), command, { expiresIn: 60 * 10 });
 }
 
 export async function deletePhotoObject(r2Key: string) {
