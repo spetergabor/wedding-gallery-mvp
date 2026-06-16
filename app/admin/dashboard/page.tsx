@@ -49,82 +49,84 @@ export default async function AdminDashboardPage() {
         <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
       </div>
 
-      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
-        <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
-          <h2 className="text-lg font-semibold text-ink">Értesítések</h2>
-          <Link href="/admin/notifications" className="text-sm font-medium text-ink hover:underline">
-            Összes
-          </Link>
-        </div>
-        <div className="divide-y divide-ink/10">
-          {latestNotifications.map((notification) => (
-            <Link
-              key={notification.id}
-              href={notification.href ?? "/admin/notifications"}
-              className="flex items-start gap-4 px-5 py-4 hover:bg-ink/[0.03]"
-            >
-              <span className={`mt-1 flex size-9 shrink-0 items-center justify-center rounded-md ${notification.readAt ? "bg-paper text-graphite" : "bg-brass/15 text-brass"}`}>
-                <Bell size={17} />
-              </span>
-              <span className="min-w-0">
-                <span className="block font-medium text-ink">{notification.title}</span>
-                <span className="mt-1 block text-sm text-graphite/70">{notification.message}</span>
-                <span className="mt-2 block text-xs text-graphite/60">
-                  {notification.createdAt.toLocaleString("hu-HU", {
-                    dateStyle: "medium",
-                    timeStyle: "short"
-                  })}
-                </span>
-              </span>
+      <div className="mt-8 grid gap-6 xl:grid-cols-2">
+        <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
+          <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
+            <h2 className="text-lg font-semibold text-ink">Értesítések</h2>
+            <Link href="/admin/notifications" className="text-sm font-medium text-ink hover:underline">
+              Összes
             </Link>
-          ))}
-          {latestNotifications.length === 0 ? (
-            <div className="px-5 py-10 text-sm text-graphite/70">Még nincs értesítés.</div>
-          ) : null}
-        </div>
-      </section>
+          </div>
+          <div className="divide-y divide-ink/10">
+            {latestNotifications.map((notification) => (
+              <Link
+                key={notification.id}
+                href={notification.href ?? "/admin/notifications"}
+                className="flex items-start gap-4 px-5 py-4 hover:bg-ink/[0.03]"
+              >
+                <span className={`mt-1 flex size-9 shrink-0 items-center justify-center rounded-md ${notification.readAt ? "bg-paper text-graphite" : "bg-brass/15 text-brass"}`}>
+                  <Bell size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-medium text-ink">{notification.title}</span>
+                  <span className="mt-1 block text-sm text-graphite/70">{notification.message}</span>
+                  <span className="mt-2 block text-xs text-graphite/60">
+                    {notification.createdAt.toLocaleString("hu-HU", {
+                      dateStyle: "medium",
+                      timeStyle: "short"
+                    })}
+                  </span>
+                </span>
+              </Link>
+            ))}
+            {latestNotifications.length === 0 ? (
+              <div className="px-5 py-10 text-sm text-graphite/70">Még nincs értesítés.</div>
+            ) : null}
+          </div>
+        </section>
 
-      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
-        <div className="border-b border-ink/10 px-5 py-4">
-          <h2 className="text-lg font-semibold text-ink">Legutóbbi galériák</h2>
-        </div>
-        <div className="divide-y divide-ink/10">
-          {latestGalleries.map((gallery) => (
-            <a
-              key={gallery.id}
-              href={`/admin/galleries/${gallery.id}`}
-              className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-ink/[0.03]"
-            >
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-paper">
-                  {(() => {
-                    const cover = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0];
+        <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
+          <div className="border-b border-ink/10 px-5 py-4">
+            <h2 className="text-lg font-semibold text-ink">Legutóbbi galériák</h2>
+          </div>
+          <div className="divide-y divide-ink/10">
+            {latestGalleries.map((gallery) => (
+              <a
+                key={gallery.id}
+                href={`/admin/galleries/${gallery.id}`}
+                className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-ink/[0.03]"
+              >
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-paper">
+                    {(() => {
+                      const cover = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0];
 
-                    return cover ? (
-                      <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="56px" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-graphite/50">
-                        <Camera size={18} />
-                      </div>
-                    );
-                  })()}
+                      return cover ? (
+                        <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="56px" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-graphite/50">
+                          <Camera size={18} />
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-ink">{gallery.title}</p>
+                    <p className="truncate text-sm text-graphite/70">/g/{gallery.slug}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-ink">{gallery.title}</p>
-                  <p className="truncate text-sm text-graphite/70">/g/{gallery.slug}</p>
+                <div className="text-right text-sm text-graphite/70">
+                  <p>{gallery._count.photos} fotó</p>
+                  <p>{gallery.isActive ? "Aktív" : "Inaktív"}</p>
                 </div>
-              </div>
-              <div className="text-right text-sm text-graphite/70">
-                <p>{gallery._count.photos} fotó</p>
-                <p>{gallery.isActive ? "Aktív" : "Inaktív"}</p>
-              </div>
-            </a>
-          ))}
-          {latestGalleries.length === 0 ? (
-            <div className="px-5 py-10 text-sm text-graphite/70">Még nincs galéria.</div>
-          ) : null}
-        </div>
-      </section>
+              </a>
+            ))}
+            {latestGalleries.length === 0 ? (
+              <div className="px-5 py-10 text-sm text-graphite/70">Még nincs galéria.</div>
+            ) : null}
+          </div>
+        </section>
+      </div>
     </AdminShell>
   );
 }
