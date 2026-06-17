@@ -26,6 +26,18 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function formDate(formData: FormData, key: string) {
+  const value = formString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(`${value}T12:00:00.000Z`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
 }
@@ -318,6 +330,7 @@ export async function createGalleryAction(formData: FormData) {
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
   const password = formString(formData, "password");
+  const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
 
@@ -333,6 +346,7 @@ export async function createGalleryAction(formData: FormData) {
         title,
         slug,
         password: password || null,
+        eventDate,
         isActive,
         clientAccessToken: createClientAccessToken()
       }
@@ -355,6 +369,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
   const password = formString(formData, "password");
+  const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
 
@@ -378,6 +393,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         title,
         slug,
         password: password || null,
+        eventDate,
         isActive
       }
     });

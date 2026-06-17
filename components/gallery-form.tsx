@@ -1,4 +1,4 @@
-import { Check, Eye, LockKeyhole } from "lucide-react";
+import { CalendarDays, Check, Eye, LockKeyhole } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 import { SlugFields } from "@/components/slug-fields";
@@ -9,9 +9,18 @@ type GalleryFormProps = {
     title: string;
     slug: string;
     password: string | null;
+    eventDate: Date | null;
     isActive: boolean;
   };
 };
+
+function dateInputValue(date: Date | null | undefined) {
+  if (!date) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
+}
 
 export function GalleryForm({ gallery }: GalleryFormProps) {
   const action = gallery
@@ -26,6 +35,20 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
       </div>
 
       <SlugFields defaultTitle={gallery?.title} defaultSlug={gallery?.slug} />
+
+      <label className="space-y-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+          <CalendarDays size={15} />
+          Esküvő dátuma
+        </span>
+        <input
+          name="eventDate"
+          type="date"
+          defaultValue={dateInputValue(gallery?.eventDate)}
+          className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50 md:max-w-xs"
+        />
+        <span className="block text-xs text-graphite/70">Ez jelenik meg a publikus galéria borító szövegében.</span>
+      </label>
 
       <label className="space-y-2">
         <span className="flex items-center gap-2 text-sm font-medium text-graphite">

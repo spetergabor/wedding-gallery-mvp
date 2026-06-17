@@ -8,6 +8,19 @@ import { prisma } from "@/lib/prisma";
 import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { Button } from "@/components/button";
 
+function formatEventDate(date: Date | null) {
+  if (!date) {
+    return "Private Galerie";
+  }
+
+  return new Intl.DateTimeFormat("de-AT", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(date);
+}
+
 export default async function PublicGalleryPage({
   params,
   searchParams
@@ -32,6 +45,7 @@ export default async function PublicGalleryPage({
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId) ??
     visiblePhotos[0] ??
     null;
+  const heroMeta = formatEventDate(gallery.eventDate);
 
   if (!canView) {
     return (
@@ -87,7 +101,7 @@ export default async function PublicGalleryPage({
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-white/80">
               <Camera size={16} />
-              Private Galerie
+              {heroMeta}
             </div>
             <h1 className="mt-5 text-5xl font-semibold text-white sm:text-6xl md:text-7xl">
               {gallery.title}

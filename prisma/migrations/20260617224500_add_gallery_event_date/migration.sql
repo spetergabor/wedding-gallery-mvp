@@ -1,0 +1,1 @@
+ALTER TABLE "Gallery" ADD COLUMN "eventDate" TIMESTAMP(3);

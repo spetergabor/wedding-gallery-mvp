@@ -36,6 +36,7 @@ model Gallery {
   title        String
   slug         String   @unique
   password     String?
+  eventDate    DateTime?
   isActive     Boolean  @default(false)
   coverPhotoId String?
   clientAccessToken String? @unique
