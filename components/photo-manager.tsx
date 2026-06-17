@@ -1,8 +1,9 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUp, Eye, EyeOff, ImageIcon, Star, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, ImageIcon, Star, Trash2 } from "lucide-react";
 import {
   deletePhotoAction,
   movePhotoAction,
+  reorderGalleryPhotosAction,
   restoreClientHiddenPhotoAction,
   setCoverPhotoAction
 } from "@/lib/gallery-actions";
@@ -30,9 +31,19 @@ export function PhotoManager({
 }) {
   return (
     <section>
-      <div className="mb-5">
-        <h2 className="text-xl font-semibold text-ink">Fotók kezelése</h2>
-        <p className="mt-1 text-sm text-graphite/70">Rendezés, borítókép választás és egyedi törlés.</p>
+      <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <h2 className="text-xl font-semibold text-ink">Fotók kezelése</h2>
+          <p className="mt-1 text-sm text-graphite/70">Rendezés, borítókép választás és egyedi törlés.</p>
+        </div>
+        {photos.length > 1 ? (
+          <form action={reorderGalleryPhotosAction.bind(null, galleryId)}>
+            <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5 hover:text-ink">
+              <Clock3 size={15} />
+              Capture time szerint rendezés
+            </button>
+          </form>
+        ) : null}
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {photos.map((photo, index) => (

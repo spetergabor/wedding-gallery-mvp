@@ -140,6 +140,26 @@ async function reorderGalleryPhotosByCaptureTime(galleryId: string) {
   );
 }
 
+export async function reorderGalleryPhotosAction(galleryId: string) {
+  await requireAdmin();
+
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { slug: true }
+  });
+
+  if (!gallery) {
+    redirect("/admin/galleries");
+  }
+
+  await reorderGalleryPhotosByCaptureTime(galleryId);
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/client/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&ordered=1`);
+}
+
 export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
