@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import JSZip from "jszip";
 import { prisma } from "@/lib/prisma";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
+import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
 function galleryCookie(slug: string) {
@@ -508,6 +509,16 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
           title: true
         }
       },
+      items: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          photo: {
+            select: {
+              filename: true
+            }
+          }
+        }
+      },
       _count: {
         select: {
           items: true
@@ -547,6 +558,23 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
       href: `/admin/galleries/${galleryId}`
     }
   });
+
+  try {
+    await sendAdminFavoriteListSubmittedEmail({
+      galleryTitle: list.gallery.title,
+      galleryAdminUrl: adminGalleryUrl(galleryId),
+      clientEmail: normalizedEmail,
+      listName: list.name,
+      filenames: list.items.map((item) => item.photo.filename),
+      submittedAt
+    });
+  } catch (error) {
+    console.error("Admin favorite list email failed", {
+      galleryId,
+      listId: list.id,
+      error
+    });
+  }
 
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/notifications");

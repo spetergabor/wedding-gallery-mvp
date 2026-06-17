@@ -19,6 +19,10 @@ AUTH_SECRET="a-long-random-production-secret"
 STORAGE_DRIVER="local"
 R2_BUCKET_NAME="wedding-gallery"
 NEXT_PUBLIC_R2_PUBLIC_BASE_URL="https://cdn.hochzeitsfotografgraz.at"
+NEXT_PUBLIC_APP_URL="https://gallery.hochzeitsfotografgraz.at"
+RESEND_API_KEY="re_..."
+ADMIN_NOTIFICATION_EMAIL="you@example.com"
+EMAIL_FROM="Wedding Gallery <gallery@hochzeitsfotografgraz.at>"
 ```
 
 ## Vercel setup
