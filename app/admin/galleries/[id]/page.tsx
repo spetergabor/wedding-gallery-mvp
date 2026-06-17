@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { ExternalLink, KeyRound } from "lucide-react";
+import Link from "next/link";
+import { Camera, Download, ExternalLink, Heart, KeyRound, MapPin, Settings } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
@@ -18,6 +19,44 @@ import { requireAdmin } from "@/lib/auth";
 import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 
+type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
+
+const galleryTabs: Array<{
+  key: GalleryTab;
+  label: string;
+  icon: typeof Camera;
+}> = [
+  { key: "photos", label: "Fotók", icon: Camera },
+  { key: "client", label: "Ügyfél válogatás", icon: Heart },
+  { key: "views", label: "Megtekintések", icon: MapPin },
+  { key: "downloads", label: "Letöltések", icon: Download },
+  { key: "settings", label: "Beállítások", icon: Settings }
+];
+
+function getActiveTab(flags: {
+  activated?: string;
+  archived?: string;
+  clientLink?: string;
+  clientRestored?: string;
+  error?: string;
+  saved?: string;
+  tab?: string;
+}): GalleryTab {
+  if (galleryTabs.some((tab) => tab.key === flags.tab)) {
+    return flags.tab as GalleryTab;
+  }
+
+  if (flags.clientLink || flags.clientRestored) {
+    return "client";
+  }
+
+  if (flags.saved || flags.archived || flags.activated || flags.error) {
+    return "settings";
+  }
+
+  return "photos";
+}
+
 export default async function GalleryDetailPage({
   params,
   searchParams
@@ -34,6 +73,7 @@ export default async function GalleryDetailPage({
     photoAdded?: string;
     photoError?: string;
     saved?: string;
+    tab?: string;
   }>;
 }) {
   await requireAdmin();
@@ -105,6 +145,7 @@ export default async function GalleryDetailPage({
     ? [latestView.city, latestView.region, latestView.country].filter(Boolean).join(", ") || "Ismeretlen hely"
     : "Nincs adat";
   const hiddenByClientCount = gallery.photos.filter((photo) => photo.isClientHidden).length;
+  const activeTab = getActiveTab(flags);
 
   return (
     <AdminShell>
@@ -149,7 +190,7 @@ export default async function GalleryDetailPage({
         ) : null}
       </div>
 
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-5">
           <StatCard label="Fotók" value={gallery.photos.length} detail="Feltöltött képek száma" />
           <StatCard label="Megtekintések" value={gallery._count.views} detail={`Legutóbbi: ${latestLocation}`} />
@@ -158,44 +199,82 @@ export default async function GalleryDetailPage({
           <StatCard label="Állapot" value={gallery.isActive ? "Aktív" : "Archivált"} detail="Publikus elérhetőség" />
         </div>
 
-        <GalleryForm gallery={gallery} />
-        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-            <div>
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                <KeyRound size={15} />
-                Ügyfél kezelő
-              </div>
-              <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link a párnak</h2>
-              <p className="mt-1 text-sm text-graphite/70">
-                Ezen a linken a pár elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              {gallery.clientAccessToken ? (
-                <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
-              ) : (
-                <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                  <Button type="submit" variant="secondary">
-                    <KeyRound size={16} />
-                    Ügyfél link generálása
-                  </Button>
-                </form>
-              )}
-            </div>
+        <div className="rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
+          <nav className="grid gap-2 md:grid-cols-5" aria-label="Galéria részletek">
+            {galleryTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
+
+              return (
+                <Link
+                  key={tab.key}
+                  href={`/admin/galleries/${gallery.id}?tab=${tab.key}`}
+                  className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                    isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                  }`}
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {activeTab === "photos" ? (
+          <div className="space-y-8">
+            <PhotoUploadForm galleryId={gallery.id} />
+            <UploadSessionLog sessions={gallery.uploadSessions} />
+            <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
           </div>
-        </section>
-        <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
-        <PhotoUploadForm galleryId={gallery.id} />
-        <UploadSessionLog sessions={gallery.uploadSessions} />
-        <div className="grid items-start gap-6 xl:grid-cols-[1.4fr_1fr]">
-          <ViewLog views={gallery.views} />
-          <div className="space-y-6">
+        ) : null}
+
+        {activeTab === "client" ? (
+          <div className="grid items-start gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center xl:flex-col xl:items-start">
+                <div>
+                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                    <KeyRound size={15} />
+                    Ügyfél kezelő
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link a párnak</h2>
+                  <p className="mt-1 text-sm text-graphite/70">
+                    Ezen a linken a pár elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row xl:w-full xl:flex-col">
+                  {gallery.clientAccessToken ? (
+                    <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+                  ) : (
+                    <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                      <Button type="submit" variant="secondary">
+                        <KeyRound size={16} />
+                        Ügyfél link generálása
+                      </Button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </section>
             <FavoriteListsLog lists={gallery.favoriteLists} />
+          </div>
+        ) : null}
+
+        {activeTab === "views" ? <ViewLog views={gallery.views} /> : null}
+
+        {activeTab === "downloads" ? (
+          <div className="max-w-3xl">
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages} />
           </div>
-        </div>
-        <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
+        ) : null}
+
+        {activeTab === "settings" ? (
+          <div className="space-y-8">
+            <GalleryForm gallery={gallery} />
+            <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
+          </div>
+        ) : null}
       </div>
     </AdminShell>
   );
