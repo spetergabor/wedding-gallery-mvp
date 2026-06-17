@@ -418,8 +418,8 @@ export function PublicGallery({
     <>
       <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {favoriteEmail ? (
-          <div className="col-span-full mb-2 rounded-lg border border-ink/10 bg-white/90 p-3 shadow-soft">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="col-span-full mb-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
+            <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <span className="text-sm font-medium text-graphite">Favoritenliste</span>
                 <select
@@ -428,7 +428,7 @@ export function PublicGallery({
                     setActiveFavoriteListId(event.target.value);
                     setShowFavoritesOnly(false);
                   }}
-                  className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                  className="h-10 min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50 sm:min-w-52"
                 >
                   {favoriteLists.map((list) => (
                     <option key={list.id} value={list.id}>
@@ -437,12 +437,12 @@ export function PublicGallery({
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
                 <input
                   value={newFavoriteListName}
                   onChange={(event) => setNewFavoriteListName(event.target.value)}
                   placeholder="Neue Liste, z. B. Album"
-                  className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                  className="h-10 min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50 sm:w-64"
                 />
                 <Button type="button" variant="secondary" onClick={() => void createNewFavoriteList()}>
                   Liste erstellen

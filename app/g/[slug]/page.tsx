@@ -100,7 +100,7 @@ export default async function PublicGalleryPage({
         </div>
       </header>
 
-      <section className="mx-auto -mt-8 w-full max-w-7xl px-5 pb-28 lg:px-8">
+      <section className="mx-auto mt-8 w-full max-w-7xl px-5 pb-28 lg:px-8">
         {visiblePhotos.length > 0 ? (
           <PublicGallery galleryId={gallery.id} title={gallery.title} photos={visiblePhotos} />
         ) : (
