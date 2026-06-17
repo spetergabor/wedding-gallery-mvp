@@ -97,6 +97,18 @@ export function createGalleryZipObjectKey({
   return `galleries/${gallerySlug}/downloads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${gallerySlug}.zip`;
 }
 
+export function createBrandAssetObjectKey({
+  originalFilename
+}: {
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".png";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "brand";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `brand/${uniqueName}`;
+}
+
 export function getPublicR2Url(r2Key: string) {
   return `${R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${r2Key}`;
 }

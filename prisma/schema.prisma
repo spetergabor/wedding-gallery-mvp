@@ -31,6 +31,22 @@ model AdminNotification {
   @@index([createdAt])
 }
 
+model SiteSettings {
+  id             String   @id @default("default")
+  businessName   String   @default("")
+  logoUrl        String?
+  logoR2Key      String?
+  websiteUrl     String?
+  instagramUrl   String?
+  facebookUrl    String?
+  tiktokUrl      String?
+  youtubeUrl     String?
+  contactEmail   String?
+  contactPhone   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model Gallery {
   id           String   @id @default(cuid())
   title        String
