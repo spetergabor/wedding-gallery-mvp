@@ -18,15 +18,6 @@ type PublicPhoto = {
   thumbnailUrl: string;
 };
 
-const tileAspects = [
-  "aspect-[4/5]",
-  "aspect-[3/4]",
-  "aspect-square",
-  "aspect-[5/4]",
-  "aspect-[4/3]",
-  "aspect-[2/3]"
-];
-
 function galleryFileName(title: string) {
   return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery"}.zip`;
 }
@@ -259,22 +250,21 @@ export function PublicGallery({
         {photos.map((photo, index) => (
           <div
             key={photo.id}
-            className="group block w-full overflow-hidden rounded-lg bg-mist text-left"
+            className="group mb-2 block w-full break-inside-avoid overflow-hidden rounded-lg bg-mist text-left"
           >
-            <span className={`relative block w-full ${tileAspects[index % tileAspects.length]}`}>
+            <span className="relative block w-full">
               <button
                 type="button"
                 title="Kép megnyitása"
                 aria-label={`${photo.filename} megnyitása`}
                 onClick={() => setSelectedIndex(index)}
-                className="absolute inset-0 z-0"
+                className="relative z-0 block w-full text-left"
               >
-                <Image
+                <img
                   src={photo.thumbnailUrl}
                   alt={photo.filename}
-                  fill
-                  className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                  sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  loading="lazy"
+                  className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
                 />
                 <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 transition group-hover:opacity-100">
                   <Maximize2 size={16} />
