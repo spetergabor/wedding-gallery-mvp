@@ -71,6 +71,7 @@ export function PublicGallery({
   const [favoritePromptPhotoId, setFavoritePromptPhotoId] = useState<string | null>(null);
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
   const [columnCount, setColumnCount] = useState(1);
+  const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
 
   const selectedPhoto = useMemo(() => {
     if (selectedIndex === null) {
@@ -216,6 +217,34 @@ export function PublicGallery({
     setEmailError("");
 
     await createZipDownload();
+  }
+
+  async function downloadSinglePhoto(photo: PublicPhoto) {
+    if (downloadingPhotoId) {
+      return;
+    }
+
+    setDownloadingPhotoId(photo.id);
+
+    try {
+      const response = await fetch(photo.imageUrl, { cache: "no-store" });
+
+      if (!response.ok) {
+        throw new Error("Das Foto konnte nicht heruntergeladen werden.");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = photoFileName(photo, selectedIndex ?? 0);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      setDownloadingPhotoId(null);
+    }
   }
 
   async function toggleFavorite(photoId: string, emailOverride?: string) {
@@ -486,14 +515,15 @@ export function PublicGallery({
                 <Heart size={16} fill={favoriteIds.has(selectedPhoto.id) ? "currentColor" : "none"} />
                 Favorit
               </button>
-              <a
-                href={selectedPhoto.imageUrl}
-                download={selectedPhoto.filename}
-                className="flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink"
+              <button
+                type="button"
+                onClick={() => void downloadSinglePhoto(selectedPhoto)}
+                disabled={downloadingPhotoId === selectedPhoto.id}
+                className="flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink disabled:opacity-60"
               >
                 <Download size={16} />
-                Herunterladen
-              </a>
+                {downloadingPhotoId === selectedPhoto.id ? "Lädt..." : "Herunterladen"}
+              </button>
               <button
                 title="Schließen"
                 onClick={() => setSelectedIndex(null)}
