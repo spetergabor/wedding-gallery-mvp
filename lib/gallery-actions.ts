@@ -103,6 +103,43 @@ async function refreshUploadSessionCounts(sessionId: string) {
   });
 }
 
+async function reorderGalleryPhotosByCaptureTime(galleryId: string) {
+  const photos = await prisma.photo.findMany({
+    where: { galleryId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      capturedAt: true,
+      createdAt: true,
+      sortOrder: true
+    }
+  });
+
+  const reordered = photos.sort((a, b) => {
+    const aTime = a.capturedAt?.getTime() ?? Number.POSITIVE_INFINITY;
+    const bTime = b.capturedAt?.getTime() ?? Number.POSITIVE_INFINITY;
+
+    if (aTime !== bTime) {
+      return aTime - bTime;
+    }
+
+    if (a.createdAt.getTime() !== b.createdAt.getTime()) {
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    }
+
+    return a.sortOrder - b.sortOrder;
+  });
+
+  await prisma.$transaction(
+    reordered.map((photo, index) =>
+      prisma.photo.update({
+        where: { id: photo.id },
+        data: { sortOrder: index + 1 }
+      })
+    )
+  );
+}
+
 export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
@@ -472,6 +509,8 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
     data: createdPhotos
   });
 
+  await reorderGalleryPhotosByCaptureTime(galleryId);
+
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);
   redirect(`/admin/galleries/${galleryId}?photoAdded=1`);
@@ -789,6 +828,8 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
         }
       })
     ]);
+
+    await reorderGalleryPhotosByCaptureTime(galleryId);
   }
 
   revalidatePath(`/admin/galleries/${galleryId}`);
