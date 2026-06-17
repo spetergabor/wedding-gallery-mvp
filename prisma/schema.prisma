@@ -74,6 +74,7 @@ model Photo {
   imageUrl     String
   thumbnailUrl String
   previewUrl   String   @default("")
+  mediaType    String   @default("image")
   fileSize     Int      @default(0)
   imageWidth   Int      @default(0)
   imageHeight  Int      @default(0)
@@ -216,6 +217,7 @@ model GalleryUploadItem {
   imageUrl      String?
   thumbnailUrl  String?
   previewUrl    String?
+  mediaType     String   @default("image")
   fileSize      Int      @default(0)
   imageWidth    Int      @default(0)
   imageHeight   Int      @default(0)

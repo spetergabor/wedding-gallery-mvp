@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, ImageIcon, Star, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, Film, ImageIcon, Star, Trash2 } from "lucide-react";
 import {
   deletePhotoAction,
   movePhotoAction,
@@ -15,6 +15,7 @@ type Photo = {
   filename: string;
   imageUrl: string;
   thumbnailUrl: string;
+  mediaType: string;
   sortOrder: number;
   isClientHidden: boolean;
   clientHiddenAt: Date | null;
@@ -49,13 +50,25 @@ export function PhotoManager({
         {photos.map((photo, index) => (
           <div key={photo.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white">
             <div className="relative aspect-[4/3] bg-mist">
-              <Image
-                src={photo.thumbnailUrl}
-                alt={photo.filename}
-                fill
-                className="object-cover"
-                sizes="(min-width: 1024px) 33vw, 50vw"
-              />
+              {photo.mediaType === "video" ? (
+                <div className="relative h-full w-full bg-ink">
+                  <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
+                  <span className="absolute inset-0 grid place-items-center text-white">
+                    <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
+                      <Film size={16} />
+                      Videó
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <Image
+                  src={photo.thumbnailUrl}
+                  alt={photo.filename}
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 33vw, 50vw"
+                />
+              )}
               {coverPhotoId === photo.id ? (
                 <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink">
                   <Star size={13} />

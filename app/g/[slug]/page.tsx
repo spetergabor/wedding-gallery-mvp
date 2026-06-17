@@ -48,8 +48,8 @@ export default async function PublicGalleryPage({
   const canView = await canViewGallery(slug, gallery.password);
   const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden);
   const coverPhoto =
-    visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId) ??
-    visiblePhotos[0] ??
+    visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
+    visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
   const heroMeta = formatEventDate(gallery.eventDate);
 
@@ -127,7 +127,7 @@ export default async function PublicGalleryPage({
             </h1>
             <p className="font-playfair mt-4 text-xl text-ink/75 md:text-2xl">{heroMeta}</p>
             <p className="mt-3 text-sm font-medium uppercase tracking-[0.24em] text-graphite/70">
-              {visiblePhotos.length} Fotos
+              {visiblePhotos.length} Medien
             </p>
             <div className="mt-7 flex justify-center">
               <SocialShareButtons path={`/g/${gallery.slug}`} title={gallery.title} variant="card" />

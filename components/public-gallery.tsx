@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, Play, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
   createFavoriteListAction,
@@ -19,6 +19,7 @@ type PublicPhoto = {
   imageUrl: string;
   thumbnailUrl: string;
   previewUrl: string;
+  mediaType: string;
   imageWidth: number;
   imageHeight: number;
 };
@@ -42,7 +43,11 @@ function photoFileName(photo: PublicPhoto, index: number) {
 }
 
 function hasImageDimensions(photo: PublicPhoto) {
-  return photo.imageWidth > 0 && photo.imageHeight > 0;
+  return photo.mediaType !== "video" && photo.imageWidth > 0 && photo.imageHeight > 0;
+}
+
+function isVideo(photo: PublicPhoto) {
+  return photo.mediaType === "video";
 }
 
 function getColumnCount(width: number) {
@@ -123,7 +128,7 @@ export function PublicGallery({
       const shortestColumnIndex = columnHeights.reduce((shortestIndex, height, currentIndex) => {
         return height < columnHeights[shortestIndex] ? currentIndex : shortestIndex;
       }, 0);
-      const estimatedRatio = hasImageDimensions(photo) ? photo.imageHeight / photo.imageWidth : 1;
+      const estimatedRatio = isVideo(photo) ? 9 / 16 : hasImageDimensions(photo) ? photo.imageHeight / photo.imageWidth : 1;
 
       columns[shortestColumnIndex].push({ photo, index });
       columnHeights[shortestColumnIndex] += estimatedRatio;
@@ -658,7 +663,22 @@ export function PublicGallery({
                     onClick={() => setSelectedIndex(index)}
                     className="relative z-0 block w-full text-left"
                   >
-                    {hasImageDimensions(photo) ? (
+                    {isVideo(photo) ? (
+                      <span className="relative block aspect-video w-full overflow-hidden bg-ink">
+                        <video
+                          src={photo.imageUrl}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          className="h-full w-full object-cover opacity-90 transition duration-500 ease-out group-hover:scale-[1.025]"
+                        />
+                        <span className="absolute inset-0 grid place-items-center bg-ink/20 text-white">
+                          <span className="grid size-14 place-items-center rounded-full bg-white/90 text-ink shadow-soft">
+                            <Play size={22} fill="currentColor" />
+                          </span>
+                        </span>
+                      </span>
+                    ) : hasImageDimensions(photo) ? (
                       <Image
                         src={photo.thumbnailUrl}
                         alt={photo.filename}
@@ -706,7 +726,7 @@ export function PublicGallery({
       <div className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-ink/10 bg-white/90 px-3 py-3 shadow-soft backdrop-blur">
         <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
           <Images size={16} />
-          {showFavoritesOnly ? `${visiblePhotos.length}/${photos.length} Fotos` : `${photos.length} Fotos`}
+          {showFavoritesOnly ? `${visiblePhotos.length}/${photos.length} Medien` : `${photos.length} Medien`}
         </span>
         <button
           type="button"
@@ -901,14 +921,24 @@ export function PublicGallery({
           ) : null}
 
           <div className="relative h-[calc(100vh-6rem)] w-full">
-            <Image
-              src={selectedPhoto.previewUrl || selectedPhoto.imageUrl}
-              alt={selectedPhoto.filename}
-              fill
-              className="object-contain"
-              sizes="100vw"
-              priority
-            />
+            {isVideo(selectedPhoto) ? (
+              <video
+                src={selectedPhoto.imageUrl}
+                controls
+                autoPlay
+                playsInline
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <Image
+                src={selectedPhoto.previewUrl || selectedPhoto.imageUrl}
+                alt={selectedPhoto.filename}
+                fill
+                className="object-contain"
+                sizes="100vw"
+                priority
+              />
+            )}
           </div>
           {visiblePhotos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{visiblePhotos.length}</p> : null}
         </div>

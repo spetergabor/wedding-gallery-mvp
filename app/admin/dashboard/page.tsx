@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Camera } from "lucide-react";
+import { Bell, Camera, Film } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { StatCard } from "@/components/stat-card";
@@ -50,7 +50,7 @@ export default async function AdminDashboardPage() {
         _count: { select: { photos: true } },
         photos: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          select: { id: true, thumbnailUrl: true, filename: true }
+          select: { id: true, imageUrl: true, thumbnailUrl: true, filename: true, mediaType: true }
         }
       }
     }),
@@ -79,8 +79,8 @@ export default async function AdminDashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Galériák" value={galleryCount} detail="Összes létrehozott galéria" />
         <StatCard label="Aktív" value={activeCount} detail="Publikusan elérhető galériák" />
-        <StatCard label="Fotók" value={photoCount} detail="Adatbázisban rögzített képek" />
-        <StatCard label="R2 tárhely" value={formatStorageSize(totalStorageBytes)} detail="Feltöltött képek összmérete" />
+        <StatCard label="Médiák" value={photoCount} detail="Adatbázisban rögzített képek és videók" />
+        <StatCard label="R2 tárhely" value={formatStorageSize(totalStorageBytes)} detail="Feltöltött médiák összmérete" />
         <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
       </div>
 
@@ -137,7 +137,13 @@ export default async function AdminDashboardPage() {
                       const cover = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0];
 
                       return cover ? (
-                        <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="56px" />
+                        cover.mediaType === "video" ? (
+                          <div className="grid h-full place-items-center bg-ink text-white">
+                            <Film size={18} />
+                          </div>
+                        ) : (
+                          <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="56px" />
+                        )
                       ) : (
                         <div className="flex h-full items-center justify-center text-graphite/50">
                           <Camera size={18} />
@@ -151,7 +157,7 @@ export default async function AdminDashboardPage() {
                   </div>
                 </div>
                 <div className="text-right text-sm text-graphite/70">
-                  <p>{gallery._count.photos} fotó</p>
+                  <p>{gallery._count.photos} média</p>
                   <p>{gallery.isActive ? "Aktív" : "Inaktív"}</p>
                 </div>
               </a>

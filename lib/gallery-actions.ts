@@ -46,6 +46,7 @@ type PhotoUploadRequest = {
   clientId: string;
   filename: string;
   contentType?: string;
+  mediaType?: "image" | "video";
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -61,6 +62,7 @@ type CompletedPhotoUpload = {
   imageUrl: string;
   thumbnailUrl: string;
   previewUrl?: string;
+  mediaType?: "image" | "video";
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -121,6 +123,7 @@ async function reorderGalleryPhotosByCaptureTime(galleryId: string) {
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
+      mediaType: true,
       capturedAt: true,
       createdAt: true,
       sortOrder: true
@@ -128,6 +131,10 @@ async function reorderGalleryPhotosByCaptureTime(galleryId: string) {
   });
 
   const reordered = photos.sort((a, b) => {
+    if (a.mediaType !== b.mediaType) {
+      return a.mediaType === "video" ? -1 : 1;
+    }
+
     const aTime = a.capturedAt?.getTime() ?? Number.POSITIVE_INFINITY;
     const bTime = b.capturedAt?.getTime() ?? Number.POSITIVE_INFINITY;
 
@@ -631,23 +638,30 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
   try {
     const uploads = await Promise.all(
       validFiles.map(async (file) => {
+        const mediaType = file.mediaType === "video" || file.contentType?.startsWith("video/") ? "video" : "image";
         const r2Key = createPhotoObjectKey({
           gallerySlug: session.gallery.slug,
           originalFilename: file.filename
         });
-        const thumbnailR2Key = createPhotoVariantObjectKey({
-          gallerySlug: session.gallery.slug,
-          originalFilename: file.filename,
-          variant: "thumbnail"
-        });
-        const previewR2Key = createPhotoVariantObjectKey({
-          gallerySlug: session.gallery.slug,
-          originalFilename: file.filename,
-          variant: "preview"
-        });
+        const thumbnailR2Key =
+          mediaType === "image"
+            ? createPhotoVariantObjectKey({
+                gallerySlug: session.gallery.slug,
+                originalFilename: file.filename,
+                variant: "thumbnail"
+              })
+            : null;
+        const previewR2Key =
+          mediaType === "image"
+            ? createPhotoVariantObjectKey({
+                gallerySlug: session.gallery.slug,
+                originalFilename: file.filename,
+                variant: "preview"
+              })
+            : null;
         const publicUrl = getPhotoPublicUrl(r2Key);
-        const thumbnailUrl = getPhotoPublicUrl(thumbnailR2Key);
-        const previewUrl = getPhotoPublicUrl(previewR2Key);
+        const thumbnailUrl = thumbnailR2Key ? getPhotoPublicUrl(thumbnailR2Key) : publicUrl;
+        const previewUrl = previewR2Key ? getPhotoPublicUrl(previewR2Key) : publicUrl;
         const uploadItem = await prisma.galleryUploadItem.upsert({
           where: {
             sessionId_clientId: {
@@ -663,6 +677,7 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             imageUrl: publicUrl,
             thumbnailUrl,
             previewUrl,
+            mediaType,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
             imageHeight: file.imageHeight ?? 0,
@@ -679,6 +694,7 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             imageUrl: publicUrl,
             thumbnailUrl,
             previewUrl,
+            mediaType,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
             imageHeight: file.imageHeight ?? 0,
@@ -702,18 +718,23 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
           imageUrl: publicUrl,
           thumbnailUrl,
           previewUrl,
+          mediaType,
           uploadUrl: await createPresignedPhotoUploadUrl({
             r2Key,
             contentType: file.contentType
           }),
-          thumbnailUploadUrl: await createPresignedPhotoUploadUrl({
-            r2Key: thumbnailR2Key,
-            contentType: "image/jpeg"
-          }),
-          previewUploadUrl: await createPresignedPhotoUploadUrl({
-            r2Key: previewR2Key,
-            contentType: "image/jpeg"
-          })
+          thumbnailUploadUrl: thumbnailR2Key
+            ? await createPresignedPhotoUploadUrl({
+                r2Key: thumbnailR2Key,
+                contentType: "image/jpeg"
+              })
+            : null,
+          previewUploadUrl: previewR2Key
+            ? await createPresignedPhotoUploadUrl({
+                r2Key: previewR2Key,
+                contentType: "image/jpeg"
+              })
+            : null
         };
       })
     );
@@ -824,6 +845,13 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
   );
 
   const sortedUploads = validUploads.filter((upload) => upload.uploadItemId && completableItemIds.has(upload.uploadItemId)).sort((a, b) => {
+    const aType = a.mediaType === "video" ? "video" : "image";
+    const bType = b.mediaType === "video" ? "video" : "image";
+
+    if (aType !== bType) {
+      return aType === "video" ? -1 : 1;
+    }
+
     const aTime = a.capturedAt ? Date.parse(a.capturedAt) : Number.POSITIVE_INFINITY;
     const bTime = b.capturedAt ? Date.parse(b.capturedAt) : Number.POSITIVE_INFINITY;
 
@@ -844,6 +872,7 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
           imageUrl: upload.imageUrl,
           thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
           previewUrl: upload.previewUrl || upload.imageUrl,
+          mediaType: upload.mediaType === "video" ? "video" : "image",
           fileSize: upload.fileSize ?? 0,
           imageWidth: upload.imageWidth ?? 0,
           imageHeight: upload.imageHeight ?? 0,

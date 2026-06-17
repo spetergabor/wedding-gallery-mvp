@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Camera, ExternalLink, Plus } from "lucide-react";
+import { Camera, ExternalLink, Film, Plus } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -21,7 +21,7 @@ export default async function AdminGalleriesPage({
       _count: { select: { photos: true } },
       photos: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { id: true, thumbnailUrl: true, filename: true }
+        select: { id: true, imageUrl: true, thumbnailUrl: true, filename: true, mediaType: true }
       }
     }
   });
@@ -65,7 +65,13 @@ export default async function AdminGalleriesPage({
                     const cover = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0];
 
                     return cover ? (
-                      <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="96px" />
+                      cover.mediaType === "video" ? (
+                        <div className="grid h-full place-items-center bg-ink text-white">
+                          <Film size={20} />
+                        </div>
+                      ) : (
+                        <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="96px" />
+                      )
                     ) : (
                       <div className="flex h-full items-center justify-center text-graphite/50">
                         <Camera size={20} />
@@ -75,7 +81,7 @@ export default async function AdminGalleriesPage({
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-ink">{gallery.title}</p>
-                  <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} fotó</p>
+                  <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
                 </div>
               </a>
               <div className="flex items-center gap-3">

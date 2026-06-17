@@ -20,8 +20,9 @@ type PreparedUpload = {
   thumbnailUrl: string;
   previewUrl: string;
   uploadUrl: string;
-  thumbnailUploadUrl: string;
-  previewUploadUrl: string;
+  thumbnailUploadUrl: string | null;
+  previewUploadUrl: string | null;
+  mediaType: "image" | "video";
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -37,6 +38,7 @@ type SelectedPhotoFile = {
   capturedAt: string | null;
   imageWidth: number;
   imageHeight: number;
+  mediaType: "image" | "video";
   originalIndex: number;
   status: PhotoUploadStatus;
   errorMessage: string | null;
@@ -63,10 +65,10 @@ function uploadStatusLabel({
   }
 
   if (failedCount > 0) {
-    return `${completedCount}/${totalCount} kép mentve, ${failedCount} hibás`;
+      return `${completedCount}/${totalCount} média mentve, ${failedCount} hibás`;
   }
 
-  return `${completedCount}/${totalCount} kép mentve`;
+  return `${completedCount}/${totalCount} média mentve`;
 }
 
 function chunkArray<T>(items: T[], size: number) {
@@ -238,21 +240,50 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     }
   }
 
+  async function readVideoMetadata(file: File) {
+    return new Promise<{ imageWidth: number; imageHeight: number }>((resolve) => {
+      const video = document.createElement("video");
+      const objectUrl = URL.createObjectURL(file);
+
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve({
+          imageWidth: video.videoWidth || 0,
+          imageHeight: video.videoHeight || 0
+        });
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve({ imageWidth: 0, imageHeight: 0 });
+      };
+      video.src = objectUrl;
+    });
+  }
+
   async function setFiles(files: File[]) {
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const mediaFiles = files.filter((file) => file.type.startsWith("image/") || file.type.startsWith("video/"));
 
     setIsReadingExif(true);
     setUploadError("");
     setUploadSessionId(null);
 
     const enrichedFiles = await Promise.all(
-      imageFiles.map(async (file, index) => {
-        const metadata = await readPhotoMetadata(file);
+      mediaFiles.map(async (file, index) => {
+        const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
+        const metadata =
+          mediaType === "video"
+            ? {
+                capturedAt: null,
+                ...(await readVideoMetadata(file))
+              }
+            : await readPhotoMetadata(file);
 
         return {
           clientId: `${index}-${file.name}-${file.size}-${file.lastModified}`,
           file,
           ...metadata,
+          mediaType,
           originalIndex: index,
           status: "queued" as PhotoUploadStatus,
           errorMessage: null,
@@ -262,6 +293,10 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     );
 
     enrichedFiles.sort((a, b) => {
+      if (a.mediaType !== b.mediaType) {
+        return a.mediaType === "video" ? -1 : 1;
+      }
+
       const aTime = a.capturedAt ? Date.parse(a.capturedAt) : Number.POSITIVE_INFINITY;
       const bTime = b.capturedAt ? Date.parse(b.capturedAt) : Number.POSITIVE_INFINITY;
 
@@ -278,7 +313,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
 
   function captureDateLabel(value: string | null) {
     if (!value) {
-      return "Nincs EXIF idő";
+      return "Nincs capture time";
     }
 
     return new Date(value).toLocaleString("hu-HU", {
@@ -371,6 +406,16 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
   }
 
   async function uploadFile(file: File, target: PreparedUpload) {
+    if (target.mediaType === "video") {
+      await uploadBlob({
+        body: file,
+        uploadUrl: target.uploadUrl,
+        filename: file.name,
+        contentType: file.type || "application/octet-stream"
+      });
+      return;
+    }
+
     const [thumbnailBlob, previewBlob] = await Promise.all([
       createResizedJpeg(file, THUMBNAIL_MAX_SIZE, 0.82),
       createResizedJpeg(file, PREVIEW_MAX_SIZE, 0.88)
@@ -385,13 +430,13 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       }),
       uploadBlob({
         body: thumbnailBlob,
-        uploadUrl: target.thumbnailUploadUrl,
+        uploadUrl: target.thumbnailUploadUrl ?? target.uploadUrl,
         filename: `${file.name} thumbnail`,
         contentType: "image/jpeg"
       }),
       uploadBlob({
         body: previewBlob,
-        uploadUrl: target.previewUploadUrl,
+        uploadUrl: target.previewUploadUrl ?? target.uploadUrl,
         filename: `${file.name} preview`,
         contentType: "image/jpeg"
       })
@@ -411,6 +456,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         fileSize: file.file.size,
         imageWidth: file.imageWidth,
         imageHeight: file.imageHeight,
+        mediaType: file.mediaType,
         capturedAt: file.capturedAt,
         originalIndex: file.originalIndex
       }))
@@ -431,7 +477,13 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         nextIndex += 1;
 
         const selectedFile = batch[index];
-        const target = uploadTargets[index];
+        const rawTarget = uploadTargets[index];
+        const target = rawTarget
+          ? {
+              ...rawTarget,
+              mediaType: rawTarget.mediaType === "video" ? "video" : "image"
+            } satisfies PreparedUpload
+          : null;
 
         if (!target) {
           throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
@@ -453,6 +505,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             fileSize: selectedFile.file.size,
             imageWidth: selectedFile.imageWidth,
             imageHeight: selectedFile.imageHeight,
+            mediaType: selectedFile.mediaType,
             capturedAt: selectedFile.capturedAt,
             originalIndex: selectedFile.originalIndex
           });
@@ -532,7 +585,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       if (failedUploads === 0) {
         window.location.href = `/admin/galleries/${galleryId}?photoAdded=1`;
       } else {
-        setUploadError(`${failedUploads} kép feltöltése hibára futott. Csak a hibás képeket újra tudod próbálni.`);
+        setUploadError(`${failedUploads} média feltöltése hibára futott. Csak a hibás elemeket újra tudod próbálni.`);
       }
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
@@ -565,7 +618,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             ref={inputRef}
             name="photos"
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             multiple
             required
             disabled={isUploading || isReadingExif}
@@ -575,9 +628,9 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
           <div className="flex size-14 items-center justify-center rounded-md bg-white text-ink shadow-soft">
             <ImagePlus size={24} />
           </div>
-          <h2 className="mt-5 text-2xl font-semibold text-ink">Fotók feltöltése</h2>
+          <h2 className="mt-5 text-2xl font-semibold text-ink">Fotók és videók feltöltése</h2>
           <p className="mt-2 max-w-md text-sm text-graphite/70">
-            Húzd ide a képeket, vagy kattints a fájlok kiválasztásához. A sorrend EXIF capture time alapján készül.
+            Húzd ide a képeket és videókat, vagy kattints a fájlok kiválasztásához. A videók a galéria elejére kerülnek.
           </p>
           <span className="mt-5 inline-flex h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white">
             Fájlok kiválasztása
@@ -586,13 +639,13 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
 
         <div className="flex flex-col justify-between rounded-lg border border-ink/10 bg-paper p-5">
           <div>
-            <p className="text-sm font-medium text-graphite">Kiválasztott képek</p>
+            <p className="text-sm font-medium text-graphite">Kiválasztott médiák</p>
             <p className="mt-2 text-3xl font-semibold text-ink">{selectedFiles.length}</p>
             <p className="mt-1 text-sm text-graphite/70">
               {isReadingExif
                 ? "EXIF adatok olvasása..."
                 : selectedFiles.length > 0
-                  ? "A lista már capture time szerint rendezve látszik."
+                  ? "A lista videókkal elöl, majd capture time szerint rendezve látszik."
                   : "Még nincs kiválasztott fájl."}
             </p>
 
@@ -603,7 +656,9 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate">{item.file.name}</p>
-                        <p className="mt-0.5 text-xs text-graphite/60">{captureDateLabel(item.capturedAt)}</p>
+                        <p className="mt-0.5 text-xs text-graphite/60">
+                          {item.mediaType === "video" ? "Videó" : captureDateLabel(item.capturedAt)}
+                        </p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${statusClass(item.status)}`}>
                         {statusLabel(item.status)}
@@ -613,7 +668,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
                   </div>
                 ))}
                 {previewFiles.length > 10 ? (
-                  <p className="text-xs text-graphite/70">+{previewFiles.length - 10} további kép</p>
+                  <p className="text-xs text-graphite/70">+{previewFiles.length - 10} további média</p>
                 ) : null}
               </div>
             ) : null}
@@ -627,8 +682,8 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
                 : failedCount > 0
                   ? "Feltöltés folytatása"
                   : selectedFiles.length > 0
-                    ? `${selectedFiles.length} kép feltöltése`
-                    : "Fotók feltöltése"}
+                    ? `${selectedFiles.length} média feltöltése`
+                    : "Médiák feltöltése"}
             </Button>
             {failedCount > 0 && !isUploading ? (
               <Button type="button" variant="secondary" onClick={() => void retryFailedUploads()} className="w-full">
@@ -665,8 +720,8 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             {activeCount > 0
               ? `Aktív fájlok: ${activeCount}. Az oldal maradjon nyitva, amíg minden kép fel nem töltődik.`
               : failedCount > 0
-                ? "A hibás képek listája fent látszik, ezeket külön újra tudod próbálni."
-                : "Minden kiválasztott kép mentve lett."}
+                ? "A hibás elemek listája fent látszik, ezeket külön újra tudod próbálni."
+                : "Minden kiválasztott média mentve lett."}
           </p>
         </div>
       ) : null}

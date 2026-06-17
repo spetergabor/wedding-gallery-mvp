@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Check, Copy, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { Check, Copy, ExternalLink, Eye, EyeOff, Film } from "lucide-react";
 import { Button } from "@/components/button";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { toggleClientPhotoVisibilityAction } from "@/lib/client-gallery-actions";
@@ -12,6 +12,7 @@ type ClientPhoto = {
   filename: string;
   imageUrl: string;
   thumbnailUrl: string;
+  mediaType: string;
   isClientHidden: boolean;
 };
 
@@ -117,13 +118,25 @@ export function ClientGalleryReview({
           return (
             <article key={photo.id} className={`overflow-hidden rounded-lg border bg-white shadow-soft ${isHidden ? "border-brass/40" : "border-ink/10"}`}>
               <div className="relative aspect-[4/3] bg-mist">
-                <Image
-                  src={photo.thumbnailUrl}
-                  alt={photo.filename}
-                  fill
-                  className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
-                  sizes="(min-width: 1024px) 33vw, 50vw"
-                />
+                {photo.mediaType === "video" ? (
+                  <div className={`relative h-full w-full bg-ink transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
+                    <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
+                    <span className="absolute inset-0 grid place-items-center text-white">
+                      <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
+                        <Film size={16} />
+                        Videó
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <Image
+                    src={photo.thumbnailUrl}
+                    alt={photo.filename}
+                    fill
+                    className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
+                    sizes="(min-width: 1024px) 33vw, 50vw"
+                  />
+                )}
                 {isHidden ? (
                   <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">
                     <EyeOff size={13} />
