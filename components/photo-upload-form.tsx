@@ -26,6 +26,10 @@ type SelectedPhotoFile = {
   originalIndex: number;
 };
 
+const UPLOAD_BATCH_SIZE = 25;
+const UPLOAD_CONCURRENCY = 3;
+const MAX_UPLOAD_ATTEMPTS = 3;
+
 function uploadStatusLabel({
   uploadedCount,
   totalCount
@@ -38,6 +42,22 @@ function uploadStatusLabel({
   }
 
   return `${uploadedCount}/${totalCount} kép feltöltve`;
+}
+
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
 }
 
 export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
@@ -143,16 +163,83 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
   }
 
   async function uploadFile(file: File, target: PreparedUpload) {
-    const response = await fetch(target.uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type || "application/octet-stream"
-      },
-      body: file
-    });
+    let lastError: unknown = null;
 
-    if (!response.ok) {
-      throw new Error(`${file.name} feltöltése nem sikerült.`);
+    for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await fetch(target.uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream"
+          },
+          body: file
+        });
+
+        if (response.ok) {
+          return;
+        }
+
+        lastError = new Error(`${file.name} feltöltése nem sikerült. (${response.status})`);
+      } catch (error) {
+        lastError = error;
+      }
+
+      if (attempt < MAX_UPLOAD_ATTEMPTS) {
+        await wait(800 * attempt);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(`${file.name} feltöltése nem sikerült.`);
+  }
+
+  async function uploadBatch(batch: SelectedPhotoFile[]) {
+    const targetResult = await createPhotoUploadTargetsAction(
+      galleryId,
+      batch.map((file) => ({
+        filename: file.file.name,
+        contentType: file.file.type
+      }))
+    );
+
+    if (!targetResult.ok) {
+      throw new Error(targetResult.message);
+    }
+
+    const uploadTargets = targetResult.uploads ?? [];
+    const completedUploads: PreparedUpload[] = new Array(batch.length);
+    let nextIndex = 0;
+
+    async function worker() {
+      while (nextIndex < batch.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+
+        const selectedFile = batch[index];
+        const target = uploadTargets[index];
+
+        if (!target) {
+          throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
+        }
+
+        await uploadFile(selectedFile.file, target);
+        completedUploads[index] = {
+          ...target,
+          fileSize: selectedFile.file.size,
+          capturedAt: selectedFile.capturedAt,
+          originalIndex: selectedFile.originalIndex
+        };
+        setUploadedCount((current) => current + 1);
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(UPLOAD_CONCURRENCY, batch.length) }, () => worker())
+    );
+
+    const completeResult = await completePhotoUploadsAction(galleryId, completedUploads);
+
+    if (!completeResult.ok) {
+      throw new Error(completeResult.message);
     }
   }
 
@@ -168,45 +255,11 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     setUploadError("");
 
     try {
-      const targetResult = await createPhotoUploadTargetsAction(
-        galleryId,
-        selectedFiles.map((file) => ({
-          filename: file.file.name,
-          contentType: file.file.type
-        }))
-      );
-
-      if (!targetResult.ok) {
-        throw new Error(targetResult.message);
+      for (const batch of chunkArray(selectedFiles, UPLOAD_BATCH_SIZE)) {
+        await uploadBatch(batch);
       }
 
-      const uploadTargets = targetResult.uploads ?? [];
-      const completedUploads: PreparedUpload[] = [];
-
-      for (const [index, selectedFile] of selectedFiles.entries()) {
-        const target = uploadTargets[index];
-
-        if (!target) {
-          throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
-        }
-
-        await uploadFile(selectedFile.file, target);
-        completedUploads.push({
-          ...target,
-          fileSize: selectedFile.file.size,
-          capturedAt: selectedFile.capturedAt,
-          originalIndex: selectedFile.originalIndex
-        });
-        setUploadedCount((current) => current + 1);
-      }
-
-      const completeResult = await completePhotoUploadsAction(galleryId, completedUploads);
-
-      if (!completeResult.ok) {
-        throw new Error(completeResult.message);
-      }
-
-      window.location.href = completeResult.redirectTo ?? `/admin/galleries/${galleryId}?photoAdded=1`;
+      window.location.href = `/admin/galleries/${galleryId}?photoAdded=1`;
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
       setIsUploading(false);
