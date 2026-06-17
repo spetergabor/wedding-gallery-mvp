@@ -115,12 +115,21 @@ export function PublicGallery({
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
   const photoColumns = useMemo(() => {
-    return visiblePhotos.reduce<Array<Array<{ photo: PublicPhoto; index: number }>>>((columns, photo, index) => {
-      const columnIndex = index % columnCount;
-      columns[columnIndex]?.push({ photo, index });
+    const safeColumnCount = Math.max(1, columnCount);
+    const columns = Array.from({ length: safeColumnCount }, () => [] as Array<{ photo: PublicPhoto; index: number }>);
+    const columnHeights = Array.from({ length: safeColumnCount }, () => 0);
 
-      return columns;
-    }, Array.from({ length: columnCount }, () => []));
+    visiblePhotos.forEach((photo, index) => {
+      const shortestColumnIndex = columnHeights.reduce((shortestIndex, height, currentIndex) => {
+        return height < columnHeights[shortestIndex] ? currentIndex : shortestIndex;
+      }, 0);
+      const estimatedRatio = hasImageDimensions(photo) ? photo.imageHeight / photo.imageWidth : 1;
+
+      columns[shortestColumnIndex].push({ photo, index });
+      columnHeights[shortestColumnIndex] += estimatedRatio;
+    });
+
+    return columns;
   }, [columnCount, visiblePhotos]);
 
   useEffect(() => {
