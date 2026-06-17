@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { Camera, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
 import { PublicGallery } from "@/components/public-gallery";
 import { SocialShareButtons } from "@/components/social-share-buttons";
@@ -30,10 +30,16 @@ export default async function PublicGalleryPage({
 }) {
   const { slug } = await params;
   const flags = await searchParams;
-  const gallery = await prisma.gallery.findUnique({
-    where: { slug },
-    include: { photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } }
-  });
+  const [gallery, settings] = await Promise.all([
+    prisma.gallery.findUnique({
+      where: { slug },
+      include: { photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } }
+    }),
+    prisma.siteSettings.findUnique({
+      where: { id: "default" },
+      select: { businessName: true, logoUrl: true }
+    })
+  ]);
 
   if (!gallery || !gallery.isActive) {
     notFound();
@@ -81,40 +87,56 @@ export default async function PublicGalleryPage({
   return (
     <main className="min-h-screen bg-paper">
       <GalleryViewTracker galleryId={gallery.id} />
-      <header className="relative min-h-[72vh] overflow-hidden bg-ink text-white">
-        {coverPhoto ? (
-          <Image
-            src={coverPhoto.previewUrl || coverPhoto.imageUrl}
-            alt={gallery.title}
-            fill
-            priority
-            quality={100}
-            unoptimized
-            className="object-cover"
-            sizes="100vw"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-graphite" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-b from-ink/35 via-ink/20 to-ink/70" />
-        <div className="relative mx-auto flex min-h-[72vh] w-full max-w-7xl flex-col justify-end px-5 pb-14 pt-24 lg:px-8">
-          <div className="max-w-3xl">
-            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-white/80">
-              <Camera size={16} />
-              {heroMeta}
-            </div>
-            <h1 className="mt-5 text-5xl font-semibold text-white sm:text-6xl md:text-7xl">
+      <header className="relative min-h-[92vh] overflow-hidden bg-paper text-ink">
+        <div className="absolute inset-x-0 top-0 h-[74vh] overflow-hidden bg-ink">
+          {coverPhoto ? (
+            <Image
+              src={coverPhoto.previewUrl || coverPhoto.imageUrl}
+              alt={gallery.title}
+              fill
+              priority
+              quality={100}
+              unoptimized
+              className="object-cover"
+              sizes="100vw"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-graphite" />
+          )}
+          <div className="absolute inset-0 bg-ink/25" />
+        </div>
+        <div className="absolute inset-x-0 bottom-0 h-[52vh] bg-gradient-to-b from-paper/0 via-paper/90 to-paper" />
+        <div className="relative mx-auto flex min-h-[92vh] w-full max-w-5xl flex-col items-center justify-end px-5 pb-16 pt-32 text-center lg:pb-20">
+          <div className="flex w-full flex-col items-center">
+            {settings?.logoUrl ? (
+              <Image
+                src={settings.logoUrl}
+                alt={settings.businessName || "Logo"}
+                width={190}
+                height={90}
+                unoptimized
+                className="mb-5 max-h-20 w-auto object-contain"
+              />
+            ) : settings?.businessName ? (
+              <p className="font-playfair mb-5 text-lg tracking-[0.18em] text-ink/75">
+                {settings.businessName}
+              </p>
+            ) : null}
+            <h1 className="font-playfair text-5xl font-semibold leading-tight text-ink sm:text-6xl md:text-7xl lg:text-8xl">
               {gallery.title}
             </h1>
-            <p className="mt-5 text-sm text-white/75">{visiblePhotos.length} Fotos</p>
-            <div className="mt-6">
-              <SocialShareButtons path={`/g/${gallery.slug}`} title={gallery.title} />
+            <p className="font-playfair mt-4 text-xl text-ink/75 md:text-2xl">{heroMeta}</p>
+            <p className="mt-3 text-sm font-medium uppercase tracking-[0.24em] text-graphite/70">
+              {visiblePhotos.length} Fotos
+            </p>
+            <div className="mt-7 flex justify-center">
+              <SocialShareButtons path={`/g/${gallery.slug}`} title={gallery.title} variant="card" />
             </div>
           </div>
         </div>
       </header>
 
-      <section className="mx-auto mt-8 w-full max-w-7xl px-5 pb-28 lg:px-8">
+      <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
         {visiblePhotos.length > 0 ? (
           <PublicGallery galleryId={gallery.id} title={gallery.title} photos={visiblePhotos} />
         ) : (

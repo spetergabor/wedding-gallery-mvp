@@ -53,7 +53,7 @@ export function SocialShareButtons({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-center gap-2">
       <Button type="button" variant={variant === "light" ? "secondary" : "primary"} onClick={nativeShare} className={buttonClass}>
         <Share2 size={16} />
         Teilen
