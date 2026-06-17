@@ -29,11 +29,19 @@ function createClientAccessToken() {
 }
 
 type PhotoUploadRequest = {
+  clientId: string;
   filename: string;
   contentType?: string;
+  fileSize?: number;
+  imageWidth?: number;
+  imageHeight?: number;
+  capturedAt?: string | null;
+  originalIndex?: number;
 };
 
 type CompletedPhotoUpload = {
+  uploadItemId?: string;
+  clientId?: string;
   filename: string;
   r2Key: string;
   imageUrl: string;
@@ -44,6 +52,53 @@ type CompletedPhotoUpload = {
   capturedAt?: string | null;
   originalIndex?: number;
 };
+
+async function refreshUploadSessionCounts(sessionId: string) {
+  const [uploadedCount, completedCount, failedCount] = await Promise.all([
+    prisma.galleryUploadItem.count({
+      where: {
+        sessionId,
+        status: { in: ["uploaded", "completed"] }
+      }
+    }),
+    prisma.galleryUploadItem.count({
+      where: {
+        sessionId,
+        status: "completed"
+      }
+    }),
+    prisma.galleryUploadItem.count({
+      where: {
+        sessionId,
+        status: "failed"
+      }
+    })
+  ]);
+
+  const session = await prisma.galleryUploadSession.findUnique({
+    where: { id: sessionId },
+    select: { totalCount: true }
+  });
+  const totalCount = session?.totalCount ?? 0;
+  const status =
+    completedCount >= totalCount && totalCount > 0
+      ? "completed"
+      : failedCount > 0
+        ? "partial"
+        : uploadedCount > 0
+          ? "uploading"
+          : "pending";
+
+  await prisma.galleryUploadSession.update({
+    where: { id: sessionId },
+    data: {
+      uploadedCount,
+      completedCount,
+      failedCount,
+      status
+    }
+  });
+}
 
 export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
@@ -414,7 +469,45 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
   redirect(`/admin/galleries/${galleryId}?photoAdded=1`);
 }
 
-export async function createPhotoUploadTargetsAction(galleryId: string, files: PhotoUploadRequest[]) {
+export async function createPhotoUploadSessionAction(galleryId: string, totalCount: number) {
+  await requireAdmin();
+
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { id: true }
+  });
+
+  if (!gallery) {
+    return {
+      ok: false,
+      message: "A galéria nem található.",
+      sessionId: null
+    };
+  }
+
+  const latestPhoto = await prisma.photo.findFirst({
+    where: { galleryId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true }
+  });
+
+  const session = await prisma.galleryUploadSession.create({
+    data: {
+      galleryId,
+      totalCount: Math.max(0, totalCount),
+      baseSortOrder: (latestPhoto?.sortOrder ?? 0) + 1,
+      status: "pending"
+    },
+    select: { id: true }
+  });
+
+  return {
+    ok: true,
+    sessionId: session.id
+  };
+}
+
+export async function createPhotoUploadTargetsAction(galleryId: string, sessionId: string, files: PhotoUploadRequest[]) {
   await requireAdmin();
 
   if (!isR2StorageEnabled()) {
@@ -424,19 +517,26 @@ export async function createPhotoUploadTargetsAction(galleryId: string, files: P
     };
   }
 
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: { slug: true }
+  const session = await prisma.galleryUploadSession.findFirst({
+    where: { id: sessionId, galleryId },
+    select: {
+      id: true,
+      gallery: {
+        select: {
+          slug: true
+        }
+      }
+    }
   });
 
-  if (!gallery) {
+  if (!session) {
     return {
       ok: false,
-      message: "A galéria nem található."
+      message: "A feltöltési munkamenet nem található."
     };
   }
 
-  const validFiles = files.filter((file) => file.filename.trim());
+  const validFiles = files.filter((file) => file.clientId.trim() && file.filename.trim());
 
   if (validFiles.length === 0) {
     return {
@@ -449,12 +549,57 @@ export async function createPhotoUploadTargetsAction(galleryId: string, files: P
     const uploads = await Promise.all(
       validFiles.map(async (file) => {
         const r2Key = createPhotoObjectKey({
-          gallerySlug: gallery.slug,
+          gallerySlug: session.gallery.slug,
           originalFilename: file.filename
         });
         const publicUrl = getPhotoPublicUrl(r2Key);
+        const uploadItem = await prisma.galleryUploadItem.upsert({
+          where: {
+            sessionId_clientId: {
+              sessionId: session.id,
+              clientId: file.clientId
+            }
+          },
+          create: {
+            sessionId: session.id,
+            clientId: file.clientId,
+            filename: file.filename,
+            r2Key,
+            imageUrl: publicUrl,
+            thumbnailUrl: publicUrl,
+            fileSize: file.fileSize ?? 0,
+            imageWidth: file.imageWidth ?? 0,
+            imageHeight: file.imageHeight ?? 0,
+            capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
+            originalIndex: file.originalIndex ?? 0,
+            status: "uploading",
+            errorMessage: null,
+            uploadedAt: null,
+            completedAt: null
+          },
+          update: {
+            filename: file.filename,
+            r2Key,
+            imageUrl: publicUrl,
+            thumbnailUrl: publicUrl,
+            fileSize: file.fileSize ?? 0,
+            imageWidth: file.imageWidth ?? 0,
+            imageHeight: file.imageHeight ?? 0,
+            capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
+            originalIndex: file.originalIndex ?? 0,
+            status: "uploading",
+            errorMessage: null,
+            uploadedAt: null,
+            completedAt: null
+          },
+          select: {
+            id: true
+          }
+        });
 
         return {
+          uploadItemId: uploadItem.id,
+          clientId: file.clientId,
           filename: file.filename,
           r2Key,
           imageUrl: publicUrl,
@@ -466,6 +611,8 @@ export async function createPhotoUploadTargetsAction(galleryId: string, files: P
         };
       })
     );
+
+    await refreshUploadSessionCounts(session.id);
 
     return {
       ok: true,
@@ -485,22 +632,68 @@ export async function createPhotoUploadTargetsAction(galleryId: string, files: P
   }
 }
 
-export async function completePhotoUploadsAction(galleryId: string, uploads: CompletedPhotoUpload[]) {
+export async function markPhotoUploadItemFailedAction({
+  galleryId,
+  sessionId,
+  uploadItemId,
+  message
+}: {
+  galleryId: string;
+  sessionId: string;
+  uploadItemId: string;
+  message: string;
+}) {
   await requireAdmin();
 
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: { slug: true }
+  const item = await prisma.galleryUploadItem.findFirst({
+    where: {
+      id: uploadItemId,
+      sessionId,
+      session: { galleryId }
+    },
+    select: { id: true }
   });
 
-  if (!gallery) {
+  if (!item) {
+    return { ok: false };
+  }
+
+  await prisma.galleryUploadItem.update({
+    where: { id: item.id },
+    data: {
+      status: "failed",
+      errorMessage: message.slice(0, 500)
+    }
+  });
+  await refreshUploadSessionCounts(sessionId);
+
+  return { ok: true };
+}
+
+export async function completePhotoUploadsAction(galleryId: string, sessionId: string, uploads: CompletedPhotoUpload[]) {
+  await requireAdmin();
+
+  const session = await prisma.galleryUploadSession.findFirst({
+    where: { id: sessionId, galleryId },
+    select: {
+      id: true,
+      baseSortOrder: true,
+      gallery: {
+        select: {
+          slug: true
+        }
+      }
+    }
+  });
+
+  if (!session) {
     return {
       ok: false,
-      message: "A galéria nem található."
+      message: "A feltöltési munkamenet nem található."
     };
   }
 
-  const validUploads = uploads.filter((upload) => upload.filename && upload.r2Key && upload.imageUrl);
+  const validUploads = uploads.filter((upload) => upload.uploadItemId && upload.filename && upload.r2Key && upload.imageUrl);
 
   if (validUploads.length === 0) {
     return {
@@ -509,14 +702,22 @@ export async function completePhotoUploadsAction(galleryId: string, uploads: Com
     };
   }
 
-  const latestPhoto = await prisma.photo.findFirst({
-    where: { galleryId },
-    orderBy: { sortOrder: "desc" },
-    select: { sortOrder: true }
+  const uploadItemIds = validUploads.map((upload) => upload.uploadItemId).filter((id): id is string => Boolean(id));
+  const uploadItems = await prisma.galleryUploadItem.findMany({
+    where: {
+      id: { in: uploadItemIds },
+      sessionId: session.id
+    },
+    select: {
+      id: true,
+      status: true
+    }
   });
-  const nextSortOrder = (latestPhoto?.sortOrder ?? 0) + 1;
+  const completableItemIds = new Set(
+    uploadItems.filter((item) => item.status !== "completed").map((item) => item.id)
+  );
 
-  const sortedUploads = [...validUploads].sort((a, b) => {
+  const sortedUploads = validUploads.filter((upload) => upload.uploadItemId && completableItemIds.has(upload.uploadItemId)).sort((a, b) => {
     const aTime = a.capturedAt ? Date.parse(a.capturedAt) : Number.POSITIVE_INFINITY;
     const bTime = b.capturedAt ? Date.parse(b.capturedAt) : Number.POSITIVE_INFINITY;
 
@@ -527,26 +728,44 @@ export async function completePhotoUploadsAction(galleryId: string, uploads: Com
     return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
   });
 
-  await prisma.photo.createMany({
-    data: sortedUploads.map((upload, index) => ({
-      galleryId,
-      filename: upload.filename,
-      r2Key: upload.r2Key,
-      imageUrl: upload.imageUrl,
-      thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
-      fileSize: upload.fileSize ?? 0,
-      imageWidth: upload.imageWidth ?? 0,
-      imageHeight: upload.imageHeight ?? 0,
-      capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
-      sortOrder: nextSortOrder + index
-    }))
-  });
+  if (sortedUploads.length > 0) {
+    await prisma.$transaction([
+      prisma.photo.createMany({
+        data: sortedUploads.map((upload) => ({
+          galleryId,
+          filename: upload.filename,
+          r2Key: upload.r2Key,
+          imageUrl: upload.imageUrl,
+          thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
+          fileSize: upload.fileSize ?? 0,
+          imageWidth: upload.imageWidth ?? 0,
+          imageHeight: upload.imageHeight ?? 0,
+          capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
+          sortOrder: session.baseSortOrder + (upload.originalIndex ?? 0)
+        }))
+      }),
+      prisma.galleryUploadItem.updateMany({
+        where: {
+          id: { in: sortedUploads.map((upload) => upload.uploadItemId).filter((id): id is string => Boolean(id)) },
+          sessionId: session.id
+        },
+        data: {
+          status: "completed",
+          errorMessage: null,
+          uploadedAt: new Date(),
+          completedAt: new Date()
+        }
+      })
+    ]);
+  }
 
   revalidatePath(`/admin/galleries/${galleryId}`);
-  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/g/${session.gallery.slug}`);
+  await refreshUploadSessionCounts(session.id);
 
   return {
     ok: true,
+    completedItemIds: sortedUploads.map((upload) => upload.uploadItemId).filter((id): id is string => Boolean(id)),
     redirectTo: `/admin/galleries/${galleryId}?photoAdded=1`
   };
 }

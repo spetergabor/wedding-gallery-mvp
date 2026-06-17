@@ -5,11 +5,15 @@ import * as exifr from "exifr";
 import { ImagePlus, UploadCloud } from "lucide-react";
 import {
   completePhotoUploadsAction,
-  createPhotoUploadTargetsAction
+  createPhotoUploadSessionAction,
+  createPhotoUploadTargetsAction,
+  markPhotoUploadItemFailedAction
 } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 
 type PreparedUpload = {
+  uploadItemId: string;
+  clientId: string;
   filename: string;
   r2Key: string;
   imageUrl: string;
@@ -22,12 +26,18 @@ type PreparedUpload = {
   originalIndex?: number;
 };
 
+type PhotoUploadStatus = "queued" | "preparing" | "uploading" | "uploaded" | "completed" | "failed";
+
 type SelectedPhotoFile = {
+  clientId: string;
   file: File;
   capturedAt: string | null;
   imageWidth: number;
   imageHeight: number;
   originalIndex: number;
+  status: PhotoUploadStatus;
+  errorMessage: string | null;
+  uploadItemId: string | null;
 };
 
 const UPLOAD_BATCH_SIZE = 25;
@@ -35,17 +45,23 @@ const UPLOAD_CONCURRENCY = 3;
 const MAX_UPLOAD_ATTEMPTS = 3;
 
 function uploadStatusLabel({
-  uploadedCount,
+  completedCount,
+  failedCount,
   totalCount
 }: {
-  uploadedCount: number;
+  completedCount: number;
+  failedCount: number;
   totalCount: number;
 }) {
   if (totalCount === 0) {
     return "Feltöltés előkészítése";
   }
 
-  return `${uploadedCount}/${totalCount} kép feltöltve`;
+  if (failedCount > 0) {
+    return `${completedCount}/${totalCount} kép mentve, ${failedCount} hibás`;
+  }
+
+  return `${completedCount}/${totalCount} kép mentve`;
 }
 
 function chunkArray<T>(items: T[], size: number) {
@@ -64,22 +80,70 @@ function wait(milliseconds: number) {
   });
 }
 
+function statusLabel(status: PhotoUploadStatus) {
+  switch (status) {
+    case "preparing":
+      return "Előkészítés";
+    case "uploading":
+      return "Feltöltés";
+    case "uploaded":
+      return "R2-ben, mentés alatt";
+    case "completed":
+      return "Mentve";
+    case "failed":
+      return "Hibás";
+    default:
+      return "Várakozik";
+  }
+}
+
+function statusClass(status: PhotoUploadStatus) {
+  switch (status) {
+    case "completed":
+      return "bg-sage/15 text-sage";
+    case "failed":
+      return "bg-red-50 text-red-700";
+    case "preparing":
+    case "uploading":
+    case "uploaded":
+      return "bg-brass/15 text-brass";
+    default:
+      return "bg-ink/5 text-graphite";
+  }
+}
+
 export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
   const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isReadingExif, setIsReadingExif] = useState(false);
-  const [uploadedCount, setUploadedCount] = useState(0);
   const [uploadError, setUploadError] = useState("");
+  const [uploadSessionId, setUploadSessionId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const completedCount = selectedFiles.filter((file) => file.status === "completed").length;
+  const failedCount = selectedFiles.filter((file) => file.status === "failed").length;
+  const activeCount = selectedFiles.filter((file) => ["preparing", "uploading", "uploaded"].includes(file.status)).length;
+  const previewFiles = useMemo(() => {
+    return [...selectedFiles].sort((a, b) => {
+      if (a.status === "failed" && b.status !== "failed") {
+        return -1;
+      }
+
+      if (a.status !== "failed" && b.status === "failed") {
+        return 1;
+      }
+
+      return a.originalIndex - b.originalIndex;
+    });
+  }, [selectedFiles]);
 
   const progress = useMemo(() => {
-    if (!isUploading || selectedFiles.length === 0) {
+    if (selectedFiles.length === 0) {
       return 0;
     }
 
-    return Math.max(8, Math.round((uploadedCount / selectedFiles.length) * 100));
-  }, [isUploading, selectedFiles.length, uploadedCount]);
+    return Math.round((completedCount / selectedFiles.length) * 100);
+  }, [completedCount, selectedFiles.length]);
 
   async function readPhotoMetadata(file: File) {
     try {
@@ -116,17 +180,21 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     const imageFiles = files.filter((file) => file.type.startsWith("image/"));
 
     setIsReadingExif(true);
-    setUploadedCount(0);
     setUploadError("");
+    setUploadSessionId(null);
 
     const enrichedFiles = await Promise.all(
       imageFiles.map(async (file, index) => {
         const metadata = await readPhotoMetadata(file);
 
         return {
+          clientId: `${index}-${file.name}-${file.size}-${file.lastModified}`,
           file,
           ...metadata,
-          originalIndex: index
+          originalIndex: index,
+          status: "queued" as PhotoUploadStatus,
+          errorMessage: null,
+          uploadItemId: null
         };
       })
     );
@@ -179,11 +247,25 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
 
   function resetSelection() {
     setSelectedFiles([]);
-    setUploadedCount(0);
     setUploadError("");
+    setUploadSessionId(null);
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+  }
+
+  function setFileStatus(clientId: string, status: PhotoUploadStatus, updates?: Partial<SelectedPhotoFile>) {
+    setSelectedFiles((current) =>
+      current.map((item) =>
+        item.clientId === clientId
+          ? {
+              ...item,
+              ...updates,
+              status
+            }
+          : item
+      )
+    );
   }
 
   async function uploadFile(file: File, target: PreparedUpload) {
@@ -216,12 +298,21 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     throw lastError instanceof Error ? lastError : new Error(`${file.name} feltöltése nem sikerült.`);
   }
 
-  async function uploadBatch(batch: SelectedPhotoFile[]) {
+  async function uploadBatch(sessionId: string, batch: SelectedPhotoFile[]) {
+    batch.forEach((file) => setFileStatus(file.clientId, "preparing", { errorMessage: null }));
+
     const targetResult = await createPhotoUploadTargetsAction(
       galleryId,
+      sessionId,
       batch.map((file) => ({
+        clientId: file.clientId,
         filename: file.file.name,
-        contentType: file.file.type
+        contentType: file.file.type,
+        fileSize: file.file.size,
+        imageWidth: file.imageWidth,
+        imageHeight: file.imageHeight,
+        capturedAt: file.capturedAt,
+        originalIndex: file.originalIndex
       }))
     );
 
@@ -230,7 +321,8 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     }
 
     const uploadTargets = targetResult.uploads ?? [];
-    const completedUploads: PreparedUpload[] = new Array(batch.length);
+    const completedUploads: PreparedUpload[] = [];
+    let failedUploads = 0;
     let nextIndex = 0;
 
     async function worker() {
@@ -245,16 +337,39 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
           throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
         }
 
-        await uploadFile(selectedFile.file, target);
-        completedUploads[index] = {
-          ...target,
-          fileSize: selectedFile.file.size,
-          imageWidth: selectedFile.imageWidth,
-          imageHeight: selectedFile.imageHeight,
-          capturedAt: selectedFile.capturedAt,
-          originalIndex: selectedFile.originalIndex
-        };
-        setUploadedCount((current) => current + 1);
+        setFileStatus(selectedFile.clientId, "uploading", {
+          uploadItemId: target.uploadItemId,
+          errorMessage: null
+        });
+
+        try {
+          await uploadFile(selectedFile.file, target);
+          setFileStatus(selectedFile.clientId, "uploaded", {
+            uploadItemId: target.uploadItemId,
+            errorMessage: null
+          });
+          completedUploads.push({
+            ...target,
+            fileSize: selectedFile.file.size,
+            imageWidth: selectedFile.imageWidth,
+            imageHeight: selectedFile.imageHeight,
+            capturedAt: selectedFile.capturedAt,
+            originalIndex: selectedFile.originalIndex
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : `${selectedFile.file.name} feltöltése nem sikerült.`;
+          setFileStatus(selectedFile.clientId, "failed", {
+            uploadItemId: target.uploadItemId,
+            errorMessage: message
+          });
+          await markPhotoUploadItemFailedAction({
+            galleryId,
+            sessionId,
+            uploadItemId: target.uploadItemId,
+            message
+          });
+          failedUploads += 1;
+        }
       }
     }
 
@@ -262,34 +377,77 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       Array.from({ length: Math.min(UPLOAD_CONCURRENCY, batch.length) }, () => worker())
     );
 
-    const completeResult = await completePhotoUploadsAction(galleryId, completedUploads);
+    if (completedUploads.length === 0) {
+      return;
+    }
+
+    const completeResult = await completePhotoUploadsAction(galleryId, sessionId, completedUploads);
 
     if (!completeResult.ok) {
       throw new Error(completeResult.message);
+    }
+
+    const completedItemIds = new Set(completeResult.completedItemIds ?? []);
+    completedUploads.forEach((upload) => {
+      if (completedItemIds.has(upload.uploadItemId)) {
+        setFileStatus(upload.clientId, "completed", { errorMessage: null });
+      }
+    });
+
+    return {
+      completedCount: completedUploads.length,
+      failedCount: failedUploads
+    };
+  }
+
+  async function uploadFiles(files: SelectedPhotoFile[], existingSessionId?: string | null) {
+    if (files.length === 0 || isUploading) {
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError("");
+
+    try {
+      let sessionId = existingSessionId ?? uploadSessionId;
+
+      if (!sessionId) {
+        const sessionResult = await createPhotoUploadSessionAction(galleryId, selectedFiles.length);
+
+        if (!sessionResult.ok || !sessionResult.sessionId) {
+          throw new Error(sessionResult.message);
+        }
+
+        sessionId = sessionResult.sessionId;
+        setUploadSessionId(sessionId);
+      }
+
+      let failedUploads = 0;
+
+      for (const batch of chunkArray(files, UPLOAD_BATCH_SIZE)) {
+        const batchResult = await uploadBatch(sessionId, batch);
+        failedUploads += batchResult?.failedCount ?? 0;
+      }
+
+      if (failedUploads === 0) {
+        window.location.href = `/admin/galleries/${galleryId}?photoAdded=1`;
+      } else {
+        setUploadError(`${failedUploads} kép feltöltése hibára futott. Csak a hibás képeket újra tudod próbálni.`);
+      }
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
+    } finally {
+      setIsUploading(false);
     }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await uploadFiles(selectedFiles.filter((file) => file.status !== "completed"));
+  }
 
-    if (selectedFiles.length === 0 || isUploading) {
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadedCount(0);
-    setUploadError("");
-
-    try {
-      for (const batch of chunkArray(selectedFiles, UPLOAD_BATCH_SIZE)) {
-        await uploadBatch(batch);
-      }
-
-      window.location.href = `/admin/galleries/${galleryId}?photoAdded=1`;
-    } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
-      setIsUploading(false);
-    }
+  async function retryFailedUploads() {
+    await uploadFiles(selectedFiles.filter((file) => file.status === "failed"), uploadSessionId);
   }
 
   return (
@@ -339,15 +497,23 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             </p>
 
             {selectedFiles.length > 0 ? (
-              <div className="mt-5 max-h-32 space-y-2 overflow-auto pr-1">
-                {selectedFiles.slice(0, 5).map((item) => (
-                  <div key={`${item.file.name}-${item.file.size}`} className="rounded-md bg-white px-3 py-2 text-sm text-graphite">
-                    <p className="truncate">{item.file.name}</p>
-                    <p className="mt-0.5 text-xs text-graphite/60">{captureDateLabel(item.capturedAt)}</p>
+              <div className="mt-5 max-h-44 space-y-2 overflow-auto pr-1">
+                {previewFiles.slice(0, 10).map((item) => (
+                  <div key={item.clientId} className="rounded-md bg-white px-3 py-2 text-sm text-graphite">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate">{item.file.name}</p>
+                        <p className="mt-0.5 text-xs text-graphite/60">{captureDateLabel(item.capturedAt)}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${statusClass(item.status)}`}>
+                        {statusLabel(item.status)}
+                      </span>
+                    </div>
+                    {item.errorMessage ? <p className="mt-2 text-xs text-red-700">{item.errorMessage}</p> : null}
                   </div>
                 ))}
-                {selectedFiles.length > 5 ? (
-                  <p className="text-xs text-graphite/70">+{selectedFiles.length - 5} további kép</p>
+                {previewFiles.length > 10 ? (
+                  <p className="text-xs text-graphite/70">+{previewFiles.length - 10} további kép</p>
                 ) : null}
               </div>
             ) : null}
@@ -356,8 +522,20 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
           <div className="mt-5 grid gap-2">
             <Button type="submit" disabled={isUploading || isReadingExif || selectedFiles.length === 0} className="w-full">
               <UploadCloud size={16} />
-              {isUploading ? "Feltöltés..." : selectedFiles.length > 0 ? `${selectedFiles.length} kép feltöltése` : "Fotók feltöltése"}
+              {isUploading
+                ? "Feltöltés..."
+                : failedCount > 0
+                  ? "Feltöltés folytatása"
+                  : selectedFiles.length > 0
+                    ? `${selectedFiles.length} kép feltöltése`
+                    : "Fotók feltöltése"}
             </Button>
+            {failedCount > 0 && !isUploading ? (
+              <Button type="button" variant="secondary" onClick={() => void retryFailedUploads()} className="w-full">
+                <UploadCloud size={16} />
+                Csak a hibásak újrapróbálása ({failedCount})
+              </Button>
+            ) : null}
             {selectedFiles.length > 0 && !isUploading ? (
               <button type="button" onClick={resetSelection} className="h-10 rounded-md text-sm font-medium text-graphite hover:bg-ink/5">
                 Kiválasztás törlése
@@ -367,12 +545,14 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         </div>
       </div>
 
-      {isUploading ? (
+      {isUploading || completedCount > 0 || failedCount > 0 ? (
         <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4" aria-live="polite">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-ink">Feltöltés folyamatban</p>
+            <p className="text-sm font-medium text-ink">
+              {isUploading ? "Feltöltés folyamatban" : failedCount > 0 ? "Feltöltés részben kész" : "Feltöltés kész"}
+            </p>
             <p className="text-sm text-graphite/70">
-              {uploadStatusLabel({ uploadedCount, totalCount: selectedFiles.length })}
+              {uploadStatusLabel({ completedCount, failedCount, totalCount: selectedFiles.length })}
             </p>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
@@ -382,7 +562,11 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             />
           </div>
           <p className="mt-3 text-xs text-graphite/70">
-            Az oldal maradjon nyitva, amíg minden kép fel nem töltődik.
+            {activeCount > 0
+              ? `Aktív fájlok: ${activeCount}. Az oldal maradjon nyitva, amíg minden kép fel nem töltődik.`
+              : failedCount > 0
+                ? "A hibás képek listája fent látszik, ezeket külön újra tudod próbálni."
+                : "Minden kiválasztott kép mentve lett."}
           </p>
         </div>
       ) : null}

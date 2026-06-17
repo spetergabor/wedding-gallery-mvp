@@ -45,6 +45,7 @@ model Gallery {
   downloads    GalleryDownload[]
   views        GalleryView[]
   favoriteLists GalleryFavoriteList[]
+  uploadSessions GalleryUploadSession[]
 }
 
 model Photo {
@@ -127,4 +128,50 @@ model GalleryFavoriteItem {
 
   @@unique([listId, photoId])
   @@index([photoId])
+}
+
+model GalleryUploadSession {
+  id             String   @id @default(cuid())
+  galleryId      String
+  status         String   @default("pending")
+  totalCount     Int      @default(0)
+  uploadedCount  Int      @default(0)
+  completedCount Int      @default(0)
+  failedCount    Int      @default(0)
+  baseSortOrder  Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  gallery        Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  items          GalleryUploadItem[]
+
+  @@index([galleryId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model GalleryUploadItem {
+  id            String   @id @default(cuid())
+  sessionId     String
+  clientId      String
+  filename      String
+  r2Key         String?
+  imageUrl      String?
+  thumbnailUrl  String?
+  fileSize      Int      @default(0)
+  imageWidth    Int      @default(0)
+  imageHeight   Int      @default(0)
+  capturedAt    DateTime?
+  originalIndex Int      @default(0)
+  status        String   @default("pending")
+  errorMessage  String?
+  uploadedAt    DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  session       GalleryUploadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, clientId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([filename])
 }

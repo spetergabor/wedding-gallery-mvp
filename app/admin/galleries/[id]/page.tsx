@@ -12,6 +12,7 @@ import { GalleryForm } from "@/components/gallery-form";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { StatCard } from "@/components/stat-card";
+import { UploadSessionLog } from "@/components/upload-session-log";
 import { ViewLog } from "@/components/view-log";
 import { requireAdmin } from "@/lib/auth";
 import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
@@ -61,6 +62,23 @@ export default async function GalleryDetailPage({
         }
       },
       photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      uploadSessions: {
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: {
+          items: {
+            where: { status: "failed" },
+            orderBy: { updatedAt: "desc" },
+            take: 25,
+            select: {
+              id: true,
+              filename: true,
+              status: true,
+              errorMessage: true
+            }
+          }
+        }
+      },
       views: {
         orderBy: { createdAt: "desc" },
         take: 25
@@ -165,6 +183,7 @@ export default async function GalleryDetailPage({
         </section>
         <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
         <PhotoUploadForm galleryId={gallery.id} />
+        <UploadSessionLog sessions={gallery.uploadSessions} />
         <div className="grid items-start gap-6 xl:grid-cols-[1.4fr_1fr]">
           <ViewLog views={gallery.views} />
           <div className="space-y-6">
