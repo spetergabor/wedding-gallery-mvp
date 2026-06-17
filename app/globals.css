@@ -23,11 +23,6 @@ textarea {
   font: inherit;
 }
 
-.masonry-grid {
-  column-count: 1;
-  column-gap: 0.5rem;
-}
-
 .view-location-marker {
   display: grid;
   place-items: center;
@@ -49,22 +44,4 @@ textarea {
 
 .leaflet-container {
   font: inherit;
-}
-
-@media (min-width: 640px) {
-  .masonry-grid {
-    column-count: 2;
-  }
-}
-
-@media (min-width: 1024px) {
-  .masonry-grid {
-    column-count: 3;
-  }
-}
-
-@media (min-width: 1280px) {
-  .masonry-grid {
-    column-count: 4;
-  }
 }

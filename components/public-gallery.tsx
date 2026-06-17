@@ -33,6 +33,22 @@ function hasImageDimensions(photo: PublicPhoto) {
   return photo.imageWidth > 0 && photo.imageHeight > 0;
 }
 
+function getColumnCount(width: number) {
+  if (width >= 1280) {
+    return 4;
+  }
+
+  if (width >= 1024) {
+    return 3;
+  }
+
+  if (width >= 640) {
+    return 2;
+  }
+
+  return 1;
+}
+
 export function PublicGallery({
   galleryId,
   title,
@@ -54,6 +70,7 @@ export function PublicGallery({
   const [favoriteError, setFavoriteError] = useState("");
   const [favoritePromptPhotoId, setFavoritePromptPhotoId] = useState<string | null>(null);
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
+  const [columnCount, setColumnCount] = useState(1);
 
   const selectedPhoto = useMemo(() => {
     if (selectedIndex === null) {
@@ -65,6 +82,25 @@ export function PublicGallery({
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
+  const photoColumns = useMemo(() => {
+    return photos.reduce<Array<Array<{ photo: PublicPhoto; index: number }>>>((columns, photo, index) => {
+      const columnIndex = index % columnCount;
+      columns[columnIndex]?.push({ photo, index });
+
+      return columns;
+    }, Array.from({ length: columnCount }, () => []));
+  }, [columnCount, photos]);
+
+  useEffect(() => {
+    function updateColumnCount() {
+      setColumnCount(getColumnCount(window.innerWidth));
+    }
+
+    updateColumnCount();
+    window.addEventListener("resize", updateColumnCount);
+
+    return () => window.removeEventListener("resize", updateColumnCount);
+  }, []);
 
   useEffect(() => {
     const storedEmail = window.localStorage.getItem(`wgm-favorite-email-${galleryId}`);
@@ -252,53 +288,57 @@ export function PublicGallery({
 
   return (
     <>
-      <section className="masonry-grid">
-        {photos.map((photo, index) => (
-          <div
-            key={photo.id}
-            className="group mb-2 block w-full break-inside-avoid overflow-hidden rounded-lg bg-mist text-left"
-          >
-            <span className="relative block w-full">
-              <button
-                type="button"
-                title="Kép megnyitása"
-                aria-label={`${photo.filename} megnyitása`}
-                onClick={() => setSelectedIndex(index)}
-                className="relative z-0 block w-full text-left"
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {photoColumns.map((column, columnIndex) => (
+          <div key={columnIndex} className="grid content-start gap-2">
+            {column.map(({ photo, index }) => (
+              <div
+                key={photo.id}
+                className="group block w-full overflow-hidden rounded-lg bg-mist text-left"
               >
-                {hasImageDimensions(photo) ? (
-                  <Image
-                    src={photo.thumbnailUrl}
-                    alt={photo.filename}
-                    width={photo.imageWidth}
-                    height={photo.imageHeight}
-                    className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
-                    sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                  />
-                ) : (
-                  <img
-                    src={photo.thumbnailUrl}
-                    alt={photo.filename}
-                    loading="lazy"
-                    className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
-                  />
-                )}
-                <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 transition group-hover:opacity-100">
-                  <Maximize2 size={16} />
+                <span className="relative block w-full">
+                  <button
+                    type="button"
+                    title="Kép megnyitása"
+                    aria-label={`${photo.filename} megnyitása`}
+                    onClick={() => setSelectedIndex(index)}
+                    className="relative z-0 block w-full text-left"
+                  >
+                    {hasImageDimensions(photo) ? (
+                      <Image
+                        src={photo.thumbnailUrl}
+                        alt={photo.filename}
+                        width={photo.imageWidth}
+                        height={photo.imageHeight}
+                        className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
+                        sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      />
+                    ) : (
+                      <img
+                        src={photo.thumbnailUrl}
+                        alt={photo.filename}
+                        loading="lazy"
+                        className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
+                      />
+                    )}
+                    <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 transition group-hover:opacity-100">
+                      <Maximize2 size={16} />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    title="Kedvenc"
+                    aria-label={`${photo.filename} kedvencekhez adása`}
+                    onClick={() => void toggleFavorite(photo.id)}
+                    className={`absolute left-3 top-3 z-10 flex size-9 items-center justify-center rounded-md transition ${favoriteButtonClass(photo.id)} ${
+                      pendingFavoriteId === photo.id ? "opacity-60" : ""
+                    }`}
+                  >
+                    <Heart size={16} fill={favoriteIds.has(photo.id) ? "currentColor" : "none"} />
+                  </button>
                 </span>
-              </button>
-              <button
-                type="button"
-                title="Kedvenc"
-                aria-label={`${photo.filename} kedvencekhez adása`}
-                onClick={() => void toggleFavorite(photo.id)}
-                className={`absolute left-3 top-3 z-10 flex size-9 items-center justify-center rounded-md transition ${favoriteButtonClass(photo.id)} ${
-                  pendingFavoriteId === photo.id ? "opacity-60" : ""
-                }`}
-              >
-                <Heart size={16} fill={favoriteIds.has(photo.id) ? "currentColor" : "none"} />
-              </button>
-            </span>
+              </div>
+            ))}
           </div>
         ))}
       </section>
