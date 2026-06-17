@@ -165,7 +165,7 @@ export default async function GalleryDetailPage({
         </section>
         <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
         <PhotoUploadForm galleryId={gallery.id} />
-        <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        <div className="grid items-start gap-6 xl:grid-cols-[1.4fr_1fr]">
           <ViewLog views={gallery.views} />
           <div className="space-y-6">
             <FavoriteListsLog lists={gallery.favoriteLists} />
