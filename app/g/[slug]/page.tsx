@@ -88,7 +88,7 @@ export default async function PublicGalleryPage({
     <main className="min-h-screen bg-paper">
       <GalleryViewTracker galleryId={gallery.id} />
       <header className="relative min-h-[92vh] overflow-hidden bg-paper text-ink">
-        <div className="absolute inset-x-0 top-0 h-[74vh] overflow-hidden bg-ink">
+        <div className="absolute inset-0 overflow-hidden bg-ink">
           {coverPhoto ? (
             <Image
               src={coverPhoto.previewUrl || coverPhoto.imageUrl}
@@ -105,7 +105,7 @@ export default async function PublicGalleryPage({
           )}
           <div className="absolute inset-0 bg-ink/25" />
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-[52vh] bg-gradient-to-b from-paper/0 via-paper/90 to-paper" />
+        <div className="absolute inset-x-0 bottom-0 h-[70vh] bg-[linear-gradient(to_bottom,rgba(248,247,244,0)_0%,rgba(248,247,244,0.52)_34%,rgba(248,247,244,0.92)_58%,#f8f7f4_82%,#f8f7f4_100%)]" />
         <div className="relative mx-auto flex min-h-[92vh] w-full max-w-5xl flex-col items-center justify-end px-5 pb-16 pt-32 text-center lg:pb-20">
           <div className="flex w-full flex-col items-center">
             {settings?.logoUrl ? (
