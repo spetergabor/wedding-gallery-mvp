@@ -230,33 +230,7 @@ export default async function GalleryDetailPage({
         ) : null}
 
         {activeTab === "client" ? (
-          <div className="grid items-start gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center xl:flex-col xl:items-start">
-                <div>
-                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                    <KeyRound size={15} />
-                    Ügyfél kezelő
-                  </div>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link a párnak</h2>
-                  <p className="mt-1 text-sm text-graphite/70">
-                    Ezen a linken a pár elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row xl:w-full xl:flex-col">
-                  {gallery.clientAccessToken ? (
-                    <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
-                  ) : (
-                    <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                      <Button type="submit" variant="secondary">
-                        <KeyRound size={16} />
-                        Ügyfél link generálása
-                      </Button>
-                    </form>
-                  )}
-                </div>
-              </div>
-            </section>
+          <div className="max-w-4xl">
             <FavoriteListsLog lists={gallery.favoriteLists} />
           </div>
         ) : null}
@@ -272,6 +246,32 @@ export default async function GalleryDetailPage({
         {activeTab === "settings" ? (
           <div className="space-y-8">
             <GalleryForm gallery={gallery} />
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div>
+                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                    <KeyRound size={15} />
+                    Ügyfél kezelő
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link a párnak</h2>
+                  <p className="mt-1 text-sm text-graphite/70">
+                    Ezen a linken a pár elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  {gallery.clientAccessToken ? (
+                    <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+                  ) : (
+                    <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                      <Button type="submit" variant="secondary">
+                        <KeyRound size={16} />
+                        Ügyfél link generálása
+                      </Button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </section>
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
           </div>
         ) : null}
