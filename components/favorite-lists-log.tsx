@@ -7,6 +7,7 @@ import { Button } from "@/components/button";
 type FavoriteList = {
   id: string;
   email: string;
+  name: string;
   updatedAt: Date;
   items: {
     id: string;
@@ -57,7 +58,8 @@ export function FavoriteListsLog({ lists }: { lists: FavoriteList[] }) {
             <div key={list.id} className="rounded-md border border-ink/10 p-4">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div>
-                  <p className="font-medium text-ink">{list.email}</p>
+                  <p className="font-medium text-ink">{list.name}</p>
+                  <p className="text-sm text-graphite/70">{list.email}</p>
                   <p className="text-sm text-graphite/70">
                     {list.items.length} kedvenc kép · frissítve:{" "}
                     {list.updatedAt.toLocaleString("hu-HU", {

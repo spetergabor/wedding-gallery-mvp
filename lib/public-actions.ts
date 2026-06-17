@@ -19,6 +19,10 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function normalizeListName(name: string) {
+  return name.trim().replace(/\s+/g, " ").slice(0, 80) || "Favoriten";
+}
+
 export async function canViewGallery(slug: string, password: string | null) {
   if (!password) {
     return true;
@@ -110,25 +114,23 @@ export async function recordGalleryViewAction(galleryId: string) {
   };
 }
 
-export async function getFavoritePhotoIdsAction(galleryId: string, email: string) {
+export async function getFavoriteListsAction(galleryId: string, email: string) {
   const normalizedEmail = normalizeEmail(email);
 
   if (!isValidEmail(normalizedEmail)) {
     return {
       ok: false,
       message: "Bitte gib eine gültige E-Mail-Adresse ein.",
-      photoIds: []
+      lists: []
     };
   }
 
-  const list = await prisma.galleryFavoriteList.findUnique({
-    where: {
-      galleryId_email: {
-        galleryId,
-        email: normalizedEmail
-      }
-    },
+  const lists = await prisma.galleryFavoriteList.findMany({
+    where: { galleryId, email: normalizedEmail },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     select: {
+      id: true,
+      name: true,
       items: {
         select: { photoId: true }
       }
@@ -137,11 +139,73 @@ export async function getFavoritePhotoIdsAction(galleryId: string, email: string
 
   return {
     ok: true,
-    photoIds: list?.items.map((item) => item.photoId) ?? []
+    lists: lists.map((list) => ({
+      id: list.id,
+      name: list.name,
+      photoIds: list.items.map((item) => item.photoId)
+    }))
   };
 }
 
-export async function toggleFavoritePhotoAction(galleryId: string, photoId: string, email: string) {
+export async function createFavoriteListAction(galleryId: string, email: string, name: string) {
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedName = normalizeListName(name);
+
+  if (!isValidEmail(normalizedEmail)) {
+    return {
+      ok: false,
+      message: "Bitte gib eine gültige E-Mail-Adresse ein.",
+      list: null
+    };
+  }
+
+  const existingList = await prisma.galleryFavoriteList.findFirst({
+    where: {
+      galleryId,
+      email: normalizedEmail,
+      name: normalizedName
+    },
+    select: {
+      id: true,
+      name: true,
+      items: { select: { photoId: true } }
+    }
+  });
+
+  if (existingList) {
+    return {
+      ok: true,
+      list: {
+        id: existingList.id,
+        name: existingList.name,
+        photoIds: existingList.items.map((item) => item.photoId)
+      }
+    };
+  }
+
+  const list = await prisma.galleryFavoriteList.create({
+    data: {
+      galleryId,
+      email: normalizedEmail,
+      name: normalizedName
+    },
+    select: {
+      id: true,
+      name: true
+    }
+  });
+
+  return {
+    ok: true,
+    list: {
+      id: list.id,
+      name: list.name,
+      photoIds: []
+    }
+  };
+}
+
+export async function toggleFavoritePhotoAction(galleryId: string, photoId: string, email: string, listId?: string) {
   const normalizedEmail = normalizeEmail(email);
 
   if (!isValidEmail(normalizedEmail)) {
@@ -174,15 +238,13 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
     };
   }
 
-  const existingList = await prisma.galleryFavoriteList.findUnique({
-    where: {
-      galleryId_email: {
-        galleryId,
-        email: normalizedEmail
-      }
-    },
+  const existingList = await prisma.galleryFavoriteList.findFirst({
+    where: listId
+      ? { id: listId, galleryId, email: normalizedEmail }
+      : { galleryId, email: normalizedEmail, name: "Favoriten" },
     select: {
       id: true,
+      name: true,
       _count: {
         select: { items: true }
       }
@@ -194,10 +256,12 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
     (await prisma.galleryFavoriteList.create({
       data: {
         galleryId,
-        email: normalizedEmail
+        email: normalizedEmail,
+        name: "Favoriten"
       },
       select: {
         id: true,
+        name: true,
         _count: {
           select: { items: true }
         }
@@ -233,6 +297,8 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
     return {
       ok: true,
       isFavorite: false,
+      listId: list.id,
+      listName: list.name,
       count
     };
   }
@@ -272,6 +338,8 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   return {
     ok: true,
     isFavorite: true,
+    listId: list.id,
+    listName: list.name,
     count
   };
 }

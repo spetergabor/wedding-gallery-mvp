@@ -104,12 +104,13 @@ model GalleryFavoriteList {
   id        String   @id @default(cuid())
   galleryId String
   email     String
+  name      String   @default("Favoriten")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   items     GalleryFavoriteItem[]
 
-  @@unique([galleryId, email])
+  @@unique([galleryId, email, name])
   @@index([galleryId])
   @@index([email])
 }

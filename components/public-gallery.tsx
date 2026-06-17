@@ -6,7 +6,8 @@ import JSZip from "jszip";
 import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
-  getFavoritePhotoIdsAction,
+  createFavoriteListAction,
+  getFavoriteListsAction,
   recordGalleryDownloadAction,
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
@@ -18,6 +19,12 @@ type PublicPhoto = {
   thumbnailUrl: string;
   imageWidth: number;
   imageHeight: number;
+};
+
+type FavoriteListState = {
+  id: string;
+  name: string;
+  photoIds: string[];
 };
 
 function galleryFileName(title: string) {
@@ -66,13 +73,17 @@ export function PublicGallery({
   const [zipProgress, setZipProgress] = useState("");
   const [favoriteEmail, setFavoriteEmail] = useState("");
   const [favoriteEmailDraft, setFavoriteEmailDraft] = useState("");
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
+  const [favoriteLists, setFavoriteLists] = useState<FavoriteListState[]>([]);
+  const [activeFavoriteListId, setActiveFavoriteListId] = useState("");
+  const [newFavoriteListName, setNewFavoriteListName] = useState("");
   const [favoriteError, setFavoriteError] = useState("");
   const [favoritePromptPhotoId, setFavoritePromptPhotoId] = useState<string | null>(null);
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const activeFavoriteList = favoriteLists.find((list) => list.id === activeFavoriteListId) ?? favoriteLists[0] ?? null;
+  const favoriteIds = useMemo(() => new Set(activeFavoriteList?.photoIds ?? []), [activeFavoriteList]);
 
   const visiblePhotos = useMemo(() => {
     if (!showFavoritesOnly) {
@@ -133,9 +144,10 @@ export function PublicGallery({
 
     setFavoriteEmail(storedEmail);
     setFavoriteEmailDraft(storedEmail);
-    getFavoritePhotoIdsAction(galleryId, storedEmail).then((result) => {
+    getFavoriteListsAction(galleryId, storedEmail).then((result) => {
       if (result.ok) {
-        setFavoriteIds(new Set(result.photoIds));
+        setFavoriteLists(result.lists);
+        setActiveFavoriteListId(result.lists[0]?.id ?? "");
       }
     });
   }, [galleryId]);
@@ -281,23 +293,46 @@ export function PublicGallery({
     setFavoriteError("");
 
     try {
-      const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite);
+      const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite, activeFavoriteList?.id);
 
       if (!result.ok) {
         throw new Error(result.message);
       }
 
-      setFavoriteIds((current) => {
-        const next = new Set(current);
+      if (!result.listId) {
+        throw new Error("Die Favoritenliste konnte nicht gefunden werden.");
+      }
 
-        if (result.isFavorite) {
-          next.add(photoId);
-        } else {
-          next.delete(photoId);
-        }
+      const resultListId = result.listId;
+      const resultListName = result.listName ?? "Favoriten";
 
-        return next;
-      });
+      setFavoriteLists((current) =>
+        current.some((list) => list.id === resultListId)
+          ? current.map((list) => {
+              if (list.id !== resultListId) {
+                return list;
+              }
+
+              const photoIds = new Set(list.photoIds);
+
+              if (result.isFavorite) {
+                photoIds.add(photoId);
+              } else {
+                photoIds.delete(photoId);
+              }
+
+              return { ...list, photoIds: Array.from(photoIds) };
+            })
+          : [
+              {
+                id: resultListId,
+                name: resultListName,
+                photoIds: result.isFavorite ? [photoId] : []
+              },
+              ...current
+            ]
+      );
+      setActiveFavoriteListId(resultListId);
     } catch (error) {
       setFavoriteError(error instanceof Error ? error.message : "Der Favorit konnte nicht gespeichert werden.");
     } finally {
@@ -319,15 +354,58 @@ export function PublicGallery({
     const queuedPhotoId = favoritePromptPhotoId;
     setFavoritePromptPhotoId(null);
 
-    const favorites = await getFavoritePhotoIdsAction(galleryId, normalizedEmail);
+    let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail);
 
-    if (favorites.ok) {
-      setFavoriteIds(new Set(favorites.photoIds));
+    if (listsResult.ok && listsResult.lists.length === 0) {
+      const created = await createFavoriteListAction(galleryId, normalizedEmail, "Favoriten");
+
+      if (created.ok && created.list) {
+        listsResult = {
+          ok: true,
+          lists: [created.list]
+        };
+      }
+    }
+
+    if (listsResult.ok) {
+      setFavoriteLists(listsResult.lists);
+      setActiveFavoriteListId(listsResult.lists[0]?.id ?? "");
     }
 
     if (queuedPhotoId) {
       await toggleFavorite(queuedPhotoId, normalizedEmail);
     }
+  }
+
+  async function createNewFavoriteList() {
+    const normalizedEmail = favoriteEmail || favoriteEmailDraft.trim().toLowerCase();
+    const listName = newFavoriteListName.trim();
+
+    if (!normalizedEmail) {
+      setFavoritePromptPhotoId(photos[0]?.id ?? "");
+      return;
+    }
+
+    if (!listName) {
+      setFavoriteError("Bitte gib einen Namen für die Liste ein.");
+      return;
+    }
+
+    setFavoriteError("");
+    const result = await createFavoriteListAction(galleryId, normalizedEmail, listName);
+
+    if (!result.ok || !result.list) {
+      setFavoriteError(result.message ?? "Die Liste konnte nicht erstellt werden.");
+      return;
+    }
+
+    setFavoriteLists((current) => {
+      const withoutDuplicate = current.filter((list) => list.id !== result.list?.id);
+      return [result.list!, ...withoutDuplicate];
+    });
+    setActiveFavoriteListId(result.list.id);
+    setNewFavoriteListName("");
+    setShowFavoritesOnly(false);
   }
 
   function favoriteButtonClass(photoId: string) {
@@ -339,6 +417,41 @@ export function PublicGallery({
   return (
     <>
       <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {favoriteEmail ? (
+          <div className="col-span-full mb-2 rounded-lg border border-ink/10 bg-white/90 p-3 shadow-soft">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <span className="text-sm font-medium text-graphite">Favoritenliste</span>
+                <select
+                  value={activeFavoriteList?.id ?? ""}
+                  onChange={(event) => {
+                    setActiveFavoriteListId(event.target.value);
+                    setShowFavoritesOnly(false);
+                  }}
+                  className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                >
+                  {favoriteLists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name} ({list.photoIds.length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  value={newFavoriteListName}
+                  onChange={(event) => setNewFavoriteListName(event.target.value)}
+                  placeholder="Neue Liste, z. B. Album"
+                  className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                />
+                <Button type="button" variant="secondary" onClick={() => void createNewFavoriteList()}>
+                  Liste erstellen
+                </Button>
+              </div>
+            </div>
+            {favoriteError ? <p className="mt-2 text-sm text-red-700">{favoriteError}</p> : null}
+          </div>
+        ) : null}
         {photoColumns.map((column, columnIndex) => (
           <div key={columnIndex} className="grid content-start gap-2">
             {column.map(({ photo, index }) => (
