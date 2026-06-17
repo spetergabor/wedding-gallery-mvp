@@ -259,7 +259,7 @@ export function PublicGallery({
         {photos.map((photo, index) => (
           <div
             key={photo.id}
-            className="group mb-4 block w-full break-inside-avoid overflow-hidden rounded-lg bg-mist text-left"
+            className="group block w-full overflow-hidden rounded-lg bg-mist text-left"
           >
             <span className={`relative block w-full ${tileAspects[index % tileAspects.length]}`}>
               <button
