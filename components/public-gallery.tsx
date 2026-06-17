@@ -9,6 +9,7 @@ import {
   createFavoriteListAction,
   getFavoriteListsAction,
   recordGalleryDownloadAction,
+  submitFavoriteListAction,
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
 
@@ -24,6 +25,7 @@ type PublicPhoto = {
 type FavoriteListState = {
   id: string;
   name: string;
+  submittedAt: string | null;
   photoIds: string[];
 };
 
@@ -79,6 +81,8 @@ export function PublicGallery({
   const [favoriteError, setFavoriteError] = useState("");
   const [favoritePromptPhotoId, setFavoritePromptPhotoId] = useState<string | null>(null);
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
+  const [isSubmittingFavoriteList, setIsSubmittingFavoriteList] = useState(false);
+  const [favoriteSuccess, setFavoriteSuccess] = useState("");
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -327,6 +331,7 @@ export function PublicGallery({
               {
                 id: resultListId,
                 name: resultListName,
+                submittedAt: null,
                 photoIds: result.isFavorite ? [photoId] : []
               },
               ...current
@@ -408,6 +413,42 @@ export function PublicGallery({
     setShowFavoritesOnly(false);
   }
 
+  async function submitActiveFavoriteList() {
+    if (!activeFavoriteList || !favoriteEmail || isSubmittingFavoriteList) {
+      return;
+    }
+
+    setIsSubmittingFavoriteList(true);
+    setFavoriteError("");
+    setFavoriteSuccess("");
+
+    try {
+      const result = await submitFavoriteListAction(galleryId, favoriteEmail, activeFavoriteList.id);
+
+      if (!result.ok || !result.submittedAt) {
+        throw new Error(result.message);
+      }
+
+      setFavoriteLists((current) =>
+        current.map((list) =>
+          list.id === activeFavoriteList.id ? { ...list, submittedAt: result.submittedAt } : list
+        )
+      );
+      setFavoriteSuccess(result.message ?? "Die Auswahl wurde gespeichert.");
+    } catch (error) {
+      setFavoriteError(error instanceof Error ? error.message : "Die Auswahl konnte nicht gespeichert werden.");
+    } finally {
+      setIsSubmittingFavoriteList(false);
+    }
+  }
+
+  function formatSubmittedAt(value: string) {
+    return new Intl.DateTimeFormat("de-AT", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(new Date(value));
+  }
+
   function favoriteButtonClass(photoId: string) {
     return favoriteIds.has(photoId)
       ? "bg-ink text-white"
@@ -427,6 +468,8 @@ export function PublicGallery({
                   onChange={(event) => {
                     setActiveFavoriteListId(event.target.value);
                     setShowFavoritesOnly(false);
+                    setFavoriteSuccess("");
+                    setFavoriteError("");
                   }}
                   className="h-10 min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50 sm:min-w-52"
                 >
@@ -449,6 +492,36 @@ export function PublicGallery({
                 </Button>
               </div>
             </div>
+            <div className="mt-4 flex flex-col gap-3 border-t border-ink/10 pt-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-medium text-ink">
+                  {activeFavoriteList ? `${activeFavoriteList.name}: ${favoriteCount} Favoriten` : "Keine aktive Liste"}
+                </p>
+                <p className="mt-1 text-sm text-graphite/70">
+                  {activeFavoriteList?.submittedAt
+                    ? `Abgeschlossen am ${formatSubmittedAt(activeFavoriteList.submittedAt)}`
+                    : "Wenn deine Auswahl fertig ist, schließe die Liste ab."}
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => void submitActiveFavoriteList()}
+                disabled={!activeFavoriteList || favoriteCount === 0 || isSubmittingFavoriteList}
+                className="lg:shrink-0"
+              >
+                <Heart size={16} />
+                {isSubmittingFavoriteList
+                  ? "Wird gespeichert..."
+                  : activeFavoriteList?.submittedAt
+                    ? "Auswahl aktualisieren"
+                    : "Auswahl abschließen"}
+              </Button>
+            </div>
+            {favoriteSuccess ? (
+              <p className="mt-2 rounded-md border border-sage/20 bg-sage/10 px-3 py-2 text-sm text-sage">
+                {favoriteSuccess}
+              </p>
+            ) : null}
             {favoriteError ? <p className="mt-2 text-sm text-red-700">{favoriteError}</p> : null}
           </div>
         ) : null}

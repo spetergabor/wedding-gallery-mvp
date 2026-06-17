@@ -44,7 +44,7 @@ export default async function GalleryDetailPage({
     include: {
       downloads: { orderBy: { createdAt: "desc" } },
       favoriteLists: {
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
         include: {
           items: {
             orderBy: { createdAt: "asc" },

@@ -219,6 +219,7 @@ export async function getFavoriteListsAction(galleryId: string, email: string) {
     select: {
       id: true,
       name: true,
+      submittedAt: true,
       items: {
         select: { photoId: true }
       }
@@ -230,6 +231,7 @@ export async function getFavoriteListsAction(galleryId: string, email: string) {
     lists: lists.map((list) => ({
       id: list.id,
       name: list.name,
+      submittedAt: list.submittedAt?.toISOString() ?? null,
       photoIds: list.items.map((item) => item.photoId)
     }))
   };
@@ -256,6 +258,7 @@ export async function createFavoriteListAction(galleryId: string, email: string,
     select: {
       id: true,
       name: true,
+      submittedAt: true,
       items: { select: { photoId: true } }
     }
   });
@@ -266,6 +269,7 @@ export async function createFavoriteListAction(galleryId: string, email: string,
       list: {
         id: existingList.id,
         name: existingList.name,
+        submittedAt: existingList.submittedAt?.toISOString() ?? null,
         photoIds: existingList.items.map((item) => item.photoId)
       }
     };
@@ -279,7 +283,8 @@ export async function createFavoriteListAction(galleryId: string, email: string,
     },
     select: {
       id: true,
-      name: true
+      name: true,
+      submittedAt: true
     }
   });
 
@@ -288,8 +293,87 @@ export async function createFavoriteListAction(galleryId: string, email: string,
     list: {
       id: list.id,
       name: list.name,
+      submittedAt: list.submittedAt?.toISOString() ?? null,
       photoIds: []
     }
+  };
+}
+
+export async function submitFavoriteListAction(galleryId: string, email: string, listId: string) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!isValidEmail(normalizedEmail)) {
+    return {
+      ok: false,
+      message: "Bitte gib eine gültige E-Mail-Adresse ein.",
+      submittedAt: null
+    };
+  }
+
+  const list = await prisma.galleryFavoriteList.findFirst({
+    where: {
+      id: listId,
+      galleryId,
+      email: normalizedEmail,
+      gallery: { isActive: true }
+    },
+    select: {
+      id: true,
+      name: true,
+      submittedAt: true,
+      gallery: {
+        select: {
+          title: true
+        }
+      },
+      _count: {
+        select: {
+          items: true
+        }
+      }
+    }
+  });
+
+  if (!list) {
+    return {
+      ok: false,
+      message: "Diese Favoritenliste konnte nicht gefunden werden.",
+      submittedAt: null
+    };
+  }
+
+  if (list._count.items === 0) {
+    return {
+      ok: false,
+      message: "Bitte wähle zuerst mindestens ein Foto aus.",
+      submittedAt: null
+    };
+  }
+
+  const submittedAt = new Date();
+
+  await prisma.galleryFavoriteList.update({
+    where: { id: list.id },
+    data: { submittedAt }
+  });
+
+  await prisma.adminNotification.create({
+    data: {
+      type: "favorite_list_submitted",
+      title: "Kedvenc lista lezárva",
+      message: `${normalizedEmail} lezárta a(z) ${list.name} listát a(z) ${list.gallery.title} galériában.`,
+      href: `/admin/galleries/${galleryId}`
+    }
+  });
+
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/notifications");
+  revalidatePath(`/admin/galleries/${galleryId}`);
+
+  return {
+    ok: true,
+    message: "Die Auswahl wurde gespeichert.",
+    submittedAt: submittedAt.toISOString()
   };
 }
 

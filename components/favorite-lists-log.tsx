@@ -8,6 +8,7 @@ type FavoriteList = {
   id: string;
   email: string;
   name: string;
+  submittedAt: Date | null;
   updatedAt: Date;
   items: {
     id: string;
@@ -58,7 +59,16 @@ export function FavoriteListsLog({ lists }: { lists: FavoriteList[] }) {
             <div key={list.id} className="rounded-md border border-ink/10 p-4">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div>
-                  <p className="font-medium text-ink">{list.name}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-ink">{list.name}</p>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        list.submittedAt ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"
+                      }`}
+                    >
+                      {list.submittedAt ? "Lezárva" : "Folyamatban"}
+                    </span>
+                  </div>
                   <p className="text-sm text-graphite/70">{list.email}</p>
                   <p className="text-sm text-graphite/70">
                     {list.items.length} kedvenc kép · frissítve:{" "}
@@ -67,6 +77,15 @@ export function FavoriteListsLog({ lists }: { lists: FavoriteList[] }) {
                       timeStyle: "short"
                     })}
                   </p>
+                  {list.submittedAt ? (
+                    <p className="text-sm text-graphite/70">
+                      lezárva:{" "}
+                      {list.submittedAt.toLocaleString("hu-HU", {
+                        dateStyle: "medium",
+                        timeStyle: "short"
+                      })}
+                    </p>
+                  ) : null}
                 </div>
                 <Button type="button" variant="secondary" onClick={() => void handleCopy(list)} className="shrink-0">
                   {copiedListId === list.id ? <Check size={16} /> : <Copy size={16} />}
