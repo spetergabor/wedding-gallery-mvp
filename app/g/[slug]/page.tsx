@@ -70,7 +70,7 @@ export default async function PublicGalleryPage({
       <header className="relative min-h-[72vh] overflow-hidden bg-ink text-white">
         {coverPhoto ? (
           <Image
-            src={coverPhoto.imageUrl}
+            src={coverPhoto.previewUrl || coverPhoto.imageUrl}
             alt={gallery.title}
             fill
             priority

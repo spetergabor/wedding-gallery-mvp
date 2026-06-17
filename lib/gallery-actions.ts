@@ -11,9 +11,11 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
+  createPhotoVariantObjectKey,
   deleteGalleryObjects,
   deletePhotoObject,
   getPhotoPublicUrl,
+  getR2KeyFromPublicUrl,
   isR2StorageEnabled,
   savePhotoObject
 } from "@/lib/storage";
@@ -46,6 +48,7 @@ type CompletedPhotoUpload = {
   r2Key: string;
   imageUrl: string;
   thumbnailUrl: string;
+  previewUrl?: string;
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -373,7 +376,7 @@ export async function deleteGalleryAction(id: string) {
     select: {
       slug: true,
       photos: {
-        select: { r2Key: true }
+        select: { r2Key: true, thumbnailUrl: true, previewUrl: true }
       }
     }
   });
@@ -388,7 +391,11 @@ export async function deleteGalleryAction(id: string) {
 
   await deleteGalleryObjects(
     gallery.slug,
-    gallery.photos.map((photo) => photo.r2Key)
+    gallery.photos.flatMap((photo) => [
+      photo.r2Key,
+      getR2KeyFromPublicUrl(photo.thumbnailUrl),
+      getR2KeyFromPublicUrl(photo.previewUrl)
+    ])
   );
 
   revalidatePath("/admin/galleries");
@@ -454,6 +461,7 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
         r2Key,
         imageUrl: publicUrl,
         thumbnailUrl: publicUrl,
+        previewUrl: publicUrl,
         fileSize: bytes.length,
         sortOrder: nextSortOrder + index
       };
@@ -552,7 +560,19 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
           gallerySlug: session.gallery.slug,
           originalFilename: file.filename
         });
+        const thumbnailR2Key = createPhotoVariantObjectKey({
+          gallerySlug: session.gallery.slug,
+          originalFilename: file.filename,
+          variant: "thumbnail"
+        });
+        const previewR2Key = createPhotoVariantObjectKey({
+          gallerySlug: session.gallery.slug,
+          originalFilename: file.filename,
+          variant: "preview"
+        });
         const publicUrl = getPhotoPublicUrl(r2Key);
+        const thumbnailUrl = getPhotoPublicUrl(thumbnailR2Key);
+        const previewUrl = getPhotoPublicUrl(previewR2Key);
         const uploadItem = await prisma.galleryUploadItem.upsert({
           where: {
             sessionId_clientId: {
@@ -566,7 +586,8 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             filename: file.filename,
             r2Key,
             imageUrl: publicUrl,
-            thumbnailUrl: publicUrl,
+            thumbnailUrl,
+            previewUrl,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
             imageHeight: file.imageHeight ?? 0,
@@ -581,7 +602,8 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             filename: file.filename,
             r2Key,
             imageUrl: publicUrl,
-            thumbnailUrl: publicUrl,
+            thumbnailUrl,
+            previewUrl,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
             imageHeight: file.imageHeight ?? 0,
@@ -603,10 +625,19 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
           filename: file.filename,
           r2Key,
           imageUrl: publicUrl,
-          thumbnailUrl: publicUrl,
+          thumbnailUrl,
+          previewUrl,
           uploadUrl: await createPresignedPhotoUploadUrl({
             r2Key,
             contentType: file.contentType
+          }),
+          thumbnailUploadUrl: await createPresignedPhotoUploadUrl({
+            r2Key: thumbnailR2Key,
+            contentType: "image/jpeg"
+          }),
+          previewUploadUrl: await createPresignedPhotoUploadUrl({
+            r2Key: previewR2Key,
+            contentType: "image/jpeg"
           })
         };
       })
@@ -737,6 +768,7 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
           r2Key: upload.r2Key,
           imageUrl: upload.imageUrl,
           thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
+          previewUrl: upload.previewUrl || upload.imageUrl,
           fileSize: upload.fileSize ?? 0,
           imageWidth: upload.imageWidth ?? 0,
           imageHeight: upload.imageHeight ?? 0,
@@ -779,7 +811,7 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   });
   const photo = await prisma.photo.findUnique({
     where: { id: photoId },
-    select: { r2Key: true }
+    select: { r2Key: true, thumbnailUrl: true, previewUrl: true }
   });
 
   await prisma.photo.delete({
@@ -799,7 +831,11 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
     });
   }
 
-  await deletePhotoObject(photo?.r2Key ?? "");
+  await Promise.all([
+    deletePhotoObject(photo?.r2Key ?? ""),
+    deletePhotoObject(getR2KeyFromPublicUrl(photo?.thumbnailUrl) ?? ""),
+    deletePhotoObject(getR2KeyFromPublicUrl(photo?.previewUrl) ?? "")
+  ]);
 
   revalidatePath(`/admin/galleries/${galleryId}`);
 

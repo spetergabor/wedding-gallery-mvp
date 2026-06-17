@@ -72,6 +72,23 @@ export function createPhotoObjectKey({
   return `galleries/${gallerySlug}/photos/${uniqueName}`;
 }
 
+export function createPhotoVariantObjectKey({
+  gallerySlug,
+  originalFilename,
+  variant
+}: {
+  gallerySlug: string;
+  originalFilename: string;
+  variant: "thumbnail" | "preview";
+}) {
+  const extension = ".jpg";
+  const baseName = normalizeSlug(path.basename(originalFilename, path.extname(originalFilename))) || "photo";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension}`;
+  const folder = variant === "thumbnail" ? "thumbs" : "previews";
+
+  return `galleries/${gallerySlug}/${folder}/${uniqueName}`;
+}
+
 export function createGalleryZipObjectKey({
   gallerySlug
 }: {
@@ -82,6 +99,20 @@ export function createGalleryZipObjectKey({
 
 export function getPublicR2Url(r2Key: string) {
   return `${R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${r2Key}`;
+}
+
+export function getR2KeyFromPublicUrl(publicUrl: string | null | undefined) {
+  if (!publicUrl) {
+    return null;
+  }
+
+  const baseUrl = R2_PUBLIC_BASE_URL.replace(/\/$/, "");
+
+  if (!publicUrl.startsWith(`${baseUrl}/`)) {
+    return null;
+  }
+
+  return publicUrl.slice(baseUrl.length + 1);
 }
 
 export function getLocalUploadPath(r2Key: string) {
@@ -176,8 +207,8 @@ export async function deletePhotoObject(r2Key: string) {
   await unlink(getLocalUploadPath(r2Key)).catch(() => undefined);
 }
 
-export async function deleteGalleryObjects(gallerySlug: string, r2Keys: string[]) {
-  const uniqueKeys = [...new Set(r2Keys.filter(Boolean))];
+export async function deleteGalleryObjects(gallerySlug: string, r2Keys: Array<string | null | undefined>) {
+  const uniqueKeys = [...new Set(r2Keys.filter((r2Key): r2Key is string => Boolean(r2Key)))];
 
   await Promise.all(uniqueKeys.map((r2Key) => deletePhotoObject(r2Key)));
 

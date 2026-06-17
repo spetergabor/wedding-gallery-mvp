@@ -56,6 +56,7 @@ model Photo {
   r2Key        String   @default("")
   imageUrl     String
   thumbnailUrl String
+  previewUrl   String   @default("")
   fileSize     Int      @default(0)
   imageWidth   Int      @default(0)
   imageHeight  Int      @default(0)
@@ -197,6 +198,7 @@ model GalleryUploadItem {
   r2Key         String?
   imageUrl      String?
   thumbnailUrl  String?
+  previewUrl    String?
   fileSize      Int      @default(0)
   imageWidth    Int      @default(0)
   imageHeight   Int      @default(0)

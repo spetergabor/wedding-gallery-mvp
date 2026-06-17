@@ -18,7 +18,10 @@ type PreparedUpload = {
   r2Key: string;
   imageUrl: string;
   thumbnailUrl: string;
+  previewUrl: string;
   uploadUrl: string;
+  thumbnailUploadUrl: string;
+  previewUploadUrl: string;
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -43,6 +46,8 @@ type SelectedPhotoFile = {
 const UPLOAD_BATCH_SIZE = 25;
 const UPLOAD_CONCURRENCY = 3;
 const MAX_UPLOAD_ATTEMPTS = 3;
+const THUMBNAIL_MAX_SIZE = 900;
+const PREVIEW_MAX_SIZE = 2400;
 
 function uploadStatusLabel({
   completedCount,
@@ -78,6 +83,63 @@ function wait(milliseconds: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, milliseconds);
   });
+}
+
+async function loadImageBitmap(file: File) {
+  if ("createImageBitmap" in window) {
+    return createImageBitmap(file, { imageOrientation: "from-image" });
+  }
+
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error(`${file.name} előnézeti képe nem készíthető el.`));
+    };
+    image.src = objectUrl;
+  });
+}
+
+async function createResizedJpeg(file: File, maxSize: number, quality: number) {
+  const bitmap = await loadImageBitmap(file);
+  const sourceWidth = bitmap.width;
+  const sourceHeight = bitmap.height;
+  const ratio = Math.min(1, maxSize / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * ratio));
+  const height = Math.max(1, Math.round(sourceHeight * ratio));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error(`${file.name} előnézeti képe nem készíthető el.`);
+  }
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(bitmap, 0, 0, width, height);
+
+  if ("close" in bitmap && typeof bitmap.close === "function") {
+    bitmap.close();
+  }
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", quality);
+  });
+
+  if (!blob) {
+    throw new Error(`${file.name} előnézeti képe nem készíthető el.`);
+  }
+
+  return blob;
 }
 
 function statusLabel(status: PhotoUploadStatus) {
@@ -268,24 +330,34 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     );
   }
 
-  async function uploadFile(file: File, target: PreparedUpload) {
+  async function uploadBlob({
+    body,
+    uploadUrl,
+    filename,
+    contentType
+  }: {
+    body: Blob;
+    uploadUrl: string;
+    filename: string;
+    contentType: string;
+  }) {
     let lastError: unknown = null;
 
     for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt += 1) {
       try {
-        const response = await fetch(target.uploadUrl, {
+        const response = await fetch(uploadUrl, {
           method: "PUT",
           headers: {
-            "Content-Type": file.type || "application/octet-stream"
+            "Content-Type": contentType
           },
-          body: file
+          body
         });
 
         if (response.ok) {
           return;
         }
 
-        lastError = new Error(`${file.name} feltöltése nem sikerült. (${response.status})`);
+        lastError = new Error(`${filename} feltöltése nem sikerült. (${response.status})`);
       } catch (error) {
         lastError = error;
       }
@@ -295,7 +367,35 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error(`${file.name} feltöltése nem sikerült.`);
+    throw lastError instanceof Error ? lastError : new Error(`${filename} feltöltése nem sikerült.`);
+  }
+
+  async function uploadFile(file: File, target: PreparedUpload) {
+    const [thumbnailBlob, previewBlob] = await Promise.all([
+      createResizedJpeg(file, THUMBNAIL_MAX_SIZE, 0.82),
+      createResizedJpeg(file, PREVIEW_MAX_SIZE, 0.88)
+    ]);
+
+    await Promise.all([
+      uploadBlob({
+        body: file,
+        uploadUrl: target.uploadUrl,
+        filename: file.name,
+        contentType: file.type || "application/octet-stream"
+      }),
+      uploadBlob({
+        body: thumbnailBlob,
+        uploadUrl: target.thumbnailUploadUrl,
+        filename: `${file.name} thumbnail`,
+        contentType: "image/jpeg"
+      }),
+      uploadBlob({
+        body: previewBlob,
+        uploadUrl: target.previewUploadUrl,
+        filename: `${file.name} preview`,
+        contentType: "image/jpeg"
+      })
+    ]);
   }
 
   async function uploadBatch(sessionId: string, batch: SelectedPhotoFile[]) {

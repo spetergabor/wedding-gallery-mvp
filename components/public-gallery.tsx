@@ -18,6 +18,7 @@ type PublicPhoto = {
   filename: string;
   imageUrl: string;
   thumbnailUrl: string;
+  previewUrl: string;
   imageWidth: number;
   imageHeight: number;
 };
@@ -892,7 +893,7 @@ export function PublicGallery({
 
           <div className="relative h-[calc(100vh-6rem)] w-full">
             <Image
-              src={selectedPhoto.imageUrl}
+              src={selectedPhoto.previewUrl || selectedPhoto.imageUrl}
               alt={selectedPhoto.filename}
               fill
               className="object-contain"
