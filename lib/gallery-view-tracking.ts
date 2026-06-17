@@ -72,11 +72,12 @@ export async function recordGalleryView({
 
   if (recentView) {
     return {
-      created: false
+      created: false,
+      viewId: recentView.id
     };
   }
 
-  await prisma.galleryView.create({
+  const view = await prisma.galleryView.create({
     data: {
       galleryId,
       country,
@@ -90,6 +91,7 @@ export async function recordGalleryView({
   });
 
   return {
-    created: true
+    created: true,
+    viewId: view.id
   };
 }

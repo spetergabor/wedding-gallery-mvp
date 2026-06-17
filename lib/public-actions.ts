@@ -104,14 +104,102 @@ export async function recordGalleryViewAction(galleryId: string) {
   }
 
   const requestHeaders = await headers();
-  await recordGalleryView({
+  const result = await recordGalleryView({
     galleryId,
     headers: requestHeaders
   });
 
   return {
-    ok: true
+    ok: true,
+    viewId: result.viewId
   };
+}
+
+function coordinateInRange(value: number, min: number, max: number) {
+  return Number.isFinite(value) && value >= min && value <= max;
+}
+
+async function reverseGeocode(latitude: number, longitude: number) {
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(latitude));
+    url.searchParams.set("lon", String(longitude));
+    url.searchParams.set("zoom", "12");
+    url.searchParams.set("addressdetails", "1");
+
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "WeddingGalleryMVP/1.0 (gallery.hochzeitsfotografgraz.at)"
+      },
+      next: { revalidate: 60 * 60 * 24 * 30 }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const address = data?.address ?? {};
+    const city =
+      address.city ??
+      address.town ??
+      address.village ??
+      address.municipality ??
+      address.county ??
+      null;
+
+    return {
+      city: typeof city === "string" ? city : null,
+      region: typeof address.state === "string" ? address.state : null,
+      country: typeof address.country_code === "string" ? address.country_code.toUpperCase() : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function updateGalleryViewLocationAction({
+  galleryId,
+  viewId,
+  latitude,
+  longitude
+}: {
+  galleryId: string;
+  viewId: string;
+  latitude: number;
+  longitude: number;
+}) {
+  if (!viewId || !coordinateInRange(latitude, -90, 90) || !coordinateInRange(longitude, -180, 180)) {
+    return { ok: false };
+  }
+
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { id: true, isActive: true }
+  });
+
+  if (!gallery || !gallery.isActive) {
+    return { ok: false };
+  }
+
+  const location = await reverseGeocode(latitude, longitude);
+
+  await prisma.galleryView.updateMany({
+    where: {
+      id: viewId,
+      galleryId
+    },
+    data: {
+      latitude,
+      longitude,
+      city: location?.city ?? null,
+      region: location?.region ?? null,
+      country: location?.country ?? null
+    }
+  });
+
+  return { ok: true };
 }
 
 export async function getFavoriteListsAction(galleryId: string, email: string) {
