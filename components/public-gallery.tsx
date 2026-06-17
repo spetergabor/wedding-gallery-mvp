@@ -16,6 +16,8 @@ type PublicPhoto = {
   filename: string;
   imageUrl: string;
   thumbnailUrl: string;
+  imageWidth: number;
+  imageHeight: number;
 };
 
 function galleryFileName(title: string) {
@@ -25,6 +27,10 @@ function galleryFileName(title: string) {
 function photoFileName(photo: PublicPhoto, index: number) {
   const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
   return (photo.filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
+}
+
+function hasImageDimensions(photo: PublicPhoto) {
+  return photo.imageWidth > 0 && photo.imageHeight > 0;
 }
 
 export function PublicGallery({
@@ -260,12 +266,23 @@ export function PublicGallery({
                 onClick={() => setSelectedIndex(index)}
                 className="relative z-0 block w-full text-left"
               >
-                <img
-                  src={photo.thumbnailUrl}
-                  alt={photo.filename}
-                  loading="lazy"
-                  className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
-                />
+                {hasImageDimensions(photo) ? (
+                  <Image
+                    src={photo.thumbnailUrl}
+                    alt={photo.filename}
+                    width={photo.imageWidth}
+                    height={photo.imageHeight}
+                    className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
+                    sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                  />
+                ) : (
+                  <img
+                    src={photo.thumbnailUrl}
+                    alt={photo.filename}
+                    loading="lazy"
+                    className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
+                  />
+                )}
                 <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 transition group-hover:opacity-100">
                   <Maximize2 size={16} />
                 </span>

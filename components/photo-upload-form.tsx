@@ -16,6 +16,8 @@ type PreparedUpload = {
   thumbnailUrl: string;
   uploadUrl: string;
   fileSize?: number;
+  imageWidth?: number;
+  imageHeight?: number;
   capturedAt?: string | null;
   originalIndex?: number;
 };
@@ -23,6 +25,8 @@ type PreparedUpload = {
 type SelectedPhotoFile = {
   file: File;
   capturedAt: string | null;
+  imageWidth: number;
+  imageHeight: number;
   originalIndex: number;
 };
 
@@ -77,19 +81,35 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     return Math.max(8, Math.round((uploadedCount / selectedFiles.length) * 100));
   }, [isUploading, selectedFiles.length, uploadedCount]);
 
-  async function readCapturedAt(file: File) {
+  async function readPhotoMetadata(file: File) {
     try {
-      const tags = await exifr.parse(file, ["DateTimeOriginal", "CreateDate", "ModifyDate"]);
+      const tags = await exifr.parse(file, [
+        "DateTimeOriginal",
+        "CreateDate",
+        "ModifyDate",
+        "PixelXDimension",
+        "PixelYDimension",
+        "ExifImageWidth",
+        "ExifImageHeight",
+        "ImageWidth",
+        "ImageHeight"
+      ]);
       const value = tags?.DateTimeOriginal ?? tags?.CreateDate ?? tags?.ModifyDate;
+      const imageWidth = Number(tags?.PixelXDimension ?? tags?.ExifImageWidth ?? tags?.ImageWidth ?? 0);
+      const imageHeight = Number(tags?.PixelYDimension ?? tags?.ExifImageHeight ?? tags?.ImageHeight ?? 0);
 
-      if (value instanceof Date && !Number.isNaN(value.getTime())) {
-        return value.toISOString();
-      }
+      return {
+        capturedAt: value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString() : null,
+        imageWidth: Number.isFinite(imageWidth) ? imageWidth : 0,
+        imageHeight: Number.isFinite(imageHeight) ? imageHeight : 0
+      };
     } catch {
-      return null;
+      return {
+        capturedAt: null,
+        imageWidth: 0,
+        imageHeight: 0
+      };
     }
-
-    return null;
   }
 
   async function setFiles(files: File[]) {
@@ -100,11 +120,15 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     setUploadError("");
 
     const enrichedFiles = await Promise.all(
-      imageFiles.map(async (file, index) => ({
-        file,
-        capturedAt: await readCapturedAt(file),
-        originalIndex: index
-      }))
+      imageFiles.map(async (file, index) => {
+        const metadata = await readPhotoMetadata(file);
+
+        return {
+          file,
+          ...metadata,
+          originalIndex: index
+        };
+      })
     );
 
     enrichedFiles.sort((a, b) => {
@@ -225,6 +249,8 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         completedUploads[index] = {
           ...target,
           fileSize: selectedFile.file.size,
+          imageWidth: selectedFile.imageWidth,
+          imageHeight: selectedFile.imageHeight,
           capturedAt: selectedFile.capturedAt,
           originalIndex: selectedFile.originalIndex
         };

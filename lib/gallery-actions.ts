@@ -39,6 +39,8 @@ type CompletedPhotoUpload = {
   imageUrl: string;
   thumbnailUrl: string;
   fileSize?: number;
+  imageWidth?: number;
+  imageHeight?: number;
   capturedAt?: string | null;
   originalIndex?: number;
 };
@@ -533,6 +535,8 @@ export async function completePhotoUploadsAction(galleryId: string, uploads: Com
       imageUrl: upload.imageUrl,
       thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
       fileSize: upload.fileSize ?? 0,
+      imageWidth: upload.imageWidth ?? 0,
+      imageHeight: upload.imageHeight ?? 0,
       capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
       sortOrder: nextSortOrder + index
     }))
