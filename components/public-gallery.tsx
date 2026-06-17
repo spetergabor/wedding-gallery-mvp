@@ -72,25 +72,46 @@ export function PublicGallery({
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  const visiblePhotos = useMemo(() => {
+    if (!showFavoritesOnly) {
+      return photos;
+    }
+
+    return photos.filter((photo) => favoriteIds.has(photo.id));
+  }, [favoriteIds, photos, showFavoritesOnly]);
 
   const selectedPhoto = useMemo(() => {
     if (selectedIndex === null) {
       return null;
     }
 
-    return photos[selectedIndex] ?? null;
-  }, [photos, selectedIndex]);
+    return visiblePhotos[selectedIndex] ?? null;
+  }, [selectedIndex, visiblePhotos]);
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
   const photoColumns = useMemo(() => {
-    return photos.reduce<Array<Array<{ photo: PublicPhoto; index: number }>>>((columns, photo, index) => {
+    return visiblePhotos.reduce<Array<Array<{ photo: PublicPhoto; index: number }>>>((columns, photo, index) => {
       const columnIndex = index % columnCount;
       columns[columnIndex]?.push({ photo, index });
 
       return columns;
     }, Array.from({ length: columnCount }, () => []));
-  }, [columnCount, photos]);
+  }, [columnCount, visiblePhotos]);
+
+  useEffect(() => {
+    if (showFavoritesOnly && favoriteCount === 0) {
+      setShowFavoritesOnly(false);
+    }
+  }, [favoriteCount, showFavoritesOnly]);
+
+  useEffect(() => {
+    if (selectedIndex !== null && selectedIndex >= visiblePhotos.length) {
+      setSelectedIndex(visiblePhotos.length > 0 ? visiblePhotos.length - 1 : null);
+    }
+  }, [selectedIndex, visiblePhotos.length]);
 
   useEffect(() => {
     function updateColumnCount() {
@@ -121,21 +142,21 @@ export function PublicGallery({
 
   function showPreviousPhoto() {
     setSelectedIndex((current) => {
-      if (current === null || photos.length === 0) {
+      if (current === null || visiblePhotos.length === 0) {
         return current;
       }
 
-      return current === 0 ? photos.length - 1 : current - 1;
+      return current === 0 ? visiblePhotos.length - 1 : current - 1;
     });
   }
 
   function showNextPhoto() {
     setSelectedIndex((current) => {
-      if (current === null || photos.length === 0) {
+      if (current === null || visiblePhotos.length === 0) {
         return current;
       }
 
-      return current === photos.length - 1 ? 0 : current + 1;
+      return current === visiblePhotos.length - 1 ? 0 : current + 1;
     });
   }
 
@@ -161,7 +182,7 @@ export function PublicGallery({
     window.addEventListener("keydown", handleKeyDown);
 
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIndex, photos.length]);
+  }, [selectedIndex, visiblePhotos.length]);
 
   async function createZipDownload() {
     if (isZipping) {
@@ -375,12 +396,19 @@ export function PublicGallery({
       <div className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-ink/10 bg-white/90 px-3 py-3 shadow-soft backdrop-blur">
         <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
           <Images size={16} />
-          {photos.length} Fotos
+          {showFavoritesOnly ? `${visiblePhotos.length}/${photos.length} Fotos` : `${photos.length} Fotos`}
         </span>
-        <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
+        <button
+          type="button"
+          onClick={() => favoriteCount > 0 && setShowFavoritesOnly((current) => !current)}
+          disabled={favoriteCount === 0}
+          className={`flex h-10 items-center gap-2 rounded-md px-2 text-sm transition ${
+            showFavoritesOnly ? "bg-ink text-white" : "text-graphite hover:bg-ink/5"
+          } disabled:cursor-not-allowed disabled:opacity-50`}
+        >
           <Heart size={16} />
           {favoriteCount} Favoriten
-        </span>
+        </button>
         <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
           <Download size={16} />
           {isZipping ? "ZIP wird erstellt" : "ZIP herunterladen"}
@@ -534,7 +562,7 @@ export function PublicGallery({
             </div>
           </div>
 
-          {photos.length > 1 ? (
+          {visiblePhotos.length > 1 ? (
             <>
               <button
                 type="button"
@@ -565,7 +593,7 @@ export function PublicGallery({
               priority
             />
           </div>
-          {photos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{photos.length}</p> : null}
+          {visiblePhotos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{visiblePhotos.length}</p> : null}
         </div>
       ) : null}
     </>
