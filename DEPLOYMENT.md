@@ -16,13 +16,14 @@ Set these in the hosting provider:
 ```text
 DATABASE_URL="postgresql://..."
 AUTH_SECRET="a-long-random-production-secret"
-STORAGE_DRIVER="local"
+STORAGE_DRIVER="r2"
 R2_BUCKET_NAME="wedding-gallery"
 NEXT_PUBLIC_R2_PUBLIC_BASE_URL="https://cdn.hochzeitsfotografgraz.at"
 NEXT_PUBLIC_APP_URL="https://gallery.hochzeitsfotografgraz.at"
 RESEND_API_KEY="re_..."
 ADMIN_NOTIFICATION_EMAIL="you@example.com"
 EMAIL_FROM="Wedding Gallery <gallery@hochzeitsfotografgraz.at>"
+CRON_SECRET="a-long-random-worker-secret"
 ```
 
 ## Vercel setup
@@ -38,11 +39,23 @@ npm run prisma:deploy
 
 On Vercel, this is usually run locally or from a one-off CI/job with the production `DATABASE_URL`.
 
-## Important upload note
+## Background jobs
 
-The current MVP stores uploaded images in `public/uploads` on the local filesystem, while the database is already prepared with `Photo.r2Key`, `Photo.imageUrl`, and `Photo.thumbnailUrl`.
+Long-running work, such as full-gallery ZIP generation, is queued in the database and processed by:
 
-Keep `STORAGE_DRIVER="local"` until the actual R2 upload adapter is implemented. When R2 is connected, uploaded files should be written to the `wedding-gallery` bucket and served from `https://cdn.hochzeitsfotografgraz.at/{r2Key}`.
+```text
+/api/jobs/process
+```
+
+In production, call this route with:
+
+```text
+Authorization: Bearer CRON_SECRET
+```
+
+The gallery download flow also starts processing after the visitor submits their email, but this endpoint is the stable worker hook for retries and future scheduled processing.
+
+## Storage
 
 The planned production domains are:
 

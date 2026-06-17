@@ -4,11 +4,11 @@ import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import JSZip from "jszip";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
-import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
+import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;
@@ -28,11 +28,6 @@ function normalizeListName(name: string) {
 
 function galleryZipFileName(title: string) {
   return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery"}.zip`;
-}
-
-function photoZipFileName(filename: string, index: number) {
-  const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
-  return (filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
 }
 
 export async function canViewGallery(slug: string, password: string | null) {
@@ -112,7 +107,9 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       message: "Bitte gib eine gültige E-Mail-Adresse ein.",
       downloadUrl: null,
       filename: null,
-      cached: false
+      cached: false,
+      packageId: null,
+      status: "failed"
     };
   }
 
@@ -141,7 +138,9 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       message: "Diese Galerie ist derzeit nicht verfügbar.",
       downloadUrl: null,
       filename: null,
-      cached: false
+      cached: false,
+      packageId: null,
+      status: "failed"
     };
   }
 
@@ -151,7 +150,9 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       message: "Diese Galerie enthält noch keine Fotos.",
       downloadUrl: null,
       filename: null,
-      cached: false
+      cached: false,
+      packageId: null,
+      status: "failed"
     };
   }
 
@@ -173,6 +174,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     },
     orderBy: { generatedAt: "desc" },
     select: {
+      id: true,
       downloadUrl: true,
       r2Key: true
     }
@@ -191,87 +193,123 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       message: "Download ist bereit.",
       downloadUrl: existingPackage.downloadUrl,
       filename: galleryZipFileName(gallery.title),
-      cached: true
+      cached: true,
+      packageId: existingPackage.id,
+      status: "completed"
+    };
+  }
+
+  const existingPendingPackage = await prisma.galleryDownloadPackage.findFirst({
+    where: {
+      galleryId,
+      status: { in: ["pending", "processing"] },
+      photoCount: gallery.photos.length
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true
+    }
+  });
+
+  if (existingPendingPackage) {
+    after(async () => {
+      await processPendingJobs({ limit: 1 });
+    });
+
+    return {
+      ok: true,
+      message: "Download-Paket wird vorbereitet.",
+      downloadUrl: null,
+      filename: galleryZipFileName(gallery.title),
+      cached: false,
+      packageId: existingPendingPackage.id,
+      status: existingPendingPackage.status
     };
   }
 
   const downloadPackage = await prisma.galleryDownloadPackage.create({
     data: {
       galleryId,
-      status: "processing",
+      status: "pending",
       photoCount: gallery.photos.length
     },
     select: { id: true }
   });
 
-  try {
-    const zip = new JSZip();
+  await enqueueGalleryZipJob({
+    galleryId,
+    packageId: downloadPackage.id
+  });
 
-    for (const [index, photo] of gallery.photos.entries()) {
-      const response = await fetch(photo.imageUrl, { cache: "no-store" });
+  after(async () => {
+    await processPendingJobs({ limit: 1 });
+  });
 
-      if (!response.ok) {
-        throw new Error(`${photo.filename} konnte nicht geladen werden.`);
+  return {
+    ok: true,
+    message: "Download-Paket wird vorbereitet.",
+    downloadUrl: null,
+    filename: galleryZipFileName(gallery.title),
+    cached: false,
+    packageId: downloadPackage.id,
+    status: "pending"
+  };
+}
+
+export async function getGalleryDownloadPackageAction(packageId: string) {
+  const downloadPackage = await prisma.galleryDownloadPackage.findUnique({
+    where: { id: packageId },
+    select: {
+      id: true,
+      status: true,
+      downloadUrl: true,
+      errorMessage: true,
+      gallery: {
+        select: {
+          title: true
+        }
       }
-
-      const bytes = Buffer.from(await response.arrayBuffer());
-      zip.file(photoZipFileName(photo.filename, index), bytes);
     }
+  });
 
-    const zipBuffer = await zip.generateAsync({
-      type: "nodebuffer",
-      compression: "STORE"
-    });
-    const r2Key = createGalleryZipObjectKey({ gallerySlug: gallery.slug });
-    const downloadUrl = getPhotoPublicUrl(r2Key);
+  if (!downloadPackage) {
+    return {
+      ok: false,
+      message: "Download-Paket wurde nicht gefunden.",
+      status: "failed",
+      downloadUrl: null,
+      filename: null
+    };
+  }
 
-    await savePhotoObject({
-      r2Key,
-      bytes: zipBuffer,
-      contentType: "application/zip"
-    });
-
-    await prisma.galleryDownloadPackage.update({
-      where: { id: downloadPackage.id },
-      data: {
-        status: "completed",
-        photoCount: gallery.photos.length,
-        fileSize: zipBuffer.length,
-        r2Key,
-        downloadUrl,
-        errorMessage: null,
-        generatedAt: new Date()
-      }
-    });
-
-    revalidatePath(`/admin/galleries/${galleryId}`);
-
+  if (downloadPackage.status === "completed" && downloadPackage.downloadUrl) {
     return {
       ok: true,
       message: "Download ist bereit.",
-      downloadUrl,
-      filename: galleryZipFileName(gallery.title),
-      cached: false
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.";
-
-    await prisma.galleryDownloadPackage.update({
-      where: { id: downloadPackage.id },
-      data: {
-        status: "failed",
-        errorMessage: message.slice(0, 500)
-      }
-    });
-
-    return {
-      ok: false,
-      message,
-      downloadUrl: null,
-      filename: null,
-      cached: false
+      status: "completed",
+      downloadUrl: downloadPackage.downloadUrl,
+      filename: galleryZipFileName(downloadPackage.gallery.title)
     };
   }
+
+  if (downloadPackage.status === "failed") {
+    return {
+      ok: false,
+      message: downloadPackage.errorMessage || "Die ZIP-Datei konnte nicht erstellt werden.",
+      status: "failed",
+      downloadUrl: null,
+      filename: galleryZipFileName(downloadPackage.gallery.title)
+    };
+  }
+
+  return {
+    ok: true,
+    message: "Download-Paket wird vorbereitet.",
+    status: downloadPackage.status,
+    downloadUrl: null,
+    filename: galleryZipFileName(downloadPackage.gallery.title)
+  };
 }
 
 export async function recordGalleryViewAction(galleryId: string) {
