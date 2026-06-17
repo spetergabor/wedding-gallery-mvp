@@ -5,7 +5,15 @@ import L from "leaflet";
 import { MapPin } from "lucide-react";
 import type { ViewLocationPoint } from "@/lib/view-location-points";
 
-export function ViewLocationMap({ points }: { points: ViewLocationPoint[] }) {
+export function ViewLocationMap({
+  points,
+  title = "Megtekintések térképe",
+  description = "Összesített helyszínek az összes publikus galéria megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható."
+}: {
+  points: ViewLocationPoint[];
+  title?: string;
+  description?: string;
+}) {
   const totalViews = points.reduce((sum, point) => sum + point.count, 0);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -88,8 +96,8 @@ export function ViewLocationMap({ points }: { points: ViewLocationPoint[] }) {
     <section className="mt-8 overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
       <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 md:flex-row md:items-center">
         <div>
-          <h2 className="text-lg font-semibold text-ink">Megtekintések térképe</h2>
-          <p className="mt-1 text-sm text-graphite/70">Összesített helyszínek az összes publikus galéria megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható.</p>
+          <h2 className="text-lg font-semibold text-ink">{title}</h2>
+          <p className="mt-1 text-sm text-graphite/70">{description}</p>
         </div>
         <div className="flex items-center gap-2 rounded-md bg-paper px-3 py-2 text-sm text-graphite">
           <MapPin size={16} />

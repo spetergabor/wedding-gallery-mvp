@@ -14,10 +14,12 @@ import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { StatCard } from "@/components/stat-card";
 import { UploadSessionLog } from "@/components/upload-session-log";
+import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
 import { requireAdmin } from "@/lib/auth";
 import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
+import { createViewLocationPoints } from "@/lib/view-location-points";
 
 type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
 
@@ -146,6 +148,7 @@ export default async function GalleryDetailPage({
     : "Nincs adat";
   const hiddenByClientCount = gallery.photos.filter((photo) => photo.isClientHidden).length;
   const activeTab = getActiveTab(flags);
+  const locationPoints = createViewLocationPoints(gallery.views);
 
   return (
     <AdminShell>
@@ -235,7 +238,16 @@ export default async function GalleryDetailPage({
           </div>
         ) : null}
 
-        {activeTab === "views" ? <ViewLog views={gallery.views} /> : null}
+        {activeTab === "views" ? (
+          <div className="space-y-6">
+            <ViewLog views={gallery.views} />
+            <ViewLocationMap
+              points={locationPoints}
+              title="Album megtekintések térképe"
+              description="Összesített helyszínek kizárólag ennek a galériának a publikus megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható."
+            />
+          </div>
+        ) : null}
 
         {activeTab === "downloads" ? (
           <div className="max-w-3xl">
