@@ -14,7 +14,7 @@ export function SocialShareButtons({
   variant?: "light" | "card";
 }) {
   const [copied, setCopied] = useState(false);
-  const shareText = `${title} galéria`;
+  const shareText = `${title} Galerie`;
   const buttonClass = variant === "light" ? "border-white/25 bg-white/15 text-white hover:bg-white/25" : "";
 
   function getShareUrl() {
@@ -40,11 +40,11 @@ export function SocialShareButtons({
     try {
       await navigator.share({
         title: shareText,
-        text: "Nézd meg az esküvői galériánkat.",
+        text: "Schau dir unsere Hochzeitsgalerie an.",
         url: getShareUrl()
       });
     } catch {
-      // A share sheet bezárása nem hiba a felhasználó szempontjából.
+      // Closing the share sheet is not an error from the visitor's perspective.
     }
   }
 
@@ -56,7 +56,7 @@ export function SocialShareButtons({
     <div className="flex flex-wrap items-center gap-2">
       <Button type="button" variant={variant === "light" ? "secondary" : "primary"} onClick={nativeShare} className={buttonClass}>
         <Share2 size={16} />
-        Megosztás
+        Teilen
       </Button>
       <button
         type="button"
@@ -80,7 +80,7 @@ export function SocialShareButtons({
       </button>
       <Button type="button" variant="secondary" onClick={copyLink} className={buttonClass}>
         {copied ? <Check size={16} /> : <Copy size={16} />}
-        {copied ? "Másolva" : "Link"}
+        {copied ? "Kopiert" : "Link"}
       </Button>
     </div>
   );

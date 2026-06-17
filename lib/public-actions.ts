@@ -58,7 +58,7 @@ export async function recordGalleryDownloadAction(galleryId: string, email: stri
   if (!isValidEmail(normalizedEmail)) {
     return {
       ok: false,
-      message: "Adj meg egy érvényes email címet."
+      message: "Bitte gib eine gültige E-Mail-Adresse ein."
     };
   }
 
@@ -70,7 +70,7 @@ export async function recordGalleryDownloadAction(galleryId: string, email: stri
   if (!gallery || !gallery.isActive) {
     return {
       ok: false,
-      message: "Ez a galéria jelenleg nem elérhető."
+      message: "Diese Galerie ist derzeit nicht verfügbar."
     };
   }
 
@@ -83,7 +83,7 @@ export async function recordGalleryDownloadAction(galleryId: string, email: stri
 
   return {
     ok: true,
-    message: "Email mentve."
+    message: "E-Mail gespeichert."
   };
 }
 
@@ -116,7 +116,7 @@ export async function getFavoritePhotoIdsAction(galleryId: string, email: string
   if (!isValidEmail(normalizedEmail)) {
     return {
       ok: false,
-      message: "Adj meg egy érvényes email címet.",
+      message: "Bitte gib eine gültige E-Mail-Adresse ein.",
       photoIds: []
     };
   }
@@ -147,7 +147,7 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   if (!isValidEmail(normalizedEmail)) {
     return {
       ok: false,
-      message: "Adj meg egy érvényes email címet."
+      message: "Bitte gib eine gültige E-Mail-Adresse ein."
     };
   }
 
@@ -170,7 +170,7 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   if (!photo) {
     return {
       ok: false,
-      message: "A fotó nem található."
+      message: "Das Foto wurde nicht gefunden."
     };
   }
 

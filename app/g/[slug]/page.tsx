@@ -41,11 +41,11 @@ export default async function PublicGalleryPage({
             <Lock size={20} />
           </div>
           <h1 className="mt-5 text-2xl font-semibold text-ink">{gallery.title}</h1>
-          <p className="mt-2 text-sm text-graphite/70">Ez a galéria jelszóval védett.</p>
+          <p className="mt-2 text-sm text-graphite/70">Diese Galerie ist passwortgeschützt.</p>
 
           {flags.error ? (
             <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Hibás galéria jelszó.
+              Das Galerie-Passwort ist nicht korrekt.
             </div>
           ) : null}
 
@@ -54,10 +54,10 @@ export default async function PublicGalleryPage({
               name="password"
               type="password"
               required
-              placeholder="Galéria jelszó"
+              placeholder="Galerie-Passwort"
               className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-left outline-none transition focus:border-ink/50"
             />
-            <Button type="submit" className="w-full">Megnyitás</Button>
+            <Button type="submit" className="w-full">Galerie öffnen</Button>
           </form>
         </section>
       </main>
@@ -87,12 +87,12 @@ export default async function PublicGalleryPage({
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-white/80">
               <Camera size={16} />
-              Privát galéria
+              Private Galerie
             </div>
             <h1 className="mt-5 text-5xl font-semibold text-white sm:text-6xl md:text-7xl">
               {gallery.title}
             </h1>
-            <p className="mt-5 text-sm text-white/75">{visiblePhotos.length} fotó</p>
+            <p className="mt-5 text-sm text-white/75">{visiblePhotos.length} Fotos</p>
             <div className="mt-6">
               <SocialShareButtons path={`/g/${gallery.slug}`} title={gallery.title} />
             </div>
@@ -105,7 +105,7 @@ export default async function PublicGalleryPage({
           <PublicGallery galleryId={gallery.id} title={gallery.title} photos={visiblePhotos} />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
-            Ez a galéria még nem tartalmaz fotókat.
+            Diese Galerie enthält noch keine Fotos.
           </div>
         )}
       </section>

@@ -169,26 +169,26 @@ export function PublicGallery({
 
     setIsZipping(true);
     setEmailError("");
-    setZipProgress("Képek előkészítése...");
+    setZipProgress("Fotos werden vorbereitet...");
 
     try {
       const zip = new JSZip();
 
       for (const [index, photo] of photos.entries()) {
-        setZipProgress(`${index + 1}/${photos.length} kép hozzáadása...`);
+        setZipProgress(`${index + 1}/${photos.length} Fotos werden hinzugefügt...`);
         const response = await fetch(photo.imageUrl, { cache: "no-store" });
 
         if (!response.ok) {
-          throw new Error(`Nem sikerült letölteni: ${photo.filename}`);
+          throw new Error(`Dieses Foto konnte nicht heruntergeladen werden: ${photo.filename}`);
         }
 
         const blob = await response.blob();
         zip.file(photoFileName(photo, index), blob);
       }
 
-      setZipProgress("ZIP fájl készítése...");
+      setZipProgress("ZIP-Datei wird erstellt...");
       const content = await zip.generateAsync({ type: "blob" });
-      setZipProgress("Letöltés naplózása...");
+      setZipProgress("Download wird vorbereitet...");
 
       const result = await recordGalleryDownloadAction(galleryId, email);
 
@@ -204,7 +204,7 @@ export function PublicGallery({
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setIsEmailOpen(false);
     } catch (error) {
-      setEmailError(error instanceof Error ? error.message : "Nem sikerült elkészíteni a ZIP fájlt.");
+      setEmailError(error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.");
     } finally {
       setIsZipping(false);
       setZipProgress("");
@@ -249,7 +249,7 @@ export function PublicGallery({
         return next;
       });
     } catch (error) {
-      setFavoriteError(error instanceof Error ? error.message : "Nem sikerült menteni a kedvencet.");
+      setFavoriteError(error instanceof Error ? error.message : "Der Favorit konnte nicht gespeichert werden.");
     } finally {
       setPendingFavoriteId(null);
     }
@@ -260,7 +260,7 @@ export function PublicGallery({
     const normalizedEmail = favoriteEmailDraft.trim().toLowerCase();
 
     if (!normalizedEmail) {
-      setFavoriteError("Adj meg egy email címet.");
+      setFavoriteError("Bitte gib deine E-Mail-Adresse ein.");
       return;
     }
 
@@ -299,8 +299,8 @@ export function PublicGallery({
                 <span className="relative block w-full">
                   <button
                     type="button"
-                    title="Kép megnyitása"
-                    aria-label={`${photo.filename} megnyitása`}
+                    title="Foto öffnen"
+                    aria-label={`${photo.filename} öffnen`}
                     onClick={() => setSelectedIndex(index)}
                     className="relative z-0 block w-full text-left"
                   >
@@ -327,8 +327,8 @@ export function PublicGallery({
                   </button>
                   <button
                     type="button"
-                    title="Kedvenc"
-                    aria-label={`${photo.filename} kedvencekhez adása`}
+                    title="Favorit"
+                    aria-label={`${photo.filename} zu den Favoriten hinzufügen`}
                     onClick={() => void toggleFavorite(photo.id)}
                     className={`absolute left-3 top-3 z-10 flex size-9 items-center justify-center rounded-md transition ${favoriteButtonClass(photo.id)} ${
                       pendingFavoriteId === photo.id ? "opacity-60" : ""
@@ -346,15 +346,15 @@ export function PublicGallery({
       <div className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-ink/10 bg-white/90 px-3 py-3 shadow-soft backdrop-blur">
         <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
           <Images size={16} />
-          {photos.length} fotó
+          {photos.length} Fotos
         </span>
         <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
           <Heart size={16} />
-          {favoriteCount} kedvenc
+          {favoriteCount} Favoriten
         </span>
         <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
           <Download size={16} />
-          {isZipping ? "ZIP készül" : "ZIP letöltés"}
+          {isZipping ? "ZIP wird erstellt" : "ZIP herunterladen"}
         </Button>
       </div>
 
@@ -366,14 +366,14 @@ export function PublicGallery({
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
                   <Mail size={20} />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-ink">Album letöltése</h2>
+                <h2 className="mt-4 text-xl font-semibold text-ink">Album herunterladen</h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  Add meg az email címed, és indul a teljes galéria ZIP letöltése.
+                  Gib deine E-Mail-Adresse ein, um die komplette Galerie als ZIP-Datei herunterzuladen.
                 </p>
               </div>
               <button
                 type="button"
-                title="Bezárás"
+                title="Schließen"
                 onClick={() => setIsEmailOpen(false)}
                 className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
               >
@@ -382,7 +382,7 @@ export function PublicGallery({
             </div>
 
             <label className="mt-5 block space-y-2">
-              <span className="text-sm font-medium text-graphite">Email cím</span>
+              <span className="text-sm font-medium text-graphite">E-Mail-Adresse</span>
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -408,10 +408,10 @@ export function PublicGallery({
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="submit" disabled={isZipping} className="sm:flex-1">
                 <Download size={16} />
-                {isZipping ? "ZIP készül" : "Letöltés indítása"}
+                {isZipping ? "ZIP wird erstellt" : "Download starten"}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setIsEmailOpen(false)}>
-                Mégsem
+                Abbrechen
               </Button>
             </div>
           </form>
@@ -426,14 +426,14 @@ export function PublicGallery({
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
                   <Heart size={20} />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-ink">Kedvencek mentése</h2>
+                <h2 className="mt-4 text-xl font-semibold text-ink">Favoriten speichern</h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  Add meg az email címed, és ehhez mentjük a kiválasztott kedvenc képeket.
+                  Gib deine E-Mail-Adresse ein. Deine ausgewählten Lieblingsfotos werden damit gespeichert.
                 </p>
               </div>
               <button
                 type="button"
-                title="Bezárás"
+                title="Schließen"
                 onClick={() => setFavoritePromptPhotoId(null)}
                 className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
               >
@@ -442,7 +442,7 @@ export function PublicGallery({
             </div>
 
             <label className="mt-5 block space-y-2">
-              <span className="text-sm font-medium text-graphite">Email cím</span>
+              <span className="text-sm font-medium text-graphite">E-Mail-Adresse</span>
               <input
                 value={favoriteEmailDraft}
                 onChange={(event) => setFavoriteEmailDraft(event.target.value)}
@@ -462,10 +462,10 @@ export function PublicGallery({
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="submit" className="sm:flex-1">
                 <Heart size={16} />
-                Kedvenc mentése
+                Favorit speichern
               </Button>
               <Button type="button" variant="secondary" onClick={() => setFavoritePromptPhotoId(null)}>
-                Mégsem
+                Abbrechen
               </Button>
             </div>
           </form>
@@ -478,13 +478,13 @@ export function PublicGallery({
             <p className="truncate text-sm text-white/80">{selectedPhoto.filename}</p>
             <div className="flex items-center gap-2">
               <button
-                title="Kedvenc"
-                aria-label={`${selectedPhoto.filename} kedvencekhez adása`}
+                title="Favorit"
+                aria-label={`${selectedPhoto.filename} zu den Favoriten hinzufügen`}
                 onClick={() => void toggleFavorite(selectedPhoto.id)}
                 className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium ${favoriteIds.has(selectedPhoto.id) ? "bg-white text-ink" : "bg-white/10 text-white hover:bg-white/20"}`}
               >
                 <Heart size={16} fill={favoriteIds.has(selectedPhoto.id) ? "currentColor" : "none"} />
-                Kedvenc
+                Favorit
               </button>
               <a
                 href={selectedPhoto.imageUrl}
@@ -492,10 +492,10 @@ export function PublicGallery({
                 className="flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink"
               >
                 <Download size={16} />
-                Letöltés
+                Herunterladen
               </a>
               <button
-                title="Bezárás"
+                title="Schließen"
                 onClick={() => setSelectedIndex(null)}
                 className="flex size-10 items-center justify-center rounded-md bg-white/10 hover:bg-white/20"
               >
@@ -508,7 +508,7 @@ export function PublicGallery({
             <>
               <button
                 type="button"
-                title="Előző kép"
+                title="Vorheriges Foto"
                 onClick={showPreviousPhoto}
                 className="absolute left-3 top-1/2 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-md bg-white/15 text-white backdrop-blur transition hover:bg-white/25 md:left-4 md:size-12"
               >
@@ -516,7 +516,7 @@ export function PublicGallery({
               </button>
               <button
                 type="button"
-                title="Következő kép"
+                title="Nächstes Foto"
                 onClick={showNextPhoto}
                 className="absolute right-3 top-1/2 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-md bg-white/15 text-white backdrop-blur transition hover:bg-white/25 md:right-4 md:size-12"
               >
