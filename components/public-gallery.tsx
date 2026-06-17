@@ -2,13 +2,12 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import JSZip from "jszip";
 import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
   createFavoriteListAction,
   getFavoriteListsAction,
-  recordGalleryDownloadAction,
+  requestGalleryDownloadPackageAction,
   submitFavoriteListAction,
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
@@ -207,39 +206,26 @@ export function PublicGallery({
 
     setIsZipping(true);
     setEmailError("");
-    setZipProgress("Fotos werden vorbereitet...");
+    setZipProgress("Download-Paket wird vorbereitet...");
 
     try {
-      const zip = new JSZip();
-
-      for (const [index, photo] of photos.entries()) {
-        setZipProgress(`${index + 1}/${photos.length} Fotos werden hinzugefügt...`);
-        const response = await fetch(photo.imageUrl, { cache: "no-store" });
-
-        if (!response.ok) {
-          throw new Error(`Dieses Foto konnte nicht heruntergeladen werden: ${photo.filename}`);
-        }
-
-        const blob = await response.blob();
-        zip.file(photoFileName(photo, index), blob);
-      }
-
-      setZipProgress("ZIP-Datei wird erstellt...");
-      const content = await zip.generateAsync({ type: "blob" });
-      setZipProgress("Download wird vorbereitet...");
-
-      const result = await recordGalleryDownloadAction(galleryId, email);
+      const result = await requestGalleryDownloadPackageAction(galleryId, email);
 
       if (!result.ok) {
         throw new Error(result.message);
       }
 
-      const url = URL.createObjectURL(content);
+      if (!result.downloadUrl) {
+        throw new Error("Die ZIP-Datei konnte nicht gefunden werden.");
+      }
+
+      setZipProgress(result.cached ? "Bestehendes Download-Paket gefunden..." : "Download-Paket wurde erstellt...");
       const link = document.createElement("a");
-      link.href = url;
-      link.download = galleryFileName(title);
+      link.href = result.downloadUrl;
+      link.download = result.filename ?? galleryFileName(title);
+      document.body.appendChild(link);
       link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      link.remove();
       setIsEmailOpen(false);
     } catch (error) {
       setEmailError(error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.");

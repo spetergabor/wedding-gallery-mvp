@@ -72,6 +72,14 @@ export function createPhotoObjectKey({
   return `galleries/${gallerySlug}/photos/${uniqueName}`;
 }
 
+export function createGalleryZipObjectKey({
+  gallerySlug
+}: {
+  gallerySlug: string;
+}) {
+  return `galleries/${gallerySlug}/downloads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${gallerySlug}.zip`;
+}
+
 export function getPublicR2Url(r2Key: string) {
   return `${R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${r2Key}`;
 }

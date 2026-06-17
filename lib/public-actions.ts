@@ -4,8 +4,10 @@ import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import JSZip from "jszip";
 import { prisma } from "@/lib/prisma";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
+import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;
@@ -21,6 +23,15 @@ function isValidEmail(email: string) {
 
 function normalizeListName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 80) || "Favoriten";
+}
+
+function galleryZipFileName(title: string) {
+  return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery"}.zip`;
+}
+
+function photoZipFileName(filename: string, index: number) {
+  const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
+  return (filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
 }
 
 export async function canViewGallery(slug: string, password: string | null) {
@@ -89,6 +100,177 @@ export async function recordGalleryDownloadAction(galleryId: string, email: stri
     ok: true,
     message: "E-Mail gespeichert."
   };
+}
+
+export async function requestGalleryDownloadPackageAction(galleryId: string, email: string) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!isValidEmail(normalizedEmail)) {
+    return {
+      ok: false,
+      message: "Bitte gib eine gültige E-Mail-Adresse ein.",
+      downloadUrl: null,
+      filename: null,
+      cached: false
+    };
+  }
+
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      isActive: true,
+      photos: {
+        where: { isClientHidden: false },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: {
+          filename: true,
+          imageUrl: true,
+          createdAt: true
+        }
+      }
+    }
+  });
+
+  if (!gallery || !gallery.isActive) {
+    return {
+      ok: false,
+      message: "Diese Galerie ist derzeit nicht verfügbar.",
+      downloadUrl: null,
+      filename: null,
+      cached: false
+    };
+  }
+
+  if (gallery.photos.length === 0) {
+    return {
+      ok: false,
+      message: "Diese Galerie enthält noch keine Fotos.",
+      downloadUrl: null,
+      filename: null,
+      cached: false
+    };
+  }
+
+  const latestPhotoCreatedAt = gallery.photos.reduce<Date | null>((latest, photo) => {
+    if (!latest || photo.createdAt > latest) {
+      return photo.createdAt;
+    }
+
+    return latest;
+  }, null);
+
+  const existingPackage = await prisma.galleryDownloadPackage.findFirst({
+    where: {
+      galleryId,
+      status: "completed",
+      photoCount: gallery.photos.length,
+      downloadUrl: { not: null },
+      generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
+    },
+    orderBy: { generatedAt: "desc" },
+    select: {
+      downloadUrl: true,
+      r2Key: true
+    }
+  });
+
+  await prisma.galleryDownload.create({
+    data: {
+      galleryId,
+      email: normalizedEmail
+    }
+  });
+
+  if (existingPackage?.downloadUrl) {
+    return {
+      ok: true,
+      message: "Download ist bereit.",
+      downloadUrl: existingPackage.downloadUrl,
+      filename: galleryZipFileName(gallery.title),
+      cached: true
+    };
+  }
+
+  const downloadPackage = await prisma.galleryDownloadPackage.create({
+    data: {
+      galleryId,
+      status: "processing",
+      photoCount: gallery.photos.length
+    },
+    select: { id: true }
+  });
+
+  try {
+    const zip = new JSZip();
+
+    for (const [index, photo] of gallery.photos.entries()) {
+      const response = await fetch(photo.imageUrl, { cache: "no-store" });
+
+      if (!response.ok) {
+        throw new Error(`${photo.filename} konnte nicht geladen werden.`);
+      }
+
+      const bytes = Buffer.from(await response.arrayBuffer());
+      zip.file(photoZipFileName(photo.filename, index), bytes);
+    }
+
+    const zipBuffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "STORE"
+    });
+    const r2Key = createGalleryZipObjectKey({ gallerySlug: gallery.slug });
+    const downloadUrl = getPhotoPublicUrl(r2Key);
+
+    await savePhotoObject({
+      r2Key,
+      bytes: zipBuffer,
+      contentType: "application/zip"
+    });
+
+    await prisma.galleryDownloadPackage.update({
+      where: { id: downloadPackage.id },
+      data: {
+        status: "completed",
+        photoCount: gallery.photos.length,
+        fileSize: zipBuffer.length,
+        r2Key,
+        downloadUrl,
+        errorMessage: null,
+        generatedAt: new Date()
+      }
+    });
+
+    revalidatePath(`/admin/galleries/${galleryId}`);
+
+    return {
+      ok: true,
+      message: "Download ist bereit.",
+      downloadUrl,
+      filename: galleryZipFileName(gallery.title),
+      cached: false
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.";
+
+    await prisma.galleryDownloadPackage.update({
+      where: { id: downloadPackage.id },
+      data: {
+        status: "failed",
+        errorMessage: message.slice(0, 500)
+      }
+    });
+
+    return {
+      ok: false,
+      message,
+      downloadUrl: null,
+      filename: null,
+      cached: false
+    };
+  }
 }
 
 export async function recordGalleryViewAction(galleryId: string) {

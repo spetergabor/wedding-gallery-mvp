@@ -44,6 +44,10 @@ export default async function GalleryDetailPage({
     where: { id },
     include: {
       downloads: { orderBy: { createdAt: "desc" } },
+      downloadPackages: {
+        orderBy: { createdAt: "desc" },
+        take: 5
+      },
       favoriteLists: {
         orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
         include: {
@@ -188,7 +192,7 @@ export default async function GalleryDetailPage({
           <ViewLog views={gallery.views} />
           <div className="space-y-6">
             <FavoriteListsLog lists={gallery.favoriteLists} />
-            <DownloadLog downloads={gallery.downloads} />
+            <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages} />
           </div>
         </div>
         <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />

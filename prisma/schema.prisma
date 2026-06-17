@@ -43,6 +43,7 @@ model Gallery {
   updatedAt    DateTime @updatedAt
   photos       Photo[]
   downloads    GalleryDownload[]
+  downloadPackages GalleryDownloadPackage[]
   views        GalleryView[]
   favoriteLists GalleryFavoriteList[]
   uploadSessions GalleryUploadSession[]
@@ -81,6 +82,25 @@ model GalleryDownload {
 
   @@index([galleryId])
   @@index([email])
+}
+
+model GalleryDownloadPackage {
+  id           String   @id @default(cuid())
+  galleryId    String
+  status       String   @default("pending")
+  photoCount   Int      @default(0)
+  fileSize     Int      @default(0)
+  r2Key        String?
+  downloadUrl  String?
+  errorMessage String?
+  generatedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId])
+  @@index([status])
+  @@index([generatedAt])
 }
 
 model GalleryView {
