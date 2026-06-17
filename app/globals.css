@@ -45,3 +45,13 @@ textarea {
 .leaflet-container {
   font: inherit;
 }
+
+@keyframes galleryFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

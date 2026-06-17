@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
@@ -80,11 +80,13 @@ export function PublicGallery({
   const [favoriteError, setFavoriteError] = useState("");
   const [favoritePromptPhotoId, setFavoritePromptPhotoId] = useState<string | null>(null);
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
+  const [lastFavoritePulseId, setLastFavoritePulseId] = useState<string | null>(null);
   const [isSubmittingFavoriteList, setIsSubmittingFavoriteList] = useState(false);
   const [favoriteSuccess, setFavoriteSuccess] = useState("");
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
   const activeFavoriteList = favoriteLists.find((list) => list.id === activeFavoriteListId) ?? favoriteLists[0] ?? null;
   const favoriteIds = useMemo(() => new Set(activeFavoriteList?.photoIds ?? []), [activeFavoriteList]);
 
@@ -281,6 +283,35 @@ export function PublicGallery({
 
     setPendingFavoriteId(photoId);
     setFavoriteError("");
+    setLastFavoritePulseId(photoId);
+
+    window.setTimeout(() => {
+      setLastFavoritePulseId((current) => (current === photoId ? null : current));
+    }, 260);
+
+    const previousLists = favoriteLists;
+    const optimisticListId = activeFavoriteList?.id ?? "";
+    const wasFavorite = favoriteIds.has(photoId);
+
+    if (optimisticListId) {
+      setFavoriteLists((current) =>
+        current.map((list) => {
+          if (list.id !== optimisticListId) {
+            return list;
+          }
+
+          const photoIds = new Set(list.photoIds);
+
+          if (wasFavorite) {
+            photoIds.delete(photoId);
+          } else {
+            photoIds.add(photoId);
+          }
+
+          return { ...list, photoIds: Array.from(photoIds) };
+        })
+      );
+    }
 
     try {
       const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite, activeFavoriteList?.id);
@@ -325,6 +356,7 @@ export function PublicGallery({
       );
       setActiveFavoriteListId(resultListId);
     } catch (error) {
+      setFavoriteLists(previousLists);
       setFavoriteError(error instanceof Error ? error.message : "Der Favorit konnte nicht gespeichert werden.");
     } finally {
       setPendingFavoriteId(null);
@@ -437,8 +469,18 @@ export function PublicGallery({
 
   function favoriteButtonClass(photoId: string) {
     return favoriteIds.has(photoId)
-      ? "bg-ink text-white"
-      : "bg-white/90 text-ink hover:bg-white";
+      ? "bg-brass text-white shadow-soft"
+      : "bg-white/90 text-ink shadow-sm hover:bg-white";
+  }
+
+  function toggleFavoritesFilter() {
+    if (favoriteCount === 0) {
+      return;
+    }
+
+    startFavoritesFilterTransition(() => {
+      setShowFavoritesOnly((current) => !current);
+    });
   }
 
   return (
@@ -516,7 +558,11 @@ export function PublicGallery({
             {column.map(({ photo, index }) => (
               <div
                 key={photo.id}
-                className="group block w-full overflow-hidden rounded-lg bg-mist text-left"
+                className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
+                  favoriteIds.has(photo.id)
+                    ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
+                    : "ring-0"
+                } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
               >
                 <span className="relative block w-full">
                   <button
@@ -532,7 +578,7 @@ export function PublicGallery({
                         alt={photo.filename}
                         width={photo.imageWidth}
                         height={photo.imageHeight}
-                        className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
+                        className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                         sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       />
                     ) : (
@@ -540,10 +586,10 @@ export function PublicGallery({
                         src={photo.thumbnailUrl}
                         alt={photo.filename}
                         loading="lazy"
-                        className="block h-auto w-full transition duration-500 group-hover:scale-[1.03]"
+                        className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                       />
                     )}
-                    <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 transition group-hover:opacity-100">
+                    <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
                       <Maximize2 size={16} />
                     </span>
                   </button>
@@ -552,11 +598,17 @@ export function PublicGallery({
                     title="Favorit"
                     aria-label={`${photo.filename} zu den Favoriten hinzufügen`}
                     onClick={() => void toggleFavorite(photo.id)}
-                    className={`absolute left-3 top-3 z-10 flex size-9 items-center justify-center rounded-md transition ${favoriteButtonClass(photo.id)} ${
-                      pendingFavoriteId === photo.id ? "opacity-60" : ""
+                    className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
+                      pendingFavoriteId === photo.id ? "opacity-80" : ""
+                    } ${
+                      lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
                     }`}
                   >
-                    <Heart size={16} fill={favoriteIds.has(photo.id) ? "currentColor" : "none"} />
+                    <Heart
+                      size={17}
+                      className="transition-transform duration-150"
+                      fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
+                    />
                   </button>
                 </span>
               </div>
@@ -572,11 +624,11 @@ export function PublicGallery({
         </span>
         <button
           type="button"
-          onClick={() => favoriteCount > 0 && setShowFavoritesOnly((current) => !current)}
+          onClick={toggleFavoritesFilter}
           disabled={favoriteCount === 0}
           className={`flex h-10 items-center gap-2 rounded-md px-2 text-sm transition ${
             showFavoritesOnly ? "bg-ink text-white" : "text-graphite hover:bg-ink/5"
-          } disabled:cursor-not-allowed disabled:opacity-50`}
+          } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
         >
           <Heart size={16} />
           {favoriteCount} Favoriten
@@ -702,7 +754,7 @@ export function PublicGallery({
       ) : null}
 
       {selectedPhoto ? (
-        <div className="fixed inset-0 z-50 bg-ink/95 p-4 text-white">
+        <div className="fixed inset-0 z-50 animate-[galleryFadeIn_160ms_ease-out] bg-ink/95 p-4 text-white">
           <div className="mb-4 flex items-center justify-between gap-4">
             <p className="truncate text-sm text-white/80">{selectedPhoto.filename}</p>
             <div className="flex items-center gap-2">
@@ -710,7 +762,7 @@ export function PublicGallery({
                 title="Favorit"
                 aria-label={`${selectedPhoto.filename} zu den Favoriten hinzufügen`}
                 onClick={() => void toggleFavorite(selectedPhoto.id)}
-                className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium ${favoriteIds.has(selectedPhoto.id) ? "bg-white text-ink" : "bg-white/10 text-white hover:bg-white/20"}`}
+                className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition duration-150 active:scale-95 ${favoriteIds.has(selectedPhoto.id) ? "bg-brass text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
               >
                 <Heart size={16} fill={favoriteIds.has(selectedPhoto.id) ? "currentColor" : "none"} />
                 Favorit
