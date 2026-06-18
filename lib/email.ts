@@ -7,7 +7,14 @@ type AdminFavoriteListSubmittedEmail = {
   submittedAt: Date;
 };
 
-function appBaseUrl() {
+type ContractSignatureRequestEmail = {
+  to: string[];
+  coupleName: string;
+  contractTitle: string;
+  contractUrl: string;
+};
+
+export function appBaseUrl() {
   const rawUrl = (
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.VERCEL_PROJECT_PRODUCTION_URL ??
@@ -114,4 +121,66 @@ export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavorite
 
 export function adminGalleryUrl(galleryId: string) {
   return `${appBaseUrl()}/admin/galleries/${galleryId}`;
+}
+
+function contractSignatureRequestHtml({
+  coupleName,
+  contractTitle,
+  contractUrl
+}: ContractSignatureRequestEmail) {
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Szerződés megtekintése</h1>
+      <p style="margin: 0 0 18px;">Kedves ${escapeHtml(coupleName)},</p>
+      <p style="margin: 0 0 18px;">Elkészült a(z) <strong>${escapeHtml(contractTitle)}</strong> dokumentum. Az alábbi gombbal meg tudjátok nyitni.</p>
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(contractUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Szerződés megnyitása</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Ha a gomb nem működik, másoljátok be ezt a linket a böngészőbe:<br>${escapeHtml(contractUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendContractSignatureRequestEmail(payload: ContractSignatureRequestEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Contract email skipped. Missing RESEND_API_KEY.");
+    return;
+  }
+
+  const recipients = [...new Set(payload.to.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: recipients,
+      subject: `Szerződés megtekintése: ${payload.contractTitle}`,
+      html: contractSignatureRequestHtml(payload),
+      text: [
+        `Kedves ${payload.coupleName},`,
+        "",
+        `Elkészült a(z) ${payload.contractTitle} dokumentum.`,
+        `Szerződés megnyitása: ${payload.contractUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Contract email failed: ${response.status} ${errorText}`);
+  }
+}
+
+export function contractPublicUrl(token: string) {
+  return `${appBaseUrl()}/contracts/${token}`;
 }

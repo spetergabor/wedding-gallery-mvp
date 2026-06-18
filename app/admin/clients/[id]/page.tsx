@@ -31,7 +31,14 @@ export default async function AdminClientDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; updated?: string; error?: string; contractUploaded?: string; contractError?: string }>;
+  searchParams: Promise<{
+    created?: string;
+    updated?: string;
+    error?: string;
+    contractUploaded?: string;
+    contractSent?: string;
+    contractError?: string;
+  }>;
 }) {
   await requireAdmin();
   const [{ id }, flags] = await Promise.all([params, searchParams]);
@@ -66,6 +73,7 @@ export default async function AdminClientDetailPage({
         {flags.created ? <Alert title="Ügyfél létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Ügyfél mentve." variant="success" /> : null}
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
+        {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
         {flags.error === "missing" ? (
           <Alert title="Hiányzó kötelező mező." variant="error">
             A pár neve és az elsődleges email cím kötelező.
@@ -79,6 +87,11 @@ export default async function AdminClientDetailPage({
         {flags.contractError === "type" ? (
           <Alert title="Csak PDF tölthető fel." variant="error">
             A szerződés első verzióban PDF fájl lehet.
+          </Alert>
+        ) : null}
+        {flags.contractError === "not-found" ? (
+          <Alert title="A szerződés nem található." variant="error">
+            Frissítsd az oldalt, és próbáld újra.
           </Alert>
         ) : null}
       </div>

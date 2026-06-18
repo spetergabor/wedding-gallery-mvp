@@ -1,6 +1,6 @@
-import { Download, ExternalLink, FileText, UploadCloud } from "lucide-react";
+import { Download, ExternalLink, FileText, Mail, UploadCloud } from "lucide-react";
 import { Button } from "@/components/button";
-import { uploadContractAction } from "@/lib/contract-actions";
+import { sendContractAction, uploadContractAction } from "@/lib/contract-actions";
 
 type Contract = {
   id: string;
@@ -9,6 +9,8 @@ type Contract = {
   originalFilename: string;
   fileUrl: string;
   fileSize: number;
+  accessToken: string | null;
+  accessTokenExpiresAt: Date | null;
   sentAt: Date | null;
   openedAt: Date | null;
   signedAt: Date | null;
@@ -106,6 +108,15 @@ export function ContractManager({
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
+                  <form action={sendContractAction.bind(null, customerId, contract.id)}>
+                    <button
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
+                      title="Szerződés kiküldése emailben"
+                    >
+                      <Mail size={16} />
+                      Küldés
+                    </button>
+                  </form>
                   <a
                     href={contract.fileUrl}
                     target="_blank"
@@ -128,6 +139,9 @@ export function ContractManager({
                 <p>Elküldve: {formatDate(contract.sentAt) ?? "még nincs"}</p>
                 <p>Megnyitva: {formatDate(contract.openedAt) ?? "még nincs"}</p>
                 <p>Aláírva: {formatDate(contract.signedAt) ?? "még nincs"}</p>
+                {contract.accessTokenExpiresAt ? (
+                  <p>Link lejár: {formatDate(contract.accessTokenExpiresAt)}</p>
+                ) : null}
               </div>
             </article>
           ))}

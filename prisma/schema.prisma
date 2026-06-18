@@ -75,6 +75,8 @@ model Contract {
   r2Key       String
   fileUrl     String
   fileSize    Int      @default(0)
+  accessToken String?  @unique
+  accessTokenExpiresAt DateTime?
   sentAt      DateTime?
   openedAt    DateTime?
   signedAt    DateTime?
@@ -87,6 +89,7 @@ model Contract {
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
+  @@index([accessToken])
 }
 
 model Gallery {
