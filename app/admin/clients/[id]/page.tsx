@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { FileSignature } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
+import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -31,12 +31,17 @@ export default async function AdminClientDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; updated?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; updated?: string; error?: string; contractUploaded?: string; contractError?: string }>;
 }) {
   await requireAdmin();
   const [{ id }, flags] = await Promise.all([params, searchParams]);
   const customer = await prisma.customer.findUnique({
-    where: { id }
+    where: { id },
+    include: {
+      contracts: {
+        orderBy: { createdAt: "desc" }
+      }
+    }
   });
 
   if (!customer) {
@@ -60,9 +65,20 @@ export default async function AdminClientDetailPage({
       <div className="mb-5 space-y-3">
         {flags.created ? <Alert title="Ügyfél létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Ügyfél mentve." variant="success" /> : null}
+        {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.error === "missing" ? (
           <Alert title="Hiányzó kötelező mező." variant="error">
             A pár neve és az elsődleges email cím kötelező.
+          </Alert>
+        ) : null}
+        {flags.contractError === "missing" ? (
+          <Alert title="Hiányzó szerződés adat." variant="error">
+            Adj meg címet és válassz ki egy PDF fájlt.
+          </Alert>
+        ) : null}
+        {flags.contractError === "type" ? (
+          <Alert title="Csak PDF tölthető fel." variant="error">
+            A szerződés első verzióban PDF fájl lehet.
           </Alert>
         ) : null}
       </div>
@@ -71,18 +87,7 @@ export default async function AdminClientDetailPage({
         <CustomerForm customer={customer} />
 
         <aside className="space-y-6">
-          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-            <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
-              <FileSignature size={20} />
-            </div>
-            <h2 className="mt-4 text-lg font-semibold text-ink">Szerződések</h2>
-            <p className="mt-2 text-sm text-graphite/70">
-              A következő lépésben ide kerül a PDF feltöltés, kiküldés és ujjal aláírás.
-            </p>
-            <div className="mt-4 rounded-md bg-paper px-4 py-3 text-sm text-graphite/70">
-              Még nincs feltöltött szerződés.
-            </div>
-          </section>
+          <ContractManager customerId={customer.id} contracts={customer.contracts} />
 
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <h2 className="text-lg font-semibold text-ink">Gyors adatok</h2>

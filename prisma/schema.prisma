@@ -59,10 +59,34 @@ model Customer {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  contracts      Contract[]
 
   @@index([status])
   @@index([weddingDate])
   @@index([primaryEmail])
+}
+
+model Contract {
+  id          String   @id @default(cuid())
+  customerId  String
+  title       String
+  status      String   @default("draft")
+  originalFilename String
+  r2Key       String
+  fileUrl     String
+  fileSize    Int      @default(0)
+  sentAt      DateTime?
+  openedAt    DateTime?
+  signedAt    DateTime?
+  signedR2Key String?
+  signedFileUrl String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Gallery {

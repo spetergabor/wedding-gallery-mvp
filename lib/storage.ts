@@ -109,6 +109,20 @@ export function createBrandAssetObjectKey({
   return `brand/${uniqueName}`;
 }
 
+export function createContractObjectKey({
+  customerId,
+  originalFilename
+}: {
+  customerId: string;
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".pdf";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "contract";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `contracts/${customerId}/${uniqueName}`;
+}
+
 export function getPublicR2Url(r2Key: string) {
   return `${R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${r2Key}`;
 }
