@@ -7,7 +7,7 @@ Recommended deployment:
 - GitHub for source code
 - Vercel for the Next.js app
 - Neon, Supabase, Railway, or another hosted PostgreSQL database
-- Cloudflare R2 later for persistent image uploads
+- Cloudflare R2 for persistent image and video uploads
 
 ## Required environment variables
 
@@ -24,6 +24,7 @@ RESEND_API_KEY="re_..."
 ADMIN_NOTIFICATION_EMAIL="you@example.com"
 EMAIL_FROM="Wedding Gallery <gallery@hochzeitsfotografgraz.at>"
 CRON_SECRET="a-long-random-worker-secret"
+MEDIA_PROCESSING_SECRET="a-long-random-media-worker-secret"
 ```
 
 ## Vercel setup
@@ -54,6 +55,25 @@ Authorization: Bearer CRON_SECRET
 ```
 
 The gallery download flow also starts processing after the visitor submits their email, but this endpoint is the stable worker hook for retries and future scheduled processing.
+
+## Media processing queue
+
+Heavy image/video derivative generation should run outside Vercel. New uploads create rows in `MediaProcessingJob`.
+A Cloudflare Worker can claim jobs from:
+
+```text
+POST /api/media-processing/jobs
+Authorization: Bearer MEDIA_PROCESSING_SECRET
+```
+
+After writing generated thumbnails, previews, or video posters back to R2, the Worker can complete the job with:
+
+```text
+POST /api/media-processing/jobs/complete
+Authorization: Bearer MEDIA_PROCESSING_SECRET
+```
+
+This keeps CPU-heavy processing on Cloudflare/R2 infrastructure instead of Vercel functions.
 
 ## Storage
 

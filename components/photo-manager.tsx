@@ -19,6 +19,8 @@ type Photo = {
   sortOrder: number;
   isClientHidden: boolean;
   clientHiddenAt: Date | null;
+  processingStatus: string;
+  processingError: string | null;
 };
 
 export function PhotoManager({
@@ -82,11 +84,19 @@ export function PhotoManager({
                   Ügyfél elrejtette
                 </span>
               ) : null}
+              {photo.processingStatus !== "ready" ? (
+                <span className="absolute bottom-3 left-3 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-graphite">
+                  {photo.processingStatus === "failed" ? "Feldolgozás hibás" : "Feldolgozás alatt"}
+                </span>
+              ) : null}
             </div>
             <div className="space-y-3 p-3">
               <div>
                 <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
                 <p className="mt-1 text-xs text-graphite/70">Sorrend: {index + 1}</p>
+                {photo.processingError ? (
+                  <p className="mt-1 text-xs text-red-700">{photo.processingError}</p>
+                ) : null}
                 {photo.clientHiddenAt ? (
                   <p className="mt-1 text-xs text-brass">
                     Elrejtve:{" "}

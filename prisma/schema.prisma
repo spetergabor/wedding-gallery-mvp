@@ -64,6 +64,7 @@ model Gallery {
   views        GalleryView[]
   favoriteLists GalleryFavoriteList[]
   uploadSessions GalleryUploadSession[]
+  mediaProcessingJobs MediaProcessingJob[]
 }
 
 model Photo {
@@ -75,6 +76,10 @@ model Photo {
   thumbnailUrl String
   previewUrl   String   @default("")
   mediaType    String   @default("image")
+  processingStatus String @default("ready")
+  processingError  String?
+  processingRequestedAt DateTime?
+  processingCompletedAt DateTime?
   fileSize     Int      @default(0)
   imageWidth   Int      @default(0)
   imageHeight  Int      @default(0)
@@ -85,11 +90,39 @@ model Photo {
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   favoriteItems GalleryFavoriteItem[]
+  processingJobs MediaProcessingJob[]
 
   @@index([galleryId])
   @@index([r2Key])
   @@index([galleryId, sortOrder])
   @@index([capturedAt])
+  @@index([processingStatus])
+}
+
+model MediaProcessingJob {
+  id           String   @id @default(cuid())
+  galleryId    String
+  photoId      String
+  mediaType    String
+  status       String   @default("pending")
+  sourceR2Key  String
+  thumbnailR2Key String?
+  previewR2Key   String?
+  posterR2Key    String?
+  attempts     Int      @default(0)
+  errorMessage String?
+  claimedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photo        Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId])
+  @@index([photoId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([claimedAt])
 }
 
 model GalleryDownload {
