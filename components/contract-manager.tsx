@@ -75,58 +75,16 @@ export function ContractManager({
         </div>
       </div>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-        <form action={createWrittenContractAction.bind(null, customerId)} className="space-y-3 rounded-md border border-ink/10 bg-paper p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <PenLine size={16} />
-            Saját szerződés írása
-          </div>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Szerződés címe</span>
-            <input
-              name="title"
-              required
-              placeholder="pl. Esküvői fotózás szerződés"
-              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            />
-          </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Szerződés szövege</span>
-            <textarea
-              name="bodyText"
-              required
-              rows={8}
-              placeholder="Írd ide a szerződés szövegét. A pár a kiválasztott mezőket lent fogja kitölteni, majd aláírja."
-              className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm leading-6 text-ink outline-none transition focus:border-ink/50"
-            />
-          </label>
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-graphite">A pár által kitöltendő mezők</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {CONTRACT_FIELD_OPTIONS.map((field) => (
-                <label key={field.key} className="flex items-center gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm text-graphite">
-                  <input
-                    type="checkbox"
-                    name="clientFields"
-                    value={field.key}
-                    defaultChecked={["coupleName", "primaryEmail", "phone", "weddingDate", "venue"].includes(field.key)}
-                    className="size-4 accent-ink"
-                  />
-                  {field.label}
-                </label>
-              ))}
+      <div className="mt-6 space-y-5">
+        <form action={uploadContractAction.bind(null, customerId)} className="space-y-4 rounded-md border border-ink/10 bg-paper p-5">
+          <div>
+            <div className="flex items-center gap-2 text-base font-semibold text-ink">
+              <UploadCloud size={18} />
+              Kész PDF feltöltése
             </div>
-          </fieldset>
-          <Button type="submit" className="w-full">
-            <PenLine size={16} />
-            Szerződés létrehozása
-          </Button>
-        </form>
-
-        <form action={uploadContractAction.bind(null, customerId)} className="space-y-3 rounded-md border border-ink/10 bg-paper p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <UploadCloud size={16} />
-            Kész PDF feltöltése
+            <p className="mt-1 text-sm text-graphite/70">
+              Ha már van kész szerződésed PDF-ben, ezt használd. A pár csak megnyitja és aláírja.
+            </p>
           </div>
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Szerződés címe</span>
@@ -150,6 +108,58 @@ export function ContractManager({
           <Button type="submit" className="w-full">
             <UploadCloud size={16} />
             PDF feltöltése
+          </Button>
+        </form>
+
+        <form action={createWrittenContractAction.bind(null, customerId)} className="space-y-4 rounded-md border border-ink/10 bg-paper p-5">
+          <div>
+            <div className="flex items-center gap-2 text-base font-semibold text-ink">
+              <PenLine size={18} />
+              Saját szerződés írása
+            </div>
+            <p className="mt-1 text-sm text-graphite/70">
+              Itt a platformon írod meg a szerződést, a pár pedig kitölti a szükséges mezőket és aláírja.
+            </p>
+          </div>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Szerződés címe</span>
+            <input
+              name="title"
+              required
+              placeholder="pl. Esküvői fotózás szerződés"
+              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Szerződés szövege</span>
+            <textarea
+              name="bodyText"
+              required
+              rows={8}
+              placeholder="Írd ide a szerződés szövegét. A pár a kiválasztott mezőket lent fogja kitölteni, majd aláírja."
+              className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm leading-6 text-ink outline-none transition focus:border-ink/50"
+            />
+          </label>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-graphite">A pár által kitöltendő mezők</legend>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {CONTRACT_FIELD_OPTIONS.map((field) => (
+                <label key={field.key} className="flex items-center gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm text-graphite">
+                  <input
+                    type="checkbox"
+                    name="clientFields"
+                    value={field.key}
+                    defaultChecked={["coupleName", "primaryEmail", "phone", "weddingDate", "venue"].includes(field.key)}
+                    className="size-4 accent-ink"
+                  />
+                  {field.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <Button type="submit" className="w-full">
+            <PenLine size={16} />
+            Szerződés létrehozása
           </Button>
         </form>
       </div>
