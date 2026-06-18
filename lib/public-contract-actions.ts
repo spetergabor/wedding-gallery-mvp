@@ -21,10 +21,25 @@ function parseSignatureDataUrl(value: FormDataEntryValue | null) {
 }
 
 function formatDate(date: Date) {
-  return date.toLocaleString("hu-HU", {
+  return date.toLocaleString("de-DE", {
     dateStyle: "medium",
     timeStyle: "short"
   });
+}
+
+function pdfText(value: string) {
+  return value
+    .replace(/[őöó]/g, "o")
+    .replace(/[ŐÖÓ]/g, "O")
+    .replace(/[űüú]/g, "u")
+    .replace(/[ŰÜÚ]/g, "U")
+    .replace(/[áä]/g, "a")
+    .replace(/[ÁÄ]/g, "A")
+    .replace(/[é]/g, "e")
+    .replace(/[É]/g, "E")
+    .replace(/[í]/g, "i")
+    .replace(/[Í]/g, "I")
+    .replace(/[^\x20-\x7E]/g, "");
 }
 
 async function createSignedPdf({
@@ -62,21 +77,21 @@ async function createSignedPdf({
     font: boldFont,
     color: rgb(0.09, 0.09, 0.09)
   });
-  signaturePage.drawText(contractTitle, {
+  signaturePage.drawText(pdfText(contractTitle), {
     x: 56,
     y: height - 128,
     size: 12,
     font,
     color: rgb(0.35, 0.35, 0.35)
   });
-  signaturePage.drawText(`Paar / Kunde: ${coupleName}`, {
+  signaturePage.drawText(pdfText(`Paar / Kunde: ${coupleName}`), {
     x: 56,
     y: height - 168,
     size: 12,
     font,
     color: rgb(0.12, 0.12, 0.12)
   });
-  signaturePage.drawText(`Unterzeichnet am: ${formatDate(signedAt)}`, {
+  signaturePage.drawText(pdfText(`Unterzeichnet am: ${formatDate(signedAt)}`), {
     x: 56,
     y: height - 188,
     size: 12,
