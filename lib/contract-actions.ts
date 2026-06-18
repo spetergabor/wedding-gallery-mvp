@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
-import { CONTRACT_FIELD_OPTIONS } from "@/lib/contract-fields";
+import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { createContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
@@ -86,8 +86,8 @@ export async function createWrittenContractAction(customerId: string, formData: 
 
   const title = formString(formData, "title");
   const bodyText = formString(formData, "bodyText");
-  const selectedKeys = new Set(formData.getAll("clientFields").filter((value): value is string => typeof value === "string"));
-  const clientFields = CONTRACT_FIELD_OPTIONS.filter((field) => selectedKeys.has(field.key));
+  const selectedKeys = formData.getAll("clientFields").filter((value): value is string => typeof value === "string");
+  const clientFields = mergeContractFieldsFromTemplate(bodyText, selectedKeys);
 
   if (!title || !bodyText) {
     redirect(`/admin/clients/${customerId}?contractError=written-missing`);

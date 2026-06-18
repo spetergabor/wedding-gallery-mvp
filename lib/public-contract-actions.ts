@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from "pdf-lib";
-import { contractFieldInputName, parseContractFields } from "@/lib/contract-fields";
+import {
+  contractFieldInputName,
+  fieldKeysInContractTemplate,
+  parseContractFields,
+  renderContractTemplateText
+} from "@/lib/contract-fields";
 import { prisma } from "@/lib/prisma";
 import { createSignedContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
@@ -397,14 +402,18 @@ export async function signContractAction(token: string, formData: FormData) {
   try {
     const clientFields = parseContractFields(contract.clientFields);
     const completedFields = contract.sourceType === "written" ? readClientFieldAnswers(formData, clientFields) : {};
+    const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
+    const renderedBodyText = renderContractTemplateText(contract.bodyText ?? "", completedFields);
     const signedPdfBytes =
       contract.sourceType === "written"
         ? await createSignedWrittenPdf({
-            bodyText: contract.bodyText ?? "",
-            answers: clientFields.map((field) => ({
-              label: field.label,
-              value: completedFields[field.key] ?? ""
-            })),
+            bodyText: renderedBodyText,
+            answers: clientFields
+              .filter((field) => !templateFieldKeys.has(field.key))
+              .map((field) => ({
+                label: field.label,
+                value: completedFields[field.key] ?? ""
+              })),
             signatureBytes,
             coupleName: contract.customer.coupleName,
             contractTitle: contract.title,

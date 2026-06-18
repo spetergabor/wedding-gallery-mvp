@@ -32,10 +32,12 @@ function SubmitButton({ hasSignature }: { hasSignature: boolean }) {
 export function ContractSignaturePad({
   token,
   disabled = false,
+  formId,
   children
 }: {
   token: string;
   disabled?: boolean;
+  formId?: string;
   children?: React.ReactNode;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -145,7 +147,7 @@ export function ContractSignaturePad({
   }
 
   return (
-    <form action={signContractAction.bind(null, token)} onSubmit={handleSubmit} className="mt-5 space-y-4">
+    <form id={formId} action={signContractAction.bind(null, token)} onSubmit={handleSubmit} className="mt-5 space-y-4">
       <input ref={signatureInputRef} type="hidden" name="signatureData" />
       {children}
       <div className="overflow-hidden rounded-md border border-ink/15 bg-white">

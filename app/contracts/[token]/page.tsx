@@ -1,6 +1,13 @@
 import { Download, ExternalLink, FileText, PenLine } from "lucide-react";
 import { ContractSignaturePad } from "@/components/contract-signature-pad";
-import { contractFieldInputName, parseContractAnswers, parseContractFields } from "@/lib/contract-fields";
+import {
+  contractFieldInputName,
+  fieldKeysInContractTemplate,
+  parseContractAnswers,
+  parseContractFields,
+  parseContractTemplateParts,
+  type ContractFieldDefinition
+} from "@/lib/contract-fields";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +51,51 @@ function ContractUnavailable() {
   );
 }
 
+function ContractInlineInput({
+  field,
+  defaultValue,
+  formId
+}: {
+  field: ContractFieldDefinition;
+  defaultValue: string;
+  formId: string;
+}) {
+  const inputName = contractFieldInputName(field.key);
+
+  if (field.type === "textarea") {
+    return (
+      <label className="my-3 block rounded-md border border-ink/10 bg-paper p-3">
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-brass">
+          {field.label}
+        </span>
+        <textarea
+          form={formId}
+          name={inputName}
+          defaultValue={defaultValue}
+          required
+          rows={3}
+          className="w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/50"
+        />
+      </label>
+    );
+  }
+
+  return (
+    <label className="mx-1 inline-flex translate-y-1 flex-col gap-1 align-baseline">
+      <span className="sr-only">{field.label}</span>
+      <input
+        form={formId}
+        name={inputName}
+        type={field.type}
+        defaultValue={defaultValue}
+        required
+        placeholder={field.label}
+        className="h-9 min-w-44 rounded-md border border-brass/40 bg-brass/10 px-3 text-sm font-medium text-ink outline-none transition placeholder:text-graphite/45 focus:border-brass"
+      />
+    </label>
+  );
+}
+
 export default async function ContractPublicPage({
   params,
   searchParams
@@ -80,6 +132,10 @@ export default async function ContractPublicPage({
   const isWrittenContract = contract.sourceType === "written";
   const contractFields = parseContractFields(contract.clientFields);
   const completedFields = parseContractAnswers(contract.completedFields);
+  const signatureFormId = `contract-signature-form-${contract.id}`;
+  const templateParts = parseContractTemplateParts(contract.bodyText ?? "", contractFields);
+  const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
+  const extraContractFields = contractFields.filter((field) => !templateFieldKeys.has(field.key));
   const customerDefaults: Record<string, string> = {
     coupleName: contract.customer.coupleName,
     primaryEmail: contract.customer.primaryEmail,
@@ -148,8 +204,25 @@ export default async function ContractPublicPage({
               ) : (
                 <div className="min-h-[520px] bg-white p-6 md:p-8">
                   <h2 className="text-2xl font-semibold text-ink">{contract.title}</h2>
-                  <div className="mt-6 whitespace-pre-wrap text-sm leading-7 text-graphite">
-                    {contract.bodyText}
+                  <div className="mt-6 text-sm leading-8 text-graphite">
+                    {templateParts.map((part, index) => {
+                      if (part.type === "text") {
+                        return (
+                          <span key={`${part.type}-${index}`} className="whitespace-pre-wrap">
+                            {part.value}
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <ContractInlineInput
+                          key={`${part.field.key}-${index}`}
+                          field={part.field}
+                          formId={signatureFormId}
+                          defaultValue={completedFields[part.field.key] ?? customerDefaults[part.field.key] ?? ""}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -185,11 +258,20 @@ export default async function ContractPublicPage({
                   ? "Töltsétek ki a szükséges adatokat, majd írjátok alá. Mentés után elkészül az aláírt PDF."
                   : "Írjátok alá a szerződést ujjal vagy egérrel. Mentés után elkészül egy aláírt PDF példány."}
               </p>
-              <ContractSignaturePad token={token} disabled={Boolean(contract.signedAt && contract.signedFileUrl)}>
-                {isWrittenContract && contractFields.length > 0 ? (
+              <ContractSignaturePad
+                token={token}
+                formId={signatureFormId}
+                disabled={Boolean(contract.signedAt && contract.signedFileUrl)}
+              >
+                {isWrittenContract ? (
+                  <div className="rounded-md border border-ink/10 bg-white p-4 text-sm leading-6 text-graphite/70">
+                    A kitöltendő mezők a szerződés szövegében jelennek meg. Ellenőrizzétek az adatokat, majd írjátok alá.
+                  </div>
+                ) : null}
+                {isWrittenContract && extraContractFields.length > 0 ? (
                   <div className="space-y-3 rounded-md border border-ink/10 bg-white p-4">
-                    <p className="text-sm font-semibold text-ink">Kitöltendő adatok</p>
-                    {contractFields.map((field) => {
+                    <p className="text-sm font-semibold text-ink">További kitöltendő adatok</p>
+                    {extraContractFields.map((field) => {
                       const defaultValue = completedFields[field.key] ?? customerDefaults[field.key] ?? "";
                       const inputName = contractFieldInputName(field.key);
 

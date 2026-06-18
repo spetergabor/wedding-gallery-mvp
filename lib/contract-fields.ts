@@ -15,6 +15,12 @@ export const CONTRACT_FIELD_OPTIONS: ContractFieldDefinition[] = [
   { key: "notes", label: "Megjegyzés", type: "textarea" }
 ];
 
+export type ContractTemplatePart =
+  | { type: "text"; value: string }
+  | { type: "field"; field: ContractFieldDefinition; token: string };
+
+const TOKEN_PATTERN = /{{\s*([A-Za-z0-9_:-]+)\s*}}/g;
+
 export function parseContractFields(value: unknown): ContractFieldDefinition[] {
   if (!Array.isArray(value)) {
     return [];
@@ -59,4 +65,82 @@ export function parseContractAnswers(value: unknown): Record<string, string> {
 
 export function contractFieldInputName(key: string) {
   return `contractField:${key}`;
+}
+
+export function contractFieldToken(key: string) {
+  return `{{${key}}}`;
+}
+
+export function contractFieldByKey(key: string) {
+  return CONTRACT_FIELD_OPTIONS.find((field) => field.key === key) ?? null;
+}
+
+export function fieldKeysInContractTemplate(bodyText: string) {
+  const keys = new Set<string>();
+
+  for (const match of bodyText.matchAll(TOKEN_PATTERN)) {
+    if (contractFieldByKey(match[1])) {
+      keys.add(match[1]);
+    }
+  }
+
+  return keys;
+}
+
+export function contractFieldsFromKeys(keys: Iterable<string>) {
+  const selectedKeys = new Set(keys);
+
+  return CONTRACT_FIELD_OPTIONS.filter((field) => selectedKeys.has(field.key));
+}
+
+export function mergeContractFieldsFromTemplate(bodyText: string, selectedKeys: Iterable<string>) {
+  const mergedKeys = new Set(selectedKeys);
+
+  for (const key of fieldKeysInContractTemplate(bodyText)) {
+    mergedKeys.add(key);
+  }
+
+  return contractFieldsFromKeys(mergedKeys);
+}
+
+export function parseContractTemplateParts(
+  bodyText: string,
+  fields: ContractFieldDefinition[] = CONTRACT_FIELD_OPTIONS
+): ContractTemplatePart[] {
+  const byKey = new Map(fields.map((field) => [field.key, field]));
+  const parts: ContractTemplatePart[] = [];
+  let cursor = 0;
+
+  for (const match of bodyText.matchAll(TOKEN_PATTERN)) {
+    const [token, key] = match;
+    const index = match.index ?? 0;
+    const field = byKey.get(key);
+
+    if (!field) {
+      continue;
+    }
+
+    if (index > cursor) {
+      parts.push({ type: "text", value: bodyText.slice(cursor, index) });
+    }
+
+    parts.push({ type: "field", field, token });
+    cursor = index + token.length;
+  }
+
+  if (cursor < bodyText.length) {
+    parts.push({ type: "text", value: bodyText.slice(cursor) });
+  }
+
+  return parts.length > 0 ? parts : [{ type: "text", value: bodyText }];
+}
+
+export function renderContractTemplateText(bodyText: string, answers: Record<string, string>) {
+  return bodyText.replace(TOKEN_PATTERN, (token, key) => {
+    if (!contractFieldByKey(key)) {
+      return token;
+    }
+
+    return answers[key]?.trim() || "________________";
+  });
 }
