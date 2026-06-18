@@ -152,6 +152,11 @@ export default async function ContractPublicPage({
                   A link lejárt. Kérj új szerződés linket.
                 </div>
               ) : null}
+              {flags.signError === "server" ? (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Az aláírás mentése közben hiba történt. Kérlek, próbáld újra, vagy jelezd a fotósnak.
+                </div>
+              ) : null}
               <p className="mt-2 text-sm leading-6 text-graphite/70">
                 Írjátok alá a szerződést ujjal vagy egérrel. Mentés után elkészül egy aláírt PDF példány.
               </p>

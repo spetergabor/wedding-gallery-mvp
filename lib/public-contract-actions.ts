@@ -150,33 +150,44 @@ export async function signContractAction(token: string, formData: FormData) {
   }
 
   const signedAt = new Date();
-  const signedPdfBytes = await createSignedPdf({
-    sourcePdfUrl: contract.fileUrl,
-    signatureBytes,
-    coupleName: contract.customer.coupleName,
-    contractTitle: contract.title,
-    signedAt
-  });
-  const signedR2Key = createSignedContractObjectKey({
-    customerId: contract.customerId,
-    contractId: contract.id
-  });
 
-  await savePhotoObject({
-    r2Key: signedR2Key,
-    bytes: signedPdfBytes,
-    contentType: "application/pdf"
-  });
+  try {
+    const signedPdfBytes = await createSignedPdf({
+      sourcePdfUrl: contract.fileUrl,
+      signatureBytes,
+      coupleName: contract.customer.coupleName,
+      contractTitle: contract.title,
+      signedAt
+    });
+    const signedR2Key = createSignedContractObjectKey({
+      customerId: contract.customerId,
+      contractId: contract.id
+    });
 
-  await prisma.contract.update({
-    where: { id: contract.id },
-    data: {
-      status: "signed",
-      signedAt,
-      signedR2Key,
-      signedFileUrl: getPhotoPublicUrl(signedR2Key)
-    }
-  });
+    await savePhotoObject({
+      r2Key: signedR2Key,
+      bytes: signedPdfBytes,
+      contentType: "application/pdf"
+    });
+
+    await prisma.contract.update({
+      where: { id: contract.id },
+      data: {
+        status: "signed",
+        signedAt,
+        signedR2Key,
+        signedFileUrl: getPhotoPublicUrl(signedR2Key)
+      }
+    });
+  } catch (error) {
+    console.error("Contract signing failed", {
+      contractId: contract.id,
+      customerId: contract.customerId,
+      fileUrl: contract.fileUrl,
+      error
+    });
+    redirect(`/contracts/${token}?signError=server`);
+  }
 
   revalidatePath(`/contracts/${token}`);
   redirect(`/contracts/${token}?signed=1`);
