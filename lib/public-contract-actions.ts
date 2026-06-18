@@ -117,14 +117,34 @@ function drawWrappedText({
   return cursorY;
 }
 
+async function fetchSignaturePngBytes(signatureUrl: string | null | undefined) {
+  if (!signatureUrl) {
+    return null;
+  }
+
+  const response = await fetch(signatureUrl, { cache: "no-store" });
+
+  if (!response.ok) {
+    console.warn("Photographer signature could not be downloaded", {
+      signatureUrl,
+      status: response.status
+    });
+    return null;
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
 async function createSignedUploadedPdf({
   sourcePdfUrl,
+  photographerSignatureBytes,
   signatureBytes,
   coupleName,
   contractTitle,
   signedAt
 }: {
   sourcePdfUrl: string;
+  photographerSignatureBytes: Buffer | null;
   signatureBytes: Buffer;
   coupleName: string;
   contractTitle: string;
@@ -202,6 +222,40 @@ async function createSignedUploadedPdf({
     font,
     color: rgb(0.45, 0.45, 0.45)
   });
+
+  if (photographerSignatureBytes) {
+    const photographerSignatureImage = await pdf.embedPng(photographerSignatureBytes);
+    const photographerSignatureSize = photographerSignatureImage.scaleToFit(240, 80);
+    const blockY = height - 560;
+
+    signaturePage.drawText("Fotograf", {
+      x: 56,
+      y: blockY + 96,
+      size: 14,
+      font: boldFont,
+      color: rgb(0.09, 0.09, 0.09)
+    });
+    signaturePage.drawImage(photographerSignatureImage, {
+      x: 56,
+      y: blockY + 28,
+      width: photographerSignatureSize.width,
+      height: photographerSignatureSize.height
+    });
+    signaturePage.drawLine({
+      start: { x: 56, y: blockY + 18 },
+      end: { x: 300, y: blockY + 18 },
+      thickness: 1,
+      color: rgb(0.25, 0.25, 0.25)
+    });
+    signaturePage.drawText("Peter Schulcz", {
+      x: 56,
+      y: blockY,
+      size: 11,
+      font,
+      color: rgb(0.45, 0.45, 0.45)
+    });
+  }
+
   signaturePage.drawText("Dieses Dokument wurde elektronisch signiert.", {
     x: 56,
     y: 72,
@@ -216,6 +270,7 @@ async function createSignedUploadedPdf({
 async function createSignedWrittenPdf({
   bodyText,
   answers,
+  photographerSignatureBytes,
   signatureBytes,
   coupleName,
   contractTitle,
@@ -223,6 +278,7 @@ async function createSignedWrittenPdf({
 }: {
   bodyText: string;
   answers: Array<{ label: string; value: string }>;
+  photographerSignatureBytes: Buffer | null;
   signatureBytes: Buffer;
   coupleName: string;
   contractTitle: string;
@@ -360,6 +416,44 @@ async function createSignedWrittenPdf({
     color: rgb(0.45, 0.45, 0.45)
   });
 
+  if (photographerSignatureBytes) {
+    ensureSpace(170);
+    y -= 48;
+
+    const photographerSignatureImage = await pdf.embedPng(photographerSignatureBytes);
+    const photographerSignatureSize = photographerSignatureImage.scaleToFit(240, 80);
+
+    page.drawText("Fotograf", {
+      x: margin,
+      y,
+      size: 15,
+      font: boldFont,
+      color: rgb(0.09, 0.09, 0.09)
+    });
+    y -= 88;
+    page.drawImage(photographerSignatureImage, {
+      x: margin,
+      y,
+      width: photographerSignatureSize.width,
+      height: photographerSignatureSize.height
+    });
+    y -= 12;
+    page.drawLine({
+      start: { x: margin, y },
+      end: { x: margin + 250, y },
+      thickness: 1,
+      color: rgb(0.25, 0.25, 0.25)
+    });
+    y -= 20;
+    page.drawText("Peter Schulcz", {
+      x: margin,
+      y,
+      size: 11,
+      font,
+      color: rgb(0.45, 0.45, 0.45)
+    });
+  }
+
   return Buffer.from(await pdf.save());
 }
 
@@ -402,6 +496,11 @@ export async function signContractAction(token: string, formData: FormData) {
   const signedAt = new Date();
 
   try {
+    const settings = await prisma.siteSettings.findUnique({
+      where: { id: "default" },
+      select: { signatureUrl: true }
+    });
+    const photographerSignatureBytes = await fetchSignaturePngBytes(settings?.signatureUrl);
     const clientFields = parseContractFields(contract.clientFields);
     const completedFields = contract.sourceType === "written" ? readClientFieldAnswers(formData, clientFields) : {};
     const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
@@ -416,6 +515,7 @@ export async function signContractAction(token: string, formData: FormData) {
                 label: field.label,
                 value: completedFields[field.key] ?? ""
               })),
+            photographerSignatureBytes,
             signatureBytes,
             coupleName: contract.customer.coupleName,
             contractTitle: contract.title,
@@ -423,6 +523,7 @@ export async function signContractAction(token: string, formData: FormData) {
           })
         : await createSignedUploadedPdf({
             sourcePdfUrl: contract.fileUrl,
+            photographerSignatureBytes,
             signatureBytes,
             coupleName: contract.customer.coupleName,
             contractTitle: contract.title,

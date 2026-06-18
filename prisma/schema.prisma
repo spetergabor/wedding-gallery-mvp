@@ -36,6 +36,8 @@ model SiteSettings {
   businessName   String   @default("")
   logoUrl        String?
   logoR2Key      String?
+  signatureUrl   String?
+  signatureR2Key String?
   websiteUrl     String?
   instagramUrl   String?
   facebookUrl    String?

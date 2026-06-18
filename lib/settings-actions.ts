@@ -37,16 +37,25 @@ export async function updateSiteSettingsAction(formData: FormData) {
 
   const existingSettings = await prisma.siteSettings.findUnique({
     where: { id: SETTINGS_ID },
-    select: { logoR2Key: true }
+    select: { logoR2Key: true, signatureR2Key: true }
   });
   const logoFile = formData.get("logo");
+  const signatureFile = formData.get("signature");
   const shouldRemoveLogo = formData.get("removeLogo") === "on";
+  const shouldRemoveSignature = formData.get("removeSignature") === "on";
   let logoUrl: string | null | undefined = undefined;
   let logoR2Key: string | null | undefined = undefined;
+  let signatureUrl: string | null | undefined = undefined;
+  let signatureR2Key: string | null | undefined = undefined;
 
   if (shouldRemoveLogo) {
     logoUrl = null;
     logoR2Key = null;
+  }
+
+  if (shouldRemoveSignature) {
+    signatureUrl = null;
+    signatureR2Key = null;
   }
 
   if (logoFile instanceof File && logoFile.size > 0) {
@@ -67,6 +76,26 @@ export async function updateSiteSettingsAction(formData: FormData) {
     logoUrl = getPhotoPublicUrl(r2Key);
   }
 
+  if (signatureFile instanceof File && signatureFile.size > 0) {
+    const isPng = signatureFile.type === "image/png" || signatureFile.name.toLowerCase().endsWith(".png");
+
+    if (!isPng) {
+      redirect("/admin/settings?error=signature");
+    }
+
+    const r2Key = createBrandAssetObjectKey({ originalFilename: signatureFile.name });
+    const bytes = Buffer.from(await signatureFile.arrayBuffer());
+
+    await savePhotoObject({
+      r2Key,
+      bytes,
+      contentType: "image/png"
+    });
+
+    signatureR2Key = r2Key;
+    signatureUrl = getPhotoPublicUrl(r2Key);
+  }
+
   const settings = await prisma.siteSettings.upsert({
     where: { id: SETTINGS_ID },
     create: {
@@ -74,6 +103,8 @@ export async function updateSiteSettingsAction(formData: FormData) {
       businessName: formString(formData, "businessName"),
       logoUrl: logoUrl ?? null,
       logoR2Key: logoR2Key ?? null,
+      signatureUrl: signatureUrl ?? null,
+      signatureR2Key: signatureR2Key ?? null,
       websiteUrl: formOptionalUrl(formData, "websiteUrl"),
       instagramUrl: formOptionalUrl(formData, "instagramUrl"),
       facebookUrl: formOptionalUrl(formData, "facebookUrl"),
@@ -86,6 +117,8 @@ export async function updateSiteSettingsAction(formData: FormData) {
       businessName: formString(formData, "businessName"),
       ...(logoUrl !== undefined ? { logoUrl } : {}),
       ...(logoR2Key !== undefined ? { logoR2Key } : {}),
+      ...(signatureUrl !== undefined ? { signatureUrl } : {}),
+      ...(signatureR2Key !== undefined ? { signatureR2Key } : {}),
       websiteUrl: formOptionalUrl(formData, "websiteUrl"),
       instagramUrl: formOptionalUrl(formData, "instagramUrl"),
       facebookUrl: formOptionalUrl(formData, "facebookUrl"),
@@ -94,13 +127,18 @@ export async function updateSiteSettingsAction(formData: FormData) {
       contactEmail: formString(formData, "contactEmail") || null,
       contactPhone: formString(formData, "contactPhone") || null
     },
-    select: { logoR2Key: true }
+    select: { logoR2Key: true, signatureR2Key: true }
   });
 
   const previousLogoKey = existingSettings?.logoR2Key;
+  const previousSignatureKey = existingSettings?.signatureR2Key;
 
   if (previousLogoKey && previousLogoKey !== settings.logoR2Key && (shouldRemoveLogo || logoR2Key)) {
     await deletePhotoObject(previousLogoKey);
+  }
+
+  if (previousSignatureKey && previousSignatureKey !== settings.signatureR2Key && (shouldRemoveSignature || signatureR2Key)) {
+    await deletePhotoObject(previousSignatureKey);
   }
 
   revalidatePath("/admin/settings");

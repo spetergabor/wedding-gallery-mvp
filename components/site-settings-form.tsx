@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Building2, Globe2, ImageIcon, Instagram, Mail, Phone, Youtube } from "lucide-react";
+import { Building2, FileSignature, Globe2, ImageIcon, Instagram, Mail, Phone, Youtube } from "lucide-react";
 import { Button } from "@/components/button";
 import { updateSiteSettingsAction } from "@/lib/settings-actions";
 
@@ -7,6 +7,7 @@ type SiteSettingsFormProps = {
   settings: {
     businessName: string;
     logoUrl: string | null;
+    signatureUrl: string | null;
     websiteUrl: string | null;
     instagramUrl: string | null;
     facebookUrl: string | null;
@@ -81,6 +82,65 @@ export function SiteSettingsForm({ settings }: SiteSettingsFormProps) {
               <label className="mt-3 flex items-center gap-2 text-sm text-graphite">
                 <input name="removeLogo" type="checkbox" className="size-4 rounded border-ink/20" />
                 Logó eltávolítása
+              </label>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-ink">Szerződés aláírás</h2>
+            <p className="mt-1 text-sm text-graphite/70">
+              Ez a PNG aláírás kerül minden elkészült, aláírt szerződés végére a fotós neve mellé.
+            </p>
+          </div>
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
+            <FileSignature size={20} />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_280px]">
+          <div className="rounded-md border border-ink/10 bg-paper p-4 text-sm leading-6 text-graphite/70">
+            <p className="font-medium text-ink">Fotós neve a szerződésben</p>
+            <p className="mt-1 text-lg font-semibold text-ink">Peter Schulcz</p>
+            <p className="mt-3">
+              Átlátszó hátterű PNG ajánlott. A rendszer az aláírt PDF végén külön fotós aláírás blokként helyezi el.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-ink/10 bg-paper p-4">
+            <div className="flex min-h-36 items-center justify-center rounded-md bg-white">
+              {settings.signatureUrl ? (
+                <Image
+                  src={settings.signatureUrl}
+                  alt="Aktuális aláírás"
+                  width={220}
+                  height={120}
+                  unoptimized
+                  className="max-h-28 w-auto object-contain"
+                />
+              ) : (
+                <div className="text-center text-graphite/60">
+                  <FileSignature className="mx-auto" size={24} />
+                  <p className="mt-2 text-sm">Nincs feltöltött aláírás</p>
+                </div>
+              )}
+            </div>
+            <label className="mt-4 block space-y-2">
+              <span className="text-sm font-medium text-graphite">Aláírás PNG feltöltése</span>
+              <input
+                name="signature"
+                type="file"
+                accept="image/png,.png"
+                className="block w-full text-sm text-graphite file:mr-3 file:h-10 file:rounded-md file:border-0 file:bg-ink file:px-3 file:text-sm file:font-medium file:text-white"
+              />
+            </label>
+            {settings.signatureUrl ? (
+              <label className="mt-3 flex items-center gap-2 text-sm text-graphite">
+                <input name="removeSignature" type="checkbox" className="size-4 rounded border-ink/20" />
+                Aláírás eltávolítása
               </label>
             ) : null}
           </div>

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 const emptySettings = {
   businessName: "",
   logoUrl: null,
+  signatureUrl: null,
   websiteUrl: null,
   instagramUrl: null,
   facebookUrl: null,
@@ -32,6 +33,7 @@ export default async function AdminSettingsPage({
       select: {
         businessName: true,
         logoUrl: true,
+        signatureUrl: true,
         websiteUrl: true,
         instagramUrl: true,
         facebookUrl: true,
@@ -58,6 +60,11 @@ export default async function AdminSettingsPage({
         {params.error === "logo" ? (
           <Alert title="A logó feltöltése nem sikerült." variant="error">
             Csak képfájlt tölts fel logóként.
+          </Alert>
+        ) : null}
+        {params.error === "signature" ? (
+          <Alert title="Az aláírás feltöltése nem sikerült." variant="error">
+            PNG képfájlt tölts fel aláírásként.
           </Alert>
         ) : null}
       </div>
