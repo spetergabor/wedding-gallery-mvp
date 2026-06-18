@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, Camera, LayoutDashboard, LogOut, Plus, Settings, ShieldCheck } from "lucide-react";
+import { Bell, Camera, LayoutDashboard, LogOut, Plus, Settings, ShieldCheck, Users } from "lucide-react";
 import { logoutAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 
@@ -44,6 +44,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
             <Camera size={17} />
             Galériák
+          </Link>
+          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/clients">
+            <Users size={17} />
+            Ügyfelek
           </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries/new">
             <Plus size={17} />

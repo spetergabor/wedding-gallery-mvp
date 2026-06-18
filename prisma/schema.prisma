@@ -47,6 +47,24 @@ model SiteSettings {
   updatedAt      DateTime @updatedAt
 }
 
+model Customer {
+  id             String   @id @default(cuid())
+  coupleName     String
+  primaryEmail   String
+  secondaryEmail String?
+  phone          String?
+  weddingDate    DateTime?
+  venue          String?
+  status         String   @default("lead")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@index([weddingDate])
+  @@index([primaryEmail])
+}
+
 model Gallery {
   id           String   @id @default(cuid())
   title        String
