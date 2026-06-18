@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Check, RotateCcw } from "lucide-react";
 import { signContractAction } from "@/lib/public-contract-actions";
 
@@ -13,6 +14,21 @@ function getPoint(canvas: HTMLCanvasElement, event: React.PointerEvent<HTMLCanva
   };
 }
 
+function SubmitButton({ hasSignature }: { hasSignature: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={!hasSignature || pending}
+      className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
+    >
+      <Check size={16} />
+      {pending ? "Aláírás mentése..." : "Szerződés aláírása"}
+    </button>
+  );
+}
+
 export function ContractSignaturePad({
   token,
   disabled = false
@@ -21,9 +37,8 @@ export function ContractSignaturePad({
   disabled?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const signatureInputRef = useRef<HTMLInputElement | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
-  const [signatureData, setSignatureData] = useState("");
-  const [isPending, startTransition] = useTransition();
 
   function prepareCanvas(canvas: HTMLCanvasElement) {
     const rect = canvas.getBoundingClientRect();
@@ -58,11 +73,13 @@ export function ContractSignaturePad({
 
     context.clearRect(0, 0, canvas.width, canvas.height);
     setHasSignature(false);
-    setSignatureData("");
+    if (signatureInputRef.current) {
+      signatureInputRef.current.value = "";
+    }
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (disabled || isPending) {
+    if (disabled) {
       return;
     }
 
@@ -79,7 +96,7 @@ export function ContractSignaturePad({
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (disabled || isPending || event.currentTarget.dataset.drawing !== "true") {
+    if (disabled || event.currentTarget.dataset.drawing !== "true") {
       return;
     }
 
@@ -100,17 +117,21 @@ export function ContractSignaturePad({
     }
 
     canvas.dataset.drawing = "false";
-    setSignatureData(canvas.toDataURL("image/png"));
+    if (signatureInputRef.current) {
+      signatureInputRef.current.value = canvas.toDataURL("image/png");
+    }
   }
 
-  function handleSubmit(formData: FormData) {
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     const canvas = canvasRef.current;
-    const dataUrl = canvas?.toDataURL("image/png") ?? signatureData;
+    const dataUrl = canvas?.toDataURL("image/png") ?? "";
 
-    formData.set("signatureData", dataUrl);
-    startTransition(() => {
-      void signContractAction(token, formData);
-    });
+    if (!hasSignature || !dataUrl || !signatureInputRef.current) {
+      event.preventDefault();
+      return;
+    }
+
+    signatureInputRef.current.value = dataUrl;
   }
 
   if (disabled) {
@@ -122,8 +143,8 @@ export function ContractSignaturePad({
   }
 
   return (
-    <form action={handleSubmit} className="mt-5 space-y-4">
-      <input type="hidden" name="signatureData" value={signatureData} readOnly />
+    <form action={signContractAction.bind(null, token)} onSubmit={handleSubmit} className="mt-5 space-y-4">
+      <input ref={signatureInputRef} type="hidden" name="signatureData" />
       <div className="overflow-hidden rounded-md border border-ink/15 bg-white">
         <canvas
           ref={canvasRef}
@@ -143,20 +164,13 @@ export function ContractSignaturePad({
         <button
           type="button"
           onClick={clearSignature}
-          disabled={isPending}
+          disabled={false}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RotateCcw size={16} />
           Újrakezdés
         </button>
-        <button
-          type="submit"
-          disabled={!hasSignature || isPending}
-          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          <Check size={16} />
-          {isPending ? "Aláírás mentése..." : "Szerződés aláírása"}
-        </button>
+        <SubmitButton hasSignature={hasSignature} />
       </div>
     </form>
   );
