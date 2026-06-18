@@ -1,11 +1,13 @@
-import { Download, ExternalLink, FileText, Mail, UploadCloud } from "lucide-react";
+import { Download, ExternalLink, FileText, Mail, PenLine, UploadCloud } from "lucide-react";
 import { Button } from "@/components/button";
-import { sendContractAction, uploadContractAction } from "@/lib/contract-actions";
+import { CONTRACT_FIELD_OPTIONS } from "@/lib/contract-fields";
+import { createWrittenContractAction, sendContractAction, uploadContractAction } from "@/lib/contract-actions";
 
 type Contract = {
   id: string;
   title: string;
   status: string;
+  sourceType: string;
   originalFilename: string;
   fileUrl: string;
   fileSize: number;
@@ -62,10 +64,61 @@ export function ContractManager({
       </div>
       <h2 className="mt-4 text-lg font-semibold text-ink">Szerződések</h2>
       <p className="mt-2 text-sm text-graphite/70">
-        Tölts fel PDF szerződést. A következő lépésben innen tudjuk majd emailben kiküldeni és aláíratni.
+        Tölts fel kész PDF-et, vagy írj saját szerződést kitöltendő ügyfél mezőkkel.
       </p>
 
+      <form action={createWrittenContractAction.bind(null, customerId)} className="mt-5 space-y-3 rounded-md border border-ink/10 bg-paper p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <PenLine size={16} />
+          Saját szerződés írása
+        </div>
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-graphite">Szerződés címe</span>
+          <input
+            name="title"
+            required
+            placeholder="pl. Esküvői fotózás szerződés"
+            className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+          />
+        </label>
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-graphite">Szerződés szövege</span>
+          <textarea
+            name="bodyText"
+            required
+            rows={8}
+            placeholder="Írd ide a szerződés szövegét. A pár a kiválasztott mezőket lent fogja kitölteni, majd aláírja."
+            className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm leading-6 text-ink outline-none transition focus:border-ink/50"
+          />
+        </label>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-graphite">A pár által kitöltendő mezők</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {CONTRACT_FIELD_OPTIONS.map((field) => (
+              <label key={field.key} className="flex items-center gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm text-graphite">
+                <input
+                  type="checkbox"
+                  name="clientFields"
+                  value={field.key}
+                  defaultChecked={["coupleName", "primaryEmail", "phone", "weddingDate", "venue"].includes(field.key)}
+                  className="size-4 accent-ink"
+                />
+                {field.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <Button type="submit" className="w-full">
+          <PenLine size={16} />
+          Szerződés létrehozása
+        </Button>
+      </form>
+
       <form action={uploadContractAction.bind(null, customerId)} className="mt-5 space-y-3 rounded-md border border-ink/10 bg-paper p-4">
+        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <UploadCloud size={16} />
+          Kész PDF feltöltése
+        </div>
         <label className="block space-y-2">
           <span className="text-sm font-medium text-graphite">Szerződés címe</span>
           <input
@@ -105,7 +158,7 @@ export function ContractManager({
                   </div>
                   <p className="mt-1 truncate text-sm text-graphite/70">{contract.originalFilename}</p>
                   <p className="mt-1 text-xs text-graphite/60">
-                    {formatFileSize(contract.fileSize)} · feltöltve: {formatDate(contract.createdAt)}
+                    {contract.sourceType === "written" ? "Platformon írt szerződés" : formatFileSize(contract.fileSize)} · feltöltve: {formatDate(contract.createdAt)}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -118,22 +171,26 @@ export function ContractManager({
                       Küldés
                     </button>
                   </form>
-                  <a
-                    href={contract.fileUrl}
-                    target="_blank"
-                    className="inline-flex size-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
-                    title="PDF megnyitása"
-                  >
-                    <ExternalLink size={16} />
-                  </a>
-                  <a
-                    href={contract.fileUrl}
-                    download={contract.originalFilename}
-                    className="inline-flex size-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
-                    title="PDF letöltése"
-                  >
-                    <Download size={16} />
-                  </a>
+                  {contract.fileUrl ? (
+                    <>
+                      <a
+                        href={contract.fileUrl}
+                        target="_blank"
+                        className="inline-flex size-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
+                        title="PDF megnyitása"
+                      >
+                        <ExternalLink size={16} />
+                      </a>
+                      <a
+                        href={contract.fileUrl}
+                        download={contract.originalFilename}
+                        className="inline-flex size-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
+                        title="PDF letöltése"
+                      >
+                        <Download size={16} />
+                      </a>
+                    </>
+                  ) : null}
                 </div>
               </div>
               <div className="mt-3 grid gap-2 text-xs text-graphite/60">

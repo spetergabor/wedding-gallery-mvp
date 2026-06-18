@@ -36,6 +36,7 @@ export default async function AdminClientDetailPage({
     updated?: string;
     error?: string;
     contractUploaded?: string;
+    contractWritten?: string;
     contractSent?: string;
     contractError?: string;
   }>;
@@ -73,6 +74,7 @@ export default async function AdminClientDetailPage({
         {flags.created ? <Alert title="Ügyfél létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Ügyfél mentve." variant="success" /> : null}
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
+        {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
         {flags.error === "missing" ? (
           <Alert title="Hiányzó kötelező mező." variant="error">
@@ -87,6 +89,11 @@ export default async function AdminClientDetailPage({
         {flags.contractError === "type" ? (
           <Alert title="Csak PDF tölthető fel." variant="error">
             A szerződés első verzióban PDF fájl lehet.
+          </Alert>
+        ) : null}
+        {flags.contractError === "written-missing" ? (
+          <Alert title="Hiányzó szerződés szöveg." variant="error">
+            Adj meg címet és szerződés szöveget.
           </Alert>
         ) : null}
         {flags.contractError === "not-found" ? (

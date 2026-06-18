@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
+import { CONTRACT_FIELD_OPTIONS } from "@/lib/contract-fields";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { createContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
@@ -69,6 +70,46 @@ export async function uploadContractAction(customerId: string, formData: FormDat
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?contractUploaded=1`);
+}
+
+export async function createWrittenContractAction(customerId: string, formData: FormData) {
+  await requireAdmin();
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  const title = formString(formData, "title");
+  const bodyText = formString(formData, "bodyText");
+  const selectedKeys = new Set(formData.getAll("clientFields").filter((value): value is string => typeof value === "string"));
+  const clientFields = CONTRACT_FIELD_OPTIONS.filter((field) => selectedKeys.has(field.key));
+
+  if (!title || !bodyText) {
+    redirect(`/admin/clients/${customerId}?contractError=written-missing`);
+  }
+
+  await prisma.contract.create({
+    data: {
+      customerId,
+      title,
+      sourceType: "written",
+      originalFilename: `${title}.pdf`,
+      r2Key: "",
+      fileUrl: "",
+      fileSize: 0,
+      bodyText,
+      clientFields,
+      status: "draft"
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?contractWritten=1`);
 }
 
 export async function sendContractAction(customerId: string, contractId: string) {

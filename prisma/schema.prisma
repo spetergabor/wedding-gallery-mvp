@@ -71,10 +71,14 @@ model Contract {
   customerId  String
   title       String
   status      String   @default("draft")
+  sourceType  String   @default("pdf")
   originalFilename String
   r2Key       String
   fileUrl     String
   fileSize    Int      @default(0)
+  bodyText    String?
+  clientFields Json?
+  completedFields Json?
   accessToken String?  @unique
   accessTokenExpiresAt DateTime?
   sentAt      DateTime?
@@ -88,6 +92,7 @@ model Contract {
 
   @@index([customerId])
   @@index([status])
+  @@index([sourceType])
   @@index([createdAt])
   @@index([accessToken])
 }

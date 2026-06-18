@@ -1,5 +1,6 @@
 import { Download, ExternalLink, FileText, PenLine } from "lucide-react";
 import { ContractSignaturePad } from "@/components/contract-signature-pad";
+import { contractFieldInputName, parseContractAnswers, parseContractFields } from "@/lib/contract-fields";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,7 @@ export default async function ContractPublicPage({
           coupleName: true,
           primaryEmail: true,
           secondaryEmail: true,
+          phone: true,
           weddingDate: true,
           venue: true
         }
@@ -75,6 +77,16 @@ export default async function ContractPublicPage({
   const currentPdfFilename = contract.signedFileUrl
     ? `signed-${contract.originalFilename}`
     : contract.originalFilename;
+  const isWrittenContract = contract.sourceType === "written";
+  const contractFields = parseContractFields(contract.clientFields);
+  const completedFields = parseContractAnswers(contract.completedFields);
+  const customerDefaults: Record<string, string> = {
+    coupleName: contract.customer.coupleName,
+    primaryEmail: contract.customer.primaryEmail,
+    phone: contract.customer.phone ?? "",
+    weddingDate: contract.customer.weddingDate ? contract.customer.weddingDate.toISOString().slice(0, 10) : "",
+    venue: contract.customer.venue ?? ""
+  };
 
   if (!contract.openedAt) {
     await prisma.contract.update({
@@ -103,33 +115,44 @@ export default async function ContractPublicPage({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 md:justify-end">
-              <a
-                href={currentPdfUrl}
-                target="_blank"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5"
-              >
-                <ExternalLink size={16} />
-                {contract.signedFileUrl ? "Aláírt PDF megnyitása" : "PDF megnyitása"}
-              </a>
-              <a
-                href={currentPdfUrl}
-                download={currentPdfFilename}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
-              >
-                <Download size={16} />
-                {contract.signedFileUrl ? "Aláírt PDF letöltése" : "PDF letöltése"}
-              </a>
-            </div>
+            {currentPdfUrl ? (
+              <div className="flex flex-wrap gap-2 md:justify-end">
+                <a
+                  href={currentPdfUrl}
+                  target="_blank"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5"
+                >
+                  <ExternalLink size={16} />
+                  {contract.signedFileUrl ? "Aláírt PDF megnyitása" : "PDF megnyitása"}
+                </a>
+                <a
+                  href={currentPdfUrl}
+                  download={currentPdfFilename}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+                >
+                  <Download size={16} />
+                  {contract.signedFileUrl ? "Aláírt PDF letöltése" : "PDF letöltése"}
+                </a>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-6 p-4 md:p-6 lg:grid-cols-[1fr_320px]">
             <div className="overflow-hidden rounded-md border border-ink/10 bg-paper">
-              <iframe
-                title={contract.title}
-                src={currentPdfUrl}
-                className="h-[68vh] min-h-[520px] w-full bg-white"
-              />
+              {currentPdfUrl ? (
+                <iframe
+                  title={contract.title}
+                  src={currentPdfUrl}
+                  className="h-[68vh] min-h-[520px] w-full bg-white"
+                />
+              ) : (
+                <div className="min-h-[520px] bg-white p-6 md:p-8">
+                  <h2 className="text-2xl font-semibold text-ink">{contract.title}</h2>
+                  <div className="mt-6 whitespace-pre-wrap text-sm leading-7 text-graphite">
+                    {contract.bodyText}
+                  </div>
+                </div>
+              )}
             </div>
 
             <aside className="rounded-md border border-ink/10 bg-paper p-5">
@@ -158,9 +181,44 @@ export default async function ContractPublicPage({
                 </div>
               ) : null}
               <p className="mt-2 text-sm leading-6 text-graphite/70">
-                Írjátok alá a szerződést ujjal vagy egérrel. Mentés után elkészül egy aláírt PDF példány.
+                {isWrittenContract
+                  ? "Töltsétek ki a szükséges adatokat, majd írjátok alá. Mentés után elkészül az aláírt PDF."
+                  : "Írjátok alá a szerződést ujjal vagy egérrel. Mentés után elkészül egy aláírt PDF példány."}
               </p>
-              <ContractSignaturePad token={token} disabled={Boolean(contract.signedAt && contract.signedFileUrl)} />
+              <ContractSignaturePad token={token} disabled={Boolean(contract.signedAt && contract.signedFileUrl)}>
+                {isWrittenContract && contractFields.length > 0 ? (
+                  <div className="space-y-3 rounded-md border border-ink/10 bg-white p-4">
+                    <p className="text-sm font-semibold text-ink">Kitöltendő adatok</p>
+                    {contractFields.map((field) => {
+                      const defaultValue = completedFields[field.key] ?? customerDefaults[field.key] ?? "";
+                      const inputName = contractFieldInputName(field.key);
+
+                      return (
+                        <label key={field.key} className="block space-y-1.5">
+                          <span className="text-xs font-medium text-graphite">{field.label}</span>
+                          {field.type === "textarea" ? (
+                            <textarea
+                              name={inputName}
+                              defaultValue={defaultValue}
+                              required
+                              rows={3}
+                              className="w-full rounded-md border border-ink/15 bg-paper px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/50"
+                            />
+                          ) : (
+                            <input
+                              name={inputName}
+                              type={field.type}
+                              defaultValue={defaultValue}
+                              required
+                              className="h-10 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                            />
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </ContractSignaturePad>
               <div className="mt-5 rounded-md bg-white px-4 py-3 text-sm text-graphite/70">
                 Státusz: {contract.signedAt ? "Aláírva" : openedAt ? "Megnyitva" : "Elküldve"}
               </div>
