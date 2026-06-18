@@ -35,6 +35,8 @@ function formatDate(date: Date) {
 
 function pdfText(value: string) {
   return value
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
     .replace(/[őöó]/g, "o")
     .replace(/[ŐÖÓ]/g, "O")
     .replace(/[űüú]/g, "u")
@@ -45,7 +47,7 @@ function pdfText(value: string) {
     .replace(/[É]/g, "E")
     .replace(/[í]/g, "i")
     .replace(/[Í]/g, "I")
-    .replace(/[^\x20-\x7E]/g, "");
+    .replace(/[^\x09\x0A\x20-\x7E]/g, "");
 }
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number) {
