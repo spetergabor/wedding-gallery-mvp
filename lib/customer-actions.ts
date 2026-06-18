@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { deletePhotoObject } from "@/lib/storage";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -86,4 +87,39 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?updated=1`);
+}
+
+export async function deleteCustomerAction(customerId: string) {
+  await requireAdmin();
+
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: {
+      id: true,
+      contracts: {
+        select: {
+          r2Key: true,
+          signedR2Key: true
+        }
+      }
+    }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  const contractObjectKeys = customer.contracts.flatMap((contract) =>
+    [contract.r2Key, contract.signedR2Key].filter((key): key is string => Boolean(key))
+  );
+
+  await prisma.customer.delete({
+    where: { id: customer.id }
+  });
+
+  await Promise.all(contractObjectKeys.map((key) => deletePhotoObject(key)));
+
+  revalidatePath("/admin/clients");
+  revalidatePath("/admin/dashboard");
+  redirect("/admin/clients?deleted=1");
 }

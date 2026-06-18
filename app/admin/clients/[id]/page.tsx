@@ -1,9 +1,12 @@
 import { notFound } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
+import { deleteCustomerAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 
 const statusLabels: Record<string, string> = {
@@ -133,6 +136,24 @@ export default async function AdminClientDetailPage({
                 <dd className="font-medium text-ink">{customer.venue || "Nincs megadva"}</dd>
               </div>
             </dl>
+          </section>
+
+          <section className="rounded-lg border border-red-200 bg-white p-5 shadow-soft">
+            <h2 className="text-lg font-semibold text-ink">Veszélyzóna</h2>
+            <p className="mt-2 text-sm leading-6 text-graphite/70">
+              Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A művelet nem vonható
+              vissza.
+            </p>
+            <form action={deleteCustomerAction.bind(null, customer.id)} className="mt-4">
+              <ConfirmSubmitButton
+                variant="danger"
+                message={`Biztosan törlöd ezt az ügyfelet: ${customer.coupleName}? Ez nem vonható vissza.`}
+                className="w-full"
+              >
+                <Trash2 size={16} />
+                Ügyfél törlése
+              </ConfirmSubmitButton>
+            </form>
           </section>
         </aside>
       </div>

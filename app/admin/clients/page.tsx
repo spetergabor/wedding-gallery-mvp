@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, Mail, Plus, Users } from "lucide-react";
+import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
@@ -26,8 +27,12 @@ function formatDate(date: Date | null) {
   });
 }
 
-export default async function AdminClientsPage() {
-  await requireAdmin();
+export default async function AdminClientsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ deleted?: string }>;
+}) {
+  const [, params] = await Promise.all([requireAdmin(), searchParams]);
 
   const customers = await prisma.customer.findMany({
     orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }]
@@ -48,6 +53,12 @@ export default async function AdminClientsPage() {
           Új ügyfél
         </ButtonLink>
       </div>
+
+      {params.deleted ? (
+        <div className="mb-5">
+          <Alert title="Ügyfél törölve." variant="success" />
+        </div>
+      ) : null}
 
       {customers.length === 0 ? (
         <EmptyState
