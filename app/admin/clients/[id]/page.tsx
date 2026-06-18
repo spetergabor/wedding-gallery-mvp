@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { ContractManager } from "@/components/contract-manager";
-import { CustomerForm } from "@/components/customer-form";
+import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -39,6 +39,7 @@ export default async function AdminClientDetailPage({
     contractWritten?: string;
     contractSent?: string;
     contractError?: string;
+    edit?: string;
   }>;
 }) {
   await requireAdmin();
@@ -55,6 +56,8 @@ export default async function AdminClientDetailPage({
   if (!customer) {
     notFound();
   }
+
+  const isEditing = flags.edit === "1";
 
   return (
     <AdminShell>
@@ -103,12 +106,13 @@ export default async function AdminClientDetailPage({
         ) : null}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <CustomerForm customer={customer} />
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-6">
+          {isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} />}
+          <ContractManager customerId={customer.id} contracts={customer.contracts} />
+        </div>
 
         <aside className="space-y-6">
-          <ContractManager customerId={customer.id} contracts={customer.contracts} />
-
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <h2 className="text-lg font-semibold text-ink">Gyors adatok</h2>
             <dl className="mt-4 space-y-3 text-sm">

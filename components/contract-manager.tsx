@@ -58,91 +58,101 @@ export function ContractManager({
   contracts: Contract[];
 }) {
   return (
-    <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-      <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
-        <FileText size={20} />
-      </div>
-      <h2 className="mt-4 text-lg font-semibold text-ink">Szerződések</h2>
-      <p className="mt-2 text-sm text-graphite/70">
-        Tölts fel kész PDF-et, vagy írj saját szerződést kitöltendő ügyfél mezőkkel.
-      </p>
-
-      <form action={createWrittenContractAction.bind(null, customerId)} className="mt-5 space-y-3 rounded-md border border-ink/10 bg-paper p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <PenLine size={16} />
-          Saját szerződés írása
-        </div>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Szerződés címe</span>
-          <input
-            name="title"
-            required
-            placeholder="pl. Esküvői fotózás szerződés"
-            className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Szerződés szövege</span>
-          <textarea
-            name="bodyText"
-            required
-            rows={8}
-            placeholder="Írd ide a szerződés szövegét. A pár a kiválasztott mezőket lent fogja kitölteni, majd aláírja."
-            className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm leading-6 text-ink outline-none transition focus:border-ink/50"
-          />
-        </label>
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-graphite">A pár által kitöltendő mezők</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {CONTRACT_FIELD_OPTIONS.map((field) => (
-              <label key={field.key} className="flex items-center gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm text-graphite">
-                <input
-                  type="checkbox"
-                  name="clientFields"
-                  value={field.key}
-                  defaultChecked={["coupleName", "primaryEmail", "phone", "weddingDate", "venue"].includes(field.key)}
-                  className="size-4 accent-ink"
-                />
-                {field.label}
-              </label>
-            ))}
+    <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+      <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-start">
+        <div>
+          <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
+            <FileText size={20} />
           </div>
-        </fieldset>
-        <Button type="submit" className="w-full">
-          <PenLine size={16} />
-          Szerződés létrehozása
-        </Button>
-      </form>
-
-      <form action={uploadContractAction.bind(null, customerId)} className="mt-5 space-y-3 rounded-md border border-ink/10 bg-paper p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <UploadCloud size={16} />
-          Kész PDF feltöltése
+          <h2 className="mt-4 text-2xl font-semibold text-ink">Szerződések</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
+            Tölts fel kész PDF-et, vagy írj saját szerződést kitöltendő ügyfél mezőkkel. Innen tudod kiküldeni,
+            követni és letölteni az aláírt példányt.
+          </p>
         </div>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Szerződés címe</span>
-          <input
-            name="title"
-            required
-            placeholder="pl. Esküvői fotózás szerződés"
-            className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">PDF fájl</span>
-          <input
-            name="contractPdf"
-            type="file"
-            accept="application/pdf,.pdf"
-            required
-            className="block w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
-          />
-        </label>
-        <Button type="submit" className="w-full">
-          <UploadCloud size={16} />
-          PDF feltöltése
-        </Button>
-      </form>
+        <div className="rounded-md bg-paper px-4 py-3 text-sm text-graphite">
+          {contracts.length} szerződés
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
+        <form action={createWrittenContractAction.bind(null, customerId)} className="space-y-3 rounded-md border border-ink/10 bg-paper p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <PenLine size={16} />
+            Saját szerződés írása
+          </div>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Szerződés címe</span>
+            <input
+              name="title"
+              required
+              placeholder="pl. Esküvői fotózás szerződés"
+              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Szerződés szövege</span>
+            <textarea
+              name="bodyText"
+              required
+              rows={8}
+              placeholder="Írd ide a szerződés szövegét. A pár a kiválasztott mezőket lent fogja kitölteni, majd aláírja."
+              className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm leading-6 text-ink outline-none transition focus:border-ink/50"
+            />
+          </label>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-graphite">A pár által kitöltendő mezők</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {CONTRACT_FIELD_OPTIONS.map((field) => (
+                <label key={field.key} className="flex items-center gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm text-graphite">
+                  <input
+                    type="checkbox"
+                    name="clientFields"
+                    value={field.key}
+                    defaultChecked={["coupleName", "primaryEmail", "phone", "weddingDate", "venue"].includes(field.key)}
+                    className="size-4 accent-ink"
+                  />
+                  {field.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <Button type="submit" className="w-full">
+            <PenLine size={16} />
+            Szerződés létrehozása
+          </Button>
+        </form>
+
+        <form action={uploadContractAction.bind(null, customerId)} className="space-y-3 rounded-md border border-ink/10 bg-paper p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <UploadCloud size={16} />
+            Kész PDF feltöltése
+          </div>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Szerződés címe</span>
+            <input
+              name="title"
+              required
+              placeholder="pl. Esküvői fotózás szerződés"
+              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">PDF fájl</span>
+            <input
+              name="contractPdf"
+              type="file"
+              accept="application/pdf,.pdf"
+              required
+              className="block w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
+            />
+          </label>
+          <Button type="submit" className="w-full">
+            <UploadCloud size={16} />
+            PDF feltöltése
+          </Button>
+        </form>
+      </div>
 
       {contracts.length > 0 ? (
         <div className="mt-5 space-y-3">

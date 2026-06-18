@@ -1,5 +1,7 @@
 import { createCustomerAction, updateCustomerAction } from "@/lib/customer-actions";
-import { Button } from "@/components/button";
+import { Button, ButtonLink } from "@/components/button";
+import { Calendar, Mail, MapPin, Pencil, Phone, StickyNote, UserRound } from "lucide-react";
+import type { ReactNode } from "react";
 
 type CustomerFormValue = {
   id: string;
@@ -29,11 +31,99 @@ function dateInputValue(date: Date | null | undefined) {
   return date.toISOString().slice(0, 10);
 }
 
+function displayDate(date: Date | null | undefined) {
+  if (!date) {
+    return "Nincs dátum megadva";
+  }
+
+  return date.toLocaleDateString("hu-HU", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+}
+
+function detailValue(value: string | null | undefined) {
+  return value?.trim() || "Nincs megadva";
+}
+
+function DetailItem({
+  icon: Icon,
+  label,
+  value
+}: {
+  icon: typeof UserRound;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-ink/10 bg-paper px-4 py-3">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">
+        <Icon size={14} />
+        {label}
+      </div>
+      <div className="mt-2 text-base font-medium text-ink">{value}</div>
+    </div>
+  );
+}
+
+export function CustomerProfileCard({ customer }: { customer: CustomerFormValue }) {
+  const status = statuses.find((item) => item.value === customer.status)?.label ?? customer.status;
+
+  return (
+    <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+      <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 sm:flex-row sm:items-start">
+        <div>
+          <p className="text-sm uppercase tracking-[0.24em] text-brass">Esküvői adatlap</p>
+          <h2 className="mt-2 text-2xl font-semibold text-ink">{customer.coupleName}</h2>
+          <p className="mt-2 text-sm text-graphite/70">
+            {status} · {displayDate(customer.weddingDate)}
+          </p>
+        </div>
+        <ButtonLink href={`/admin/clients/${customer.id}?edit=1`} variant="secondary">
+          <Pencil size={16} />
+          Szerkesztés
+        </ButtonLink>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <DetailItem icon={UserRound} label="Pár neve" value={customer.coupleName} />
+        <DetailItem icon={Calendar} label="Esküvő dátuma" value={displayDate(customer.weddingDate)} />
+        <DetailItem icon={Mail} label="Elsődleges email" value={customer.primaryEmail} />
+        <DetailItem icon={Mail} label="Másodlagos email" value={detailValue(customer.secondaryEmail)} />
+        <DetailItem icon={Phone} label="Telefon" value={detailValue(customer.phone)} />
+        <DetailItem icon={MapPin} label="Helyszín" value={detailValue(customer.venue)} />
+      </div>
+
+      <div className="mt-3 rounded-md border border-ink/10 bg-paper px-4 py-3">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">
+          <StickyNote size={14} />
+          Megjegyzések
+        </div>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-graphite">
+          {detailValue(customer.notes)}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
   const action = customer ? updateCustomerAction.bind(null, customer.id) : createCustomerAction;
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+      {customer ? (
+        <div className="mb-5 flex flex-col justify-between gap-3 border-b border-ink/10 pb-5 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm uppercase tracking-[0.24em] text-brass">Adatlap szerkesztése</p>
+            <h2 className="mt-1 text-2xl font-semibold text-ink">{customer.coupleName}</h2>
+          </div>
+          <ButtonLink href={`/admin/clients/${customer.id}`} variant="ghost">
+            Mégse
+          </ButtonLink>
+        </div>
+      ) : null}
       <div className="grid gap-5 md:grid-cols-2">
         <label className="space-y-2 md:col-span-2">
           <span className="text-sm font-medium text-graphite">Pár neve</span>
