@@ -65,6 +65,7 @@ export function PhotoManager({
                   src={photo.thumbnailUrl}
                   alt={photo.filename}
                   fill
+                  unoptimized
                   className="object-cover"
                   sizes="(min-width: 1024px) 33vw, 50vw"
                 />

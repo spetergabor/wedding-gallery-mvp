@@ -25,7 +25,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
         <Link href="/admin/dashboard" className="flex items-center gap-3">
           <div className="relative flex size-10 items-center justify-center overflow-hidden rounded-md bg-ink text-white">
             {settings?.logoUrl ? (
-              <Image src={settings.logoUrl} alt={brandName} fill className="object-contain p-1.5" sizes="40px" />
+              <Image src={settings.logoUrl} alt={brandName} fill unoptimized className="object-contain p-1.5" sizes="40px" />
             ) : (
               <Camera size={20} />
             )}

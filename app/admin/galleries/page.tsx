@@ -70,7 +70,7 @@ export default async function AdminGalleriesPage({
                           <Film size={20} />
                         </div>
                       ) : (
-                        <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="96px" />
+                        <Image src={cover.thumbnailUrl} alt={cover.filename} fill unoptimized className="object-cover" sizes="96px" />
                       )
                     ) : (
                       <div className="flex h-full items-center justify-center text-graphite/50">

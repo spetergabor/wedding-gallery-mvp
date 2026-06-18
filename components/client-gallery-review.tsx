@@ -133,6 +133,7 @@ export function ClientGalleryReview({
                     src={photo.thumbnailUrl}
                     alt={photo.filename}
                     fill
+                    unoptimized
                     className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
                     sizes="(min-width: 1024px) 33vw, 50vw"
                   />

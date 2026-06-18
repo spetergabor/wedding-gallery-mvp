@@ -684,6 +684,7 @@ export function PublicGallery({
                         alt={photo.filename}
                         width={photo.imageWidth}
                         height={photo.imageHeight}
+                        unoptimized
                         className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                         sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       />
@@ -934,6 +935,7 @@ export function PublicGallery({
                 src={selectedPhoto.previewUrl || selectedPhoto.imageUrl}
                 alt={selectedPhoto.filename}
                 fill
+                unoptimized
                 className="object-contain"
                 sizes="100vw"
                 priority

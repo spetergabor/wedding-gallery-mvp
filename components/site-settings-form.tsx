@@ -60,7 +60,7 @@ export function SiteSettingsForm({ settings }: SiteSettingsFormProps) {
           <div className="rounded-lg border border-ink/10 bg-paper p-4">
             <div className="flex min-h-36 items-center justify-center rounded-md bg-white">
               {settings.logoUrl ? (
-                <Image src={settings.logoUrl} alt="Aktuális logó" width={220} height={120} className="max-h-28 w-auto object-contain" />
+                <Image src={settings.logoUrl} alt="Aktuális logó" width={220} height={120} unoptimized className="max-h-28 w-auto object-contain" />
               ) : (
                 <div className="text-center text-graphite/60">
                   <ImageIcon className="mx-auto" size={24} />

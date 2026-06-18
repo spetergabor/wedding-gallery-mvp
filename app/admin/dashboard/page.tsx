@@ -142,7 +142,7 @@ export default async function AdminDashboardPage() {
                             <Film size={18} />
                           </div>
                         ) : (
-                          <Image src={cover.thumbnailUrl} alt={cover.filename} fill className="object-cover" sizes="56px" />
+                          <Image src={cover.thumbnailUrl} alt={cover.filename} fill unoptimized className="object-cover" sizes="56px" />
                         )
                       ) : (
                         <div className="flex h-full items-center justify-center text-graphite/50">
