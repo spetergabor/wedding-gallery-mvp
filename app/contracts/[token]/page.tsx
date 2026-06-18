@@ -1,4 +1,5 @@
 import { Download, ExternalLink, FileText, PenLine } from "lucide-react";
+import { ContractSignaturePad } from "@/components/contract-signature-pad";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -43,11 +44,13 @@ function ContractUnavailable() {
 }
 
 export default async function ContractPublicPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ signed?: string; signError?: string }>;
 }) {
-  const { token } = await params;
+  const [{ token }, flags] = await Promise.all([params, searchParams]);
   const contract = await prisma.contract.findUnique({
     where: { accessToken: token },
     include: {
@@ -68,6 +71,10 @@ export default async function ContractPublicPage({
   }
 
   const openedAt = contract.openedAt ?? new Date();
+  const currentPdfUrl = contract.signedFileUrl ?? contract.fileUrl;
+  const currentPdfFilename = contract.signedFileUrl
+    ? `signed-${contract.originalFilename}`
+    : contract.originalFilename;
 
   if (!contract.openedAt) {
     await prisma.contract.update({
@@ -98,20 +105,20 @@ export default async function ContractPublicPage({
 
             <div className="flex flex-wrap gap-2 md:justify-end">
               <a
-                href={contract.fileUrl}
+                href={currentPdfUrl}
                 target="_blank"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5"
               >
                 <ExternalLink size={16} />
-                PDF megnyitása
+                {contract.signedFileUrl ? "Aláírt PDF megnyitása" : "PDF megnyitása"}
               </a>
               <a
-                href={contract.fileUrl}
-                download={contract.originalFilename}
+                href={currentPdfUrl}
+                download={currentPdfFilename}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
               >
                 <Download size={16} />
-                PDF letöltése
+                {contract.signedFileUrl ? "Aláírt PDF letöltése" : "PDF letöltése"}
               </a>
             </div>
           </div>
@@ -120,7 +127,7 @@ export default async function ContractPublicPage({
             <div className="overflow-hidden rounded-md border border-ink/10 bg-paper">
               <iframe
                 title={contract.title}
-                src={contract.fileUrl}
+                src={currentPdfUrl}
                 className="h-[68vh] min-h-[520px] w-full bg-white"
               />
             </div>
@@ -130,10 +137,25 @@ export default async function ContractPublicPage({
                 <PenLine size={20} />
               </div>
               <h2 className="mt-4 text-lg font-semibold text-ink">Aláírás</h2>
+              {flags.signed ? (
+                <div className="mt-3 rounded-md border border-sage/20 bg-sage/10 px-4 py-3 text-sm text-sage">
+                  Köszönjük, a szerződés aláírása sikeresen mentve lett.
+                </div>
+              ) : null}
+              {flags.signError === "missing" ? (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Kérlek, rajzolj aláírást a mezőbe.
+                </div>
+              ) : null}
+              {flags.signError === "expired" ? (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  A link lejárt. Kérj új szerződés linket.
+                </div>
+              ) : null}
               <p className="mt-2 text-sm leading-6 text-graphite/70">
-                A szerződés megtekintése már működik. A következő lépésben ide kerül az ujjjal vagy egérrel aláírható
-                mező, majd a véglegesített, aláírt PDF mentése.
+                Írjátok alá a szerződést ujjal vagy egérrel. Mentés után elkészül egy aláírt PDF példány.
               </p>
+              <ContractSignaturePad token={token} disabled={Boolean(contract.signedAt && contract.signedFileUrl)} />
               <div className="mt-5 rounded-md bg-white px-4 py-3 text-sm text-graphite/70">
                 Státusz: {contract.signedAt ? "Aláírva" : openedAt ? "Megnyitva" : "Elküldve"}
               </div>

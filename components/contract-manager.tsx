@@ -14,6 +14,7 @@ type Contract = {
   sentAt: Date | null;
   openedAt: Date | null;
   signedAt: Date | null;
+  signedFileUrl: string | null;
   createdAt: Date;
 };
 
@@ -143,6 +144,27 @@ export function ContractManager({
                   <p>Link lejár: {formatDate(contract.accessTokenExpiresAt)}</p>
                 ) : null}
               </div>
+              {contract.signedFileUrl ? (
+                <div className="mt-4 flex flex-wrap gap-2 rounded-md bg-sage/10 p-3 text-sm text-sage">
+                  <span className="mr-auto font-medium">Aláírt PDF elkészült</span>
+                  <a
+                    href={contract.signedFileUrl}
+                    target="_blank"
+                    className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 font-medium text-graphite transition hover:bg-ink/5"
+                  >
+                    <ExternalLink size={15} />
+                    Megnyitás
+                  </a>
+                  <a
+                    href={contract.signedFileUrl}
+                    download={`signed-${contract.originalFilename}`}
+                    className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 font-medium text-graphite transition hover:bg-ink/5"
+                  >
+                    <Download size={15} />
+                    Letöltés
+                  </a>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

@@ -123,6 +123,16 @@ export function createContractObjectKey({
   return `contracts/${customerId}/${uniqueName}`;
 }
 
+export function createSignedContractObjectKey({
+  customerId,
+  contractId
+}: {
+  customerId: string;
+  contractId: string;
+}) {
+  return `contracts/${customerId}/signed/${Date.now()}-${contractId}.pdf`;
+}
+
 export function getPublicR2Url(r2Key: string) {
   return `${R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${r2Key}`;
 }
