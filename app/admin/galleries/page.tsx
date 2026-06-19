@@ -12,10 +12,12 @@ export default async function AdminGalleriesPage({
 }: {
   searchParams: Promise<{ deleted?: string }>;
 }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const flags = await searchParams;
+  const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
 
   const galleries = await prisma.gallery.findMany({
+    where: galleryWhere,
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { photos: true } },

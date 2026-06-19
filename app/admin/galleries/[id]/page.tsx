@@ -78,12 +78,15 @@ export default async function GalleryDetailPage({
     tab?: string;
   }>;
 }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const { id } = await params;
   const flags = await searchParams;
-  const gallery = await prisma.gallery.findUnique({
-    where: { id },
+  const gallery = await prisma.gallery.findFirst({
+    where: {
+      id,
+      ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+    },
     include: {
       downloads: { orderBy: { createdAt: "desc" } },
       downloadPackages: {

@@ -9,7 +9,7 @@ import { hasAnyAdmin } from "@/lib/auth";
 export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string; registered?: string }>;
+  searchParams: Promise<{ approval?: string; error?: string; registered?: string }>;
 }) {
   const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
 
@@ -32,7 +32,16 @@ export default async function AdminLoginPage({
 
         <div className="mb-5 space-y-3">
           {params.error ? <Alert title="Hibás belépési adatok." variant="error">Ha be van kapcsolva a kétfaktoros hitelesítés, a 6 jegyű kód is szükséges.</Alert> : null}
-          {params.registered ? <Alert title="Admin már létezik." variant="info">Új regisztráció helyett jelentkezz be.</Alert> : null}
+          {params.approval === "pending" ? (
+            <Alert title="A fiók még jóváhagyásra vár." variant="info">
+              A főadmin jóváhagyása után tudsz belépni.
+            </Alert>
+          ) : null}
+          {params.registered === "pending" ? (
+            <Alert title="Regisztráció elküldve." variant="success">
+              A fiók jóváhagyásra vár. Értesítsd a főadmint, hogy aktiválja.
+            </Alert>
+          ) : null}
         </div>
 
         <form action={loginAction} className="space-y-4">

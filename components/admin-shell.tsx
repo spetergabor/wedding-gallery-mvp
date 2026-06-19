@@ -2,10 +2,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { Bell, Camera, LayoutDashboard, LogOut, Plus, Settings, ShieldCheck, Users } from "lucide-react";
 import { logoutAction } from "@/lib/gallery-actions";
+import { getAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
-  const [unreadNotifications, settings] = await Promise.all([
+  const [admin, unreadNotifications, settings] = await Promise.all([
+    getAdminSession(),
     prisma.adminNotification.count({
       where: { readAt: null }
     }),
@@ -49,6 +51,12 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <Users size={17} />
             Ügyfelek
           </Link>
+          {admin?.role === "super_admin" ? (
+            <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
+              <Users size={17} />
+              Fotósok
+            </Link>
+          ) : null}
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries/new">
             <Plus size={17} />
             Új galéria

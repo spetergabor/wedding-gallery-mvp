@@ -12,10 +12,15 @@ model Admin {
   name         String
   email        String   @unique
   passwordHash String
+  role         String   @default("photographer")
+  status       String   @default("pending")
+  approvedAt   DateTime?
+  approvedById String?
   twoFactorEnabled Boolean @default(false)
   twoFactorSecret  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  galleries    Gallery[]
 }
 
 model AdminNotification {
@@ -101,6 +106,7 @@ model Contract {
 
 model Gallery {
   id           String   @id @default(cuid())
+  adminId      String?
   title        String
   slug         String   @unique
   password     String?
@@ -117,6 +123,9 @@ model Gallery {
   favoriteLists GalleryFavoriteList[]
   uploadSessions GalleryUploadSession[]
   mediaProcessingJobs MediaProcessingJob[]
+  admin        Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([adminId])
 }
 
 model Photo {

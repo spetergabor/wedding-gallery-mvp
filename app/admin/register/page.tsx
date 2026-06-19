@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Camera } from "lucide-react";
 import { Button } from "@/components/button";
 import { Alert } from "@/components/alert";
@@ -13,10 +12,6 @@ export default async function AdminRegisterPage({
 }) {
   const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
 
-  if (alreadyHasAdmin) {
-    redirect("/admin/login?registered=1");
-  }
-
   return (
     <main className="grid min-h-screen place-items-center bg-paper px-5">
       <section className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-7 shadow-soft">
@@ -26,7 +21,9 @@ export default async function AdminRegisterPage({
           </div>
           <div>
             <h1 className="text-xl font-semibold text-ink">Admin regisztráció</h1>
-            <p className="text-sm text-graphite/70">Hozd létre az első admin felhasználót.</p>
+            <p className="text-sm text-graphite/70">
+              {alreadyHasAdmin ? "Fotós hozzáférés igénylése." : "Hozd létre az első főadmin felhasználót."}
+            </p>
           </div>
         </div>
 
@@ -81,8 +78,16 @@ export default async function AdminRegisterPage({
             />
           </label>
 
-          <Button type="submit" className="w-full">Admin létrehozása</Button>
+          <Button type="submit" className="w-full">
+            {alreadyHasAdmin ? "Regisztráció elküldése" : "Főadmin létrehozása"}
+          </Button>
         </form>
+
+        {alreadyHasAdmin ? (
+          <p className="mt-4 rounded-md bg-paper px-4 py-3 text-sm leading-6 text-graphite/70">
+            A regisztráció után a főadminnak jóvá kell hagynia a fiókot. Addig nem lehet belépni.
+          </p>
+        ) : null}
 
         <p className="mt-6 text-center text-sm text-graphite/70">
           Már van admin?{" "}

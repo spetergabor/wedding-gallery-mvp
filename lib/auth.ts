@@ -52,7 +52,7 @@ export async function getAdminSession() {
 
   return prisma.admin.findUnique({
     where: { id: adminId },
-    select: { id: true, email: true, name: true }
+    select: { id: true, email: true, name: true, role: true, status: true }
   });
 }
 
@@ -61,6 +61,20 @@ export async function requireAdmin() {
 
   if (!admin) {
     redirect("/admin/login");
+  }
+
+  if (admin.status !== "approved") {
+    redirect("/admin/login?approval=pending");
+  }
+
+  return admin;
+}
+
+export async function requireSuperAdmin() {
+  const admin = await requireAdmin();
+
+  if (admin.role !== "super_admin") {
+    redirect("/admin/dashboard");
   }
 
   return admin;
@@ -77,18 +91,22 @@ export async function signInAdmin(email: string, password: string, twoFactorCode
   });
 
   if (!admin) {
-    return false;
+    return "invalid";
   }
 
   const isValidPassword = await verifyPassword(password, admin.passwordHash);
 
   if (!isValidPassword) {
-    return false;
+    return "invalid";
+  }
+
+  if (admin.status !== "approved") {
+    return "pending";
   }
 
   if (admin.twoFactorEnabled) {
     if (!admin.twoFactorSecret || !twoFactorCode || !verifyTotpCode(admin.twoFactorSecret, twoFactorCode)) {
-      return false;
+      return "invalid";
     }
   }
 
@@ -101,7 +119,7 @@ export async function signInAdmin(email: string, password: string, twoFactorCode
     maxAge: SESSION_MAX_AGE
   });
 
-  return true;
+  return "success";
 }
 
 export async function signOutAdmin() {

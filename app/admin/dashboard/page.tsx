@@ -22,7 +22,9 @@ function formatStorageSize(bytes: number) {
 }
 
 export default async function AdminDashboardPage() {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
+  const photoWhere = admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } };
 
   const [
     galleryCount,
@@ -34,16 +36,17 @@ export default async function AdminDashboardPage() {
     latestGalleries,
     viewLocations
   ] = await Promise.all([
-    prisma.gallery.count(),
-    prisma.gallery.count({ where: { isActive: true } }),
-    prisma.photo.count(),
-    prisma.photo.aggregate({ _sum: { fileSize: true } }),
+    prisma.gallery.count({ where: galleryWhere }),
+    prisma.gallery.count({ where: { ...galleryWhere, isActive: true } }),
+    prisma.photo.count({ where: photoWhere }),
+    prisma.photo.aggregate({ where: photoWhere, _sum: { fileSize: true } }),
     prisma.adminNotification.count({ where: { readAt: null } }),
     prisma.adminNotification.findMany({
       orderBy: { createdAt: "desc" },
       take: 4
     }),
     prisma.gallery.findMany({
+      where: galleryWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       include: {
@@ -55,6 +58,7 @@ export default async function AdminDashboardPage() {
       }
     }),
     prisma.galleryView.findMany({
+      where: admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } },
       select: {
         city: true,
         country: true,

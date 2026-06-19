@@ -38,6 +38,23 @@ function formDate(formData: FormData, key: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+async function requireGalleryAccess(galleryId: string) {
+  const admin = await requireAdmin();
+  const gallery = await prisma.gallery.findFirst({
+    where: {
+      id: galleryId,
+      ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+    },
+    select: { id: true, slug: true }
+  });
+
+  if (!gallery) {
+    redirect("/admin/galleries");
+  }
+
+  return { admin, gallery };
+}
+
 function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
 }
@@ -160,16 +177,7 @@ async function reorderGalleryPhotosByCaptureTime(galleryId: string) {
 }
 
 export async function reorderGalleryPhotosAction(galleryId: string) {
-  await requireAdmin();
-
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: { slug: true }
-  });
-
-  if (!gallery) {
-    redirect("/admin/galleries");
-  }
+  const { gallery } = await requireGalleryAccess(galleryId);
 
   await reorderGalleryPhotosByCaptureTime(galleryId);
 
@@ -183,9 +191,13 @@ export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
   const twoFactorCode = formString(formData, "twoFactorCode");
-  const success = await signInAdmin(email, password, twoFactorCode);
+  const result = await signInAdmin(email, password, twoFactorCode);
 
-  if (!success) {
+  if (result === "pending") {
+    redirect("/admin/login?approval=pending");
+  }
+
+  if (result !== "success") {
     redirect("/admin/login?error=1");
   }
 
@@ -194,10 +206,6 @@ export async function loginAction(formData: FormData) {
 
 export async function registerAdminAction(formData: FormData) {
   const alreadyHasAdmin = await hasAnyAdmin();
-
-  if (alreadyHasAdmin) {
-    redirect("/admin/login?registered=1");
-  }
 
   const name = formString(formData, "name");
   const email = formString(formData, "email").toLowerCase();
@@ -218,9 +226,16 @@ export async function registerAdminAction(formData: FormData) {
     data: {
       name,
       email,
-      passwordHash
+      passwordHash,
+      role: alreadyHasAdmin ? "photographer" : "super_admin",
+      status: alreadyHasAdmin ? "pending" : "approved",
+      approvedAt: alreadyHasAdmin ? null : new Date()
     }
   });
+
+  if (alreadyHasAdmin) {
+    redirect("/admin/login?registered=pending");
+  }
 
   await signInAdmin(email, password);
   redirect("/admin/dashboard");
@@ -288,7 +303,7 @@ export async function markAllNotificationsReadAction() {
 }
 
 export async function generateClientAccessLinkAction(galleryId: string) {
-  await requireAdmin();
+  await requireGalleryAccess(galleryId);
 
   const gallery = await prisma.gallery.update({
     where: { id: galleryId },
@@ -302,7 +317,7 @@ export async function generateClientAccessLinkAction(galleryId: string) {
 }
 
 export async function restoreClientHiddenPhotoAction(galleryId: string, photoId: string) {
-  await requireAdmin();
+  await requireGalleryAccess(galleryId);
 
   const photo = await prisma.photo.findFirst({
     where: { id: photoId, galleryId },
@@ -332,7 +347,7 @@ export async function restoreClientHiddenPhotoAction(galleryId: string, photoId:
 }
 
 export async function createGalleryAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
@@ -352,6 +367,7 @@ export async function createGalleryAction(formData: FormData) {
       data: {
         title,
         slug,
+        adminId: admin.id,
         password: password || null,
         eventDate,
         isActive,
@@ -371,7 +387,7 @@ export async function createGalleryAction(formData: FormData) {
 }
 
 export async function updateGalleryAction(id: string, formData: FormData) {
-  await requireAdmin();
+  await requireGalleryAccess(id);
 
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
@@ -387,7 +403,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   let previousSlug = slug;
 
   try {
-    const previousGallery = await prisma.gallery.findUnique({
+    const previousGallery = await prisma.gallery.findFirst({
       where: { id },
       select: { slug: true }
     });
@@ -419,7 +435,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
 }
 
 export async function archiveGalleryAction(id: string) {
-  await requireAdmin();
+  await requireGalleryAccess(id);
 
   const gallery = await prisma.gallery.update({
     where: { id },
@@ -434,7 +450,7 @@ export async function archiveGalleryAction(id: string) {
 }
 
 export async function activateGalleryAction(id: string) {
-  await requireAdmin();
+  await requireGalleryAccess(id);
 
   const gallery = await prisma.gallery.update({
     where: { id },
@@ -449,7 +465,7 @@ export async function activateGalleryAction(id: string) {
 }
 
 export async function deleteGalleryAction(id: string) {
-  await requireAdmin();
+  await requireGalleryAccess(id);
 
   const gallery = await prisma.gallery.findUnique({
     where: { id },
@@ -484,16 +500,7 @@ export async function deleteGalleryAction(id: string) {
 }
 
 export async function addPhotoAction(galleryId: string, formData: FormData) {
-  await requireAdmin();
-
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: { slug: true }
-  });
-
-  if (!gallery) {
-    redirect("/admin/galleries");
-  }
+  const { gallery } = await requireGalleryAccess(galleryId);
 
   const uploads = formData
     .getAll("photos")
@@ -559,21 +566,11 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
   redirect(`/admin/galleries/${galleryId}?photoAdded=1`);
 }
 
-export async function createPhotoUploadSessionAction(galleryId: string, totalCount: number) {
-  await requireAdmin();
-
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: { id: true }
-  });
-
-  if (!gallery) {
-    return {
-      ok: false,
-      message: "A galéria nem található.",
-      sessionId: null
-    };
-  }
+export async function createPhotoUploadSessionAction(
+  galleryId: string,
+  totalCount: number
+): Promise<{ ok: boolean; message?: string; sessionId: string | null }> {
+  await requireGalleryAccess(galleryId);
 
   const latestPhoto = await prisma.photo.findFirst({
     where: { galleryId },
@@ -598,7 +595,7 @@ export async function createPhotoUploadSessionAction(galleryId: string, totalCou
 }
 
 export async function createPhotoUploadTargetsAction(galleryId: string, sessionId: string, files: PhotoUploadRequest[]) {
-  await requireAdmin();
+  await requireGalleryAccess(galleryId);
 
   if (!isR2StorageEnabled()) {
     return {
@@ -770,7 +767,7 @@ export async function markPhotoUploadItemFailedAction({
   uploadItemId: string;
   message: string;
 }) {
-  await requireAdmin();
+  await requireGalleryAccess(galleryId);
 
   const item = await prisma.galleryUploadItem.findFirst({
     where: {
@@ -798,7 +795,7 @@ export async function markPhotoUploadItemFailedAction({
 }
 
 export async function completePhotoUploadsAction(galleryId: string, sessionId: string, uploads: CompletedPhotoUpload[]) {
-  await requireAdmin();
+  await requireGalleryAccess(galleryId);
 
   const session = await prisma.galleryUploadSession.findFirst({
     where: { id: sessionId, galleryId },
@@ -942,9 +939,9 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
 }
 
 export async function deletePhotoAction(photoId: string, galleryId: string) {
-  await requireAdmin();
+  await requireGalleryAccess(galleryId);
 
-  const gallery = await prisma.gallery.findUnique({
+  const gallery = await prisma.gallery.findFirst({
     where: { id: galleryId },
     select: { coverPhotoId: true, slug: true }
   });
@@ -984,7 +981,7 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
 }
 
 export async function setCoverPhotoAction(galleryId: string, photoId: string) {
-  await requireAdmin();
+  await requireGalleryAccess(galleryId);
 
   const photo = await prisma.photo.findFirst({
     where: { id: photoId, galleryId },
@@ -1007,16 +1004,7 @@ export async function setCoverPhotoAction(galleryId: string, photoId: string) {
 }
 
 export async function movePhotoAction(galleryId: string, photoId: string, direction: "up" | "down") {
-  await requireAdmin();
-
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: { slug: true }
-  });
-
-  if (!gallery) {
-    redirect("/admin/galleries");
-  }
+  const { gallery } = await requireGalleryAccess(galleryId);
 
   const photos = await prisma.photo.findMany({
     where: { galleryId },
