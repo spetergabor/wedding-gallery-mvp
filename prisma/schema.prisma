@@ -21,23 +21,30 @@ model Admin {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   galleries    Gallery[]
+  customers    Customer[]
+  notifications AdminNotification[]
+  siteSettings SiteSettings?
 }
 
 model AdminNotification {
   id        String   @id @default(cuid())
+  adminId   String?
   type      String
   title     String
   message   String
   href      String?
   readAt    DateTime?
   createdAt DateTime @default(now())
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
+  @@index([adminId])
   @@index([readAt])
   @@index([createdAt])
 }
 
 model SiteSettings {
   id             String   @id @default("default")
+  adminId        String?  @unique
   businessName   String   @default("")
   logoUrl        String?
   logoR2Key      String?
@@ -52,10 +59,14 @@ model SiteSettings {
   contactPhone   String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
 }
 
 model Customer {
   id             String   @id @default(cuid())
+  adminId        String?
   coupleName     String
   primaryEmail   String
   secondaryEmail String?
@@ -66,8 +77,10 @@ model Customer {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   contracts      Contract[]
 
+  @@index([adminId])
   @@index([status])
   @@index([weddingDate])
   @@index([primaryEmail])

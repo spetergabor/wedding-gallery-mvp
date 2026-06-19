@@ -479,7 +479,8 @@ export async function signContractAction(token: string, formData: FormData) {
     include: {
       customer: {
         select: {
-          coupleName: true
+          coupleName: true,
+          adminId: true
         }
       }
     }
@@ -496,8 +497,10 @@ export async function signContractAction(token: string, formData: FormData) {
   const signedAt = new Date();
 
   try {
-    const settings = await prisma.siteSettings.findUnique({
-      where: { id: "default" },
+    const settings = await prisma.siteSettings.findFirst({
+      where: contract.customer.adminId
+        ? { adminId: contract.customer.adminId }
+        : { id: "default" },
       select: { signatureUrl: true }
     });
     const photographerSignatureBytes = await fetchSignaturePngBytes(settings?.signatureUrl);

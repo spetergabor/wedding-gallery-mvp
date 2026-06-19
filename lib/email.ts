@@ -1,4 +1,5 @@
 type AdminFavoriteListSubmittedEmail = {
+  to?: string;
   galleryTitle: string;
   galleryAdminUrl: string;
   clientEmail: string;
@@ -81,8 +82,9 @@ function favoriteListSubmittedHtml({
 
 export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavoriteListSubmittedEmail) {
   const { apiKey, from, adminEmail } = emailConfig();
+  const recipient = payload.to ?? adminEmail;
 
-  if (!apiKey || !adminEmail) {
+  if (!apiKey || !recipient) {
     console.warn("Admin email notification skipped. Missing RESEND_API_KEY or ADMIN_NOTIFICATION_EMAIL.");
     return;
   }
@@ -95,7 +97,7 @@ export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavorite
     },
     body: JSON.stringify({
       from,
-      to: adminEmail,
+      to: recipient,
       subject: `Kedvenc lista lezárva: ${payload.galleryTitle}`,
       html: favoriteListSubmittedHtml(payload),
       text: [

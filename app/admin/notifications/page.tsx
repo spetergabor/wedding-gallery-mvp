@@ -5,13 +5,16 @@ import { Button } from "@/components/button";
 import { markAllNotificationsReadAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
+import { notificationWhere } from "@/lib/admin-scope";
 
 export default async function AdminNotificationsPage() {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  const adminNotificationWhere = notificationWhere(admin);
 
   const [unreadCount, notifications] = await Promise.all([
-    prisma.adminNotification.count({ where: { readAt: null } }),
+    prisma.adminNotification.count({ where: { ...adminNotificationWhere, readAt: null } }),
     prisma.adminNotification.findMany({
+      where: adminNotificationWhere,
       orderBy: { createdAt: "desc" },
       take: 50
     })

@@ -544,7 +544,18 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
       submittedAt: true,
       gallery: {
         select: {
-          title: true
+          title: true,
+          adminId: true,
+          admin: {
+            select: {
+              email: true,
+              siteSettings: {
+                select: {
+                  contactEmail: true
+                }
+              }
+            }
+          }
         }
       },
       items: {
@@ -590,6 +601,7 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
 
   await prisma.adminNotification.create({
     data: {
+      adminId: list.gallery.adminId,
       type: "favorite_list_submitted",
       title: "Kedvenc lista lezárva",
       message: `${normalizedEmail} lezárta a(z) ${list.name} listát a(z) ${list.gallery.title} galériában.`,
@@ -599,6 +611,7 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
 
   try {
     await sendAdminFavoriteListSubmittedEmail({
+      to: list.gallery.admin?.siteSettings?.contactEmail || list.gallery.admin?.email,
       galleryTitle: list.gallery.title,
       galleryAdminUrl: adminGalleryUrl(galleryId),
       clientEmail: normalizedEmail,
@@ -645,7 +658,8 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
       id: true,
       gallery: {
         select: {
-          title: true
+          title: true,
+          adminId: true
         }
       }
     }
@@ -744,6 +758,7 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   if (list._count.items === 0 && count === 1) {
     await prisma.adminNotification.create({
       data: {
+        adminId: photo.gallery.adminId,
         type: "favorite_list_created",
         title: "Új kedvenc lista",
         message: `${normalizedEmail} kedvenc listát kezdett a(z) ${photo.gallery.title} galériában.`,

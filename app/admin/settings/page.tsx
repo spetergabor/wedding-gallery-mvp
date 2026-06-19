@@ -25,25 +25,24 @@ export default async function AdminSettingsPage({
     saved?: string;
   }>;
 }) {
-  const [, params, settings] = await Promise.all([
-    requireAdmin(),
-    searchParams,
-    prisma.siteSettings.findUnique({
-      where: { id: "default" },
-      select: {
-        businessName: true,
-        logoUrl: true,
-        signatureUrl: true,
-        websiteUrl: true,
-        instagramUrl: true,
-        facebookUrl: true,
-        tiktokUrl: true,
-        youtubeUrl: true,
-        contactEmail: true,
-        contactPhone: true
-      }
-    })
-  ]);
+  const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
+  const settings = await prisma.siteSettings.findFirst({
+    where: {
+      OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
+    },
+    select: {
+      businessName: true,
+      logoUrl: true,
+      signatureUrl: true,
+      websiteUrl: true,
+      instagramUrl: true,
+      facebookUrl: true,
+      tiktokUrl: true,
+      youtubeUrl: true,
+      contactEmail: true,
+      contactPhone: true
+    }
+  });
 
   return (
     <AdminShell>

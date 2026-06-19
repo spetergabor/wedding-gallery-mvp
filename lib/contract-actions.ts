@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
+import { customerAccessWhere } from "@/lib/admin-scope";
 import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
@@ -19,10 +20,10 @@ function createContractAccessToken() {
 }
 
 export async function uploadContractAction(customerId: string, formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
     select: { id: true }
   });
 
@@ -73,10 +74,10 @@ export async function uploadContractAction(customerId: string, formData: FormDat
 }
 
 export async function createWrittenContractAction(customerId: string, formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
     select: { id: true }
   });
 
@@ -113,12 +114,13 @@ export async function createWrittenContractAction(customerId: string, formData: 
 }
 
 export async function sendContractAction(customerId: string, contractId: string) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const contract = await prisma.contract.findFirst({
     where: {
       id: contractId,
-      customerId
+      customerId,
+      customer: { is: customerAccessWhere(admin, customerId) }
     },
     include: {
       customer: {

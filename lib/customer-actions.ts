@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
+import { customerAccessWhere } from "@/lib/admin-scope";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoObject } from "@/lib/storage";
 
@@ -53,7 +54,7 @@ function customerPayload(formData: FormData) {
 }
 
 export async function createCustomerAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const payload = customerPayload(formData);
 
@@ -62,7 +63,10 @@ export async function createCustomerAction(formData: FormData) {
   }
 
   const customer = await prisma.customer.create({
-    data: payload,
+    data: {
+      ...payload,
+      adminId: admin.id
+    },
     select: { id: true }
   });
 
@@ -71,7 +75,7 @@ export async function createCustomerAction(formData: FormData) {
 }
 
 export async function updateCustomerAction(customerId: string, formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const payload = customerPayload(formData);
 
@@ -79,8 +83,17 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
     redirect(`/admin/clients/${customerId}?error=missing`);
   }
 
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
   await prisma.customer.update({
-    where: { id: customerId },
+    where: { id: customer.id },
     data: payload
   });
 
@@ -90,10 +103,10 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
 }
 
 export async function deleteCustomerAction(customerId: string) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
-  const customer = await prisma.customer.findUnique({
-    where: { id: customerId },
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
     select: {
       id: true,
       contracts: {

@@ -4,20 +4,25 @@ import { Bell, Camera, LayoutDashboard, LogOut, Plus, Settings, ShieldCheck, Use
 import { logoutAction } from "@/lib/gallery-actions";
 import { getAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notificationWhere } from "@/lib/admin-scope";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
-  const [admin, unreadNotifications, settings] = await Promise.all([
-    getAdminSession(),
+  const admin = await getAdminSession();
+  const [unreadNotifications, settings] = await Promise.all([
     prisma.adminNotification.count({
-      where: { readAt: null }
+      where: { ...notificationWhere(admin ?? { id: "", role: "photographer" }), readAt: null }
     }),
-    prisma.siteSettings.findUnique({
-      where: { id: "default" },
-      select: {
-        businessName: true,
-        logoUrl: true
-      }
-    })
+    admin
+      ? prisma.siteSettings.findFirst({
+          where: {
+            OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
+          },
+          select: {
+            businessName: true,
+            logoUrl: true
+          }
+        })
+      : null
   ]);
   const brandName = settings?.businessName || "Wedding Gallery";
 

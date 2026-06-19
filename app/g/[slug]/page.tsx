@@ -30,20 +30,24 @@ export default async function PublicGalleryPage({
 }) {
   const { slug } = await params;
   const flags = await searchParams;
-  const [gallery, settings] = await Promise.all([
-    prisma.gallery.findUnique({
-      where: { slug },
-      include: { photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } }
-    }),
-    prisma.siteSettings.findUnique({
-      where: { id: "default" },
-      select: { businessName: true, logoUrl: true }
-    })
-  ]);
+  const gallery = await prisma.gallery.findUnique({
+    where: { slug },
+    include: { photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } }
+  });
 
   if (!gallery || !gallery.isActive) {
     notFound();
   }
+
+  const settings = await prisma.siteSettings.findFirst({
+    where: {
+      OR: [
+        ...(gallery.adminId ? [{ adminId: gallery.adminId }] : []),
+        ...(gallery.adminId ? [] : [{ id: "default" }])
+      ]
+    },
+    select: { businessName: true, logoUrl: true }
+  });
 
   const canView = await canViewGallery(slug, gallery.password);
   const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden);

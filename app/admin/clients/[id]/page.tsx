@@ -6,6 +6,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
+import { customerAccessWhere } from "@/lib/admin-scope";
 import { deleteCustomerAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 
@@ -45,10 +46,10 @@ export default async function AdminClientDetailPage({
     edit?: string;
   }>;
 }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const [{ id }, flags] = await Promise.all([params, searchParams]);
-  const customer = await prisma.customer.findUnique({
-    where: { id },
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, id),
     include: {
       contracts: {
         orderBy: { createdAt: "desc" }

@@ -11,8 +11,6 @@ import {
   savePhotoObject
 } from "@/lib/storage";
 
-const SETTINGS_ID = "default";
-
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -33,11 +31,13 @@ function formOptionalUrl(formData: FormData, key: string) {
 }
 
 export async function updateSiteSettingsAction(formData: FormData) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
-  const existingSettings = await prisma.siteSettings.findUnique({
-    where: { id: SETTINGS_ID },
-    select: { logoR2Key: true, signatureR2Key: true }
+  const existingSettings = await prisma.siteSettings.findFirst({
+    where: {
+      OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
+    },
+    select: { id: true, logoR2Key: true, signatureR2Key: true }
   });
   const logoFile = formData.get("logo");
   const signatureFile = formData.get("signature");
@@ -97,9 +97,10 @@ export async function updateSiteSettingsAction(formData: FormData) {
   }
 
   const settings = await prisma.siteSettings.upsert({
-    where: { id: SETTINGS_ID },
+    where: { id: existingSettings?.id ?? admin.id },
     create: {
-      id: SETTINGS_ID,
+      id: admin.id,
+      adminId: admin.id,
       businessName: formString(formData, "businessName"),
       logoUrl: logoUrl ?? null,
       logoR2Key: logoR2Key ?? null,
@@ -114,6 +115,7 @@ export async function updateSiteSettingsAction(formData: FormData) {
       contactPhone: formString(formData, "contactPhone") || null
     },
     update: {
+      adminId: admin.id,
       businessName: formString(formData, "businessName"),
       ...(logoUrl !== undefined ? { logoUrl } : {}),
       ...(logoR2Key !== undefined ? { logoR2Key } : {}),

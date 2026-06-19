@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
+import { notificationWhere } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   createPresignedPhotoUploadUrl,
@@ -291,10 +292,10 @@ export async function disableTwoFactorAction(formData: FormData) {
 }
 
 export async function markAllNotificationsReadAction() {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   await prisma.adminNotification.updateMany({
-    where: { readAt: null },
+    where: { ...notificationWhere(admin), readAt: null },
     data: { readAt: new Date() }
   });
 

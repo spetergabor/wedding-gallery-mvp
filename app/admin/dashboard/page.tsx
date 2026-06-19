@@ -8,6 +8,7 @@ import { ViewLocationMap } from "@/components/view-location-map";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
+import { notificationWhere } from "@/lib/admin-scope";
 
 function formatStorageSize(bytes: number) {
   if (bytes <= 0) {
@@ -25,6 +26,7 @@ export default async function AdminDashboardPage() {
   const admin = await requireAdmin();
   const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
   const photoWhere = admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } };
+  const adminNotificationWhere = notificationWhere(admin);
 
   const [
     galleryCount,
@@ -40,8 +42,9 @@ export default async function AdminDashboardPage() {
     prisma.gallery.count({ where: { ...galleryWhere, isActive: true } }),
     prisma.photo.count({ where: photoWhere }),
     prisma.photo.aggregate({ where: photoWhere, _sum: { fileSize: true } }),
-    prisma.adminNotification.count({ where: { readAt: null } }),
+    prisma.adminNotification.count({ where: { ...adminNotificationWhere, readAt: null } }),
     prisma.adminNotification.findMany({
+      where: adminNotificationWhere,
       orderBy: { createdAt: "desc" },
       take: 4
     }),

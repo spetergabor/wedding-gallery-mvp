@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
+import { adminOwnedWhere } from "@/lib/admin-scope";
 import { prisma } from "@/lib/prisma";
 
 const statusLabels: Record<string, string> = {
@@ -32,9 +33,10 @@ export default async function AdminClientsPage({
 }: {
   searchParams: Promise<{ deleted?: string }>;
 }) {
-  const [, params] = await Promise.all([requireAdmin(), searchParams]);
+  const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
 
   const customers = await prisma.customer.findMany({
+    where: adminOwnedWhere(admin),
     orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }]
   });
 
