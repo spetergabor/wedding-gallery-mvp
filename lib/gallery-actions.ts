@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
@@ -851,44 +851,54 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
   });
 
   if (sortedUploads.length > 0) {
+    const now = new Date();
+    const createdPhotos = sortedUploads.map((upload) => {
+      const id = randomUUID();
+      const mediaType = upload.mediaType === "video" ? "video" : "image";
+      const thumbnailUrl = upload.thumbnailUrl || upload.imageUrl;
+      const previewUrl = upload.previewUrl || upload.imageUrl;
+
+      return {
+        id,
+        galleryId,
+        filename: upload.filename,
+        r2Key: upload.r2Key,
+        imageUrl: upload.imageUrl,
+        thumbnailUrl,
+        previewUrl,
+        mediaType,
+        processingStatus: "pending",
+        processingRequestedAt: now,
+        fileSize: upload.fileSize ?? 0,
+        imageWidth: upload.imageWidth ?? 0,
+        imageHeight: upload.imageHeight ?? 0,
+        capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
+        sortOrder: session.baseSortOrder + (upload.originalIndex ?? 0),
+        thumbnailR2Key: upload.thumbnailR2Key ?? null,
+        previewR2Key: upload.previewR2Key ?? null
+      };
+    });
+
     await prisma.$transaction(async (tx) => {
-      const createdPhotos = [];
-
-      for (const upload of sortedUploads) {
-        const mediaType = upload.mediaType === "video" ? "video" : "image";
-        const photo = await tx.photo.create({
-          data: {
-            galleryId,
-            filename: upload.filename,
-            r2Key: upload.r2Key,
-            imageUrl: upload.imageUrl,
-            thumbnailUrl: upload.thumbnailUrl || upload.imageUrl,
-            previewUrl: upload.previewUrl || upload.imageUrl,
-            mediaType,
-            processingStatus: "pending",
-            processingRequestedAt: new Date(),
-            fileSize: upload.fileSize ?? 0,
-            imageWidth: upload.imageWidth ?? 0,
-            imageHeight: upload.imageHeight ?? 0,
-            capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
-            sortOrder: session.baseSortOrder + (upload.originalIndex ?? 0)
-          },
-          select: {
-            id: true,
-            galleryId: true,
-            mediaType: true,
-            r2Key: true,
-            thumbnailUrl: true,
-            previewUrl: true
-          }
-        });
-
-        createdPhotos.push({
-          ...photo,
-          thumbnailR2Key: upload.thumbnailR2Key ?? null,
-          previewR2Key: upload.previewR2Key ?? null
-        });
-      }
+      await tx.photo.createMany({
+        data: createdPhotos.map((photo) => ({
+          id: photo.id,
+          galleryId: photo.galleryId,
+          filename: photo.filename,
+          r2Key: photo.r2Key,
+          imageUrl: photo.imageUrl,
+          thumbnailUrl: photo.thumbnailUrl,
+          previewUrl: photo.previewUrl,
+          mediaType: photo.mediaType,
+          processingStatus: photo.processingStatus,
+          processingRequestedAt: photo.processingRequestedAt,
+          fileSize: photo.fileSize,
+          imageWidth: photo.imageWidth,
+          imageHeight: photo.imageHeight,
+          capturedAt: photo.capturedAt,
+          sortOrder: photo.sortOrder
+        }))
+      });
 
       await tx.galleryUploadItem.updateMany({
         where: {
@@ -917,7 +927,7 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
           }))
         });
       }
-    });
+    }, { timeout: 15000 });
 
     await reorderGalleryPhotosByCaptureTime(galleryId);
   }
