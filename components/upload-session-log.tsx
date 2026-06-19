@@ -1,5 +1,7 @@
 import { AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
 
+const INTERRUPTED_UPLOAD_AFTER_MS = 20 * 60 * 1000;
+
 type UploadSession = {
   id: string;
   status: string;
@@ -16,7 +18,20 @@ type UploadSession = {
   }[];
 };
 
+function isInterruptedSession(session: UploadSession) {
+  return (
+    session.status !== "completed" &&
+    session.failedCount === 0 &&
+    session.completedCount < session.totalCount &&
+    Date.now() - session.updatedAt.getTime() > INTERRUPTED_UPLOAD_AFTER_MS
+  );
+}
+
 function statusText(session: UploadSession) {
+  if (isInterruptedSession(session)) {
+    return "Megszakadt";
+  }
+
   if (session.status === "completed") {
     return "Kész";
   }
@@ -29,6 +44,10 @@ function statusText(session: UploadSession) {
 }
 
 function statusClass(session: UploadSession) {
+  if (isInterruptedSession(session)) {
+    return "bg-red-50 text-red-700";
+  }
+
   if (session.status === "completed") {
     return "bg-sage/15 text-sage";
   }
@@ -84,10 +103,20 @@ export function UploadSessionLog({ sessions }: { sessions: UploadSession[] }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-graphite/70">
-                    {session.failedCount > 0 ? <AlertCircle size={16} className="text-red-700" /> : <CheckCircle2 size={16} className="text-sage" />}
+                    {session.failedCount > 0 || isInterruptedSession(session) ? (
+                      <AlertCircle size={16} className="text-red-700" />
+                    ) : (
+                      <CheckCircle2 size={16} className="text-sage" />
+                    )}
                     {session.failedCount} hibás
                   </div>
                 </div>
+
+                {isInterruptedSession(session) ? (
+                  <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
+                    Ez a feltöltés valószínűleg megszakadt. Az oldal frissítése után a böngészőben futó feltöltés nem folytatódik automatikusan.
+                  </p>
+                ) : null}
 
                 {failedItems.length > 0 ? (
                   <div className="mt-4 rounded-md bg-red-50 p-3">
