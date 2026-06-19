@@ -45,8 +45,8 @@ type SelectedPhotoFile = {
   uploadItemId: string | null;
 };
 
-const UPLOAD_BATCH_SIZE = 25;
-const UPLOAD_CONCURRENCY = 3;
+const UPLOAD_BATCH_SIZE = 100;
+const UPLOAD_CONCURRENCY = 6;
 const MAX_UPLOAD_ATTEMPTS = 3;
 const THUMBNAIL_MAX_SIZE = 900;
 const PREVIEW_MAX_SIZE = 2400;
