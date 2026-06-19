@@ -79,7 +79,9 @@ type CompletedPhotoUpload = {
   r2Key: string;
   imageUrl: string;
   thumbnailUrl: string;
+  thumbnailR2Key?: string | null;
   previewUrl?: string;
+  previewR2Key?: string | null;
   mediaType?: "image" | "video";
   fileSize?: number;
   imageWidth?: number;
@@ -658,8 +660,6 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
               })
             : null;
         const publicUrl = getPhotoPublicUrl(r2Key);
-        const thumbnailUrl = thumbnailR2Key ? getPhotoPublicUrl(thumbnailR2Key) : publicUrl;
-        const previewUrl = previewR2Key ? getPhotoPublicUrl(previewR2Key) : publicUrl;
         const uploadItem = await prisma.galleryUploadItem.upsert({
           where: {
             sessionId_clientId: {
@@ -673,8 +673,8 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             filename: file.filename,
             r2Key,
             imageUrl: publicUrl,
-            thumbnailUrl,
-            previewUrl,
+            thumbnailUrl: publicUrl,
+            previewUrl: publicUrl,
             mediaType,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
@@ -690,8 +690,8 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             filename: file.filename,
             r2Key,
             imageUrl: publicUrl,
-            thumbnailUrl,
-            previewUrl,
+            thumbnailUrl: publicUrl,
+            previewUrl: publicUrl,
             mediaType,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
@@ -714,25 +714,15 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
           filename: file.filename,
           r2Key,
           imageUrl: publicUrl,
-          thumbnailUrl,
-          previewUrl,
+          thumbnailUrl: publicUrl,
+          previewUrl: publicUrl,
+          thumbnailR2Key,
+          previewR2Key,
           mediaType,
           uploadUrl: await createPresignedPhotoUploadUrl({
             r2Key,
             contentType: file.contentType
-          }),
-          thumbnailUploadUrl: thumbnailR2Key
-            ? await createPresignedPhotoUploadUrl({
-                r2Key: thumbnailR2Key,
-                contentType: "image/jpeg"
-              })
-            : null,
-          previewUploadUrl: previewR2Key
-            ? await createPresignedPhotoUploadUrl({
-                r2Key: previewR2Key,
-                contentType: "image/jpeg"
-              })
-            : null
+          })
         };
       })
     );
@@ -893,7 +883,11 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
           }
         });
 
-        createdPhotos.push(photo);
+        createdPhotos.push({
+          ...photo,
+          thumbnailR2Key: upload.thumbnailR2Key ?? null,
+          previewR2Key: upload.previewR2Key ?? null
+        });
       }
 
       await tx.galleryUploadItem.updateMany({
@@ -916,8 +910,8 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
             photoId: photo.id,
             mediaType: photo.mediaType,
             sourceR2Key: photo.r2Key,
-            thumbnailR2Key: getR2KeyFromPublicUrl(photo.thumbnailUrl),
-            previewR2Key: getR2KeyFromPublicUrl(photo.previewUrl),
+            thumbnailR2Key: photo.thumbnailR2Key,
+            previewR2Key: photo.previewR2Key,
             posterR2Key: photo.mediaType === "video" ? `galleries/${session.gallery.slug}/video-posters/${photo.id}.jpg` : null,
             status: "pending"
           }))
