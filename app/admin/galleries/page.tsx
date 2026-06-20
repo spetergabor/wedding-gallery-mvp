@@ -64,7 +64,9 @@ export default async function AdminGalleriesPage({
               <a href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[96px_1fr] sm:items-center">
                 <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md bg-paper sm:w-24">
                   {(() => {
-                    const cover = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0];
+                    const cover =
+                      gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
+                      gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
 
                     return cover ? (
                       cover.mediaType === "video" ? (

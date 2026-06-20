@@ -141,7 +141,9 @@ export default async function AdminDashboardPage() {
                 <div className="flex min-w-0 items-center gap-4">
                   <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-paper">
                     {(() => {
-                      const cover = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0];
+                      const cover =
+                        gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
+                        gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
 
                       return cover ? (
                         cover.mediaType === "video" ? (

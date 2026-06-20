@@ -20,6 +20,7 @@ type PublicPhoto = {
   thumbnailUrl: string;
   previewUrl: string;
   mediaType: string;
+  processingStatus: string;
   imageWidth: number;
   imageHeight: number;
 };
@@ -48,6 +49,14 @@ function hasImageDimensions(photo: PublicPhoto) {
 
 function isVideo(photo: PublicPhoto) {
   return photo.mediaType === "video";
+}
+
+function hasLightweightThumbnail(photo: PublicPhoto) {
+  return !isVideo(photo) && photo.processingStatus === "ready" && photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl;
+}
+
+function hasLightweightPreview(photo: PublicPhoto) {
+  return !isVideo(photo) && photo.processingStatus === "ready" && photo.previewUrl && photo.previewUrl !== photo.imageUrl;
 }
 
 function getColumnCount(width: number) {
@@ -678,7 +687,7 @@ export function PublicGallery({
                           </span>
                         </span>
                       </span>
-                    ) : hasImageDimensions(photo) ? (
+                    ) : hasLightweightThumbnail(photo) && hasImageDimensions(photo) ? (
                       <Image
                         src={photo.thumbnailUrl}
                         alt={photo.filename}
@@ -688,13 +697,20 @@ export function PublicGallery({
                         className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                         sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       />
-                    ) : (
+                    ) : hasLightweightThumbnail(photo) ? (
                       <img
                         src={photo.thumbnailUrl}
                         alt={photo.filename}
                         loading="lazy"
                         className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                       />
+                    ) : (
+                      <span className="grid aspect-[4/3] w-full place-items-center bg-mist text-graphite/60">
+                        <span className="flex flex-col items-center gap-2 text-center">
+                          <Images size={24} />
+                          <span className="text-xs font-medium">Vorschau wird erstellt</span>
+                        </span>
+                      </span>
                     )}
                     <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
                       <Maximize2 size={16} />
@@ -930,9 +946,9 @@ export function PublicGallery({
                 playsInline
                 className="h-full w-full object-contain"
               />
-            ) : (
+            ) : hasLightweightPreview(selectedPhoto) ? (
               <Image
-                src={selectedPhoto.previewUrl || selectedPhoto.imageUrl}
+                src={selectedPhoto.previewUrl}
                 alt={selectedPhoto.filename}
                 fill
                 unoptimized
@@ -940,6 +956,13 @@ export function PublicGallery({
                 sizes="100vw"
                 priority
               />
+            ) : (
+              <div className="grid h-full w-full place-items-center bg-ink text-white/75">
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <Images size={34} />
+                  <p className="text-sm font-medium">Vorschau wird erstellt</p>
+                </div>
+              </div>
             )}
           </div>
           {visiblePhotos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{visiblePhotos.length}</p> : null}

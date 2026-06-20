@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Check, Copy, ExternalLink, Eye, EyeOff, Film } from "lucide-react";
+import { Check, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon } from "lucide-react";
 import { Button } from "@/components/button";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { toggleClientPhotoVisibilityAction } from "@/lib/client-gallery-actions";
@@ -13,8 +13,13 @@ type ClientPhoto = {
   imageUrl: string;
   thumbnailUrl: string;
   mediaType: string;
+  processingStatus: string;
   isClientHidden: boolean;
 };
+
+function hasLightweightThumbnail(photo: ClientPhoto) {
+  return photo.mediaType !== "video" && photo.processingStatus === "ready" && photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl;
+}
 
 export function ClientGalleryReview({
   galleryId,
@@ -128,7 +133,7 @@ export function ClientGalleryReview({
                       </span>
                     </span>
                   </div>
-                ) : (
+                ) : hasLightweightThumbnail(photo) ? (
                   <Image
                     src={photo.thumbnailUrl}
                     alt={photo.filename}
@@ -137,6 +142,13 @@ export function ClientGalleryReview({
                     className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
                     sizes="(min-width: 1024px) 33vw, 50vw"
                   />
+                ) : (
+                  <div className={`grid h-full w-full place-items-center text-graphite/60 transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
+                    <div className="flex flex-col items-center gap-2 text-center">
+                      <ImageIcon size={24} />
+                      <span className="text-xs font-medium">Előnézet készül</span>
+                    </div>
+                  </div>
                 )}
                 {isHidden ? (
                   <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">

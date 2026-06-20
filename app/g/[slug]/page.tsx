@@ -51,9 +51,14 @@ export default async function PublicGalleryPage({
 
   const canView = await canViewGallery(slug, gallery.password);
   const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden);
+  const isReadyImage = (photo: (typeof visiblePhotos)[number]) =>
+    photo.mediaType !== "video" &&
+    photo.processingStatus === "ready" &&
+    photo.previewUrl &&
+    photo.previewUrl !== photo.imageUrl;
   const coverPhoto =
-    visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
-    visiblePhotos.find((photo) => photo.mediaType !== "video") ??
+    visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && isReadyImage(photo)) ??
+    visiblePhotos.find(isReadyImage) ??
     null;
   const heroMeta = formatEventDate(gallery.eventDate);
 

@@ -23,6 +23,10 @@ type Photo = {
   processingError: string | null;
 };
 
+function hasLightweightThumbnail(photo: Photo) {
+  return photo.processingStatus === "ready" && photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl;
+}
+
 export function PhotoManager({
   coverPhotoId,
   galleryId,
@@ -62,7 +66,7 @@ export function PhotoManager({
                     </span>
                   </span>
                 </div>
-              ) : (
+              ) : hasLightweightThumbnail(photo) ? (
                 <Image
                   src={photo.thumbnailUrl}
                   alt={photo.filename}
@@ -71,6 +75,13 @@ export function PhotoManager({
                   className="object-cover"
                   sizes="(min-width: 1024px) 33vw, 50vw"
                 />
+              ) : (
+                <div className="grid h-full w-full place-items-center text-graphite/60">
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <ImageIcon size={24} />
+                    <span className="text-xs font-medium">Előnézet készül</span>
+                  </div>
+                </div>
               )}
               {coverPhotoId === photo.id ? (
                 <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink">
