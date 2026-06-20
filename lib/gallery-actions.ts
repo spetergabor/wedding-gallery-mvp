@@ -25,7 +25,7 @@ import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 import { verifyTotpCode } from "@/lib/totp";
 
 const ZIP_PART_SIZE = 50;
-const ZIP_PROCESSING_KICK_LIMIT = 3;
+const ZIP_PROCESSING_KICK_LIMIT = 1;
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);

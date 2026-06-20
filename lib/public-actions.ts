@@ -13,7 +13,7 @@ import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 
 const ZIP_PART_SIZE = 50;
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
-const ZIP_PROCESSING_KICK_LIMIT = 3;
+const ZIP_PROCESSING_KICK_LIMIT = 1;
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;

@@ -25,7 +25,7 @@ async function processJobs(request: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const results = await processPendingJobs({ limit: 2 });
+  const results = await processPendingJobs({ limit: 1 });
 
   return NextResponse.json({
     ok: true,
