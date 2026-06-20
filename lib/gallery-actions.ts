@@ -67,7 +67,6 @@ async function prepareGalleryZipPackages(galleryId: string) {
     where: { id: galleryId },
     select: {
       id: true,
-      isActive: true,
       photos: {
         where: { isClientHidden: false },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -76,7 +75,7 @@ async function prepareGalleryZipPackages(galleryId: string) {
     }
   });
 
-  if (!gallery?.isActive || gallery.photos.length === 0) {
+  if (!gallery || gallery.photos.length === 0) {
     return;
   }
 

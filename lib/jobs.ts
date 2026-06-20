@@ -3,6 +3,7 @@ import { PassThrough, Readable } from "node:stream";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
 import { prisma } from "@/lib/prisma";
+import { adminGalleryUrl, publicGalleryUrl, sendAdminGalleryZipReadyEmail } from "@/lib/email";
 import { createGalleryZipObjectKey, createPhotoReadStream, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
 
 export const ZIP_GENERATION_JOB = "zip_generation";
@@ -267,7 +268,17 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       id: true,
       title: true,
       slug: true,
-      isActive: true,
+      adminId: true,
+      admin: {
+        select: {
+          email: true,
+          siteSettings: {
+            select: {
+              contactEmail: true
+            }
+          }
+        }
+      },
       photos: {
         where: { isClientHidden: false },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -283,8 +294,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     }
   });
 
-  if (!gallery || !gallery.isActive) {
-    throw new Error("Diese Galerie ist derzeit nicht verfügbar.");
+  if (!gallery) {
+    throw new Error("Diese Galerie wurde nicht gefunden.");
   }
 
   if (gallery.photos.length === 0) {
@@ -386,6 +397,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     );
     await progressUpdatePromise;
 
+    const generatedAt = new Date();
+
     await prisma.galleryDownloadPackage.update({
       where: { id: downloadPackage.id },
       data: {
@@ -397,8 +410,19 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         r2Key,
         downloadUrl,
         errorMessage: null,
-        generatedAt: new Date()
+        generatedAt
       }
+    });
+
+    await notifyGalleryZipReady({
+      galleryId: gallery.id,
+      adminId: gallery.adminId,
+      recipient: gallery.admin?.siteSettings?.contactEmail || gallery.admin?.email,
+      galleryTitle: gallery.title,
+      gallerySlug: gallery.slug,
+      photoCount: totalPhotoCount,
+      fileSizeBytes: bytesWritten,
+      generatedAt
     });
 
     revalidatePath(`/admin/galleries/${gallery.id}`);
@@ -415,6 +439,63 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
 
     throw error;
   }
+}
+
+async function notifyGalleryZipReady({
+  galleryId,
+  adminId,
+  recipient,
+  galleryTitle,
+  gallerySlug,
+  photoCount,
+  fileSizeBytes,
+  generatedAt
+}: {
+  galleryId: string;
+  adminId: string | null;
+  recipient?: string;
+  galleryTitle: string;
+  gallerySlug: string;
+  photoCount: number;
+  fileSizeBytes: bigint;
+  generatedAt: Date;
+}) {
+  await prisma.adminNotification
+    .create({
+      data: {
+        adminId,
+        type: "gallery_zip_ready",
+        title: "Galéria ZIP elkészült",
+        message: `A(z) ${galleryTitle} galéria ZIP fájlja elkészült ${photoCount} médiával.`,
+        href: `/admin/galleries/${galleryId}`
+      }
+    })
+    .catch((error) => {
+      console.error("Gallery ZIP ready admin notification failed", {
+        galleryId,
+        error
+      });
+    });
+
+  try {
+    await sendAdminGalleryZipReadyEmail({
+      to: recipient,
+      galleryTitle,
+      galleryAdminUrl: adminGalleryUrl(galleryId),
+      galleryPublicUrl: publicGalleryUrl(gallerySlug),
+      photoCount,
+      fileSizeBytes,
+      generatedAt
+    });
+  } catch (error) {
+    console.error("Gallery ZIP ready email failed", {
+      galleryId,
+      error
+    });
+  }
+
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/notifications");
 }
 
 async function processBackgroundJob(job: {

@@ -15,6 +15,16 @@ type ContractSignatureRequestEmail = {
   contractUrl: string;
 };
 
+type AdminGalleryZipReadyEmail = {
+  to?: string;
+  galleryTitle: string;
+  galleryAdminUrl: string;
+  galleryPublicUrl: string;
+  photoCount: number;
+  fileSizeBytes?: bigint | number | null;
+  generatedAt: Date;
+};
+
 export function appBaseUrl() {
   const rawUrl = (
     process.env.NEXT_PUBLIC_APP_URL ??
@@ -48,6 +58,29 @@ function escapeHtml(value: string) {
 
 function filenamesText(filenames: string[]) {
   return filenames.join("\n");
+}
+
+function formatBytes(value?: bigint | number | null) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const bytes = typeof value === "bigint" ? Number(value) : value;
+
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return null;
+  }
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
 function favoriteListSubmittedHtml({
@@ -123,6 +156,78 @@ export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavorite
 
 export function adminGalleryUrl(galleryId: string) {
   return `${appBaseUrl()}/admin/galleries/${galleryId}`;
+}
+
+export function publicGalleryUrl(slug: string) {
+  return `${appBaseUrl()}/g/${slug}`;
+}
+
+function galleryZipReadyHtml({
+  galleryTitle,
+  galleryAdminUrl,
+  galleryPublicUrl,
+  photoCount,
+  fileSizeBytes,
+  generatedAt
+}: AdminGalleryZipReadyEmail) {
+  const formattedSize = formatBytes(fileSizeBytes);
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Galéria ZIP elkészült</h1>
+      <p style="margin: 0 0 18px;">A galéria letölthető ZIP fájlja elkészült, így küldés előtt minden készen áll.</p>
+      <table style="border-collapse: collapse; margin-bottom: 20px;">
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galéria</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Képek</td><td style="padding: 4px 0;">${photoCount}</td></tr>
+        ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">ZIP méret</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Elkészült</td><td style="padding: 4px 0;">${generatedAt.toLocaleString("hu-HU")}</td></tr>
+      </table>
+      <p style="margin: 0 0 12px;">
+        <a href="${escapeHtml(galleryAdminUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Admin galéria megnyitása</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Publikus galéria:<br>${escapeHtml(galleryPublicUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendAdminGalleryZipReadyEmail(payload: AdminGalleryZipReadyEmail) {
+  const { apiKey, from, adminEmail } = emailConfig();
+  const recipient = payload.to ?? adminEmail;
+  const formattedSize = formatBytes(payload.fileSizeBytes);
+
+  if (!apiKey || !recipient) {
+    console.warn("Gallery ZIP ready email skipped. Missing RESEND_API_KEY or recipient.");
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: recipient,
+      subject: `Galéria ZIP elkészült: ${payload.galleryTitle}`,
+      html: galleryZipReadyHtml(payload),
+      text: [
+        "Galéria ZIP elkészült",
+        "",
+        `Galéria: ${payload.galleryTitle}`,
+        `Képek: ${payload.photoCount}`,
+        ...(formattedSize ? [`ZIP méret: ${formattedSize}`] : []),
+        `Elkészült: ${payload.generatedAt.toLocaleString("hu-HU")}`,
+        `Admin: ${payload.galleryAdminUrl}`,
+        `Publikus galéria: ${payload.galleryPublicUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Gallery ZIP ready email failed: ${response.status} ${errorText}`);
+  }
 }
 
 function contractSignatureRequestHtml({
