@@ -1,13 +1,15 @@
 import path from "node:path";
-import { createWriteStream } from "node:fs";
+import { createReadStream, createWriteStream } from "node:fs";
 import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
-import { Transform } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand
@@ -21,7 +23,31 @@ export const R2_PUBLIC_BASE_URL =
 export const STORAGE_DRIVER = process.env.STORAGE_DRIVER ?? "local";
 
 let r2Client: S3Client | null = null;
-const MULTIPART_UPLOAD_PART_SIZE = 8 * 1024 * 1024;
+const BYTES_PER_MEGABYTE = 1024 * 1024;
+
+function readPositiveMegabytes(value: string | undefined, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return fallback * BYTES_PER_MEGABYTE;
+  }
+
+  return parsed * BYTES_PER_MEGABYTE;
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
+const MULTIPART_UPLOAD_PART_SIZE = readPositiveMegabytes(process.env.R2_MULTIPART_UPLOAD_PART_SIZE_MB, 64, 5);
+const R2_OBJECT_READ_CHUNK_SIZE = readPositiveMegabytes(process.env.R2_OBJECT_READ_CHUNK_SIZE_MB, 16, 1);
+const R2_OBJECT_READ_RETRIES = readPositiveInteger(process.env.R2_OBJECT_READ_RETRIES, 4, 1);
 
 function r2Endpoint() {
   if (process.env.R2_ENDPOINT) {
@@ -216,6 +242,128 @@ export async function savePhotoObject({
   const filePath = getLocalUploadPath(r2Key);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, bytes);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeStreamChunk(chunk: unknown) {
+  if (Buffer.isBuffer(chunk)) {
+    return chunk;
+  }
+
+  if (chunk instanceof Uint8Array) {
+    return Buffer.from(chunk);
+  }
+
+  return Buffer.from(String(chunk));
+}
+
+async function responseBodyToBuffer(body: unknown) {
+  if (!body) {
+    throw new Error("R2 object response did not include a body.");
+  }
+
+  if (body instanceof Uint8Array) {
+    return Buffer.from(body);
+  }
+
+  if (typeof body === "object" && "transformToByteArray" in body && typeof body.transformToByteArray === "function") {
+    return Buffer.from(await body.transformToByteArray());
+  }
+
+  if (typeof body === "object" && Symbol.asyncIterator in body) {
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of body as AsyncIterable<unknown>) {
+      chunks.push(normalizeStreamChunk(chunk));
+    }
+
+    return Buffer.concat(chunks);
+  }
+
+  throw new Error("R2 object response body is not readable.");
+}
+
+async function loadR2ObjectRange(r2Key: string, start: number, end: number) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= R2_OBJECT_READ_RETRIES; attempt += 1) {
+    try {
+      const response = await getR2Client().send(
+        new GetObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          Range: `bytes=${start}-${end}`
+        })
+      );
+
+      return responseBodyToBuffer(response.Body);
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < R2_OBJECT_READ_RETRIES) {
+        await sleep(Math.min(2000, 250 * 2 ** (attempt - 1)));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`R2 object range could not be read: ${r2Key}`);
+}
+
+async function getR2ObjectByteLength(r2Key: string) {
+  const response = await getR2Client().send(
+    new HeadObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: r2Key
+    })
+  );
+
+  return response.ContentLength ?? 0;
+}
+
+async function* readR2ObjectInChunks(r2Key: string, byteLength?: number) {
+  const totalBytes = byteLength && byteLength > 0 ? byteLength : await getR2ObjectByteLength(r2Key);
+
+  if (totalBytes <= 0) {
+    return;
+  }
+
+  for (let start = 0; start < totalBytes; start += R2_OBJECT_READ_CHUNK_SIZE) {
+    const end = Math.min(start + R2_OBJECT_READ_CHUNK_SIZE - 1, totalBytes - 1);
+    yield await loadR2ObjectRange(r2Key, start, end);
+  }
+}
+
+export function createPhotoReadStream({
+  r2Key,
+  publicUrl,
+  byteLength
+}: {
+  r2Key: string;
+  publicUrl?: string;
+  byteLength?: number;
+}) {
+  if (STORAGE_DRIVER === "r2") {
+    if (!r2Key) {
+      throw new Error("Missing R2 object key for media download.");
+    }
+
+    return Readable.from(readR2ObjectInChunks(r2Key, byteLength));
+  }
+
+  if (r2Key) {
+    return createReadStream(getLocalUploadPath(r2Key));
+  }
+
+  const localPath = publicUrl ? localPublicPath(publicUrl) : null;
+
+  if (localPath) {
+    return createReadStream(localPath);
+  }
+
+  throw new Error("Missing local media path for download.");
 }
 
 export async function savePhotoStream({

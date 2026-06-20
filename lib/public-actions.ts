@@ -8,10 +8,9 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
-import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
+import { enqueueGalleryZipJob, kickGalleryZipJob } from "@/lib/jobs";
 
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
-const ZIP_PROCESSING_KICK_LIMIT = 1;
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;
@@ -251,7 +250,10 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
   if (existingPendingPackage) {
     if (existingPendingPackage.status === "pending") {
       after(async () => {
-        await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+        await kickGalleryZipJob({
+          galleryId,
+          packageId: existingPendingPackage.id
+        });
       });
     }
 
@@ -280,13 +282,17 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     select: { id: true }
   });
 
-  await enqueueGalleryZipJob({
+  const zipJob = await enqueueGalleryZipJob({
     galleryId,
     packageId: downloadPackage.id
   });
 
   after(async () => {
-    await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+    await kickGalleryZipJob({
+      galleryId,
+      packageId: downloadPackage.id,
+      jobId: zipJob.id
+    });
   });
 
   return {
@@ -388,8 +394,19 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
     const hasPendingPackage = packages.some((downloadPart) => downloadPart.status === "pending");
 
     if (!hasProcessingPackage && (hasPendingPackage || hasStaleProcessingPackage)) {
+      const packageToKick = packages.find(
+        (downloadPart) =>
+          downloadPart.status === "pending" ||
+          (downloadPart.status === "processing" && downloadPart.updatedAt.getTime() < staleProcessingCutoff)
+      );
+
       after(async () => {
-        await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+        if (packageToKick) {
+          await kickGalleryZipJob({
+            galleryId: downloadPackage.gallery.id,
+            packageId: packageToKick.id
+          });
+        }
       });
     }
 
@@ -436,7 +453,10 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
 
   if (downloadPackage.status === "pending" || isStaleProcessing) {
     after(async () => {
-      await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+      await kickGalleryZipJob({
+        galleryId: downloadPackage.gallery.id,
+        packageId: downloadPackage.id
+      });
     });
   }
 

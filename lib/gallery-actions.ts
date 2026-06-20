@@ -21,10 +21,8 @@ import {
   isR2StorageEnabled,
   savePhotoObject
 } from "@/lib/storage";
-import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
+import { enqueueGalleryZipJob, kickGalleryZipJob } from "@/lib/jobs";
 import { verifyTotpCode } from "@/lib/totp";
-
-const ZIP_PROCESSING_KICK_LIMIT = 1;
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -118,7 +116,10 @@ async function prepareGalleryZipPackages(galleryId: string) {
 
   if (existingActivePackage) {
     after(async () => {
-      await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+      await kickGalleryZipJob({
+        galleryId,
+        packageId: existingActivePackage.id
+      });
     });
     return;
   }
@@ -136,13 +137,17 @@ async function prepareGalleryZipPackages(galleryId: string) {
     select: { id: true }
   });
 
-  await enqueueGalleryZipJob({
+  const zipJob = await enqueueGalleryZipJob({
     galleryId,
     packageId: downloadPackage.id
   });
 
   after(async () => {
-    await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+    await kickGalleryZipJob({
+      galleryId,
+      packageId: downloadPackage.id,
+      jobId: zipJob.id
+    });
   });
 }
 

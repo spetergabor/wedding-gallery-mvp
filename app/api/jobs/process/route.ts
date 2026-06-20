@@ -25,6 +25,14 @@ async function processJobs(request: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
+  if (process.env.ZIP_WORKER_DRIVER === "trigger") {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      message: "ZIP processing is handled by the external Trigger.dev worker."
+    });
+  }
+
   const results = await processPendingJobs({ limit: 1 });
 
   return NextResponse.json({

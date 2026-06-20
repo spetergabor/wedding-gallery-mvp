@@ -3,13 +3,14 @@ import { PassThrough, Readable } from "node:stream";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
 import { prisma } from "@/lib/prisma";
-import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
+import { createGalleryZipObjectKey, createPhotoReadStream, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
 
-const ZIP_GENERATION_JOB = "zip_generation";
+export const ZIP_GENERATION_JOB = "zip_generation";
 
 type ZipGenerationPayload = {
   galleryId: string;
   packageId: string;
+  jobId?: string;
 };
 
 function photoZipFileName(filename: string, index: number) {
@@ -79,7 +80,163 @@ export async function enqueueGalleryZipJob({
   });
 }
 
-async function generateGalleryZip(payload: ZipGenerationPayload) {
+async function findQueuedZipJobId(packageId: string) {
+  const job = await prisma.backgroundJob.findFirst({
+    where: {
+      type: ZIP_GENERATION_JOB,
+      status: { in: ["pending", "processing"] },
+      payload: {
+        path: ["packageId"],
+        equals: packageId
+      }
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true }
+  });
+
+  return job?.id;
+}
+
+function isTriggerZipWorkerEnabled() {
+  return process.env.ZIP_WORKER_DRIVER === "trigger" && Boolean(process.env.TRIGGER_SECRET_KEY);
+}
+
+async function triggerExternalZipWorker(payload: ZipGenerationPayload) {
+  if (!isTriggerZipWorkerEnabled()) {
+    return false;
+  }
+
+  try {
+    const { tasks } = await import("@trigger.dev/sdk/v3");
+
+    await tasks.trigger("gallery-zip", payload, {
+      idempotencyKey: payload.packageId,
+      queue: "gallery-zip",
+      concurrencyKey: "gallery-zip",
+      tags: [`gallery:${payload.galleryId}`, `package:${payload.packageId}`]
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Trigger.dev ZIP dispatch failed", {
+      galleryId: payload.galleryId,
+      packageId: payload.packageId,
+      error
+    });
+
+    return false;
+  }
+}
+
+export async function kickGalleryZipJob(payload: ZipGenerationPayload) {
+  const payloadWithJob = {
+    ...payload,
+    jobId: payload.jobId ?? (await findQueuedZipJobId(payload.packageId))
+  };
+  const dispatched = await triggerExternalZipWorker(payloadWithJob);
+
+  if (dispatched || process.env.ZIP_WORKER_DRIVER === "trigger") {
+    return {
+      driver: dispatched ? "trigger" : "trigger_unavailable",
+      processed: 0,
+      failed: 0
+    };
+  }
+
+  return {
+    driver: "vercel",
+    ...(await processPendingJobs({ limit: 1 }))
+  };
+}
+
+async function markBackgroundJobProcessing(payload: ZipGenerationPayload) {
+  if (!payload.jobId) {
+    return null;
+  }
+
+  const job = await prisma.backgroundJob.findUnique({
+    where: { id: payload.jobId },
+    select: {
+      id: true,
+      status: true,
+      attempts: true,
+      maxAttempts: true
+    }
+  });
+
+  if (!job || job.status === "completed") {
+    return job;
+  }
+
+  await prisma.backgroundJob.update({
+    where: { id: job.id },
+    data: {
+      status: "processing",
+      attempts: { increment: 1 },
+      lockedAt: new Date(),
+      startedAt: new Date(),
+      errorMessage: null
+    }
+  });
+
+  return job;
+}
+
+async function markBackgroundJobCompleted(jobId?: string) {
+  if (!jobId) {
+    return;
+  }
+
+  await prisma.backgroundJob
+    .update({
+      where: { id: jobId },
+      data: {
+        status: "completed",
+        completedAt: new Date(),
+        lockedAt: null,
+        errorMessage: null
+      }
+    })
+    .catch(() => undefined);
+}
+
+async function markBackgroundJobFailed(payload: ZipGenerationPayload, error: unknown, maxAttempts = 3, attempts = 0) {
+  if (!payload.jobId) {
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : "Background job failed.";
+  const shouldRetry = attempts < maxAttempts;
+
+  await prisma.backgroundJob
+    .update({
+      where: { id: payload.jobId },
+      data: {
+        status: shouldRetry ? "pending" : "failed",
+        lockedAt: null,
+        errorMessage: message.slice(0, 500)
+      }
+    })
+    .catch(() => undefined);
+}
+
+export async function processExternalZipJob(payload: ZipGenerationPayload) {
+  const job = await markBackgroundJobProcessing(payload);
+
+  if (job?.status === "completed") {
+    return;
+  }
+
+  try {
+    await generateGalleryZip(payload);
+    await markBackgroundJobCompleted(payload.jobId);
+  } catch (error) {
+    await markBackgroundJobFailed(payload, error, job?.maxAttempts, (job?.attempts ?? 0) + 1);
+    throw error;
+  }
+}
+
+export async function generateGalleryZip(payload: ZipGenerationPayload) {
   const downloadPackage = await prisma.galleryDownloadPackage.findUnique({
     where: { id: payload.packageId },
     select: {
@@ -118,7 +275,9 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
         take: downloadPackage.photoLimit ?? undefined,
         select: {
           filename: true,
-          imageUrl: true
+          imageUrl: true,
+          r2Key: true,
+          fileSize: true
         }
       }
     }
@@ -203,7 +362,15 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
     zip.pipe(zipStream);
 
     for (const [index, photo] of gallery.photos.entries()) {
-      zip.append(createRemoteFileStream(photo), {
+      const mediaStream = photo.r2Key
+        ? createPhotoReadStream({
+            r2Key: photo.r2Key,
+            publicUrl: photo.imageUrl,
+            byteLength: photo.fileSize
+          })
+        : createRemoteFileStream(photo);
+
+      zip.append(mediaStream, {
         name: photoZipFileName(photo.filename, downloadPackage.photoOffset + index)
       });
     }

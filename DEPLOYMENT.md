@@ -25,6 +25,9 @@ ADMIN_NOTIFICATION_EMAIL="you@example.com"
 EMAIL_FROM="Wedding Gallery <gallery@hochzeitsfotografgraz.at>"
 CRON_SECRET="a-long-random-worker-secret"
 MEDIA_PROCESSING_SECRET="a-long-random-media-worker-secret"
+ZIP_WORKER_DRIVER="vercel"
+R2_MULTIPART_UPLOAD_PART_SIZE_MB="64"
+R2_OBJECT_READ_CHUNK_SIZE_MB="16"
 ```
 
 ## Vercel setup
@@ -42,7 +45,7 @@ On Vercel, this is usually run locally or from a one-off CI/job with the product
 
 ## Background jobs
 
-Long-running work, such as full-gallery ZIP generation, is queued in the database and processed by:
+Background work is queued in the database. Small or fallback jobs can still be processed by:
 
 ```text
 /api/jobs/process
@@ -54,7 +57,25 @@ In production, call this route with:
 Authorization: Bearer CRON_SECRET
 ```
 
-The gallery download flow also starts processing after the visitor submits their email, but this endpoint is the stable worker hook for retries and future scheduled processing.
+The gallery download flow also starts processing after the visitor submits their email.
+
+For large full-gallery ZIP files, use the Trigger.dev worker instead of Vercel functions:
+
+```text
+ZIP_WORKER_DRIVER="trigger"
+TRIGGER_PROJECT_REF="proj_..."
+TRIGGER_SECRET_KEY="tr_..."
+TRIGGER_MAX_DURATION_SECONDS="7200"
+TRIGGER_ZIP_MAX_DURATION_SECONDS="7200"
+```
+
+Deploy the Trigger task after setting the same production `DATABASE_URL`, `STORAGE_DRIVER`, `R2_*`, and `NEXT_PUBLIC_R2_PUBLIC_BASE_URL` values in Trigger.dev:
+
+```bash
+npx trigger.dev@latest deploy
+```
+
+When `ZIP_WORKER_DRIVER` is `trigger`, `/api/jobs/process` skips ZIP processing so Vercel does not accidentally pick up the same long-running job.
 
 ## Media processing queue
 
