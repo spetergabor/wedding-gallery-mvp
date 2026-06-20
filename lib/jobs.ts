@@ -19,6 +19,17 @@ function photoZipFileName(filename: string, index: number) {
   return (filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
 }
 
+function safeRevalidatePath(path: string) {
+  try {
+    revalidatePath(path);
+  } catch (error) {
+    console.warn("Skipped path revalidation outside Next.js request context", {
+      path,
+      message: error instanceof Error ? error.message : "Unknown revalidation error"
+    });
+  }
+}
+
 function createRemoteFileStream(photo: { filename: string; imageUrl: string }) {
   return Readable.from(
     (async function* () {
@@ -425,7 +436,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       generatedAt
     });
 
-    revalidatePath(`/admin/galleries/${gallery.id}`);
+    safeRevalidatePath(`/admin/galleries/${gallery.id}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.";
 
@@ -494,8 +505,8 @@ async function notifyGalleryZipReady({
     });
   }
 
-  revalidatePath("/admin/dashboard");
-  revalidatePath("/admin/notifications");
+  safeRevalidatePath("/admin/dashboard");
+  safeRevalidatePath("/admin/notifications");
 }
 
 async function processBackgroundJob(job: {
