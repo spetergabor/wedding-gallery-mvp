@@ -7,3 +7,4 @@ coverage
 *.log
 public/uploads/*
 !public/uploads/.gitkeep
+.vercel
