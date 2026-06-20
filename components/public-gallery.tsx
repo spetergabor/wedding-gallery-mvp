@@ -280,10 +280,13 @@ export function PublicGallery({
       }
 
       setZipPackageStatus(result.status as DownloadPackageStatus);
+      const links = (result.packages ?? []).filter((downloadPart) => downloadPart.downloadUrl);
+
+      if (links.length > 0) {
+        setZipDownloadLinks(links);
+      }
 
       if (result.status === "completed" && result.downloadUrl) {
-        const links = (result.packages ?? []).filter((downloadPart) => downloadPart.downloadUrl);
-
         if (links.length > 1) {
           setZipDownloadLinks(links);
           setZipProgress("Download-Pakete sind bereit.");
@@ -302,7 +305,11 @@ export function PublicGallery({
         return;
       }
 
-      setZipProgress(result.status === "processing" ? "Download-Paket wird erstellt..." : "Download-Paket wartet auf Verarbeitung...");
+      if (links.length > 0) {
+        setZipProgress(`${links.length} Download-Paket(e) bereit, weitere werden erstellt...`);
+      } else {
+        setZipProgress(result.status === "processing" ? "Download-Paket wird erstellt..." : "Download-Paket wartet auf Verarbeitung...");
+      }
     }
 
     const interval = window.setInterval(checkPackage, 3000);

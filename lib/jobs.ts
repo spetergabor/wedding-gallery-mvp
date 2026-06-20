@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
 const ZIP_GENERATION_JOB = "zip_generation";
+const ZIP_PHOTO_FETCH_CONCURRENCY = 8;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -31,6 +32,27 @@ function parseZipGenerationPayload(payload: Prisma.JsonValue): ZipGenerationPayl
     galleryId: value.galleryId,
     packageId: value.packageId
   };
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>
+) {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+
+  return results;
 }
 
 export async function enqueueGalleryZipJob({
@@ -114,8 +136,7 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
 
   try {
     const zip = new JSZip();
-
-    for (const [index, photo] of gallery.photos.entries()) {
+    const downloadedPhotos = await mapWithConcurrency(gallery.photos, ZIP_PHOTO_FETCH_CONCURRENCY, async (photo, index) => {
       const response = await fetch(photo.imageUrl, { cache: "no-store" });
 
       if (!response.ok) {
@@ -123,7 +144,14 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
       }
 
       const bytes = Buffer.from(await response.arrayBuffer());
-      zip.file(photoZipFileName(photo.filename, downloadPackage.photoOffset + index), bytes);
+      return {
+        filename: photoZipFileName(photo.filename, downloadPackage.photoOffset + index),
+        bytes
+      };
+    });
+
+    for (const photo of downloadedPhotos) {
+      zip.file(photo.filename, photo.bytes);
     }
 
     const zipBuffer = await zip.generateAsync({

@@ -13,6 +13,7 @@ import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 
 const ZIP_PART_SIZE = 100;
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
+const ZIP_PROCESSING_KICK_LIMIT = 3;
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;
@@ -242,7 +243,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
   if (existingPendingPackage) {
     if (existingPendingPackage.status === "pending") {
       after(async () => {
-        await processPendingJobs({ limit: 1 });
+        await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
       });
     }
 
@@ -287,7 +288,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
   }
 
   after(async () => {
-    await processPendingJobs({ limit: 1 });
+    await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
   });
 
   return {
@@ -362,6 +363,11 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
     }
 
     const completedPackages = packages.filter((downloadPart) => downloadPart.status === "completed" && downloadPart.downloadUrl);
+    const completedPackageLinks = completedPackages.map((downloadPart) => ({
+      downloadUrl: downloadPart.downloadUrl,
+      filename: galleryZipFileName(downloadPackage.gallery.title, downloadPart.partIndex, downloadPart.partCount),
+      label: `Teil ${downloadPart.partIndex + 1}/${downloadPart.partCount}`
+    }));
 
     if (completedPackages.length === packages.length && packages.length > 0) {
       return {
@@ -370,11 +376,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
         status: "completed",
         downloadUrl: completedPackages[0]?.downloadUrl ?? null,
         filename: galleryZipFileName(downloadPackage.gallery.title),
-        packages: completedPackages.map((downloadPart) => ({
-          downloadUrl: downloadPart.downloadUrl,
-          filename: galleryZipFileName(downloadPackage.gallery.title, downloadPart.partIndex, downloadPart.partCount),
-          label: `Teil ${downloadPart.partIndex + 1}/${downloadPart.partCount}`
-        }))
+        packages: completedPackageLinks
       };
     }
 
@@ -389,7 +391,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
 
     if (!hasProcessingPackage && (hasPendingPackage || hasStaleProcessingPackage)) {
       after(async () => {
-        await processPendingJobs({ limit: 1 });
+        await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
       });
     }
 
@@ -397,9 +399,9 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
       ok: true,
       message: "Download-Paket wird vorbereitet.",
       status: hasProcessingPackage ? "processing" : "pending",
-      downloadUrl: null,
+      downloadUrl: completedPackageLinks[0]?.downloadUrl ?? null,
       filename: galleryZipFileName(downloadPackage.gallery.title),
-      packages: []
+      packages: completedPackageLinks
     };
   }
 
@@ -436,7 +438,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
 
   if (downloadPackage.status === "pending" || isStaleProcessing) {
     after(async () => {
-      await processPendingJobs({ limit: 1 });
+      await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
     });
   }
 
