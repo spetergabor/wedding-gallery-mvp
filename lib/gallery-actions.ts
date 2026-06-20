@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -20,7 +21,11 @@ import {
   isR2StorageEnabled,
   savePhotoObject
 } from "@/lib/storage";
+import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 import { verifyTotpCode } from "@/lib/totp";
+
+const ZIP_PART_SIZE = 100;
+const ZIP_PROCESSING_KICK_LIMIT = 3;
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -58,6 +63,95 @@ async function requireGalleryAccess(galleryId: string) {
 
 function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
+}
+
+async function prepareGalleryZipPackages(galleryId: string) {
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: {
+      id: true,
+      isActive: true,
+      photos: {
+        where: { isClientHidden: false },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { createdAt: true }
+      }
+    }
+  });
+
+  if (!gallery?.isActive || gallery.photos.length === 0) {
+    return;
+  }
+
+  const latestPhotoCreatedAt = gallery.photos.reduce<Date | null>((latest, photo) => {
+    if (!latest || photo.createdAt > latest) {
+      return photo.createdAt;
+    }
+
+    return latest;
+  }, null);
+  const photoCount = gallery.photos.length;
+  const partCount = Math.max(1, Math.ceil(photoCount / ZIP_PART_SIZE));
+  const existingCompletedParts = await prisma.galleryDownloadPackage.count({
+    where: {
+      galleryId,
+      status: "completed",
+      photoCount,
+      partCount,
+      downloadUrl: { not: null },
+      generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
+    }
+  });
+
+  if (existingCompletedParts >= partCount) {
+    return;
+  }
+
+  const existingActivePackage = await prisma.galleryDownloadPackage.findFirst({
+    where: {
+      galleryId,
+      status: { in: ["pending", "processing"] },
+      photoCount,
+      partCount
+    },
+    select: { id: true }
+  });
+
+  if (existingActivePackage) {
+    after(async () => {
+      await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+    });
+    return;
+  }
+
+  const groupId = randomUUID();
+
+  for (let partIndex = 0; partIndex < partCount; partIndex += 1) {
+    const photoOffset = partIndex * ZIP_PART_SIZE;
+    const photoLimit = Math.min(ZIP_PART_SIZE, photoCount - photoOffset);
+    const downloadPackage = await prisma.galleryDownloadPackage.create({
+      data: {
+        galleryId,
+        status: "pending",
+        photoCount,
+        partIndex,
+        partCount,
+        photoOffset,
+        photoLimit,
+        groupId
+      },
+      select: { id: true }
+    });
+
+    await enqueueGalleryZipJob({
+      galleryId,
+      packageId: downloadPackage.id
+    });
+  }
+
+  after(async () => {
+    await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
+  });
 }
 
 type PhotoUploadRequest = {
@@ -434,6 +528,11 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   revalidatePath("/admin/galleries");
   revalidatePath(`/g/${previousSlug}`);
   revalidatePath(`/g/${slug}`);
+
+  if (isActive) {
+    await prepareGalleryZipPackages(id);
+  }
+
   redirect(`/admin/galleries/${id}?saved=1`);
 }
 
@@ -464,6 +563,7 @@ export async function activateGalleryAction(id: string) {
   revalidatePath("/admin/galleries");
   revalidatePath(`/admin/galleries/${id}`);
   revalidatePath(`/g/${gallery.slug}`);
+  await prepareGalleryZipPackages(id);
   redirect(`/admin/galleries/${id}?activated=1`);
 }
 
@@ -935,6 +1035,23 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${session.gallery.slug}`);
   await refreshUploadSessionCounts(session.id);
+
+  const uploadSession = await prisma.galleryUploadSession.findUnique({
+    where: { id: session.id },
+    select: {
+      totalCount: true,
+      completedCount: true,
+      failedCount: true
+    }
+  });
+
+  if (
+    uploadSession &&
+    uploadSession.totalCount > 0 &&
+    uploadSession.completedCount + uploadSession.failedCount >= uploadSession.totalCount
+  ) {
+    await prepareGalleryZipPackages(galleryId);
+  }
 
   return {
     ok: true,
