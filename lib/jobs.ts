@@ -6,6 +6,7 @@ import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoObject } from "@
 
 const ZIP_GENERATION_JOB = "zip_generation";
 const ZIP_PHOTO_FETCH_CONCURRENCY = 3;
+const DIRECT_DOWNLOAD_FILE_SIZE = 100 * 1024 * 1024;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -109,7 +110,10 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
         take: downloadPackage.photoLimit ?? undefined,
         select: {
           filename: true,
-          imageUrl: true
+          r2Key: true,
+          imageUrl: true,
+          mediaType: true,
+          fileSize: true
         }
       }
     }
@@ -135,6 +139,26 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
   });
 
   try {
+    const singlePhoto = gallery.photos.length === 1 ? gallery.photos[0] : null;
+
+    if (singlePhoto && (singlePhoto.mediaType === "video" || singlePhoto.fileSize >= DIRECT_DOWNLOAD_FILE_SIZE)) {
+      await prisma.galleryDownloadPackage.update({
+        where: { id: downloadPackage.id },
+        data: {
+          status: "completed",
+          photoCount: totalPhotoCount,
+          fileSize: singlePhoto.fileSize,
+          r2Key: singlePhoto.r2Key,
+          downloadUrl: singlePhoto.imageUrl,
+          errorMessage: null,
+          generatedAt: new Date()
+        }
+      });
+
+      revalidatePath(`/admin/galleries/${gallery.id}`);
+      return;
+    }
+
     const zip = new JSZip();
     const downloadedPhotos = await mapWithConcurrency(gallery.photos, ZIP_PHOTO_FETCH_CONCURRENCY, async (photo, index) => {
       const response = await fetch(photo.imageUrl, { cache: "no-store" });

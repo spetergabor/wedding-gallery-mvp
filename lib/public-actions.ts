@@ -179,25 +179,35 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
   }, null);
 
   const partCount = Math.max(1, Math.ceil(gallery.photos.length / ZIP_PART_SIZE));
-  const existingPackage =
-    partCount === 1
-      ? await prisma.galleryDownloadPackage.findFirst({
-          where: {
-            galleryId,
-            status: "completed",
-            photoCount: gallery.photos.length,
-            partCount: 1,
-            downloadUrl: { not: null },
-            generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
-          },
-          orderBy: { generatedAt: "desc" },
-          select: {
-            id: true,
-            downloadUrl: true,
-            r2Key: true
-          }
-        })
-      : null;
+  const completedPackages = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      galleryId,
+      status: "completed",
+      photoCount: gallery.photos.length,
+      downloadUrl: { not: null },
+      generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
+    },
+    orderBy: [{ generatedAt: "desc" }, { partIndex: "asc" }],
+    select: {
+      id: true,
+      downloadUrl: true,
+      groupId: true,
+      partIndex: true,
+      partCount: true
+    }
+  });
+  const completedPackageGroups = new Map<string, typeof completedPackages>();
+
+  for (const completedPackage of completedPackages) {
+    const key = completedPackage.groupId ?? completedPackage.id;
+    completedPackageGroups.set(key, [...(completedPackageGroups.get(key) ?? []), completedPackage]);
+  }
+
+  const existingPackageGroup = Array.from(completedPackageGroups.values()).find((packages) => {
+    packages.sort((a, b) => a.partIndex - b.partIndex);
+    const expectedPartCount = packages[0]?.partCount ?? 0;
+    return expectedPartCount > 0 && packages.length === expectedPartCount && packages.every((downloadPart, index) => downloadPart.partIndex === index);
+  });
 
   await prisma.galleryDownload.create({
     data: {
@@ -206,22 +216,22 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     }
   });
 
-  if (existingPackage?.downloadUrl) {
+  if (existingPackageGroup?.[0]?.downloadUrl) {
+    const firstPackage = existingPackageGroup[0];
+
     return {
       ok: true,
       message: "Download ist bereit.",
-      downloadUrl: existingPackage.downloadUrl,
+      downloadUrl: firstPackage.downloadUrl,
       filename: galleryZipFileName(gallery.title),
       cached: true,
-      packageId: existingPackage.id,
+      packageId: firstPackage.id,
       status: "completed",
-      packages: [
-        {
-          downloadUrl: existingPackage.downloadUrl,
-          filename: galleryZipFileName(gallery.title),
-          label: "ZIP"
-        }
-      ]
+      packages: existingPackageGroup.map((downloadPart) => ({
+        downloadUrl: downloadPart.downloadUrl,
+        filename: galleryZipFileName(gallery.title, downloadPart.partIndex, downloadPart.partCount),
+        label: downloadPart.partCount > 1 ? `Teil ${downloadPart.partIndex + 1}/${downloadPart.partCount}` : "ZIP"
+      }))
     };
   }
 
