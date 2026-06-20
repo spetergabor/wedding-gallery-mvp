@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { processPendingJobs } from "@/lib/jobs";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 function isAuthorized(request: Request) {
   const secret = process.env.CRON_SECRET;
