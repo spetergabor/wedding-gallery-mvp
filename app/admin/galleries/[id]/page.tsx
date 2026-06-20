@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { after } from "next/server";
 import { Camera, Download, ExternalLink, Heart, KeyRound, MapPin, Settings } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
@@ -19,10 +20,18 @@ import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
 import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
+import { kickGalleryZipJob } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
 type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
+type DownloadPackage = {
+  id: string;
+  status: string;
+  updatedAt: Date;
+};
+
+const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 
 const galleryTabs: Array<{
   key: GalleryTab;
@@ -58,6 +67,26 @@ function getActiveTab(flags: {
   }
 
   return "photos";
+}
+
+function queueZipPackageKick(galleryId: string, packages: DownloadPackage[]) {
+  const now = Date.now();
+  const packageToKick = packages.find(
+    (downloadPackage) =>
+      downloadPackage.status === "pending" ||
+      (downloadPackage.status === "processing" && now - downloadPackage.updatedAt.getTime() > STALE_ZIP_PROCESSING_MS)
+  );
+
+  if (!packageToKick) {
+    return;
+  }
+
+  after(async () => {
+    await kickGalleryZipJob({
+      galleryId,
+      packageId: packageToKick.id
+    });
+  });
 }
 
 export default async function GalleryDetailPage({
@@ -153,6 +182,10 @@ export default async function GalleryDetailPage({
   const hiddenByClientCount = gallery.photos.filter((photo) => photo.isClientHidden).length;
   const activeTab = getActiveTab(flags);
   const locationPoints = createViewLocationPoints(gallery.views);
+
+  if (activeTab === "downloads") {
+    queueZipPackageKick(gallery.id, gallery.downloadPackages);
+  }
 
   return (
     <AdminShell>
