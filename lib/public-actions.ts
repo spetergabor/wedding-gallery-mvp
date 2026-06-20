@@ -11,7 +11,7 @@ import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 
-const ZIP_PART_SIZE = 100;
+const ZIP_PART_SIZE = 50;
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 const ZIP_PROCESSING_KICK_LIMIT = 3;
 

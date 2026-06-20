@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
 const ZIP_GENERATION_JOB = "zip_generation";
-const ZIP_PHOTO_FETCH_CONCURRENCY = 8;
+const ZIP_PHOTO_FETCH_CONCURRENCY = 4;
 
 type ZipGenerationPayload = {
   galleryId: string;
