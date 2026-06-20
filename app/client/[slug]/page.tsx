@@ -38,18 +38,18 @@ export default async function ClientGalleryReviewPage({
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-8 lg:px-8">
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-brass">
             <ShieldCheck size={16} />
-            Ügyfél kezelő
+            Kundenbereich
           </div>
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <h1 className="text-4xl font-semibold text-ink">{gallery.title}</h1>
               <p className="mt-3 max-w-2xl text-graphite/70">
-                Itt elrejthetitek azokat a képeket, amelyeket nem szeretnétek a publikus galériában megmutatni.
+                Hier könnt ihr Fotos ausblenden, die nicht in der öffentlichen Galerie gezeigt werden sollen.
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-md bg-paper px-4 py-3 text-sm text-graphite">
               <Camera size={16} />
-              {gallery.photos.length} fotó
+              {gallery.photos.length} Fotos
             </div>
           </div>
         </div>

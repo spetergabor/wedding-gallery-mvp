@@ -1,6 +1,7 @@
 import { Download, ExternalLink, FileText, PenLine } from "lucide-react";
 import { ContractSignaturePad } from "@/components/contract-signature-pad";
 import {
+  contractFieldDisplayLabel,
   contractFieldInputName,
   fieldKeysInContractTemplate,
   parseContractAnswers,
@@ -14,10 +15,10 @@ export const dynamic = "force-dynamic";
 
 function formatDate(date: Date | null) {
   if (!date) {
-    return "Nincs dátum megadva";
+    return "Kein Datum angegeben";
   }
 
-  return date.toLocaleDateString("hu-HU", {
+  return date.toLocaleDateString("de-AT", {
     year: "numeric",
     month: "long",
     day: "numeric"
@@ -29,7 +30,7 @@ function formatDateTime(date: Date | null) {
     return null;
   }
 
-  return date.toLocaleString("hu-HU", {
+  return date.toLocaleString("de-AT", {
     dateStyle: "medium",
     timeStyle: "short"
   });
@@ -42,9 +43,9 @@ function ContractUnavailable() {
         <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-paper text-graphite">
           <FileText size={22} />
         </div>
-        <h1 className="mt-5 text-2xl font-semibold text-ink">A szerződés nem érhető el</h1>
+        <h1 className="mt-5 text-2xl font-semibold text-ink">Der Vertrag ist nicht verfügbar</h1>
         <p className="mt-3 text-sm leading-6 text-graphite/70">
-          A link hibás vagy lejárt. Kérlek, kérj új szerződés linket a fotóstól.
+          Der Link ist ungültig oder abgelaufen. Bitte fordert beim Fotografen einen neuen Vertragslink an.
         </p>
       </section>
     </main>
@@ -61,12 +62,13 @@ function ContractInlineInput({
   formId: string;
 }) {
   const inputName = contractFieldInputName(field.key);
+  const label = contractFieldDisplayLabel(field);
 
   if (field.type === "textarea") {
     return (
       <label className="my-3 block rounded-md border border-ink/10 bg-paper p-3">
         <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-brass">
-          {field.label}
+          {label}
         </span>
         <textarea
           form={formId}
@@ -82,14 +84,14 @@ function ContractInlineInput({
 
   return (
     <label className="mx-1 inline-flex translate-y-1 flex-col gap-1 align-baseline">
-      <span className="sr-only">{field.label}</span>
+      <span className="sr-only">{label}</span>
       <input
         form={formId}
         name={inputName}
         type={field.type}
         defaultValue={defaultValue}
         required
-        placeholder={field.label}
+        placeholder={label}
         className="h-9 min-w-44 rounded-md border border-brass/40 bg-brass/10 px-3 text-sm font-medium text-ink outline-none transition placeholder:text-graphite/45 focus:border-brass"
       />
     </label>
@@ -160,14 +162,14 @@ export default async function ContractPublicPage({
         <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
           <div className="grid gap-6 border-b border-ink/10 p-5 md:grid-cols-[1fr_auto] md:items-start md:p-8">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-brass">Szerződés</p>
+              <p className="text-sm uppercase tracking-[0.24em] text-brass">Vertrag</p>
               <h1 className="mt-3 text-3xl font-semibold text-ink md:text-4xl">{contract.title}</h1>
               <p className="mt-3 text-base text-graphite/75">{contract.customer.coupleName}</p>
               <div className="mt-5 grid gap-2 text-sm text-graphite/65 sm:grid-cols-2">
-                <p>Esküvő dátuma: {formatDate(contract.customer.weddingDate)}</p>
-                <p>Helyszín: {contract.customer.venue || "Nincs megadva"}</p>
-                <p>Elküldve: {formatDateTime(contract.sentAt) ?? "nincs adat"}</p>
-                <p>Link lejár: {formatDateTime(contract.accessTokenExpiresAt)}</p>
+                <p>Hochzeitsdatum: {formatDate(contract.customer.weddingDate)}</p>
+                <p>Location: {contract.customer.venue || "Nicht angegeben"}</p>
+                <p>Gesendet: {formatDateTime(contract.sentAt) ?? "keine Angabe"}</p>
+                <p>Link gültig bis: {formatDateTime(contract.accessTokenExpiresAt)}</p>
               </div>
             </div>
 
@@ -179,7 +181,7 @@ export default async function ContractPublicPage({
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5"
                 >
                   <ExternalLink size={16} />
-                  {contract.signedFileUrl ? "Aláírt PDF megnyitása" : "PDF megnyitása"}
+                  {contract.signedFileUrl ? "Signiertes PDF öffnen" : "PDF öffnen"}
                 </a>
                 <a
                   href={currentPdfUrl}
@@ -187,7 +189,7 @@ export default async function ContractPublicPage({
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
                 >
                   <Download size={16} />
-                  {contract.signedFileUrl ? "Aláírt PDF letöltése" : "PDF letöltése"}
+                  {contract.signedFileUrl ? "Signiertes PDF herunterladen" : "PDF herunterladen"}
                 </a>
               </div>
             ) : null}
@@ -232,31 +234,31 @@ export default async function ContractPublicPage({
               <div className="flex size-11 items-center justify-center rounded-md bg-white text-graphite">
                 <PenLine size={20} />
               </div>
-              <h2 className="mt-4 text-lg font-semibold text-ink">Aláírás</h2>
+              <h2 className="mt-4 text-lg font-semibold text-ink">Unterschrift</h2>
               {flags.signed ? (
                 <div className="mt-3 rounded-md border border-sage/20 bg-sage/10 px-4 py-3 text-sm text-sage">
-                  Köszönjük, a szerződés aláírása sikeresen mentve lett.
+                  Vielen Dank, der Vertrag wurde erfolgreich unterschrieben.
                 </div>
               ) : null}
               {flags.signError === "missing" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  Kérlek, rajzolj aláírást a mezőbe.
+                  Bitte zeichnet eure Unterschrift in das Feld.
                 </div>
               ) : null}
               {flags.signError === "expired" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  A link lejárt. Kérj új szerződés linket.
+                  Der Link ist abgelaufen. Bitte fordert einen neuen Vertragslink an.
                 </div>
               ) : null}
               {flags.signError === "server" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  Az aláírás mentése közben hiba történt. Kérlek, próbáld újra, vagy jelezd a fotósnak.
+                  Beim Speichern der Unterschrift ist ein Fehler aufgetreten. Bitte versucht es erneut oder kontaktiert den Fotografen.
                 </div>
               ) : null}
               <p className="mt-2 text-sm leading-6 text-graphite/70">
                 {isWrittenContract
-                  ? "Töltsétek ki a szükséges adatokat, majd írjátok alá. Mentés után elkészül az aláírt PDF."
-                  : "Írjátok alá a szerződést ujjal vagy egérrel. Mentés után elkészül egy aláírt PDF példány."}
+                  ? "Füllt die erforderlichen Angaben aus und unterschreibt anschließend. Nach dem Speichern wird ein signiertes PDF erstellt."
+                  : "Unterschreibt den Vertrag mit Finger oder Maus. Nach dem Speichern wird eine signierte PDF-Kopie erstellt."}
               </p>
               <ContractSignaturePad
                 token={token}
@@ -265,19 +267,20 @@ export default async function ContractPublicPage({
               >
                 {isWrittenContract ? (
                   <div className="rounded-md border border-ink/10 bg-white p-4 text-sm leading-6 text-graphite/70">
-                    A kitöltendő mezők a szerződés szövegében jelennek meg. Ellenőrizzétek az adatokat, majd írjátok alá.
+                    Die auszufüllenden Felder erscheinen im Vertragstext. Prüft die Angaben und unterschreibt anschließend.
                   </div>
                 ) : null}
                 {isWrittenContract && extraContractFields.length > 0 ? (
                   <div className="space-y-3 rounded-md border border-ink/10 bg-white p-4">
-                    <p className="text-sm font-semibold text-ink">További kitöltendő adatok</p>
+                    <p className="text-sm font-semibold text-ink">Weitere auszufüllende Angaben</p>
                     {extraContractFields.map((field) => {
                       const defaultValue = completedFields[field.key] ?? customerDefaults[field.key] ?? "";
                       const inputName = contractFieldInputName(field.key);
+                      const label = contractFieldDisplayLabel(field);
 
                       return (
                         <label key={field.key} className="block space-y-1.5">
-                          <span className="text-xs font-medium text-graphite">{field.label}</span>
+                          <span className="text-xs font-medium text-graphite">{label}</span>
                           {field.type === "textarea" ? (
                             <textarea
                               name={inputName}
@@ -302,7 +305,7 @@ export default async function ContractPublicPage({
                 ) : null}
               </ContractSignaturePad>
               <div className="mt-5 rounded-md bg-white px-4 py-3 text-sm text-graphite/70">
-                Státusz: {contract.signedAt ? "Aláírva" : openedAt ? "Megnyitva" : "Elküldve"}
+                Status: {contract.signedAt ? "Unterzeichnet" : openedAt ? "Geöffnet" : "Gesendet"}
               </div>
             </aside>
           </div>

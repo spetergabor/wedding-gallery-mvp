@@ -29,7 +29,7 @@ export async function toggleClientPhotoVisibilityAction({
   if (!gallery) {
     return {
       ok: false,
-      message: "Ez az ügyfél link nem érvényes."
+      message: "Dieser Kundenlink ist nicht gültig."
     };
   }
 
@@ -46,7 +46,7 @@ export async function toggleClientPhotoVisibilityAction({
   if (!photo) {
     return {
       ok: false,
-      message: "A fotó nem található."
+      message: "Das Foto wurde nicht gefunden."
     };
   }
 

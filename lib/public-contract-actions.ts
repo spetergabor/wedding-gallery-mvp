@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from "pdf-lib";
 import {
+  contractFieldDisplayLabel,
   contractFieldInputName,
   fieldKeysInContractTemplate,
   parseContractFields,
@@ -334,7 +335,7 @@ async function createSignedWrittenPdf({
   if (answers.length > 0) {
     ensureSpace(80);
     y -= 18;
-    page.drawText("Ausgefullte Kundendaten", {
+    page.drawText("Ausgefüllte Kundendaten", {
       x: margin,
       y,
       size: 15,
@@ -515,7 +516,7 @@ export async function signContractAction(token: string, formData: FormData) {
             answers: clientFields
               .filter((field) => !templateFieldKeys.has(field.key))
               .map((field) => ({
-                label: field.label,
+                label: contractFieldDisplayLabel(field),
                 value: completedFields[field.key] ?? ""
               })),
             photographerSignatureBytes,

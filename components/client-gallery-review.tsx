@@ -76,7 +76,7 @@ export function ClientGalleryReview({
     });
 
     if (!result.ok) {
-      setError(result.message ?? "Nem sikerült módosítani a kép láthatóságát.");
+      setError(result.message ?? "Die Sichtbarkeit des Fotos konnte nicht geändert werden.");
       setPendingPhotoId(null);
       return;
     }
@@ -104,22 +104,22 @@ export function ClientGalleryReview({
       <div className="mb-5 rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
-            <p className="text-sm font-medium text-ink">{hiddenPhotoIds.size} kép elrejtve a publikus galériából</p>
+            <p className="text-sm font-medium text-ink">{hiddenPhotoIds.size} Fotos in der öffentlichen Galerie ausgeblendet</p>
             <p className="mt-1 text-sm text-graphite/70">
-              Az elrejtett képek itt továbbra is láthatók, de a normál publikus galériában nem jelennek meg.
+              Ausgeblendete Fotos bleiben hier sichtbar, erscheinen aber nicht in der normalen öffentlichen Galerie.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button type="button" variant="secondary" onClick={copyPublicLink}>
               {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? "Publikus link másolva" : "Publikus link másolása"}
+              {copied ? "Öffentlicher Link kopiert" : "Öffentlichen Link kopieren"}
             </Button>
             <a
               href={publicHref}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
             >
               <ExternalLink size={16} />
-              Publikus galéria megosztása
+              Öffentliche Galerie teilen
             </a>
           </div>
         </div>
@@ -138,7 +138,7 @@ export function ClientGalleryReview({
                     <span className="absolute inset-0 grid place-items-center text-white">
                       <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
                         <Film size={16} />
-                        Videó
+                        Video
                       </span>
                     </span>
                   </div>
@@ -156,14 +156,14 @@ export function ClientGalleryReview({
                   <div className={`grid h-full w-full place-items-center text-graphite/60 transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
                     <div className="flex flex-col items-center gap-2 text-center">
                       <ImageIcon size={24} />
-                      <span className="text-xs font-medium">Előnézet készül</span>
+                      <span className="text-xs font-medium">Vorschau wird erstellt</span>
                     </div>
                   </div>
                 )}
                 {isHidden ? (
                   <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">
                     <EyeOff size={13} />
-                    Elrejtve
+                    Ausgeblendet
                   </span>
                 ) : null}
               </div>
@@ -177,7 +177,7 @@ export function ClientGalleryReview({
                   onClick={() => void togglePhoto(photo.id)}
                 >
                   {isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
-                  {isHidden ? "Visszatenni a publikus galériába" : "Elrejteni a publikus galériából"}
+                  {isHidden ? "Wieder in der öffentlichen Galerie anzeigen" : "Aus der öffentlichen Galerie ausblenden"}
                 </Button>
               </div>
             </article>
@@ -186,21 +186,21 @@ export function ClientGalleryReview({
       </section>
 
       <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 text-center shadow-soft">
-        <p className="text-lg font-semibold text-ink">Elkészültetek az elrejtéssel?</p>
+        <p className="text-lg font-semibold text-ink">Seid ihr mit dem Ausblenden fertig?</p>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-graphite/70">
-          A publikus galériában már csak azok a képek jelennek meg, amelyeket nem rejtettetek el. Ezt a linket küldhetitek tovább családnak és vendégeknek.
+          In der öffentlichen Galerie erscheinen jetzt nur noch die Fotos, die ihr nicht ausgeblendet habt. Diesen Link könnt ihr an Familie und Gäste weitergeben.
         </p>
         <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
           <Button type="button" variant="secondary" onClick={copyPublicLink}>
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? "Publikus link másolva" : "Publikus link másolása"}
+            {copied ? "Öffentlicher Link kopiert" : "Öffentlichen Link kopieren"}
           </Button>
           <a
             href={publicHref}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
           >
             <ExternalLink size={16} />
-            Publikus galéria megosztása
+            Öffentliche Galerie teilen
           </a>
         </div>
         <div className="mt-4 flex justify-center">

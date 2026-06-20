@@ -5,15 +5,21 @@ export type ContractFieldDefinition = {
 };
 
 export const CONTRACT_FIELD_OPTIONS: ContractFieldDefinition[] = [
-  { key: "coupleName", label: "Pár neve", type: "text" },
-  { key: "primaryEmail", label: "Email cím", type: "email" },
-  { key: "phone", label: "Telefonszám", type: "tel" },
-  { key: "weddingDate", label: "Esküvő dátuma", type: "date" },
-  { key: "venue", label: "Esküvő helyszíne", type: "text" },
-  { key: "billingAddress", label: "Számlázási cím", type: "textarea" },
-  { key: "personalId", label: "Személyi igazolvány / azonosító", type: "text" },
-  { key: "notes", label: "Megjegyzés", type: "textarea" }
+  { key: "coupleName", label: "Name des Paares", type: "text" },
+  { key: "primaryEmail", label: "E-Mail-Adresse", type: "email" },
+  { key: "phone", label: "Telefonnummer", type: "tel" },
+  { key: "weddingDate", label: "Hochzeitsdatum", type: "date" },
+  { key: "venue", label: "Hochzeitslocation", type: "text" },
+  { key: "billingAddress", label: "Rechnungsadresse", type: "textarea" },
+  { key: "personalId", label: "Ausweisnummer / Identifikation", type: "text" },
+  { key: "notes", label: "Anmerkung", type: "textarea" }
 ];
+
+const CONTRACT_FIELD_LABELS_DE = new Map(CONTRACT_FIELD_OPTIONS.map((field) => [field.key, field.label]));
+
+export function contractFieldDisplayLabel(field: Pick<ContractFieldDefinition, "key" | "label">) {
+  return CONTRACT_FIELD_LABELS_DE.get(field.key) ?? field.label;
+}
 
 export type ContractTemplatePart =
   | { type: "text"; value: string }

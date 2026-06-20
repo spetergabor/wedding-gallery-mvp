@@ -318,13 +318,13 @@ function contractSignatureRequestHtml({
 }: ContractSignatureRequestEmail) {
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Szerződés megtekintése</h1>
-      <p style="margin: 0 0 18px;">Kedves ${escapeHtml(coupleName)},</p>
-      <p style="margin: 0 0 18px;">Elkészült a(z) <strong>${escapeHtml(contractTitle)}</strong> dokumentum. Az alábbi gombbal meg tudjátok nyitni.</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Vertrag ansehen</h1>
+      <p style="margin: 0 0 18px;">Hallo ${escapeHtml(coupleName)},</p>
+      <p style="margin: 0 0 18px;">Das Dokument <strong>${escapeHtml(contractTitle)}</strong> ist bereit. Über die folgende Schaltfläche könnt ihr es öffnen.</p>
       <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(contractUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Szerződés megnyitása</a>
+        <a href="${escapeHtml(contractUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Vertrag öffnen</a>
       </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Ha a gomb nem működik, másoljátok be ezt a linket a böngészőbe:<br>${escapeHtml(contractUrl)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiert diesen Link in den Browser:<br>${escapeHtml(contractUrl)}</p>
     </div>
   `;
 }
@@ -352,13 +352,13 @@ export async function sendContractSignatureRequestEmail(payload: ContractSignatu
     body: JSON.stringify({
       from,
       to: recipients,
-      subject: `Szerződés megtekintése: ${payload.contractTitle}`,
+      subject: `Vertrag ansehen: ${payload.contractTitle}`,
       html: contractSignatureRequestHtml(payload),
       text: [
-        `Kedves ${payload.coupleName},`,
+        `Hallo ${payload.coupleName},`,
         "",
-        `Elkészült a(z) ${payload.contractTitle} dokumentum.`,
-        `Szerződés megnyitása: ${payload.contractUrl}`
+        `Das Dokument ${payload.contractTitle} ist bereit.`,
+        `Vertrag öffnen: ${payload.contractUrl}`
       ].join("\n")
     })
   });

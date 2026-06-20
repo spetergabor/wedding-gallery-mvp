@@ -24,7 +24,7 @@ function SubmitButton({ hasSignature }: { hasSignature: boolean }) {
       className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
     >
       <Check size={16} />
-      {pending ? "Aláírás mentése..." : "Szerződés aláírása"}
+      {pending ? "Unterschrift wird gespeichert..." : "Vertrag unterschreiben"}
     </button>
   );
 }
@@ -141,7 +141,7 @@ export function ContractSignaturePad({
   if (disabled) {
     return (
       <div className="rounded-md bg-white px-4 py-3 text-sm text-sage">
-        A szerződés már alá van írva. Az aláírt PDF letölthető a fenti gombbal.
+        Der Vertrag wurde bereits unterschrieben. Das signierte PDF kann über die Schaltfläche oben heruntergeladen werden.
       </div>
     );
   }
@@ -153,7 +153,7 @@ export function ContractSignaturePad({
       <div className="overflow-hidden rounded-md border border-ink/15 bg-white">
         <canvas
           ref={canvasRef}
-          aria-label="Aláírás mező"
+          aria-label="Unterschriftsfeld"
           className="block h-44 w-full touch-none cursor-crosshair"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -161,7 +161,7 @@ export function ContractSignaturePad({
           onPointerCancel={handlePointerUp}
         />
         <div className="border-t border-ink/10 px-4 py-2 text-xs text-graphite/60">
-          Írjatok alá ujjal vagy egérrel.
+          Mit Finger oder Maus unterschreiben.
         </div>
       </div>
 
@@ -173,7 +173,7 @@ export function ContractSignaturePad({
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RotateCcw size={16} />
-          Újrakezdés
+          Neu beginnen
         </button>
         <SubmitButton hasSignature={hasSignature} />
       </div>
