@@ -30,8 +30,11 @@ type PreparedUpload = {
   capturedAt?: string | null;
   originalIndex?: number;
 };
+type RawPreparedUpload = Omit<PreparedUpload, "mediaType"> & {
+  mediaType: string;
+};
 
-type PhotoUploadStatus = "queued" | "preparing" | "uploading" | "uploaded" | "completed" | "failed";
+type PhotoUploadStatus = "queued" | "preparing" | "uploading" | "waiting" | "uploaded" | "completed" | "failed";
 
 type SelectedPhotoFile = {
   clientId: string;
@@ -48,8 +51,17 @@ type SelectedPhotoFile = {
 
 const UPLOAD_BATCH_SIZE = 24;
 const UPLOAD_CONCURRENCY = 6;
-const MAX_UPLOAD_ATTEMPTS = 3;
+const MAX_UPLOAD_ATTEMPTS = 5;
+const MAX_CONNECTION_RESUME_ATTEMPTS = 60;
 const GALLERY_REFRESH_INTERVAL_MS = 2500;
+const CONNECTION_RETRY_DELAY_MS = 3000;
+
+class UploadUrlExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadUrlExpiredError";
+  }
+}
 
 function uploadStatusLabel({
   completedCount,
@@ -65,7 +77,7 @@ function uploadStatusLabel({
   }
 
   if (failedCount > 0) {
-      return `${completedCount}/${totalCount} média mentve, ${failedCount} hibás`;
+    return `${completedCount}/${totalCount} média mentve, ${failedCount} hibás`;
   }
 
   return `${completedCount}/${totalCount} média mentve`;
@@ -87,6 +99,26 @@ function wait(milliseconds: number) {
   });
 }
 
+function isOnline() {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
+function isConnectionError(error: unknown) {
+  if (!isOnline()) {
+    return true;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /failed to fetch|networkerror|load failed|network request failed/i.test(error.message);
+}
+
+function isExpiredUploadUrlStatus(status: number) {
+  return status === 400 || status === 401 || status === 403;
+}
+
 function statusLabel(status: PhotoUploadStatus) {
   switch (status) {
     case "preparing":
@@ -95,6 +127,8 @@ function statusLabel(status: PhotoUploadStatus) {
       return "Feltöltés";
     case "uploaded":
       return "R2-ben, mentés alatt";
+    case "waiting":
+      return "Kapcsolatra vár";
     case "completed":
       return "Mentve";
     case "failed":
@@ -114,6 +148,8 @@ function statusClass(status: PhotoUploadStatus) {
     case "uploading":
     case "uploaded":
       return "bg-brass/15 text-brass";
+    case "waiting":
+      return "bg-amber-50 text-amber-700";
     default:
       return "bg-ink/5 text-graphite";
   }
@@ -132,7 +168,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
   const scheduledGalleryRefreshRef = useRef<number | null>(null);
   const completedCount = selectedFiles.filter((file) => file.status === "completed").length;
   const failedCount = selectedFiles.filter((file) => file.status === "failed").length;
-  const activeCount = selectedFiles.filter((file) => ["preparing", "uploading", "uploaded"].includes(file.status)).length;
+  const activeCount = selectedFiles.filter((file) => ["preparing", "uploading", "waiting", "uploaded"].includes(file.status)).length;
   const previewFiles = useMemo(() => {
     return [...selectedFiles].sort((a, b) => {
       if (a.status === "failed" && b.status !== "failed") {
@@ -190,6 +226,55 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     }
 
     scheduledGalleryRefreshRef.current = window.setTimeout(runRefresh, GALLERY_REFRESH_INTERVAL_MS - elapsed);
+  }
+
+  async function waitForConnectionRecovery() {
+    if (!isOnline()) {
+      await new Promise<void>((resolve) => {
+        const handleOnline = () => {
+          window.removeEventListener("online", handleOnline);
+          resolve();
+        };
+
+        window.addEventListener("online", handleOnline, { once: true });
+      });
+      return;
+    }
+
+    await wait(CONNECTION_RETRY_DELAY_MS);
+  }
+
+  async function runWithConnectionResume<T>({
+    operation,
+    onWaiting,
+    onResume
+  }: {
+    operation: () => Promise<T>;
+    onWaiting: () => void;
+    onResume?: () => void;
+  }) {
+    let connectionAttempts = 0;
+
+    while (true) {
+      if (!isOnline()) {
+        onWaiting();
+        await waitForConnectionRecovery();
+        onResume?.();
+      }
+
+      try {
+        return await operation();
+      } catch (error) {
+        if (!isConnectionError(error) || connectionAttempts >= MAX_CONNECTION_RESUME_ATTEMPTS) {
+          throw error;
+        }
+
+        connectionAttempts += 1;
+        onWaiting();
+        await waitForConnectionRecovery();
+        onResume?.();
+      }
+    }
   }
 
   async function readPhotoMetadata(file: File) {
@@ -352,31 +437,48 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     body,
     uploadUrl,
     filename,
-    contentType
+    contentType,
+    onWaiting,
+    onResume
   }: {
     body: Blob;
     uploadUrl: string;
     filename: string;
     contentType: string;
+    onWaiting: () => void;
+    onResume: () => void;
   }) {
     let lastError: unknown = null;
 
     for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt += 1) {
       try {
-        const response = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": contentType
-          },
-          body
+        const response = await runWithConnectionResume({
+          operation: () =>
+            fetch(uploadUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": contentType
+              },
+              body
+            }),
+          onWaiting,
+          onResume
         });
 
         if (response.ok) {
           return;
         }
 
+        if (isExpiredUploadUrlStatus(response.status)) {
+          throw new UploadUrlExpiredError(`${filename} feltöltési linkje lejárt. Új linket kérek.`);
+        }
+
         lastError = new Error(`${filename} feltöltése nem sikerült. (${response.status})`);
       } catch (error) {
+        if (error instanceof UploadUrlExpiredError) {
+          throw error;
+        }
+
         lastError = error;
       }
 
@@ -388,39 +490,126 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     throw lastError instanceof Error ? lastError : new Error(`${filename} feltöltése nem sikerült.`);
   }
 
-  async function uploadFile(file: File, target: PreparedUpload) {
+  async function uploadFile({
+    file,
+    target,
+    onWaiting,
+    onResume
+  }: {
+    file: File;
+    target: PreparedUpload;
+    onWaiting: () => void;
+    onResume: () => void;
+  }) {
     await uploadBlob({
       body: file,
       uploadUrl: target.uploadUrl,
       filename: file.name,
-      contentType: file.type || "application/octet-stream"
+      contentType: file.type || "application/octet-stream",
+      onWaiting,
+      onResume
     });
   }
 
-  async function uploadBatch(sessionId: string, batch: SelectedPhotoFile[]) {
-    batch.forEach((file) => setFileStatus(file.clientId, "preparing", { errorMessage: null }));
+  function toPhotoUploadRequest(file: SelectedPhotoFile) {
+    return {
+      clientId: file.clientId,
+      filename: file.file.name,
+      contentType: file.file.type,
+      fileSize: file.file.size,
+      imageWidth: file.imageWidth,
+      imageHeight: file.imageHeight,
+      mediaType: file.mediaType,
+      capturedAt: file.capturedAt,
+      originalIndex: file.originalIndex
+    };
+  }
 
-    const targetResult = await createPhotoUploadTargetsAction(
-      galleryId,
-      sessionId,
-      batch.map((file) => ({
-        clientId: file.clientId,
-        filename: file.file.name,
-        contentType: file.file.type,
-        fileSize: file.file.size,
-        imageWidth: file.imageWidth,
-        imageHeight: file.imageHeight,
-        mediaType: file.mediaType,
-        capturedAt: file.capturedAt,
-        originalIndex: file.originalIndex
-      }))
-    );
+  function normalizeUploadTarget(rawTarget: RawPreparedUpload | null | undefined) {
+    if (!rawTarget) {
+      return null;
+    }
+
+    return {
+      ...rawTarget,
+      mediaType: rawTarget.mediaType === "video" ? "video" : "image"
+    } satisfies PreparedUpload;
+  }
+
+  async function requestUploadTargets({
+    sessionId,
+    files,
+    onWaiting,
+    onResume
+  }: {
+    sessionId: string;
+    files: SelectedPhotoFile[];
+    onWaiting: () => void;
+    onResume: () => void;
+  }) {
+    const targetResult = await runWithConnectionResume({
+      operation: () => createPhotoUploadTargetsAction(galleryId, sessionId, files.map(toPhotoUploadRequest)),
+      onWaiting,
+      onResume
+    });
 
     if (!targetResult.ok) {
       throw new Error(targetResult.message);
     }
 
-    const uploadTargets = targetResult.uploads ?? [];
+    return (targetResult.uploads ?? []).map((rawTarget) => normalizeUploadTarget(rawTarget));
+  }
+
+  async function refreshUploadTarget(sessionId: string, selectedFile: SelectedPhotoFile) {
+    setFileStatus(selectedFile.clientId, "waiting", {
+      errorMessage: "Feltöltési link frissítése..."
+    });
+
+    const targets = await requestUploadTargets({
+      sessionId,
+      files: [selectedFile],
+      onWaiting: () =>
+        setFileStatus(selectedFile.clientId, "waiting", {
+          errorMessage: "Kapcsolatra vár az új feltöltési linkhez..."
+        }),
+      onResume: () =>
+        setFileStatus(selectedFile.clientId, "preparing", {
+          errorMessage: null
+        })
+    });
+    const target = targets[0];
+
+    if (!target) {
+      throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
+    }
+
+    setFileStatus(selectedFile.clientId, "uploading", {
+      uploadItemId: target.uploadItemId,
+      errorMessage: null
+    });
+
+    return target;
+  }
+
+  async function uploadBatch(sessionId: string, batch: SelectedPhotoFile[]) {
+    batch.forEach((file) => setFileStatus(file.clientId, "preparing", { errorMessage: null }));
+
+    const uploadTargets = await requestUploadTargets({
+      sessionId,
+      files: batch,
+      onWaiting: () =>
+        batch.forEach((file) =>
+          setFileStatus(file.clientId, "waiting", {
+            errorMessage: "Kapcsolatra vár az előkészítéshez..."
+          })
+        ),
+      onResume: () =>
+        batch.forEach((file) =>
+          setFileStatus(file.clientId, "preparing", {
+            errorMessage: null
+          })
+        )
+    });
     let completedUploads = 0;
     let failedUploads = 0;
     let nextIndex = 0;
@@ -431,13 +620,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         nextIndex += 1;
 
         const selectedFile = batch[index];
-        const rawTarget = uploadTargets[index];
-        const target = rawTarget
-          ? {
-              ...rawTarget,
-              mediaType: rawTarget.mediaType === "video" ? "video" : "image"
-            } satisfies PreparedUpload
-          : null;
+        let target = uploadTargets[index];
 
         if (!target) {
           throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
@@ -449,7 +632,33 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
         });
 
         try {
-          await uploadFile(selectedFile.file, target);
+          for (let urlAttempt = 1; urlAttempt <= 3; urlAttempt += 1) {
+            try {
+              await uploadFile({
+                file: selectedFile.file,
+                target,
+                onWaiting: () =>
+                  setFileStatus(selectedFile.clientId, "waiting", {
+                    uploadItemId: target?.uploadItemId ?? null,
+                    errorMessage: "Kapcsolatra vár, automatikusan folytatja..."
+                  }),
+                onResume: () =>
+                  setFileStatus(selectedFile.clientId, "uploading", {
+                    uploadItemId: target?.uploadItemId ?? null,
+                    errorMessage: null
+                  })
+              });
+              break;
+            } catch (error) {
+              if (error instanceof UploadUrlExpiredError && urlAttempt < 3) {
+                target = await refreshUploadTarget(sessionId, selectedFile);
+                continue;
+              }
+
+              throw error;
+            }
+          }
+
           setFileStatus(selectedFile.clientId, "uploaded", {
             uploadItemId: target.uploadItemId,
             errorMessage: null
@@ -463,8 +672,21 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             capturedAt: selectedFile.capturedAt,
             originalIndex: selectedFile.originalIndex
           } satisfies PreparedUpload;
-          const completeResult = await completePhotoUploadsAction(galleryId, sessionId, [completedUpload], {
-            revalidate: false
+          const completeResult = await runWithConnectionResume({
+            operation: () =>
+              completePhotoUploadsAction(galleryId, sessionId, [completedUpload], {
+                revalidate: false
+              }),
+            onWaiting: () =>
+              setFileStatus(selectedFile.clientId, "waiting", {
+                uploadItemId: target?.uploadItemId ?? null,
+                errorMessage: "Kapcsolatra vár a galériába mentéshez..."
+              }),
+            onResume: () =>
+              setFileStatus(selectedFile.clientId, "uploaded", {
+                uploadItemId: target?.uploadItemId ?? null,
+                errorMessage: null
+              })
           });
 
           if (!completeResult.ok) {
@@ -489,7 +711,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             sessionId,
             uploadItemId: target.uploadItemId,
             message
-          });
+          }).catch(() => undefined);
           failedUploads += 1;
         }
       }
@@ -517,7 +739,11 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       let sessionId = existingSessionId ?? uploadSessionId;
 
       if (!sessionId) {
-        const sessionResult = await createPhotoUploadSessionAction(galleryId, selectedFiles.length);
+        const sessionResult = await runWithConnectionResume({
+          operation: () => createPhotoUploadSessionAction(galleryId, selectedFiles.length),
+          onWaiting: () => setUploadError("Kapcsolatra vár a feltöltés indításához..."),
+          onResume: () => setUploadError("")
+        });
 
         if (!sessionResult.ok || !sessionResult.sessionId) {
           throw new Error(sessionResult.message);
