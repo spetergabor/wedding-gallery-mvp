@@ -716,9 +716,9 @@ export function PublicGallery({
                           </span>
                         </span>
                       </span>
-                    ) : hasLightweightThumbnail(photo) && hasImageDimensions(photo) ? (
+                    ) : hasImageDimensions(photo) ? (
                       <Image
-                        src={photo.thumbnailUrl}
+                        src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
                         alt={photo.filename}
                         width={photo.imageWidth}
                         height={photo.imageHeight}
@@ -726,20 +726,13 @@ export function PublicGallery({
                         className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                         sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       />
-                    ) : hasLightweightThumbnail(photo) ? (
+                    ) : (
                       <img
-                        src={photo.thumbnailUrl}
+                        src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
                         alt={photo.filename}
                         loading="lazy"
                         className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                       />
-                    ) : (
-                      <span className="grid aspect-[4/3] w-full place-items-center bg-mist text-graphite/60">
-                        <span className="flex flex-col items-center gap-2 text-center">
-                          <Images size={24} />
-                          <span className="text-xs font-medium">Vorschau wird erstellt</span>
-                        </span>
-                      </span>
                     )}
                     <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
                       <Maximize2 size={16} />
@@ -991,9 +984,9 @@ export function PublicGallery({
                 playsInline
                 className="h-full w-full object-contain"
               />
-            ) : hasLightweightPreview(selectedPhoto) ? (
+            ) : (
               <Image
-                src={selectedPhoto.previewUrl}
+                src={hasLightweightPreview(selectedPhoto) ? selectedPhoto.previewUrl : selectedPhoto.imageUrl}
                 alt={selectedPhoto.filename}
                 fill
                 unoptimized
@@ -1001,13 +994,6 @@ export function PublicGallery({
                 sizes="100vw"
                 priority
               />
-            ) : (
-              <div className="grid h-full w-full place-items-center bg-ink text-white/75">
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <Images size={34} />
-                  <p className="text-sm font-medium">Vorschau wird erstellt</p>
-                </div>
-              </div>
             )}
           </div>
           {visiblePhotos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{visiblePhotos.length}</p> : null}
