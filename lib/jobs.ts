@@ -1,14 +1,11 @@
 import { revalidatePath } from "next/cache";
-import { createRequire } from "node:module";
 import { PassThrough, Readable } from "node:stream";
 import { Prisma } from "@prisma/client";
-import type { Archiver, ArchiverOptions } from "archiver";
+import { ZipArchive } from "archiver";
 import { prisma } from "@/lib/prisma";
 import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
 
 const ZIP_GENERATION_JOB = "zip_generation";
-const require = createRequire(import.meta.url);
-const archiver = require("archiver") as (format: "zip", options: ArchiverOptions) => Archiver;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -182,7 +179,7 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
         .catch(() => undefined);
     }
 
-    const zip = archiver("zip", {
+    const zip = new ZipArchive({
       forceZip64: true,
       store: true
     });
