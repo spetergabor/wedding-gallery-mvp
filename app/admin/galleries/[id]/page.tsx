@@ -16,6 +16,7 @@ import { StatCard } from "@/components/stat-card";
 import { UploadSessionLog } from "@/components/upload-session-log";
 import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
+import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
 import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
@@ -91,7 +92,7 @@ export default async function GalleryDetailPage({
       downloads: { orderBy: { createdAt: "desc" } },
       downloadPackages: {
         orderBy: { createdAt: "desc" },
-        take: 5
+        take: 120
       },
       favoriteLists: {
         orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
@@ -253,8 +254,9 @@ export default async function GalleryDetailPage({
         ) : null}
 
         {activeTab === "downloads" ? (
-          <div className="max-w-3xl">
-            <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages} />
+          <div className="max-w-3xl space-y-6">
+            <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
+            <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
           </div>
         ) : null}
 
