@@ -5,13 +5,11 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 
-const ZIP_PART_SIZE = 50;
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 const ZIP_PROCESSING_KICK_LIMIT = 1;
 
@@ -178,7 +176,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     return latest;
   }, null);
 
-  const partCount = Math.max(1, Math.ceil(gallery.photos.length / ZIP_PART_SIZE));
+  const partCount = 1;
   const completedPackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId,
@@ -269,33 +267,23 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     };
   }
 
-  const groupId = randomUUID();
-  const downloadPackages = [];
-
-  for (let partIndex = 0; partIndex < partCount; partIndex += 1) {
-    const photoOffset = partIndex * ZIP_PART_SIZE;
-    const photoLimit = Math.min(ZIP_PART_SIZE, gallery.photos.length - photoOffset);
-    const downloadPackage = await prisma.galleryDownloadPackage.create({
-      data: {
-        galleryId,
-        status: "pending",
-        photoCount: gallery.photos.length,
-        partIndex,
-        partCount,
-        photoOffset,
-        photoLimit,
-        groupId
-      },
-      select: { id: true }
-    });
-
-    downloadPackages.push(downloadPackage);
-
-    await enqueueGalleryZipJob({
+  const downloadPackage = await prisma.galleryDownloadPackage.create({
+    data: {
       galleryId,
-      packageId: downloadPackage.id
-    });
-  }
+      status: "pending",
+      photoCount: gallery.photos.length,
+      partIndex: 0,
+      partCount,
+      photoOffset: 0,
+      photoLimit: gallery.photos.length
+    },
+    select: { id: true }
+  });
+
+  await enqueueGalleryZipJob({
+    galleryId,
+    packageId: downloadPackage.id
+  });
 
   after(async () => {
     await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });
@@ -307,7 +295,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     downloadUrl: null,
     filename: galleryZipFileName(gallery.title),
     cached: false,
-    packageId: downloadPackages[0]?.id ?? null,
+    packageId: downloadPackage.id,
     status: "pending",
     packages: []
   };

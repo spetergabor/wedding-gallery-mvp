@@ -24,7 +24,6 @@ import {
 import { enqueueGalleryZipJob, processPendingJobs } from "@/lib/jobs";
 import { verifyTotpCode } from "@/lib/totp";
 
-const ZIP_PART_SIZE = 50;
 const ZIP_PROCESSING_KICK_LIMIT = 1;
 
 function formString(formData: FormData, key: string) {
@@ -91,7 +90,7 @@ async function prepareGalleryZipPackages(galleryId: string) {
     return latest;
   }, null);
   const photoCount = gallery.photos.length;
-  const partCount = Math.max(1, Math.ceil(photoCount / ZIP_PART_SIZE));
+  const partCount = 1;
   const existingCompletedParts = await prisma.galleryDownloadPackage.count({
     where: {
       galleryId,
@@ -124,30 +123,23 @@ async function prepareGalleryZipPackages(galleryId: string) {
     return;
   }
 
-  const groupId = randomUUID();
-
-  for (let partIndex = 0; partIndex < partCount; partIndex += 1) {
-    const photoOffset = partIndex * ZIP_PART_SIZE;
-    const photoLimit = Math.min(ZIP_PART_SIZE, photoCount - photoOffset);
-    const downloadPackage = await prisma.galleryDownloadPackage.create({
-      data: {
-        galleryId,
-        status: "pending",
-        photoCount,
-        partIndex,
-        partCount,
-        photoOffset,
-        photoLimit,
-        groupId
-      },
-      select: { id: true }
-    });
-
-    await enqueueGalleryZipJob({
+  const downloadPackage = await prisma.galleryDownloadPackage.create({
+    data: {
       galleryId,
-      packageId: downloadPackage.id
-    });
-  }
+      status: "pending",
+      photoCount,
+      partIndex: 0,
+      partCount,
+      photoOffset: 0,
+      photoLimit: photoCount
+    },
+    select: { id: true }
+  });
+
+  await enqueueGalleryZipJob({
+    galleryId,
+    packageId: downloadPackage.id
+  });
 
   after(async () => {
     await processPendingJobs({ limit: ZIP_PROCESSING_KICK_LIMIT });

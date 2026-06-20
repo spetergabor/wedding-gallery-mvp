@@ -10,19 +10,25 @@ type DownloadPackage = {
   id: string;
   status: string;
   photoCount: number;
-  fileSize: number;
+  fileSize: number | bigint;
   downloadUrl: string | null;
   errorMessage: string | null;
   generatedAt: Date | null;
   createdAt: Date;
 };
 
-function formatBytes(bytes: number) {
-  if (bytes <= 0) {
+function formatBytes(bytes: number | bigint) {
+  const value = Number(bytes);
+
+  if (value <= 0) {
     return "0 MB";
   }
 
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (value >= 1024 * 1024 * 1024) {
+    return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  }
+
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function packageStatusLabel(status: string) {

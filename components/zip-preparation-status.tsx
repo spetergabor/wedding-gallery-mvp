@@ -7,9 +7,11 @@ type DownloadPackage = {
   groupId: string | null;
   status: string;
   photoCount: number;
+  processedCount: number;
+  processedBytes: number | bigint;
   partIndex: number;
   partCount: number;
-  fileSize: number;
+  fileSize: number | bigint;
   downloadUrl: string | null;
   errorMessage: string | null;
   generatedAt: Date | null;
@@ -27,22 +29,26 @@ type ZipGroupSummary = {
   processingCount: number;
   staleProcessingCount: number;
   failedCount: number;
-  fileSize: number;
+  processedCount: number;
+  processedBytes: bigint;
+  fileSize: bigint;
   latestAt: Date;
   isComplete: boolean;
   hasActiveWork: boolean;
 };
 
-function formatBytes(bytes: number) {
-  if (bytes <= 0) {
+function formatBytes(bytes: number | bigint) {
+  const value = Number(bytes);
+
+  if (value <= 0) {
     return "0 MB";
   }
 
-  if (bytes >= 1024 * 1024 * 1024) {
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (value >= 1024 * 1024 * 1024) {
+    return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
   }
 
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function formatDate(date: Date) {
@@ -65,6 +71,7 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
   ).length;
   const pendingCount = packages.filter((downloadPackage) => downloadPackage.status === "pending").length;
   const failedCount = packages.filter((downloadPackage) => downloadPackage.status === "failed").length + staleProcessingCount;
+  const processedCount = packages.reduce((sum, downloadPackage) => sum + downloadPackage.processedCount, 0);
   const partIndexes = new Set(downloadablePackages.map((downloadPackage) => downloadPackage.partIndex));
   const hasEveryPart = Array.from({ length: expectedPartCount }, (_, index) => partIndexes.has(index)).every(Boolean);
   const latestAt = packages.reduce((latest, downloadPackage) => {
@@ -83,7 +90,9 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
     processingCount,
     staleProcessingCount,
     failedCount,
-    fileSize: downloadablePackages.reduce((sum, downloadPackage) => sum + downloadPackage.fileSize, 0),
+    processedCount,
+    processedBytes: packages.reduce((sum, downloadPackage) => sum + BigInt(downloadPackage.processedBytes), BigInt(0)),
+    fileSize: downloadablePackages.reduce((sum, downloadPackage) => sum + BigInt(downloadPackage.fileSize), BigInt(0)),
     latestAt,
     isComplete: downloadablePackages.length === expectedPartCount && hasEveryPart,
     hasActiveWork: pendingCount > 0 || processingCount > 0 || staleProcessingCount > 0
@@ -161,7 +170,13 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
   const Icon = meta.icon;
   const expectedPartCount = primaryGroup?.expectedPartCount ?? Math.max(photoCount > 0 ? 1 : 0, 0);
   const completedCount = primaryGroup?.downloadableCount ?? 0;
-  const progress = expectedPartCount > 0 ? Math.round((completedCount / expectedPartCount) * 100) : 0;
+  const displayedProcessedCount = primaryGroup?.isComplete ? photoCount : primaryGroup?.processedCount ?? 0;
+  const progress =
+    primaryGroup && primaryGroup.expectedPartCount === 1 && !primaryGroup.isComplete && photoCount > 0
+      ? Math.round((Math.min(primaryGroup.processedCount, photoCount) / photoCount) * 100)
+      : expectedPartCount > 0
+        ? Math.round((completedCount / expectedPartCount) * 100)
+        : 0;
   const failedPackages = primaryGroup?.packages.filter((downloadPackage) => downloadPackage.status === "failed" || downloadPackage.errorMessage).slice(0, 3) ?? [];
 
   return (
@@ -193,8 +208,8 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
           <p className="mt-1 text-lg font-semibold text-ink">{photoCount}</p>
         </div>
         <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Méret</p>
-          <p className="mt-1 text-lg font-semibold text-ink">{formatBytes(primaryGroup?.fileSize ?? 0)}</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">{primaryGroup?.isComplete ? "Méret" : "Feltöltve"}</p>
+          <p className="mt-1 text-lg font-semibold text-ink">{formatBytes(primaryGroup?.isComplete ? primaryGroup.fileSize : primaryGroup?.processedBytes ?? 0)}</p>
         </div>
         <div className="rounded-md bg-paper px-4 py-3">
           <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Frissítve</p>
@@ -210,7 +225,7 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
           <span>{progress}% kész</span>
           {primaryGroup ? (
             <span>
-              {primaryGroup.pendingCount} várakozik · {primaryGroup.processingCount} fut · {primaryGroup.failedCount} hibás
+              {displayedProcessedCount}/{photoCount} média · {primaryGroup.pendingCount} várakozik · {primaryGroup.processingCount} fut · {primaryGroup.failedCount} hibás
             </span>
           ) : null}
         </div>

@@ -1,12 +1,14 @@
 import { revalidatePath } from "next/cache";
+import { createRequire } from "node:module";
+import { PassThrough, Readable } from "node:stream";
 import { Prisma } from "@prisma/client";
-import JSZip from "jszip";
+import type { Archiver, ArchiverOptions } from "archiver";
 import { prisma } from "@/lib/prisma";
-import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
+import { createGalleryZipObjectKey, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
 
 const ZIP_GENERATION_JOB = "zip_generation";
-const ZIP_PHOTO_FETCH_CONCURRENCY = 3;
-const DIRECT_DOWNLOAD_FILE_SIZE = 100 * 1024 * 1024;
+const require = createRequire(import.meta.url);
+const archiver = require("archiver") as (format: "zip", options: ArchiverOptions) => Archiver;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -16,6 +18,34 @@ type ZipGenerationPayload = {
 function photoZipFileName(filename: string, index: number) {
   const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
   return (filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
+}
+
+function createRemoteFileStream(photo: { filename: string; imageUrl: string }) {
+  return Readable.from(
+    (async function* () {
+      const response = await fetch(photo.imageUrl, { cache: "no-store" });
+
+      if (!response.ok || !response.body) {
+        throw new Error(`${photo.filename} konnte nicht geladen werden.`);
+      }
+
+      const reader = response.body.getReader();
+
+      try {
+        while (true) {
+          const result = await reader.read();
+
+          if (result.done) {
+            break;
+          }
+
+          yield Buffer.from(result.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    })()
+  );
 }
 
 function parseZipGenerationPayload(payload: Prisma.JsonValue): ZipGenerationPayload {
@@ -33,27 +63,6 @@ function parseZipGenerationPayload(payload: Prisma.JsonValue): ZipGenerationPayl
     galleryId: value.galleryId,
     packageId: value.packageId
   };
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>
-) {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      results[index] = await mapper(items[index], index);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
-
-  return results;
 }
 
 export async function enqueueGalleryZipJob({
@@ -96,6 +105,8 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
     return;
   }
 
+  const downloadPackageId = downloadPackage.id;
+
   const gallery = await prisma.gallery.findUnique({
     where: { id: payload.galleryId },
     select: {
@@ -110,10 +121,7 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
         take: downloadPackage.photoLimit ?? undefined,
         select: {
           filename: true,
-          r2Key: true,
-          imageUrl: true,
-          mediaType: true,
-          fileSize: true
+          imageUrl: true
         }
       }
     }
@@ -134,69 +142,94 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
     data: {
       status: "processing",
       photoCount: totalPhotoCount,
+      processedCount: 0,
+      processedBytes: BigInt(0),
       errorMessage: null
     }
   });
 
   try {
-    const singlePhoto = gallery.photos.length === 1 ? gallery.photos[0] : null;
-
-    if (singlePhoto && (singlePhoto.mediaType === "video" || singlePhoto.fileSize >= DIRECT_DOWNLOAD_FILE_SIZE)) {
-      await prisma.galleryDownloadPackage.update({
-        where: { id: downloadPackage.id },
-        data: {
-          status: "completed",
-          photoCount: totalPhotoCount,
-          fileSize: singlePhoto.fileSize,
-          r2Key: singlePhoto.r2Key,
-          downloadUrl: singlePhoto.imageUrl,
-          errorMessage: null,
-          generatedAt: new Date()
-        }
-      });
-
-      revalidatePath(`/admin/galleries/${gallery.id}`);
-      return;
-    }
-
-    const zip = new JSZip();
-    const downloadedPhotos = await mapWithConcurrency(gallery.photos, ZIP_PHOTO_FETCH_CONCURRENCY, async (photo, index) => {
-      const response = await fetch(photo.imageUrl, { cache: "no-store" });
-
-      if (!response.ok) {
-        throw new Error(`${photo.filename} konnte nicht geladen werden.`);
-      }
-
-      const bytes = Buffer.from(await response.arrayBuffer());
-      return {
-        filename: photoZipFileName(photo.filename, downloadPackage.photoOffset + index),
-        bytes
-      };
-    });
-
-    for (const photo of downloadedPhotos) {
-      zip.file(photo.filename, photo.bytes);
-    }
-
-    const zipBuffer = await zip.generateAsync({
-      type: "nodebuffer",
-      compression: "STORE"
-    });
     const r2Key = createGalleryZipObjectKey({ gallerySlug: gallery.slug });
     const downloadUrl = getPhotoPublicUrl(r2Key);
+    let lastProgressUpdateAt = 0;
+    let progressUpdatePromise = Promise.resolve();
 
-    await savePhotoObject({
-      r2Key,
-      bytes: zipBuffer,
-      contentType: "application/zip"
+    function queueProgressUpdate(
+      progress: {
+        processedCount?: number;
+        processedBytes?: bigint;
+      },
+      force = false
+    ) {
+      const now = Date.now();
+
+      if (!force && now - lastProgressUpdateAt < 5000) {
+        return;
+      }
+
+      lastProgressUpdateAt = now;
+      progressUpdatePromise = progressUpdatePromise
+        .then(() =>
+          prisma.galleryDownloadPackage.update({
+            where: { id: downloadPackageId },
+            data: {
+              ...(progress.processedCount === undefined ? {} : { processedCount: progress.processedCount }),
+              ...(progress.processedBytes === undefined ? {} : { processedBytes: progress.processedBytes })
+            }
+          })
+        )
+        .then(() => undefined)
+        .catch(() => undefined);
+    }
+
+    const zip = archiver("zip", {
+      forceZip64: true,
+      store: true
     });
+    const zipStream = new PassThrough();
+    const uploadPromise = savePhotoStream({
+      r2Key,
+      stream: zipStream,
+      contentType: "application/zip",
+      onProgress: (processedBytes) => {
+        queueProgressUpdate({ processedBytes });
+      }
+    });
+
+    zip.on("error", (error) => {
+      zipStream.destroy(error);
+    });
+    zip.on("progress", (progress) => {
+      queueProgressUpdate({ processedCount: progress.entries.processed });
+    });
+
+    zip.pipe(zipStream);
+
+    for (const [index, photo] of gallery.photos.entries()) {
+      zip.append(createRemoteFileStream(photo), {
+        name: photoZipFileName(photo.filename, downloadPackage.photoOffset + index)
+      });
+    }
+
+    await zip.finalize();
+    const { bytesWritten } = await uploadPromise;
+    queueProgressUpdate(
+      {
+        processedCount: gallery.photos.length,
+        processedBytes: bytesWritten
+      },
+      true
+    );
+    await progressUpdatePromise;
 
     await prisma.galleryDownloadPackage.update({
       where: { id: downloadPackage.id },
       data: {
         status: "completed",
         photoCount: totalPhotoCount,
-        fileSize: zipBuffer.length,
+        processedCount: gallery.photos.length,
+        processedBytes: bytesWritten,
+        fileSize: bytesWritten,
         r2Key,
         downloadUrl,
         errorMessage: null,

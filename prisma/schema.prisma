@@ -220,7 +220,9 @@ model GalleryDownloadPackage {
   photoOffset  Int      @default(0)
   photoLimit   Int?
   groupId      String?
-  fileSize     Int      @default(0)
+  fileSize     BigInt   @default(0)
+  processedCount Int     @default(0)
+  processedBytes BigInt  @default(0)
   r2Key        String?
   downloadUrl  String?
   errorMessage String?

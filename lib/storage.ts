@@ -1,6 +1,17 @@
 import path from "node:path";
+import { createWriteStream } from "node:fs";
 import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+  UploadPartCommand
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { normalizeSlug } from "@/lib/slug";
 
@@ -10,6 +21,7 @@ export const R2_PUBLIC_BASE_URL =
 export const STORAGE_DRIVER = process.env.STORAGE_DRIVER ?? "local";
 
 let r2Client: S3Client | null = null;
+const MULTIPART_UPLOAD_PART_SIZE = 8 * 1024 * 1024;
 
 function r2Endpoint() {
   if (process.env.R2_ENDPOINT) {
@@ -204,6 +216,133 @@ export async function savePhotoObject({
   const filePath = getLocalUploadPath(r2Key);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, bytes);
+}
+
+export async function savePhotoStream({
+  r2Key,
+  stream,
+  contentType,
+  onProgress
+}: {
+  r2Key: string;
+  stream: NodeJS.ReadableStream;
+  contentType?: string;
+  onProgress?: (bytesWritten: bigint) => void;
+}) {
+  if (STORAGE_DRIVER !== "r2") {
+    if (process.env.VERCEL) {
+      throw new Error("Local file uploads are disabled on Vercel. Set STORAGE_DRIVER to r2 and redeploy.");
+    }
+
+    const filePath = getLocalUploadPath(r2Key);
+    let bytesWritten = BigInt(0);
+    const byteCounter = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        bytesWritten += BigInt(chunk.length);
+        onProgress?.(bytesWritten);
+        callback(null, chunk);
+      }
+    });
+
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await pipeline(stream, byteCounter, createWriteStream(filePath));
+
+    return {
+      bytesWritten
+    };
+  }
+
+  const client = getR2Client();
+  const multipartUpload = await client.send(
+    new CreateMultipartUploadCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: r2Key,
+      ContentType: contentType || "application/octet-stream"
+    })
+  );
+  const uploadId = multipartUpload.UploadId;
+
+  if (!uploadId) {
+    throw new Error("R2 multipart upload could not be started.");
+  }
+
+  let partNumber = 1;
+  let bufferedBytes = 0;
+  let totalBytes = BigInt(0);
+  let buffers: Buffer[] = [];
+  const completedParts: Array<{ ETag: string; PartNumber: number }> = [];
+
+  async function uploadBufferedPart() {
+    if (bufferedBytes === 0) {
+      return;
+    }
+
+    const body = Buffer.concat(buffers, bufferedBytes);
+    const uploadedPart = await client.send(
+      new UploadPartCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+        Body: body
+      })
+    );
+
+    if (!uploadedPart.ETag) {
+      throw new Error(`R2 multipart upload part ${partNumber} did not return an ETag.`);
+    }
+
+    completedParts.push({
+      ETag: uploadedPart.ETag,
+      PartNumber: partNumber
+    });
+    partNumber += 1;
+    totalBytes += BigInt(body.length);
+    onProgress?.(totalBytes);
+    buffers = [];
+    bufferedBytes = 0;
+  }
+
+  try {
+    for await (const chunk of stream) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      buffers.push(buffer);
+      bufferedBytes += buffer.length;
+
+      if (bufferedBytes >= MULTIPART_UPLOAD_PART_SIZE) {
+        await uploadBufferedPart();
+      }
+    }
+
+    await uploadBufferedPart();
+
+    await client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: completedParts
+        }
+      })
+    );
+
+    return {
+      bytesWritten: totalBytes
+    };
+  } catch (error) {
+    await client
+      .send(
+        new AbortMultipartUploadCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          UploadId: uploadId
+        })
+      )
+      .catch(() => undefined);
+
+    throw error;
+  }
 }
 
 export async function createPresignedPhotoUploadUrl({
