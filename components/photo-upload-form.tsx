@@ -1,6 +1,7 @@
 "use client";
 
-import { ChangeEvent, DragEvent, FormEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import * as exifr from "exifr";
 import { ImagePlus, UploadCloud } from "lucide-react";
 import {
@@ -45,9 +46,10 @@ type SelectedPhotoFile = {
   uploadItemId: string | null;
 };
 
-const UPLOAD_BATCH_SIZE = 100;
+const UPLOAD_BATCH_SIZE = 24;
 const UPLOAD_CONCURRENCY = 6;
 const MAX_UPLOAD_ATTEMPTS = 3;
+const GALLERY_REFRESH_INTERVAL_MS = 2500;
 
 function uploadStatusLabel({
   completedCount,
@@ -118,6 +120,7 @@ function statusClass(status: PhotoUploadStatus) {
 }
 
 export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
+  const router = useRouter();
   const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isReadingExif, setIsReadingExif] = useState(false);
@@ -125,6 +128,8 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
   const [uploadSessionId, setUploadSessionId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastGalleryRefreshAtRef = useRef(0);
+  const scheduledGalleryRefreshRef = useRef<number | null>(null);
   const completedCount = selectedFiles.filter((file) => file.status === "completed").length;
   const failedCount = selectedFiles.filter((file) => file.status === "failed").length;
   const activeCount = selectedFiles.filter((file) => ["preparing", "uploading", "uploaded"].includes(file.status)).length;
@@ -149,6 +154,43 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
 
     return Math.round((completedCount / selectedFiles.length) * 100);
   }, [completedCount, selectedFiles.length]);
+
+  useEffect(() => {
+    return () => {
+      if (scheduledGalleryRefreshRef.current) {
+        window.clearTimeout(scheduledGalleryRefreshRef.current);
+      }
+    };
+  }, []);
+
+  function refreshGallerySoon(force = false) {
+    const runRefresh = () => {
+      scheduledGalleryRefreshRef.current = null;
+      lastGalleryRefreshAtRef.current = Date.now();
+      router.refresh();
+    };
+
+    if (force) {
+      if (scheduledGalleryRefreshRef.current) {
+        window.clearTimeout(scheduledGalleryRefreshRef.current);
+      }
+      runRefresh();
+      return;
+    }
+
+    if (scheduledGalleryRefreshRef.current) {
+      return;
+    }
+
+    const elapsed = Date.now() - lastGalleryRefreshAtRef.current;
+
+    if (elapsed >= GALLERY_REFRESH_INTERVAL_MS) {
+      runRefresh();
+      return;
+    }
+
+    scheduledGalleryRefreshRef.current = window.setTimeout(runRefresh, GALLERY_REFRESH_INTERVAL_MS - elapsed);
+  }
 
   async function readPhotoMetadata(file: File) {
     try {
@@ -379,7 +421,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
     }
 
     const uploadTargets = targetResult.uploads ?? [];
-    const completedUploads: PreparedUpload[] = [];
+    let completedUploads = 0;
     let failedUploads = 0;
     let nextIndex = 0;
 
@@ -412,7 +454,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             uploadItemId: target.uploadItemId,
             errorMessage: null
           });
-          completedUploads.push({
+          const completedUpload = {
             ...target,
             fileSize: selectedFile.file.size,
             imageWidth: selectedFile.imageWidth,
@@ -420,7 +462,22 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
             mediaType: selectedFile.mediaType,
             capturedAt: selectedFile.capturedAt,
             originalIndex: selectedFile.originalIndex
+          } satisfies PreparedUpload;
+          const completeResult = await completePhotoUploadsAction(galleryId, sessionId, [completedUpload], {
+            revalidate: false
           });
+
+          if (!completeResult.ok) {
+            throw new Error(completeResult.message);
+          }
+
+          const completedItemIds = new Set(completeResult.completedItemIds ?? []);
+
+          if (completedItemIds.has(target.uploadItemId)) {
+            completedUploads += 1;
+            setFileStatus(selectedFile.clientId, "completed", { errorMessage: null });
+            refreshGallerySoon();
+          }
         } catch (error) {
           const message = error instanceof Error ? error.message : `${selectedFile.file.name} feltöltése nem sikerült.`;
           setFileStatus(selectedFile.clientId, "failed", {
@@ -442,25 +499,8 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       Array.from({ length: Math.min(UPLOAD_CONCURRENCY, batch.length) }, () => worker())
     );
 
-    if (completedUploads.length === 0) {
-      return;
-    }
-
-    const completeResult = await completePhotoUploadsAction(galleryId, sessionId, completedUploads);
-
-    if (!completeResult.ok) {
-      throw new Error(completeResult.message);
-    }
-
-    const completedItemIds = new Set(completeResult.completedItemIds ?? []);
-    completedUploads.forEach((upload) => {
-      if (completedItemIds.has(upload.uploadItemId)) {
-        setFileStatus(upload.clientId, "completed", { errorMessage: null });
-      }
-    });
-
     return {
-      completedCount: completedUploads.length,
+      completedCount: completedUploads,
       failedCount: failedUploads
     };
   }
@@ -497,9 +537,11 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
       if (failedUploads === 0) {
         window.location.href = `/admin/galleries/${galleryId}?photoAdded=1`;
       } else {
+        refreshGallerySoon(true);
         setUploadError(`${failedUploads} média feltöltése hibára futott. Csak a hibás elemeket újra tudod próbálni.`);
       }
     } catch (error) {
+      refreshGallerySoon(true);
       setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
     } finally {
       setIsUploading(false);
@@ -630,7 +672,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
           </div>
           <p className="mt-3 text-xs text-graphite/70">
             {activeCount > 0
-              ? `Aktív fájlok: ${activeCount}. Az oldal maradjon nyitva, amíg minden kép fel nem töltődik.`
+              ? `Aktív fájlok: ${activeCount}. A mentett képek pár másodpercen belül megjelennek lent a galériában.`
               : failedCount > 0
                 ? "A hibás elemek listája fent látszik, ezeket külön újra tudod próbálni."
                 : "Minden kiválasztott média mentve lett."}

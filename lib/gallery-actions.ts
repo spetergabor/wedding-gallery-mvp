@@ -138,6 +138,49 @@ async function refreshUploadSessionCounts(sessionId: string) {
   });
 }
 
+async function incrementCompletedUploadSessionCounts(sessionId: string, completedCount: number) {
+  if (completedCount <= 0) {
+    const session = await prisma.galleryUploadSession.findUnique({
+      where: { id: sessionId },
+      select: {
+        totalCount: true,
+        completedCount: true,
+        failedCount: true
+      }
+    });
+
+    return session;
+  }
+
+  const session = await prisma.galleryUploadSession.update({
+    where: { id: sessionId },
+    data: {
+      uploadedCount: { increment: completedCount },
+      completedCount: { increment: completedCount }
+    },
+    select: {
+      totalCount: true,
+      completedCount: true,
+      failedCount: true
+    }
+  });
+  const status =
+    session.completedCount >= session.totalCount && session.totalCount > 0
+      ? "completed"
+      : session.failedCount > 0
+        ? "partial"
+        : session.completedCount > 0
+          ? "uploading"
+          : "pending";
+
+  await prisma.galleryUploadSession.update({
+    where: { id: sessionId },
+    data: { status }
+  });
+
+  return session;
+}
+
 async function reorderGalleryPhotosByCaptureTime(galleryId: string) {
   const photos = await prisma.photo.findMany({
     where: { galleryId },
@@ -789,7 +832,12 @@ export async function markPhotoUploadItemFailedAction({
   return { ok: true };
 }
 
-export async function completePhotoUploadsAction(galleryId: string, sessionId: string, uploads: CompletedPhotoUpload[]) {
+export async function completePhotoUploadsAction(
+  galleryId: string,
+  sessionId: string,
+  uploads: CompletedPhotoUpload[],
+  options: { revalidate?: boolean } = {}
+) {
   await requireGalleryAccess(galleryId);
 
   const session = await prisma.galleryUploadSession.findFirst({
@@ -933,28 +981,22 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
       }
     }, { timeout: 15000 });
 
-    await reorderGalleryPhotosByCaptureTime(galleryId);
   }
 
-  revalidatePath(`/admin/galleries/${galleryId}`);
-  revalidatePath(`/g/${session.gallery.slug}`);
-  await refreshUploadSessionCounts(session.id);
+  const uploadSession = await incrementCompletedUploadSessionCounts(session.id, sortedUploads.length);
+  const isSessionFinished =
+    Boolean(uploadSession) &&
+    uploadSession!.totalCount > 0 &&
+    uploadSession!.completedCount + uploadSession!.failedCount >= uploadSession!.totalCount;
 
-  const uploadSession = await prisma.galleryUploadSession.findUnique({
-    where: { id: session.id },
-    select: {
-      totalCount: true,
-      completedCount: true,
-      failedCount: true
-    }
-  });
-
-  if (
-    uploadSession &&
-    uploadSession.totalCount > 0 &&
-    uploadSession.completedCount + uploadSession.failedCount >= uploadSession.totalCount
-  ) {
+  if (isSessionFinished) {
+    await reorderGalleryPhotosByCaptureTime(galleryId);
     await invalidatePublicGalleryDownloadPackages(galleryId);
+  }
+
+  if (options.revalidate !== false || isSessionFinished) {
+    revalidatePath(`/admin/galleries/${galleryId}`);
+    revalidatePath(`/g/${session.gallery.slug}`);
   }
 
   return {
