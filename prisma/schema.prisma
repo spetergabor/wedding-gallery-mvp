@@ -215,6 +215,11 @@ model GalleryDownloadPackage {
   galleryId    String
   status       String   @default("pending")
   photoCount   Int      @default(0)
+  partIndex    Int      @default(0)
+  partCount    Int      @default(1)
+  photoOffset  Int      @default(0)
+  photoLimit   Int?
+  groupId      String?
   fileSize     Int      @default(0)
   r2Key        String?
   downloadUrl  String?
@@ -225,6 +230,7 @@ model GalleryDownloadPackage {
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
 
   @@index([galleryId])
+  @@index([groupId])
   @@index([status])
   @@index([generatedAt])
 }

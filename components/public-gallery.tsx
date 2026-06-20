@@ -34,6 +34,12 @@ type FavoriteListState = {
 
 type DownloadPackageStatus = "pending" | "processing" | "completed" | "failed";
 
+type ZipDownloadLink = {
+  downloadUrl: string | null;
+  filename: string | null;
+  label: string;
+};
+
 function galleryFileName(title: string) {
   return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery"}.zip`;
 }
@@ -92,6 +98,7 @@ export function PublicGallery({
   const [zipProgress, setZipProgress] = useState("");
   const [zipPackageId, setZipPackageId] = useState<string | null>(null);
   const [zipPackageStatus, setZipPackageStatus] = useState<DownloadPackageStatus | null>(null);
+  const [zipDownloadLinks, setZipDownloadLinks] = useState<ZipDownloadLink[]>([]);
   const [favoriteEmail, setFavoriteEmail] = useState("");
   const [favoriteEmailDraft, setFavoriteEmailDraft] = useState("");
   const [favoriteLists, setFavoriteLists] = useState<FavoriteListState[]>([]);
@@ -244,6 +251,7 @@ export function PublicGallery({
     setIsZipping(false);
     setZipPackageId(null);
     setZipPackageStatus(null);
+    setZipDownloadLinks([]);
     setZipProgress("");
     setEmailError("");
   }
@@ -274,8 +282,18 @@ export function PublicGallery({
       setZipPackageStatus(result.status as DownloadPackageStatus);
 
       if (result.status === "completed" && result.downloadUrl) {
+        const links = (result.packages ?? []).filter((downloadPart) => downloadPart.downloadUrl);
+
+        if (links.length > 1) {
+          setZipDownloadLinks(links);
+          setZipProgress("Download-Pakete sind bereit.");
+          setIsZipping(false);
+          setZipPackageStatus("completed");
+          return;
+        }
+
         setZipProgress("Download-Paket ist bereit...");
-        startZipDownload(result.downloadUrl, result.filename);
+        startZipDownload(links[0]?.downloadUrl ?? result.downloadUrl, links[0]?.filename ?? result.filename);
         setIsEmailOpen(false);
         setIsZipping(false);
         setZipPackageId(null);
@@ -305,6 +323,7 @@ export function PublicGallery({
     setEmailError("");
     setZipPackageId(null);
     setZipPackageStatus(null);
+    setZipDownloadLinks([]);
     setZipProgress("Download-Paket wird vorbereitet...");
 
     try {
@@ -315,8 +334,18 @@ export function PublicGallery({
       }
 
       if (result.downloadUrl) {
+        const links = (result.packages ?? []).filter((downloadPart) => downloadPart.downloadUrl);
+
+        if (links.length > 1) {
+          setZipDownloadLinks(links);
+          setZipProgress("Download-Pakete sind bereit.");
+          setZipPackageStatus("completed");
+          setIsZipping(false);
+          return;
+        }
+
         setZipProgress(result.cached ? "Bestehendes Download-Paket gefunden..." : "Download-Paket wurde erstellt...");
-        startZipDownload(result.downloadUrl, result.filename);
+        startZipDownload(links[0]?.downloadUrl ?? result.downloadUrl, links[0]?.filename ?? result.filename);
         setIsEmailOpen(false);
         setIsZipping(false);
         setZipProgress("");
@@ -813,6 +842,22 @@ export function PublicGallery({
                     </span>
                   ) : null}
                 </div>
+              </div>
+            ) : null}
+
+            {zipDownloadLinks.length > 0 ? (
+              <div className="mt-4 grid gap-2">
+                {zipDownloadLinks.map((downloadPart, index) => (
+                  <a
+                    key={`${downloadPart.downloadUrl}-${index}`}
+                    href={downloadPart.downloadUrl ?? "#"}
+                    download={downloadPart.filename ?? undefined}
+                    className="flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:bg-ink/5"
+                  >
+                    <Download size={15} />
+                    {downloadPart.label}
+                  </a>
+                ))}
               </div>
             ) : null}
 

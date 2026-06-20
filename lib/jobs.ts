@@ -56,7 +56,12 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
     select: {
       id: true,
       status: true,
-      galleryId: true
+      galleryId: true,
+      photoCount: true,
+      partIndex: true,
+      partCount: true,
+      photoOffset: true,
+      photoLimit: true
     }
   });
 
@@ -78,6 +83,8 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
       photos: {
         where: { isClientHidden: false },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        skip: downloadPackage.photoOffset,
+        take: downloadPackage.photoLimit ?? undefined,
         select: {
           filename: true,
           imageUrl: true
@@ -94,11 +101,13 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
     throw new Error("Diese Galerie enthält noch keine Fotos.");
   }
 
+  const totalPhotoCount = downloadPackage.photoCount || gallery.photos.length;
+
   await prisma.galleryDownloadPackage.update({
     where: { id: downloadPackage.id },
     data: {
       status: "processing",
-      photoCount: gallery.photos.length,
+      photoCount: totalPhotoCount,
       errorMessage: null
     }
   });
@@ -114,7 +123,7 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
       }
 
       const bytes = Buffer.from(await response.arrayBuffer());
-      zip.file(photoZipFileName(photo.filename, index), bytes);
+      zip.file(photoZipFileName(photo.filename, downloadPackage.photoOffset + index), bytes);
     }
 
     const zipBuffer = await zip.generateAsync({
@@ -134,7 +143,7 @@ async function generateGalleryZip(payload: ZipGenerationPayload) {
       where: { id: downloadPackage.id },
       data: {
         status: "completed",
-        photoCount: gallery.photos.length,
+        photoCount: totalPhotoCount,
         fileSize: zipBuffer.length,
         r2Key,
         downloadUrl,
