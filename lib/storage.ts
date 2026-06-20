@@ -517,6 +517,28 @@ export async function createPresignedPhotoUploadUrl({
   return getSignedUrl(getR2Client(), command, { expiresIn: 60 * 10 });
 }
 
+export async function createPresignedPhotoDownloadUrl({
+  r2Key,
+  filename,
+  expiresIn = 60 * 60
+}: {
+  r2Key: string;
+  filename?: string;
+  expiresIn?: number;
+}) {
+  if (STORAGE_DRIVER !== "r2") {
+    return getPhotoPublicUrl(r2Key);
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: r2Key,
+    ResponseContentDisposition: filename ? `attachment; filename="${filename.replace(/"/g, "")}"` : undefined
+  });
+
+  return getSignedUrl(getR2Client(), command, { expiresIn });
+}
+
 export async function deletePhotoObject(r2Key: string) {
   if (!r2Key) {
     return;

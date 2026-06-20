@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { after } from "next/server";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
@@ -21,7 +21,6 @@ import {
   isR2StorageEnabled,
   savePhotoObject
 } from "@/lib/storage";
-import { enqueueGalleryZipJob, kickGalleryZipJob } from "@/lib/jobs";
 import { verifyTotpCode } from "@/lib/totp";
 
 function formString(formData: FormData, key: string) {
@@ -60,94 +59,6 @@ async function requireGalleryAccess(galleryId: string) {
 
 function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
-}
-
-async function prepareGalleryZipPackages(galleryId: string) {
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: {
-      id: true,
-      photos: {
-        where: { isClientHidden: false },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { createdAt: true }
-      }
-    }
-  });
-
-  if (!gallery || gallery.photos.length === 0) {
-    return;
-  }
-
-  const latestPhotoCreatedAt = gallery.photos.reduce<Date | null>((latest, photo) => {
-    if (!latest || photo.createdAt > latest) {
-      return photo.createdAt;
-    }
-
-    return latest;
-  }, null);
-  const photoCount = gallery.photos.length;
-  const partCount = 1;
-  const existingCompletedParts = await prisma.galleryDownloadPackage.count({
-    where: {
-      galleryId,
-      status: "completed",
-      photoCount,
-      partCount,
-      downloadUrl: { not: null },
-      generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
-    }
-  });
-
-  if (existingCompletedParts >= partCount) {
-    return;
-  }
-
-  const existingActivePackage = await prisma.galleryDownloadPackage.findFirst({
-    where: {
-      galleryId,
-      status: { in: ["pending", "processing"] },
-      photoCount,
-      partCount
-    },
-    select: { id: true }
-  });
-
-  if (existingActivePackage) {
-    after(async () => {
-      await kickGalleryZipJob({
-        galleryId,
-        packageId: existingActivePackage.id
-      });
-    });
-    return;
-  }
-
-  const downloadPackage = await prisma.galleryDownloadPackage.create({
-    data: {
-      galleryId,
-      status: "pending",
-      photoCount,
-      partIndex: 0,
-      partCount,
-      photoOffset: 0,
-      photoLimit: photoCount
-    },
-    select: { id: true }
-  });
-
-  const zipJob = await enqueueGalleryZipJob({
-    galleryId,
-    packageId: downloadPackage.id
-  });
-
-  after(async () => {
-    await kickGalleryZipJob({
-      galleryId,
-      packageId: downloadPackage.id,
-      jobId: zipJob.id
-    });
-  });
 }
 
 type PhotoUploadRequest = {
@@ -273,6 +184,7 @@ export async function reorderGalleryPhotosAction(galleryId: string) {
   const { gallery } = await requireGalleryAccess(galleryId);
 
   await reorderGalleryPhotosByCaptureTime(galleryId);
+  await invalidatePublicGalleryDownloadPackages(galleryId);
 
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);
@@ -432,6 +344,7 @@ export async function restoreClientHiddenPhotoAction(galleryId: string, photoId:
       clientHiddenAt: null
     }
   });
+  await invalidatePublicGalleryDownloadPackages(galleryId);
 
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${photo.gallery.slug}`);
@@ -525,10 +438,6 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   revalidatePath(`/g/${previousSlug}`);
   revalidatePath(`/g/${slug}`);
 
-  if (isActive) {
-    await prepareGalleryZipPackages(id);
-  }
-
   redirect(`/admin/galleries/${id}?saved=1`);
 }
 
@@ -559,7 +468,6 @@ export async function activateGalleryAction(id: string) {
   revalidatePath("/admin/galleries");
   revalidatePath(`/admin/galleries/${id}`);
   revalidatePath(`/g/${gallery.slug}`);
-  await prepareGalleryZipPackages(id);
   redirect(`/admin/galleries/${id}?activated=1`);
 }
 
@@ -1046,7 +954,7 @@ export async function completePhotoUploadsAction(galleryId: string, sessionId: s
     uploadSession.totalCount > 0 &&
     uploadSession.completedCount + uploadSession.failedCount >= uploadSession.totalCount
   ) {
-    await prepareGalleryZipPackages(galleryId);
+    await invalidatePublicGalleryDownloadPackages(galleryId);
   }
 
   return {
@@ -1090,6 +998,7 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
     deletePhotoObject(getR2KeyFromPublicUrl(photo?.thumbnailUrl) ?? ""),
     deletePhotoObject(getR2KeyFromPublicUrl(photo?.previewUrl) ?? "")
   ]);
+  await invalidatePublicGalleryDownloadPackages(galleryId);
 
   revalidatePath(`/admin/galleries/${galleryId}`);
 
@@ -1148,6 +1057,7 @@ export async function movePhotoAction(galleryId: string, photoId: string, direct
       })
     )
   );
+  await invalidatePublicGalleryDownloadPackages(galleryId);
 
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);

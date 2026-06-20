@@ -25,6 +25,15 @@ type AdminGalleryZipReadyEmail = {
   generatedAt: Date;
 };
 
+type GuestGalleryDownloadReadyEmail = {
+  to: string;
+  galleryTitle: string;
+  downloadUrl: string;
+  expiresAt: Date;
+  photoCount: number;
+  fileSizeBytes?: bigint | number | null;
+};
+
 export function appBaseUrl() {
   const rawUrl = (
     process.env.NEXT_PUBLIC_APP_URL ??
@@ -162,6 +171,10 @@ export function publicGalleryUrl(slug: string) {
   return `${appBaseUrl()}/g/${slug}`;
 }
 
+export function galleryDownloadUrl(token: string) {
+  return `${appBaseUrl()}/download/${token}`;
+}
+
 function galleryZipReadyHtml({
   galleryTitle,
   galleryAdminUrl,
@@ -228,6 +241,74 @@ export async function sendAdminGalleryZipReadyEmail(payload: AdminGalleryZipRead
     const errorText = await response.text().catch(() => "");
     throw new Error(`Gallery ZIP ready email failed: ${response.status} ${errorText}`);
   }
+}
+
+function guestGalleryDownloadReadyHtml({
+  galleryTitle,
+  downloadUrl,
+  expiresAt,
+  photoCount,
+  fileSizeBytes
+}: GuestGalleryDownloadReadyEmail) {
+  const formattedSize = formatBytes(fileSizeBytes);
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Dein Galerie-Download ist bereit</h1>
+      <p style="margin: 0 0 18px;">Die ZIP-Datei für <strong>${escapeHtml(galleryTitle)}</strong> wurde erstellt.</p>
+      <table style="border-collapse: collapse; margin-bottom: 20px;">
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galerie</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Medien</td><td style="padding: 4px 0;">${photoCount}</td></tr>
+        ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">ZIP-Größe</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Link gültig bis</td><td style="padding: 4px 0;">${expiresAt.toLocaleString("de-AT")}</td></tr>
+      </table>
+      <p style="margin: 0 0 18px;">
+        <a href="${escapeHtml(downloadUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">ZIP herunterladen</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(downloadUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDownloadReadyEmail) {
+  const { apiKey, from } = emailConfig();
+  const formattedSize = formatBytes(payload.fileSizeBytes);
+
+  if (!apiKey) {
+    console.warn("Guest ZIP download email skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject: `Dein Galerie-Download ist bereit: ${payload.galleryTitle}`,
+      html: guestGalleryDownloadReadyHtml(payload),
+      text: [
+        "Dein Galerie-Download ist bereit",
+        "",
+        `Galerie: ${payload.galleryTitle}`,
+        `Medien: ${payload.photoCount}`,
+        ...(formattedSize ? [`ZIP-Größe: ${formattedSize}`] : []),
+        `Link gültig bis: ${payload.expiresAt.toLocaleString("de-AT")}`,
+        "",
+        `Download: ${payload.downloadUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Guest ZIP download email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
 }
 
 function contractSignatureRequestHtml({

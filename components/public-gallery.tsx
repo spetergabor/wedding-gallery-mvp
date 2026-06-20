@@ -34,16 +34,6 @@ type FavoriteListState = {
 
 type DownloadPackageStatus = "pending" | "processing" | "completed" | "failed";
 
-type ZipDownloadLink = {
-  downloadUrl: string | null;
-  filename: string | null;
-  label: string;
-};
-
-function galleryFileName(title: string) {
-  return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery"}.zip`;
-}
-
 function photoFileName(photo: PublicPhoto, index: number) {
   const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
   return (photo.filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
@@ -98,7 +88,6 @@ export function PublicGallery({
   const [zipProgress, setZipProgress] = useState("");
   const [zipPackageId, setZipPackageId] = useState<string | null>(null);
   const [zipPackageStatus, setZipPackageStatus] = useState<DownloadPackageStatus | null>(null);
-  const [zipDownloadLinks, setZipDownloadLinks] = useState<ZipDownloadLink[]>([]);
   const [favoriteEmail, setFavoriteEmail] = useState("");
   const [favoriteEmailDraft, setFavoriteEmailDraft] = useState("");
   const [favoriteLists, setFavoriteLists] = useState<FavoriteListState[]>([]);
@@ -237,21 +226,11 @@ export function PublicGallery({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedIndex, visiblePhotos.length]);
 
-  function startZipDownload(downloadUrl: string, filename: string | null) {
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = filename ?? galleryFileName(title);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  }
-
   function closeDownloadDialog() {
     setIsEmailOpen(false);
     setIsZipping(false);
     setZipPackageId(null);
     setZipPackageStatus(null);
-    setZipDownloadLinks([]);
     setZipProgress("");
     setEmailError("");
   }
@@ -280,36 +259,16 @@ export function PublicGallery({
       }
 
       setZipPackageStatus(result.status as DownloadPackageStatus);
-      const links = (result.packages ?? []).filter((downloadPart) => downloadPart.downloadUrl);
 
-      if (links.length > 0) {
-        setZipDownloadLinks(links);
-      }
-
-      if (result.status === "completed" && result.downloadUrl) {
-        if (links.length > 1) {
-          setZipDownloadLinks(links);
-          setZipProgress("Download-Pakete sind bereit.");
-          setIsZipping(false);
-          setZipPackageStatus("completed");
-          return;
-        }
-
-        setZipProgress("Download-Paket ist bereit...");
-        startZipDownload(links[0]?.downloadUrl ?? result.downloadUrl, links[0]?.filename ?? result.filename);
-        setIsEmailOpen(false);
+      if (result.status === "completed") {
+        setZipProgress(result.message || "Der Download-Link wurde per E-Mail gesendet.");
         setIsZipping(false);
         setZipPackageId(null);
-        setZipPackageStatus(null);
-        setZipProgress("");
+        setZipPackageStatus("completed");
         return;
       }
 
-      if (links.length > 0) {
-        setZipProgress(`${links.length} Download-Paket(e) bereit, weitere werden erstellt...`);
-      } else {
-        setZipProgress(result.status === "processing" ? "Download-Paket wird erstellt..." : "Download-Paket wartet auf Verarbeitung...");
-      }
+      setZipProgress(result.status === "processing" ? "ZIP-Datei wird erstellt. Du bekommst den Link per E-Mail." : "ZIP-Datei wartet auf Verarbeitung. Du bekommst den Link per E-Mail.");
     }
 
     const interval = window.setInterval(checkPackage, 3000);
@@ -330,7 +289,6 @@ export function PublicGallery({
     setEmailError("");
     setZipPackageId(null);
     setZipPackageStatus(null);
-    setZipDownloadLinks([]);
     setZipProgress("Download-Paket wird vorbereitet...");
 
     try {
@@ -340,22 +298,10 @@ export function PublicGallery({
         throw new Error(result.message);
       }
 
-      if (result.downloadUrl) {
-        const links = (result.packages ?? []).filter((downloadPart) => downloadPart.downloadUrl);
-
-        if (links.length > 1) {
-          setZipDownloadLinks(links);
-          setZipProgress("Download-Pakete sind bereit.");
-          setZipPackageStatus("completed");
-          setIsZipping(false);
-          return;
-        }
-
-        setZipProgress(result.cached ? "Bestehendes Download-Paket gefunden..." : "Download-Paket wurde erstellt...");
-        startZipDownload(links[0]?.downloadUrl ?? result.downloadUrl, links[0]?.filename ?? result.filename);
-        setIsEmailOpen(false);
+      if (result.status === "completed") {
+        setZipProgress(result.message || "Der Download-Link wird per E-Mail gesendet.");
         setIsZipping(false);
-        setZipProgress("");
+        setZipPackageStatus("completed");
         return;
       }
 
@@ -365,7 +311,7 @@ export function PublicGallery({
 
       setZipPackageId(result.packageId);
       setZipPackageStatus(result.status as DownloadPackageStatus);
-      setZipProgress(result.status === "processing" ? "Download-Paket wird erstellt..." : "Download-Paket wartet auf Verarbeitung...");
+      setZipProgress(result.status === "processing" ? "ZIP-Datei wird erstellt. Du bekommst den Link per E-Mail." : "ZIP-Datei wartet auf Verarbeitung. Du bekommst den Link per E-Mail.");
     } catch (error) {
       setEmailError(error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.");
       setIsZipping(false);
@@ -787,7 +733,7 @@ export function PublicGallery({
         </button>
         <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
           <Download size={16} />
-          {isZipping ? "ZIP wird erstellt" : "ZIP herunterladen"}
+          {isZipping ? "ZIP wird erstellt" : "ZIP per E-Mail"}
         </Button>
       </div>
 
@@ -801,7 +747,7 @@ export function PublicGallery({
                 </div>
                 <h2 className="mt-4 text-xl font-semibold text-ink">Album herunterladen</h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  Gib deine E-Mail-Adresse ein, um die komplette Galerie als ZIP-Datei herunterzuladen.
+                  Gib deine E-Mail-Adresse ein. Wir senden dir den Download-Link, sobald die ZIP-Datei bereit ist.
                 </p>
               </div>
               <button
@@ -845,26 +791,10 @@ export function PublicGallery({
               </div>
             ) : null}
 
-            {zipDownloadLinks.length > 0 ? (
-              <div className="mt-4 grid gap-2">
-                {zipDownloadLinks.map((downloadPart, index) => (
-                  <a
-                    key={`${downloadPart.downloadUrl}-${index}`}
-                    href={downloadPart.downloadUrl ?? "#"}
-                    download={downloadPart.filename ?? undefined}
-                    className="flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:bg-ink/5"
-                  >
-                    <Download size={15} />
-                    {downloadPart.label}
-                  </a>
-                ))}
-              </div>
-            ) : null}
-
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="submit" disabled={isZipping} className="sm:flex-1">
                 <Download size={16} />
-                {isZipping ? "ZIP wird erstellt" : "Download starten"}
+                {isZipping ? "ZIP wird erstellt" : "Link anfordern"}
               </Button>
               <Button type="button" variant="secondary" onClick={closeDownloadDialog}>
                 Abbrechen

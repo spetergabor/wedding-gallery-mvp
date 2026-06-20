@@ -70,7 +70,7 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
     (downloadPackage) => downloadPackage.status === "processing" && now - downloadPackage.updatedAt.getTime() <= STALE_PROCESSING_MS
   ).length;
   const pendingCount = packages.filter((downloadPackage) => downloadPackage.status === "pending").length;
-  const failedCount = packages.filter((downloadPackage) => downloadPackage.status === "failed").length + staleProcessingCount;
+  const failedCount = packages.filter((downloadPackage) => downloadPackage.status === "failed" || downloadPackage.status === "stale").length + staleProcessingCount;
   const processedCount = packages.reduce((sum, downloadPackage) => sum + downloadPackage.processedCount, 0);
   const partIndexes = new Set(downloadablePackages.map((downloadPackage) => downloadPackage.partIndex));
   const hasEveryPart = Array.from({ length: expectedPartCount }, (_, index) => partIndexes.has(index)).every(Boolean);
@@ -141,7 +141,7 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
   if (group.isComplete) {
     return {
       label: "Kész",
-      description: "A publikus ZIP letöltés azonnal indítható.",
+      description: "A vendég ZIP elkészült, a link emailben küldhető.",
       className: "bg-sage/15 text-sage",
       icon: CheckCircle2
     };

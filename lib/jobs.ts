@@ -3,8 +3,15 @@ import { PassThrough, Readable } from "node:stream";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
 import { prisma } from "@/lib/prisma";
-import { adminGalleryUrl, publicGalleryUrl, sendAdminGalleryZipReadyEmail } from "@/lib/email";
-import { createGalleryZipObjectKey, createPhotoReadStream, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
+import { ensureDownloadPackageAccessToken } from "@/lib/download-packages";
+import {
+  adminGalleryUrl,
+  galleryDownloadUrl,
+  publicGalleryUrl,
+  sendAdminGalleryZipReadyEmail,
+  sendGuestGalleryDownloadReadyEmail
+} from "@/lib/email";
+import { createGalleryZipObjectKey, createPhotoReadStream, deletePhotoObject, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
 
 export const ZIP_GENERATION_JOB = "zip_generation";
 
@@ -271,6 +278,10 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     return;
   }
 
+  if (!["pending", "processing"].includes(downloadPackage.status)) {
+    return;
+  }
+
   const downloadPackageId = downloadPackage.id;
 
   const gallery = await prisma.gallery.findUnique({
@@ -296,6 +307,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         skip: downloadPackage.photoOffset,
         take: downloadPackage.photoLimit ?? undefined,
         select: {
+          id: true,
           filename: true,
           imageUrl: true,
           r2Key: true,
@@ -409,6 +421,30 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     await progressUpdatePromise;
 
     const generatedAt = new Date();
+    const zippedPhotoIds = gallery.photos.map((photo) => photo.id);
+    const currentVisiblePhotoIds = await prisma.photo.findMany({
+      where: { galleryId: gallery.id, isClientHidden: false },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      skip: downloadPackage.photoOffset,
+      take: downloadPackage.photoLimit ?? undefined,
+      select: { id: true }
+    });
+    const publicPhotoListChanged =
+      zippedPhotoIds.length !== currentVisiblePhotoIds.length ||
+      zippedPhotoIds.some((photoId, index) => photoId !== currentVisiblePhotoIds[index]?.id);
+
+    if (publicPhotoListChanged) {
+      await deletePhotoObject(r2Key);
+      await prisma.galleryDownloadPackage.update({
+        where: { id: downloadPackage.id },
+        data: {
+          status: "stale",
+          errorMessage: "A publikus képlista megváltozott ZIP készítés közben."
+        }
+      });
+
+      return;
+    }
 
     await prisma.galleryDownloadPackage.update({
       where: { id: downloadPackage.id },
@@ -424,6 +460,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         generatedAt
       }
     });
+
+    await sendGalleryDownloadLinksForPackage(downloadPackage.id);
 
     await notifyGalleryZipReady({
       galleryId: gallery.id,
@@ -449,6 +487,142 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     });
 
     throw error;
+  }
+}
+
+export async function sendGalleryDownloadLinkForRequest(downloadId: string) {
+  const download = await prisma.galleryDownload.findUnique({
+    where: { id: downloadId },
+    select: {
+      id: true,
+      email: true,
+      package: {
+        select: {
+          id: true,
+          status: true,
+          photoCount: true,
+          fileSize: true,
+          gallery: {
+            select: {
+              title: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!download?.package || download.package.status !== "completed") {
+    return;
+  }
+
+  const { token, expiresAt } = await ensureDownloadPackageAccessToken(download.package.id);
+  const sentAt = new Date();
+
+  try {
+    const sent = await sendGuestGalleryDownloadReadyEmail({
+      to: download.email,
+      galleryTitle: download.package.gallery.title,
+      downloadUrl: galleryDownloadUrl(token),
+      expiresAt,
+      photoCount: download.package.photoCount,
+      fileSizeBytes: download.package.fileSize
+    });
+
+    await prisma.galleryDownload.update({
+      where: { id: download.id },
+      data: sent
+        ? {
+            status: "emailed",
+            downloadLinkSentAt: sentAt,
+            downloadLinkEmailError: null
+          }
+        : {
+            status: "email_failed",
+            downloadLinkEmailError: "Missing email configuration."
+          }
+    });
+  } catch (error) {
+    await prisma.galleryDownload.update({
+      where: { id: download.id },
+      data: {
+        status: "email_failed",
+        downloadLinkEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email sending failed."
+      }
+    });
+  }
+}
+
+export async function sendGalleryDownloadLinksForPackage(packageId: string) {
+  const downloadPackage = await prisma.galleryDownloadPackage.findUnique({
+    where: { id: packageId },
+    select: {
+      id: true,
+      status: true,
+      photoCount: true,
+      fileSize: true,
+      gallery: {
+        select: {
+          title: true
+        }
+      },
+      downloads: {
+        where: { status: { in: ["waiting", "email_failed"] } },
+        select: {
+          id: true,
+          email: true
+        }
+      }
+    }
+  });
+
+  if (!downloadPackage || downloadPackage.status !== "completed" || downloadPackage.downloads.length === 0) {
+    return;
+  }
+
+  const { token, expiresAt } = await ensureDownloadPackageAccessToken(downloadPackage.id);
+  const downloadUrl = galleryDownloadUrl(token);
+  const downloadsByEmail = new Map<string, string[]>();
+
+  for (const download of downloadPackage.downloads) {
+    downloadsByEmail.set(download.email, [...(downloadsByEmail.get(download.email) ?? []), download.id]);
+  }
+
+  for (const [email, downloadIds] of downloadsByEmail) {
+    const sentAt = new Date();
+
+    try {
+      const sent = await sendGuestGalleryDownloadReadyEmail({
+        to: email,
+        galleryTitle: downloadPackage.gallery.title,
+        downloadUrl,
+        expiresAt,
+        photoCount: downloadPackage.photoCount,
+        fileSizeBytes: downloadPackage.fileSize
+      });
+
+      await prisma.galleryDownload.updateMany({
+        where: { id: { in: downloadIds } },
+        data: sent
+          ? {
+              status: "emailed",
+              downloadLinkSentAt: sentAt,
+              downloadLinkEmailError: null
+            }
+          : {
+              status: "email_failed",
+              downloadLinkEmailError: "Missing email configuration."
+            }
+      });
+    } catch (error) {
+      await prisma.galleryDownload.updateMany({
+        where: { id: { in: downloadIds } },
+        data: {
+          status: "email_failed",
+          downloadLinkEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email sending failed."
+        }
+      });
+    }
   }
 }
 

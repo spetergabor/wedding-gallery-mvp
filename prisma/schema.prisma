@@ -203,17 +203,25 @@ model MediaProcessingJob {
 model GalleryDownload {
   id        String   @id @default(cuid())
   galleryId String
+  packageId String?
   email     String
+  status    String   @default("recorded")
+  downloadLinkSentAt DateTime?
+  downloadLinkEmailError String?
   createdAt DateTime @default(now())
   gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  package   GalleryDownloadPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
 
   @@index([galleryId])
+  @@index([packageId])
   @@index([email])
+  @@index([status])
 }
 
 model GalleryDownloadPackage {
   id           String   @id @default(cuid())
   galleryId    String
+  scope        String   @default("public")
   status       String   @default("pending")
   photoCount   Int      @default(0)
   partIndex    Int      @default(0)
@@ -226,13 +234,18 @@ model GalleryDownloadPackage {
   processedBytes BigInt  @default(0)
   r2Key        String?
   downloadUrl  String?
+  accessToken  String?  @unique
+  accessTokenExpiresAt DateTime?
+  linkCreatedAt DateTime?
   errorMessage String?
   generatedAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  downloads    GalleryDownload[]
 
   @@index([galleryId])
+  @@index([galleryId, scope])
   @@index([groupId])
   @@index([status])
   @@index([generatedAt])

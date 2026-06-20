@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages";
 import { prisma } from "@/lib/prisma";
 
 export async function toggleClientPhotoVisibilityAction({
@@ -56,6 +57,7 @@ export async function toggleClientPhotoVisibilityAction({
       clientHiddenAt: hidden ? new Date() : null
     }
   });
+  await invalidatePublicGalleryDownloadPackages(galleryId);
 
   revalidatePath(`/g/${gallery.slug}`);
   revalidatePath(`/client/${gallery.slug}`);
