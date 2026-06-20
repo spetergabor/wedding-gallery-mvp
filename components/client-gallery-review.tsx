@@ -12,13 +12,22 @@ type ClientPhoto = {
   filename: string;
   imageUrl: string;
   thumbnailUrl: string;
+  previewUrl: string;
   mediaType: string;
   processingStatus: string;
   isClientHidden: boolean;
 };
 
-function hasLightweightThumbnail(photo: ClientPhoto) {
-  return photo.mediaType !== "video" && photo.processingStatus === "ready" && photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl;
+function getClientPreviewUrl(photo: ClientPhoto) {
+  if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
+    return photo.thumbnailUrl;
+  }
+
+  if (photo.previewUrl && photo.previewUrl !== photo.imageUrl) {
+    return photo.previewUrl;
+  }
+
+  return photo.imageUrl;
 }
 
 export function ClientGalleryReview({
@@ -133,14 +142,15 @@ export function ClientGalleryReview({
                       </span>
                     </span>
                   </div>
-                ) : hasLightweightThumbnail(photo) ? (
+                ) : getClientPreviewUrl(photo) ? (
                   <Image
-                    src={photo.thumbnailUrl}
+                    src={getClientPreviewUrl(photo)}
                     alt={photo.filename}
                     fill
                     unoptimized
+                    loading="lazy"
                     className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
-                    sizes="(min-width: 1024px) 33vw, 50vw"
+                    sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                   />
                 ) : (
                   <div className={`grid h-full w-full place-items-center text-graphite/60 transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
