@@ -272,12 +272,7 @@ export async function savePhotoStream({
   let buffers: Buffer[] = [];
   const completedParts: Array<{ ETag: string; PartNumber: number }> = [];
 
-  async function uploadBufferedPart() {
-    if (bufferedBytes === 0) {
-      return;
-    }
-
-    const body = Buffer.concat(buffers, bufferedBytes);
+  async function uploadPart(body: Buffer) {
     const uploadedPart = await client.send(
       new UploadPartCommand({
         Bucket: R2_BUCKET_NAME,
@@ -299,8 +294,21 @@ export async function savePhotoStream({
     partNumber += 1;
     totalBytes += BigInt(body.length);
     onProgress?.(totalBytes);
-    buffers = [];
-    bufferedBytes = 0;
+  }
+
+  async function uploadBufferedPart(byteLength: number) {
+    if (byteLength === 0) {
+      return;
+    }
+
+    const combined = Buffer.concat(buffers, bufferedBytes);
+    const body = combined.subarray(0, byteLength);
+    const remaining = combined.subarray(byteLength);
+
+    await uploadPart(body);
+
+    buffers = remaining.length > 0 ? [remaining] : [];
+    bufferedBytes = remaining.length;
   }
 
   try {
@@ -309,12 +317,12 @@ export async function savePhotoStream({
       buffers.push(buffer);
       bufferedBytes += buffer.length;
 
-      if (bufferedBytes >= MULTIPART_UPLOAD_PART_SIZE) {
-        await uploadBufferedPart();
+      while (bufferedBytes >= MULTIPART_UPLOAD_PART_SIZE) {
+        await uploadBufferedPart(MULTIPART_UPLOAD_PART_SIZE);
       }
     }
 
-    await uploadBufferedPart();
+    await uploadBufferedPart(bufferedBytes);
 
     await client.send(
       new CompleteMultipartUploadCommand({
