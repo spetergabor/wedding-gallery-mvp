@@ -128,6 +128,7 @@ export default async function GalleryDetailPage({
     ordered?: string;
     photoAdded?: string;
     photoError?: string;
+    photoSearch?: string;
     photoSet?: string;
     proofingInvite?: string;
     proofingStatus?: string;
@@ -364,6 +365,7 @@ export default async function GalleryDetailPage({
               galleryMode={gallery.galleryMode}
               photos={gallery.photos}
               activeSet={flags.photoSet}
+              activeSearch={flags.photoSearch}
               selectedPhotoIds={selectedPhotoIds}
             />
           </div>

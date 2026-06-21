@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, Film, ImageIcon, Star, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, Film, ImageIcon, Search, Star, Trash2, X } from "lucide-react";
 import {
   cleanupDuplicatePhotosAction,
   deletePhotoAction,
@@ -104,6 +104,7 @@ export function PhotoManager({
   galleryMode,
   photos,
   activeSet = "all",
+  activeSearch = "",
   selectedPhotoIds = []
 }: {
   coverPhotoId: string | null;
@@ -111,6 +112,7 @@ export function PhotoManager({
   galleryMode: string;
   photos: Photo[];
   activeSet?: string | null;
+  activeSearch?: string | null;
   selectedPhotoIds?: string[];
 }) {
   const proofingGallery = isProofingGallery(galleryMode);
@@ -120,7 +122,8 @@ export function PhotoManager({
   const selectedCount = photos.filter((photo) => selectedSet.has(photo.id)).length;
   const duplicateCount = countDuplicatePhotos(photos);
   const normalizedActiveSet = normalizePhotoManagerSet(activeSet);
-  const displayedPhotos = proofingGallery
+  const normalizedSearch = (activeSearch ?? "").trim();
+  const basePhotos = proofingGallery
     ? photos.filter((photo) => {
         if (normalizedActiveSet === "raw") {
           return photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW;
@@ -137,6 +140,9 @@ export function PhotoManager({
         return true;
       })
     : photos;
+  const displayedPhotos = normalizedSearch
+    ? basePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedSearch.toLowerCase()))
+    : basePhotos;
   const photoSetTabs = [
     { key: "all", label: "Összes", count: photos.length },
     { key: "raw", label: "Nyers képek", count: rawCount },
@@ -151,6 +157,8 @@ export function PhotoManager({
         : normalizedActiveSet === "raw"
           ? "A nyers válogatásra feltöltött képek ebben a nézetben jelennek meg."
           : "Tölts fel képeket, majd itt tudod rendezni őket és borítóképet választani.";
+  const photoSetQueryPart = proofingGallery ? `&photoSet=${normalizedActiveSet}` : "";
+  const searchQueryPart = normalizedSearch ? `&photoSearch=${encodeURIComponent(normalizedSearch)}` : "";
 
   return (
     <section>
@@ -194,7 +202,7 @@ export function PhotoManager({
             return (
               <Link
                 key={tab.key}
-                href={`/admin/galleries/${galleryId}?tab=photos&photoSet=${tab.key}`}
+                href={`/admin/galleries/${galleryId}?tab=photos&photoSet=${tab.key}${searchQueryPart}`}
                 className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
                   isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
                 }`}
@@ -208,6 +216,45 @@ export function PhotoManager({
           })}
         </nav>
       ) : null}
+      <form method="get" className="mb-5 rounded-lg border border-ink/10 bg-white p-3 shadow-soft">
+        <input type="hidden" name="tab" value="photos" />
+        {proofingGallery ? <input type="hidden" name="photoSet" value={normalizedActiveSet} /> : null}
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <label className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-graphite/50" />
+            <input
+              type="search"
+              name="photoSearch"
+              defaultValue={normalizedSearch}
+              placeholder="Keresés fájlnév alapján..."
+              className="h-11 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
+            />
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+            >
+              <Search size={16} />
+              Keresés
+            </button>
+            {normalizedSearch ? (
+              <Link
+                href={`/admin/galleries/${galleryId}?tab=photos${photoSetQueryPart}`}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-graphite transition hover:border-ink/30"
+              >
+                <X size={16} />
+                Törlés
+              </Link>
+            ) : null}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-graphite/70">
+          {normalizedSearch
+            ? `${displayedPhotos.length} találat / ${basePhotos.length} kép ebben a nézetben.`
+            : `${basePhotos.length} kép ebben a nézetben.`}
+        </p>
+      </form>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {displayedPhotos.map((photo, index) => (
           <div key={photo.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white">
@@ -335,8 +382,8 @@ export function PhotoManager({
           <div className="sm:col-span-2 lg:col-span-3">
             <EmptyState
               icon={<ImageIcon size={22} />}
-              title="Még nincs fotó"
-              description={emptyDescription}
+              title={normalizedSearch ? "Nincs találat" : "Még nincs fotó"}
+              description={normalizedSearch ? "Próbálj teljes vagy részleges fájlnevet keresni, például SP2_4439 vagy DJI_0018." : emptyDescription}
             />
           </div>
         ) : null}
