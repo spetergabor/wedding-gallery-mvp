@@ -37,8 +37,7 @@ export async function GET(
       accessTokenExpiresAt: true,
       gallery: {
         select: {
-          title: true,
-          downloadsEnabled: true
+          title: true
         }
       }
     }
@@ -46,10 +45,6 @@ export async function GET(
 
   if (!downloadPackage || downloadPackage.status !== "completed" || !downloadPackage.r2Key) {
     return plainTextResponse("Download-Link ist ungültig oder nicht mehr verfügbar.", 404);
-  }
-
-  if (!downloadPackage.gallery.downloadsEnabled) {
-    return plainTextResponse("Downloads sind für diese Galerie derzeit deaktiviert.", 403);
   }
 
   if (!downloadPackage.accessTokenExpiresAt || downloadPackage.accessTokenExpiresAt <= new Date()) {

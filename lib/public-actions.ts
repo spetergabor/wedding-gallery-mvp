@@ -130,7 +130,6 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       title: true,
       slug: true,
       isActive: true,
-      downloadsEnabled: true,
       photos: {
         where: { isClientHidden: false },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -147,19 +146,6 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     return {
       ok: false,
       message: "Diese Galerie ist derzeit nicht verfügbar.",
-      downloadUrl: null,
-      filename: null,
-      cached: false,
-      packageId: null,
-      status: "failed",
-      packages: []
-    };
-  }
-
-  if (!gallery.downloadsEnabled) {
-    return {
-      ok: false,
-      message: "Downloads sind für diese Galerie derzeit deaktiviert.",
       downloadUrl: null,
       filename: null,
       cached: false,

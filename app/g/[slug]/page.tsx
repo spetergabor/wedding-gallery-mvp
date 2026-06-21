@@ -142,12 +142,7 @@ export default async function PublicGalleryPage({
 
       <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
         {visiblePhotos.length > 0 ? (
-          <PublicGallery
-            galleryId={gallery.id}
-            title={gallery.title}
-            photos={visiblePhotos}
-            downloadsEnabled={gallery.downloadsEnabled}
-          />
+          <PublicGallery galleryId={gallery.id} title={gallery.title} photos={visiblePhotos} />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
             Diese Galerie enthält noch keine Fotos.

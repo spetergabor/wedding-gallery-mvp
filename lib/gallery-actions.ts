@@ -404,9 +404,6 @@ export async function createGalleryAction(formData: FormData) {
   const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
-  const downloadsEnabled = formData.get("downloadsEnabled") === "on";
-  const clientWatermarkEnabled = formData.get("clientWatermarkEnabled") === "on";
-  const clientWatermarkText = formString(formData, "clientWatermarkText").slice(0, 80);
 
   if (!title || !slug) {
     redirect("/admin/galleries/new?error=missing");
@@ -423,9 +420,6 @@ export async function createGalleryAction(formData: FormData) {
         password: password || null,
         eventDate,
         isActive,
-        downloadsEnabled,
-        clientWatermarkEnabled,
-        clientWatermarkText: clientWatermarkText || title,
         clientAccessToken: createClientAccessToken()
       }
     });
@@ -450,9 +444,6 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
-  const downloadsEnabled = formData.get("downloadsEnabled") === "on";
-  const clientWatermarkEnabled = formData.get("clientWatermarkEnabled") === "on";
-  const clientWatermarkText = formString(formData, "clientWatermarkText").slice(0, 80);
 
   if (!title || !slug) {
     redirect(`/admin/galleries/${id}?error=missing`);
@@ -475,10 +466,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         slug,
         password: password || null,
         eventDate,
-        isActive,
-        downloadsEnabled,
-        clientWatermarkEnabled,
-        clientWatermarkText: clientWatermarkText || title
+        isActive
       }
     });
   } catch (error) {
@@ -492,7 +480,6 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   revalidatePath("/admin/galleries");
   revalidatePath(`/g/${previousSlug}`);
   revalidatePath(`/g/${slug}`);
-  revalidatePath(`/client/${slug}`);
 
   redirect(`/admin/galleries/${id}?saved=1`);
 }
