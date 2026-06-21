@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, Film, ImageIcon, Star, Trash2 } from "lucide-react";
 import {
   deletePhotoAction,
@@ -9,7 +10,12 @@ import {
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
-import { isProofingGallery, photoDeliveryStageLabel } from "@/lib/proofing";
+import {
+  PHOTO_DELIVERY_STAGE_FINAL,
+  PHOTO_DELIVERY_STAGE_RAW,
+  isProofingGallery,
+  photoDeliveryStageLabel
+} from "@/lib/proofing";
 
 type Photo = {
   id: string;
@@ -26,6 +32,8 @@ type Photo = {
   processingError: string | null;
 };
 
+export type PhotoManagerSet = "all" | "raw" | "final" | "selected";
+
 function getAdminPreviewUrl(photo: Photo) {
   if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
     return photo.thumbnailUrl;
@@ -38,20 +46,66 @@ function getAdminPreviewUrl(photo: Photo) {
   return photo.imageUrl;
 }
 
+function normalizePhotoManagerSet(value: string | null | undefined): PhotoManagerSet {
+  if (value === "raw" || value === "final" || value === "selected") {
+    return value;
+  }
+
+  return "all";
+}
+
 export function PhotoManager({
   coverPhotoId,
   galleryId,
   galleryMode,
-  photos
+  photos,
+  activeSet = "all",
+  selectedPhotoIds = []
 }: {
   coverPhotoId: string | null;
   galleryId: string;
   galleryMode: string;
   photos: Photo[];
+  activeSet?: string | null;
+  selectedPhotoIds?: string[];
 }) {
   const proofingGallery = isProofingGallery(galleryMode);
-  const rawCount = photos.filter((photo) => photo.deliveryStage === "raw").length;
-  const finalCount = photos.filter((photo) => photo.deliveryStage === "final").length;
+  const selectedSet = new Set(selectedPhotoIds);
+  const rawCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW).length;
+  const finalCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL).length;
+  const selectedCount = photos.filter((photo) => selectedSet.has(photo.id)).length;
+  const normalizedActiveSet = normalizePhotoManagerSet(activeSet);
+  const displayedPhotos = proofingGallery
+    ? photos.filter((photo) => {
+        if (normalizedActiveSet === "raw") {
+          return photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW;
+        }
+
+        if (normalizedActiveSet === "final") {
+          return photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL;
+        }
+
+        if (normalizedActiveSet === "selected") {
+          return selectedSet.has(photo.id);
+        }
+
+        return true;
+      })
+    : photos;
+  const photoSetTabs = [
+    { key: "all", label: "Összes", count: photos.length },
+    { key: "raw", label: "Nyers képek", count: rawCount },
+    { key: "selected", label: "Ügyfél által kiválasztottak", count: selectedCount },
+    { key: "final", label: "Kész képek", count: finalCount }
+  ];
+  const emptyDescription =
+    normalizedActiveSet === "selected"
+      ? "Ha az ügyfél leadja a válogatását, itt külön látod majd a kiválasztott képeket."
+      : normalizedActiveSet === "final"
+        ? "A készre kidolgozott képek ebben a nézetben jelennek meg."
+        : normalizedActiveSet === "raw"
+          ? "A nyers válogatásra feltöltött képek ebben a nézetben jelennek meg."
+          : "Tölts fel képeket, majd itt tudod rendezni őket és borítóképet választani.";
 
   return (
     <section>
@@ -73,8 +127,30 @@ export function PhotoManager({
           </form>
         ) : null}
       </div>
+      {proofingGallery ? (
+        <nav className="mb-5 grid gap-2 rounded-lg border border-ink/10 bg-white p-2 shadow-soft sm:grid-cols-2 lg:grid-cols-4" aria-label="Fotó készletek">
+          {photoSetTabs.map((tab) => {
+            const isActive = normalizedActiveSet === tab.key;
+
+            return (
+              <Link
+                key={tab.key}
+                href={`/admin/galleries/${galleryId}?tab=photos&photoSet=${tab.key}`}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                  isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                }`}
+              >
+                {tab.label}
+                <span className={`rounded-full px-2 py-0.5 text-xs ${isActive ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
+                  {tab.count}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {photos.map((photo, index) => (
+        {displayedPhotos.map((photo, index) => (
           <div key={photo.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white">
             <div className="relative aspect-[4/3] bg-mist">
               {photo.mediaType === "video" ? (
@@ -155,7 +231,7 @@ export function PhotoManager({
                 <form action={movePhotoAction.bind(null, galleryId, photo.id, "down")}>
                   <button
                     title="Hátrébb"
-                    disabled={index === photos.length - 1}
+                    disabled={index === displayedPhotos.length - 1}
                     className="flex h-9 w-full items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ArrowDown size={16} />
@@ -196,12 +272,12 @@ export function PhotoManager({
             </div>
           </div>
         ))}
-        {photos.length === 0 ? (
+        {displayedPhotos.length === 0 ? (
           <div className="sm:col-span-2 lg:col-span-3">
             <EmptyState
               icon={<ImageIcon size={22} />}
               title="Még nincs fotó"
-              description="Tölts fel képeket, majd itt tudod rendezni őket és borítóképet választani."
+              description={emptyDescription}
             />
           </div>
         ) : null}

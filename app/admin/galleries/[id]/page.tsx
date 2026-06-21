@@ -20,10 +20,20 @@ import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
-import { generateClientAccessLinkAction, sendProofingInviteAction } from "@/lib/gallery-actions";
+import {
+  generateClientAccessLinkAction,
+  sendProofingInviteAction,
+  updateGalleryProofingStatusAction
+} from "@/lib/gallery-actions";
 import { kickGalleryZipJob } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
-import { defaultPhotoDeliveryStageForGalleryMode, isProofingGallery, proofingStatusLabel } from "@/lib/proofing";
+import {
+  PHOTO_DELIVERY_STAGE_FINAL,
+  PROOFING_STATUS_DELIVERED,
+  defaultPhotoDeliveryStageForGalleryMode,
+  isProofingGallery,
+  proofingStatusLabel
+} from "@/lib/proofing";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
 type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
@@ -111,6 +121,7 @@ export default async function GalleryDetailPage({
     ordered?: string;
     photoAdded?: string;
     photoError?: string;
+    photoSet?: string;
     proofingInvite?: string;
     proofingStatus?: string;
     saved?: string;
@@ -195,6 +206,9 @@ export default async function GalleryDetailPage({
   const galleryModeLabel = proofingGallery ? "Nyers válogatás" : "Teljes galéria";
   const rawPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "raw").length;
   const finalPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "final").length;
+  const selectedPhotoIds = Array.from(
+    new Set(gallery.favoriteLists.flatMap((list) => list.items.map((item) => item.photo.id)))
+  );
 
   if (activeTab === "downloads") {
     queueZipPackageKick(gallery.id, gallery.downloadPackages);
@@ -305,6 +319,8 @@ export default async function GalleryDetailPage({
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
               photos={gallery.photos}
+              activeSet={flags.photoSet}
+              selectedPhotoIds={selectedPhotoIds}
             />
           </div>
         ) : null}
@@ -316,6 +332,45 @@ export default async function GalleryDetailPage({
                 galleryId={gallery.id}
                 status={gallery.proofingStatus}
                 updatedAt={gallery.proofingStatusUpdatedAt}
+              />
+            ) : null}
+            {proofingGallery ? (
+              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                      <Download size={15} />
+                      Kész képek átadása
+                    </div>
+                    <h2 className="mt-2 text-xl font-semibold text-ink">
+                      {gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "A kész képek át vannak adva" : "Kész anyag publikálása"}
+                    </h2>
+                    <p className="mt-1 text-sm text-graphite/70">
+                      Ha feltöltötted a kidolgozott képeket, ezzel váltod át az ügyfél galériáját a kész képekre. Onnantól a letöltések is ezekből készülnek.
+                    </p>
+                    <p className="mt-3 text-sm font-medium text-ink">Kész képek: {finalPhotoCount}</p>
+                  </div>
+                  <form action={updateGalleryProofingStatusAction.bind(null, gallery.id, PROOFING_STATUS_DELIVERED)}>
+                    <Button
+                      type="submit"
+                      variant={gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "secondary" : "primary"}
+                      disabled={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED}
+                      className={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "opacity-60" : ""}
+                    >
+                      Kész képek átadása
+                    </Button>
+                  </form>
+                </div>
+              </section>
+            ) : null}
+            {proofingGallery ? (
+              <PhotoUploadForm
+                galleryId={gallery.id}
+                galleryMode={gallery.galleryMode}
+                defaultDeliveryStage={PHOTO_DELIVERY_STAGE_FINAL}
+                deliveryStageMode="fixed"
+                title="Kész képek feltöltése"
+                description="Ide töltsd fel a kidolgozott képeket, amelyeket az ügyfél kiválasztott. Ezek külön kész képként kerülnek a galériába."
               />
             ) : null}
             <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">

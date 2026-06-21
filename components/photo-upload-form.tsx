@@ -164,14 +164,21 @@ function statusClass(status: PhotoUploadStatus) {
 export function PhotoUploadForm({
   galleryId,
   galleryMode,
-  defaultDeliveryStage
+  defaultDeliveryStage,
+  deliveryStageMode = "select",
+  title = "Fotók és videók feltöltése",
+  description = "Húzd ide a képeket és videókat, vagy kattints a fájlok kiválasztásához. A videók a galéria elejére kerülnek."
 }: {
   galleryId: string;
   galleryMode: string;
   defaultDeliveryStage: string;
+  deliveryStageMode?: "select" | "fixed";
+  title?: string;
+  description?: string;
 }) {
   const router = useRouter();
   const isProofingUpload = galleryMode === GALLERY_MODE_PROOFING;
+  const showDeliveryStageSelect = isProofingUpload && deliveryStageMode !== "fixed";
   const [deliveryStage, setDeliveryStage] = useState(normalizePhotoDeliveryStage(defaultDeliveryStage));
   const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -824,9 +831,9 @@ export function PhotoUploadForm({
           <div className="flex size-14 items-center justify-center rounded-md bg-white text-ink shadow-soft">
             <ImagePlus size={24} />
           </div>
-          <h2 className="mt-5 text-2xl font-semibold text-ink">Fotók és videók feltöltése</h2>
+          <h2 className="mt-5 text-2xl font-semibold text-ink">{title}</h2>
           <p className="mt-2 max-w-md text-sm text-graphite/70">
-            Húzd ide a képeket és videókat, vagy kattints a fájlok kiválasztásához. A videók a galéria elejére kerülnek.
+            {description}
           </p>
           <span className="mt-5 inline-flex h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white">
             Fájlok kiválasztása
@@ -835,7 +842,7 @@ export function PhotoUploadForm({
 
         <div className="flex flex-col justify-between rounded-lg border border-ink/10 bg-paper p-5">
           <div>
-            {isProofingUpload ? (
+            {showDeliveryStageSelect ? (
               <label className="mb-5 block space-y-2">
                 <span className="text-sm font-medium text-graphite">Hova kerüljenek a képek?</span>
                 <select
