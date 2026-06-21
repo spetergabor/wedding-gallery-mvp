@@ -24,7 +24,7 @@ import {
   isProofingGallery,
   normalizePhotoDeliveryStage
 } from "@/lib/proofing";
-import { clientGalleryUrl, sendClientProofingInviteEmail } from "@/lib/email";
+import { publicGalleryUrl, sendClientProofingInviteEmail } from "@/lib/email";
 import {
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
@@ -96,7 +96,6 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
       slug: true,
       galleryMode: true,
       clientEmail: true,
-      clientAccessToken: true,
       proofingInviteSentAt: true,
       proofingInviteSentTo: true
     }
@@ -116,20 +115,11 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
     return { ok: true, skipped: true };
   }
 
-  const token = gallery.clientAccessToken ?? createClientAccessToken();
-
-  if (!gallery.clientAccessToken) {
-    await prisma.gallery.update({
-      where: { id: galleryId },
-      data: { clientAccessToken: token }
-    });
-  }
-
   try {
     const sent = await sendClientProofingInviteEmail({
       to: recipient,
       galleryTitle: gallery.title,
-      clientGalleryUrl: clientGalleryUrl(gallery.slug, token)
+      proofingGalleryUrl: publicGalleryUrl(gallery.slug)
     });
 
     if (!sent) {
@@ -812,8 +802,7 @@ export async function createPhotoUploadSessionAction(
       where: { id: galleryId },
       data: {
         clientEmail: normalizedClientEmail,
-        proofingInviteEmailError: null,
-        ...(gallery.clientAccessToken ? {} : { clientAccessToken: createClientAccessToken() })
+        proofingInviteEmailError: null
       }
     });
   }

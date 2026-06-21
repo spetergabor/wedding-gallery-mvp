@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/button";
 
-export function CopyPublicLinkButton({ slug }: { slug: string }) {
+export function CopyPublicLinkButton({
+  slug,
+  label = "Publikus link másolása"
+}: {
+  slug: string;
+  label?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -22,7 +28,7 @@ export function CopyPublicLinkButton({ slug }: { slug: string }) {
   return (
     <Button type="button" variant="secondary" onClick={handleCopy}>
       {copied ? <Check size={16} /> : <Copy size={16} />}
-      {copied ? "Másolva" : "Publikus link másolása"}
+      {copied ? "Másolva" : label}
     </Button>
   );
 }

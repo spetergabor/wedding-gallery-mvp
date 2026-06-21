@@ -18,7 +18,7 @@ type ContractSignatureRequestEmail = {
 type ClientProofingInviteEmail = {
   to: string;
   galleryTitle: string;
-  clientGalleryUrl: string;
+  proofingGalleryUrl: string;
 };
 
 type AdminGalleryZipReadyEmail = {
@@ -177,19 +177,13 @@ export function publicGalleryUrl(slug: string) {
   return `${appBaseUrl()}/g/${slug}`;
 }
 
-export function clientGalleryUrl(slug: string, token: string) {
-  const url = new URL(`/client/${slug}`, appBaseUrl());
-  url.searchParams.set("token", token);
-  return url.toString();
-}
-
 export function galleryDownloadUrl(token: string) {
   return `${appBaseUrl()}/download/${token}`;
 }
 
 function clientProofingInviteHtml({
   galleryTitle,
-  clientGalleryUrl
+  proofingGalleryUrl
 }: ClientProofingInviteEmail) {
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
@@ -197,9 +191,9 @@ function clientProofingInviteHtml({
       <p style="margin: 0 0 18px;">Hallo,</p>
       <p style="margin: 0 0 18px;">die Galerie <strong>${escapeHtml(galleryTitle)}</strong> ist zur Auswahl vorbereitet. Über den folgenden Link kannst du deine Favoriten markieren und die Auswahl anschließend abschicken.</p>
       <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(clientGalleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Bildauswahl öffnen</a>
+        <a href="${escapeHtml(proofingGalleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Bildauswahl öffnen</a>
       </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(clientGalleryUrl)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(proofingGalleryUrl)}</p>
     </div>
   `;
 }
@@ -229,7 +223,7 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
         `Galerie: ${payload.galleryTitle}`,
         "Öffne den folgenden Link, markiere deine Favoriten und schicke die Auswahl anschließend ab.",
         "",
-        `Bildauswahl öffnen: ${payload.clientGalleryUrl}`
+        `Bildauswahl öffnen: ${payload.proofingGalleryUrl}`
       ].join("\n")
     })
   });

@@ -323,12 +323,14 @@ export default async function GalleryDetailPage({
                 <div>
                   <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
                     <KeyRound size={15} />
-                    Ügyfél kezelő
+                    {proofingGallery ? "Válogató link" : "Ügyfél kezelő"}
                   </div>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link az ügyfélnek</h2>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">
+                    {proofingGallery ? "Normál galéria link válogatáshoz" : "Privát kezelő link az ügyfélnek"}
+                  </h2>
                   <p className="mt-1 text-sm text-graphite/70">
                     {proofingGallery
-                      ? "Nyers válogatásnál innen küldheted ki és másolhatod a privát válogató linket."
+                      ? "Nyers válogatásnál ezt a galéria linket kapja meg az ügyfél. Itt tud kedvenceket jelölni és leadni, melyik képeket szeretné megvenni."
                       : "Ezen a linken az ügyfél elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni."}
                   </p>
                   {proofingGallery ? (
@@ -357,7 +359,9 @@ export default async function GalleryDetailPage({
                       </Button>
                     </form>
                   ) : null}
-                  {gallery.clientAccessToken ? (
+                  {proofingGallery ? (
+                    <CopyPublicLinkButton slug={gallery.slug} label="Válogató link másolása" />
+                  ) : gallery.clientAccessToken ? (
                     <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
                   ) : (
                     <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
