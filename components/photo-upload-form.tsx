@@ -3,7 +3,7 @@
 import { ChangeEvent, DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as exifr from "exifr";
-import { ImagePlus, Mail, UploadCloud } from "lucide-react";
+import { ImagePlus, UploadCloud } from "lucide-react";
 import {
   completePhotoUploadsAction,
   createPhotoUploadSessionAction,
@@ -121,14 +121,6 @@ function isConnectionError(error: unknown) {
   return /failed to fetch|networkerror|load failed|network request failed/i.test(error.message);
 }
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
 function isExpiredUploadUrlStatus(status: number) {
   return status === 400 || status === 401 || status === 403;
 }
@@ -172,18 +164,15 @@ function statusClass(status: PhotoUploadStatus) {
 export function PhotoUploadForm({
   galleryId,
   galleryMode,
-  defaultDeliveryStage,
-  initialClientEmail
+  defaultDeliveryStage
 }: {
   galleryId: string;
   galleryMode: string;
   defaultDeliveryStage: string;
-  initialClientEmail?: string | null;
 }) {
   const router = useRouter();
   const isProofingUpload = galleryMode === GALLERY_MODE_PROOFING;
   const [deliveryStage, setDeliveryStage] = useState(normalizePhotoDeliveryStage(defaultDeliveryStage));
-  const [clientEmail, setClientEmail] = useState(initialClientEmail ?? "");
   const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isReadingExif, setIsReadingExif] = useState(false);
@@ -196,7 +185,6 @@ export function PhotoUploadForm({
   const completedCount = selectedFiles.filter((file) => file.status === "completed").length;
   const failedCount = selectedFiles.filter((file) => file.status === "failed").length;
   const activeCount = selectedFiles.filter((file) => ["preparing", "uploading", "waiting", "uploaded"].includes(file.status)).length;
-  const requiresClientEmail = isProofingUpload && deliveryStage === PHOTO_DELIVERY_STAGE_RAW;
   const previewFiles = useMemo(() => {
     return [...selectedFiles].sort((a, b) => {
       if (a.status === "failed" && b.status !== "failed") {
@@ -760,13 +748,6 @@ export function PhotoUploadForm({
       return;
     }
 
-    const normalizedClientEmail = normalizeEmail(clientEmail);
-
-    if (requiresClientEmail && !isValidEmail(normalizedClientEmail)) {
-      setUploadError("Adj meg egy érvényes ügyfél email címet, hogy ki tudjuk küldeni a válogató linket.");
-      return;
-    }
-
     setIsUploading(true);
     setUploadError("");
 
@@ -775,13 +756,7 @@ export function PhotoUploadForm({
 
       if (!sessionId) {
         const sessionResult = await runWithConnectionResume({
-          operation: () =>
-            createPhotoUploadSessionAction(
-              galleryId,
-              selectedFiles.length,
-              deliveryStage,
-              requiresClientEmail ? normalizedClientEmail : undefined
-            ),
+          operation: () => createPhotoUploadSessionAction(galleryId, selectedFiles.length, deliveryStage),
           onWaiting: () => setUploadError("Kapcsolatra vár a feltöltés indításához..."),
           onResume: () => setUploadError("")
         });
@@ -875,25 +850,6 @@ export function PhotoUploadForm({
                   <option value={PHOTO_DELIVERY_STAGE_RAW}>Nyers képekhez</option>
                   <option value={PHOTO_DELIVERY_STAGE_FINAL}>Kész képekhez</option>
                 </select>
-              </label>
-            ) : null}
-            {requiresClientEmail ? (
-              <label className="mb-5 block space-y-2">
-                <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                  <Mail size={15} />
-                  Ügyfél e-mail címe
-                </span>
-                <input
-                  value={clientEmail}
-                  onChange={(event) => setClientEmail(event.target.value)}
-                  disabled={isUploading}
-                  type="email"
-                  placeholder="kunde@example.com"
-                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:opacity-60"
-                />
-                <span className="block text-xs text-graphite/70">
-                  A feltöltés végén erre a címre megy ki a német nyelvű válogató link.
-                </span>
               </label>
             ) : null}
             <p className="text-sm font-medium text-graphite">Kiválasztott médiák</p>

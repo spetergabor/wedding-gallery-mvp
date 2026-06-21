@@ -65,7 +65,11 @@ function getActiveTab(flags: {
     return "client";
   }
 
-  if (flags.saved || flags.archived || flags.activated || flags.error || flags.proofingInvite) {
+  if (flags.proofingInvite) {
+    return "client";
+  }
+
+  if (flags.saved || flags.archived || flags.activated || flags.error) {
     return "settings";
   }
 
@@ -294,7 +298,6 @@ export default async function GalleryDetailPage({
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
               defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
-              initialClientEmail={gallery.clientEmail}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <PhotoManager
@@ -315,31 +318,6 @@ export default async function GalleryDetailPage({
                 updatedAt={gallery.proofingStatusUpdatedAt}
               />
             ) : null}
-            <FavoriteListsLog lists={gallery.favoriteLists} />
-          </div>
-        ) : null}
-
-        {activeTab === "views" ? (
-          <div className="space-y-6">
-            <ViewLog views={gallery.views} />
-            <ViewLocationMap
-              points={locationPoints}
-              title="Album megtekintések térképe"
-              description="Összesített helyszínek kizárólag ennek a galériának a publikus megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható."
-            />
-          </div>
-        ) : null}
-
-        {activeTab === "downloads" ? (
-          <div className="max-w-3xl space-y-6">
-            <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
-            <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
-          </div>
-        ) : null}
-
-        {activeTab === "settings" ? (
-          <div className="space-y-8">
-            <GalleryForm gallery={gallery} />
             <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
@@ -350,7 +328,7 @@ export default async function GalleryDetailPage({
                   <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link az ügyfélnek</h2>
                   <p className="mt-1 text-sm text-graphite/70">
                     {proofingGallery
-                      ? "Nyers válogatásnál ezen követhető az ügyfél kiválasztási folyamata."
+                      ? "Nyers válogatásnál innen küldheted ki és másolhatod a privát válogató linket."
                       : "Ezen a linken az ügyfél elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni."}
                   </p>
                   {proofingGallery ? (
@@ -392,6 +370,31 @@ export default async function GalleryDetailPage({
                 </div>
               </div>
             </section>
+            <FavoriteListsLog lists={gallery.favoriteLists} />
+          </div>
+        ) : null}
+
+        {activeTab === "views" ? (
+          <div className="space-y-6">
+            <ViewLog views={gallery.views} />
+            <ViewLocationMap
+              points={locationPoints}
+              title="Album megtekintések térképe"
+              description="Összesített helyszínek kizárólag ennek a galériának a publikus megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható."
+            />
+          </div>
+        ) : null}
+
+        {activeTab === "downloads" ? (
+          <div className="max-w-3xl space-y-6">
+            <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
+            <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
+          </div>
+        ) : null}
+
+        {activeTab === "settings" ? (
+          <div className="space-y-8">
+            <GalleryForm gallery={gallery} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
           </div>
         ) : null}

@@ -74,7 +74,7 @@ async function requireGalleryAccess(galleryId: string) {
       id: galleryId,
       ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
     },
-    select: { id: true, slug: true, galleryMode: true, proofingStatus: true, clientAccessToken: true }
+    select: { id: true, slug: true, galleryMode: true, proofingStatus: true, clientEmail: true, clientAccessToken: true }
   });
 
   if (!gallery) {
@@ -473,7 +473,7 @@ export async function sendProofingInviteAction(galleryId: string) {
   const status = result.ok ? "sent" : result.reason === "missing-email" ? "missing-email" : "failed";
 
   revalidatePath(`/admin/galleries/${galleryId}`);
-  redirect(`/admin/galleries/${galleryId}?tab=settings&proofingInvite=${status}`);
+  redirect(`/admin/galleries/${galleryId}?tab=client&proofingInvite=${status}`);
 }
 
 export async function restoreClientHiddenPhotoAction(galleryId: string, photoId: string) {
@@ -791,12 +791,12 @@ export async function createPhotoUploadSessionAction(
     ? normalizePhotoDeliveryStage(deliveryStage)
     : PHOTO_DELIVERY_STAGE_FINAL;
   const proofingRawUpload = isProofingGallery(gallery.galleryMode) && normalizedDeliveryStage === PHOTO_DELIVERY_STAGE_RAW;
-  const normalizedClientEmail = normalizeEmail(clientEmail);
+  const normalizedClientEmail = normalizeEmail(clientEmail ?? gallery.clientEmail);
 
   if (proofingRawUpload && !isValidEmail(normalizedClientEmail)) {
     return {
       ok: false,
-      message: "Adj meg egy érvényes ügyfél email címet a válogató link kiküldéséhez.",
+      message: "Adj meg egy érvényes ügyfél email címet a galéria adatai között, hogy ki tudjuk küldeni a válogató linket.",
       sessionId: null
     };
   }
