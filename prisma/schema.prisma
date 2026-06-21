@@ -126,6 +126,7 @@ model Gallery {
   password     String?
   eventDate    DateTime?
   isActive     Boolean  @default(false)
+  downloadsEnabled Boolean @default(true)
   coverPhotoId String?
   clientAccessToken String? @unique
   createdAt    DateTime @default(now())

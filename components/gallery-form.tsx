@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Eye, LockKeyhole } from "lucide-react";
+import { CalendarDays, Check, Download, Eye, LockKeyhole } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 import { SlugFields } from "@/components/slug-fields";
@@ -11,6 +11,7 @@ type GalleryFormProps = {
     password: string | null;
     eventDate: Date | null;
     isActive: boolean;
+    downloadsEnabled: boolean;
   };
 };
 
@@ -82,6 +83,25 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
             Aktív galéria
           </span>
           <span className="text-sm text-graphite/70">Csak aktív galéria érhető el a publikus linken.</span>
+        </span>
+      </label>
+
+      <label className="flex items-center gap-3 rounded-md border border-ink/10 bg-paper px-4 py-3 transition hover:border-ink/20">
+        <span className="relative flex size-5 items-center justify-center rounded border border-ink/20 bg-white">
+          <input
+            name="downloadsEnabled"
+            type="checkbox"
+            defaultChecked={gallery?.downloadsEnabled ?? true}
+            className="peer absolute inset-0 opacity-0"
+          />
+          <Check className="hidden text-ink peer-checked:block" size={14} />
+        </span>
+        <span>
+          <span className="flex items-center gap-2 text-sm font-medium text-ink">
+            <Download size={15} />
+            Letöltések engedélyezése
+          </span>
+          <span className="text-sm text-graphite/70">Ha ki van kapcsolva, a teljes ZIP és az egyes képek letöltése sem elérhető a vendégeknek.</span>
         </span>
       </label>
 

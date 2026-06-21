@@ -74,11 +74,13 @@ function getColumnCount(width: number) {
 export function PublicGallery({
   galleryId,
   title,
-  photos
+  photos,
+  downloadsEnabled
 }: {
   galleryId: string;
   title: string;
   photos: PublicPhoto[];
+  downloadsEnabled: boolean;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -281,7 +283,7 @@ export function PublicGallery({
   }, [isEmailOpen, isZipping, title, zipPackageId]);
 
   async function createZipDownload() {
-    if (isZipping) {
+    if (isZipping || !downloadsEnabled) {
       return;
     }
 
@@ -327,7 +329,7 @@ export function PublicGallery({
   }
 
   async function downloadSinglePhoto(photo: PublicPhoto) {
-    if (downloadingPhotoId) {
+    if (downloadingPhotoId || !downloadsEnabled) {
       return;
     }
 
@@ -731,10 +733,12 @@ export function PublicGallery({
           <Heart size={16} />
           {favoriteCount} Favoriten
         </button>
-        <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
-          <Download size={16} />
-          {isZipping ? "ZIP wird erstellt" : "ZIP per E-Mail"}
-        </Button>
+        {downloadsEnabled ? (
+          <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
+            <Download size={16} />
+            {isZipping ? "ZIP wird erstellt" : "ZIP per E-Mail"}
+          </Button>
+        ) : null}
       </div>
 
       {isEmailOpen ? (
@@ -872,15 +876,17 @@ export function PublicGallery({
                 <Heart size={16} fill={favoriteIds.has(selectedPhoto.id) ? "currentColor" : "none"} />
                 Favorit
               </button>
-              <button
-                type="button"
-                onClick={() => void downloadSinglePhoto(selectedPhoto)}
-                disabled={downloadingPhotoId === selectedPhoto.id}
-                className="flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink disabled:opacity-60"
-              >
-                <Download size={16} />
-                {downloadingPhotoId === selectedPhoto.id ? "Lädt..." : "Herunterladen"}
-              </button>
+              {downloadsEnabled ? (
+                <button
+                  type="button"
+                  onClick={() => void downloadSinglePhoto(selectedPhoto)}
+                  disabled={downloadingPhotoId === selectedPhoto.id}
+                  className="flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink disabled:opacity-60"
+                >
+                  <Download size={16} />
+                  {downloadingPhotoId === selectedPhoto.id ? "Lädt..." : "Herunterladen"}
+                </button>
+              ) : null}
               <button
                 title="Schließen"
                 onClick={() => setSelectedIndex(null)}

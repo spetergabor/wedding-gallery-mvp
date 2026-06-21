@@ -404,6 +404,7 @@ export async function createGalleryAction(formData: FormData) {
   const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
+  const downloadsEnabled = formData.get("downloadsEnabled") === "on";
 
   if (!title || !slug) {
     redirect("/admin/galleries/new?error=missing");
@@ -420,6 +421,7 @@ export async function createGalleryAction(formData: FormData) {
         password: password || null,
         eventDate,
         isActive,
+        downloadsEnabled,
         clientAccessToken: createClientAccessToken()
       }
     });
@@ -444,6 +446,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
+  const downloadsEnabled = formData.get("downloadsEnabled") === "on";
 
   if (!title || !slug) {
     redirect(`/admin/galleries/${id}?error=missing`);
@@ -466,7 +469,8 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         slug,
         password: password || null,
         eventDate,
-        isActive
+        isActive,
+        downloadsEnabled
       }
     });
   } catch (error) {
