@@ -89,6 +89,42 @@ function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
 }
 
+const STALE_MEDIA_PROCESSING_MS = 2 * 60 * 60 * 1000;
+
+function hasLightweightPhotoVariant(photo: { imageUrl: string; thumbnailUrl: string; previewUrl: string; mediaType: string }) {
+  return (
+    photo.mediaType !== "video" &&
+    ((photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) ||
+      (photo.previewUrl && photo.previewUrl !== photo.imageUrl))
+  );
+}
+
+function isRequeueableMediaPhoto(photo: {
+  imageUrl: string;
+  thumbnailUrl: string;
+  previewUrl: string;
+  mediaType: string;
+  processingStatus: string;
+  processingRequestedAt: Date | null;
+}) {
+  if (photo.mediaType === "video") {
+    return false;
+  }
+
+  if (!hasLightweightPhotoVariant(photo)) {
+    return true;
+  }
+
+  if (photo.processingStatus === "failed") {
+    return true;
+  }
+
+  return (
+    photo.processingStatus !== "ready" &&
+    (!photo.processingRequestedAt || Date.now() - photo.processingRequestedAt.getTime() > STALE_MEDIA_PROCESSING_MS)
+  );
+}
+
 async function sendProofingInviteForGallery(galleryId: string, { force = false }: { force?: boolean } = {}) {
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
@@ -1389,6 +1425,104 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   if (gallery) {
     revalidatePath(`/g/${gallery.slug}`);
   }
+}
+
+export async function requeueGalleryMediaProcessingAction(galleryId: string) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const photos = await prisma.photo.findMany({
+    where: {
+      galleryId,
+      mediaType: { not: "video" },
+      r2Key: { not: "" }
+    },
+    select: {
+      id: true,
+      filename: true,
+      r2Key: true,
+      imageUrl: true,
+      thumbnailUrl: true,
+      previewUrl: true,
+      mediaType: true,
+      processingStatus: true,
+      processingRequestedAt: true
+    }
+  });
+  const targetPhotos = photos.filter(isRequeueableMediaPhoto);
+
+  if (targetPhotos.length === 0) {
+    revalidatePath(`/admin/galleries/${galleryId}`);
+    redirect(`/admin/galleries/${galleryId}?tab=photos&mediaProcessing=none`);
+  }
+
+  const targetPhotoIds = targetPhotos.map((photo) => photo.id);
+  const existingJobs = await prisma.mediaProcessingJob.findMany({
+    where: {
+      galleryId,
+      photoId: { in: targetPhotoIds }
+    },
+    select: {
+      photoId: true,
+      status: true
+    }
+  });
+  const reusableJobPhotoIds = new Set(
+    existingJobs.filter((job) => job.status !== "completed").map((job) => job.photoId)
+  );
+  const now = new Date();
+  const newJobPhotos = targetPhotos.filter((photo) => !reusableJobPhotoIds.has(photo.id));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.photo.updateMany({
+      where: { id: { in: targetPhotoIds } },
+      data: {
+        processingStatus: "pending",
+        processingError: null,
+        processingRequestedAt: now,
+        processingCompletedAt: null
+      }
+    });
+
+    await tx.mediaProcessingJob.updateMany({
+      where: {
+        galleryId,
+        photoId: { in: targetPhotoIds },
+        status: { in: ["pending", "processing", "failed"] }
+      },
+      data: {
+        status: "pending",
+        attempts: 0,
+        errorMessage: null,
+        claimedAt: null,
+        completedAt: null
+      }
+    });
+
+    if (newJobPhotos.length > 0) {
+      await tx.mediaProcessingJob.createMany({
+        data: newJobPhotos.map((photo) => ({
+          galleryId,
+          photoId: photo.id,
+          mediaType: "image",
+          sourceR2Key: photo.r2Key,
+          thumbnailR2Key: createPhotoVariantObjectKey({
+            gallerySlug: gallery.slug,
+            originalFilename: photo.filename,
+            variant: "thumbnail"
+          }),
+          previewR2Key: createPhotoVariantObjectKey({
+            gallerySlug: gallery.slug,
+            originalFilename: photo.filename,
+            variant: "preview"
+          }),
+          status: "pending"
+        }))
+      });
+    }
+  }, { timeout: 15000 });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&mediaProcessing=queued`);
 }
 
 export async function setCoverPhotoAction(galleryId: string, photoId: string) {

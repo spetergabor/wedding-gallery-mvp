@@ -11,6 +11,7 @@ import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
+import { MediaProcessingStatus } from "@/components/media-processing-status";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { ProofingStatusPanel } from "@/components/proofing-status-panel";
@@ -65,6 +66,7 @@ function getActiveTab(flags: {
   clientRestored?: string;
   deliveryEmail?: string;
   error?: string;
+  mediaProcessing?: string;
   proofingInvite?: string;
   saved?: string;
   tab?: string;
@@ -121,6 +123,7 @@ export default async function GalleryDetailPage({
     clientLink?: string;
     clientRestored?: string;
     error?: string;
+    mediaProcessing?: string;
     ordered?: string;
     photoAdded?: string;
     photoError?: string;
@@ -161,6 +164,19 @@ export default async function GalleryDetailPage({
               }
             }
           }
+        }
+      },
+      mediaProcessingJobs: {
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          photoId: true,
+          status: true,
+          attempts: true,
+          errorMessage: true,
+          claimedAt: true,
+          completedAt: true,
+          updatedAt: true
         }
       },
       photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
@@ -242,6 +258,8 @@ export default async function GalleryDetailPage({
       <div className="mb-5 space-y-3">
         {flags.saved ? <Alert title="Galéria mentve." variant="success" /> : null}
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
+        {flags.mediaProcessing === "queued" ? <Alert title="Hiányzó előnézetek újra sorba állítva." variant="success" /> : null}
+        {flags.mediaProcessing === "none" ? <Alert title="Nincs újraindítható előnézet." variant="info" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
         {flags.clientLink ? <Alert title="Ügyfél kezelő link elkészítve." variant="success" /> : null}
         {flags.proofingInvite === "sent" ? <Alert title="Válogató link elküldve emailben." variant="success" /> : null}
@@ -333,6 +351,7 @@ export default async function GalleryDetailPage({
               defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
+            <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
               coverPhotoId={gallery.coverPhotoId}
               galleryId={gallery.id}
