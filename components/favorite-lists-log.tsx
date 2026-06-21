@@ -23,8 +23,9 @@ function filenamesText(list: FavoriteList) {
   return list.items.map((item) => item.photo.filename).join("\n");
 }
 
-export function FavoriteListsLog({ lists }: { lists: FavoriteList[] }) {
+export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: FavoriteList[]; mode?: "favorites" | "proofing" }) {
   const [copiedListId, setCopiedListId] = useState<string | null>(null);
+  const proofingMode = mode === "proofing";
 
   async function handleCopy(list: FavoriteList) {
     try {
@@ -40,8 +41,12 @@ export function FavoriteListsLog({ lists }: { lists: FavoriteList[] }) {
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-ink">Kedvenc listák</h2>
-          <p className="mt-1 text-sm text-graphite/70">Email címhez mentett képkiválasztások, teljes fájlnévlistával.</p>
+          <h2 className="text-lg font-semibold text-ink">{proofingMode ? "Ügyfélválogatások" : "Kedvenc listák"}</h2>
+          <p className="mt-1 text-sm text-graphite/70">
+            {proofingMode
+              ? "Az ügyfél által kiválasztott képek email cím szerint, teljes fájlnévlistával."
+              : "Email címhez mentett képkiválasztások, teljes fájlnévlistával."}
+          </p>
         </div>
         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
           <Heart size={18} />
@@ -50,8 +55,12 @@ export function FavoriteListsLog({ lists }: { lists: FavoriteList[] }) {
 
       {lists.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-3">
-          <p className="text-sm font-medium text-ink">Még nincs kedvenc lista</p>
-          <p className="mt-1 text-sm text-graphite/70">Ha a pár kedvenceket jelöl, itt fogod látni email szerint.</p>
+          <p className="text-sm font-medium text-ink">{proofingMode ? "Még nincs ügyfélválogatás" : "Még nincs kedvenc lista"}</p>
+          <p className="mt-1 text-sm text-graphite/70">
+            {proofingMode
+              ? "Ha az ügyfél elkezdi kiválasztani a képeket, itt fogod látni a listát."
+              : "Ha a pár kedvenceket jelöl, itt fogod látni email szerint."}
+          </p>
         </div>
       ) : (
         <div className="mt-5 space-y-4">
@@ -66,12 +75,12 @@ export function FavoriteListsLog({ lists }: { lists: FavoriteList[] }) {
                         list.submittedAt ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"
                       }`}
                     >
-                      {list.submittedAt ? "Lezárva" : "Folyamatban"}
+                      {list.submittedAt ? (proofingMode ? "Leadva" : "Lezárva") : "Folyamatban"}
                     </span>
                   </div>
                   <p className="text-sm text-graphite/70">{list.email}</p>
                   <p className="text-sm text-graphite/70">
-                    {list.items.length} kedvenc kép · frissítve:{" "}
+                    {list.items.length} {proofingMode ? "kiválasztott kép" : "kedvenc kép"} · frissítve:{" "}
                     {list.updatedAt.toLocaleString("hu-HU", {
                       dateStyle: "medium",
                       timeStyle: "short"

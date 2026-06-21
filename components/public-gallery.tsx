@@ -76,13 +76,15 @@ export function PublicGallery({
   title,
   photos,
   downloadsEnabled,
-  favoritesEnabled = true
+  favoritesEnabled = true,
+  favoriteMode = "favorites"
 }: {
   galleryId: string;
   title: string;
   photos: PublicPhoto[];
   downloadsEnabled: boolean;
   favoritesEnabled?: boolean;
+  favoriteMode?: "favorites" | "proofing";
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -107,6 +109,7 @@ export function PublicGallery({
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
+  const proofingSelection = favoritesEnabled && favoriteMode === "proofing";
   const activeFavoriteList = favoriteLists.find((list) => list.id === activeFavoriteListId) ?? favoriteLists[0] ?? null;
   const favoriteIds = useMemo(
     () => new Set(favoritesEnabled ? activeFavoriteList?.photoIds ?? [] : []),
@@ -377,7 +380,7 @@ export function PublicGallery({
     }
   }
 
-  async function toggleFavorite(photoId: string, emailOverride?: string) {
+  async function toggleFavorite(photoId: string, emailOverride?: string, listIdOverride?: string) {
     if (!favoritesEnabled) {
       return;
     }
@@ -399,7 +402,8 @@ export function PublicGallery({
     }, 260);
 
     const previousLists = favoriteLists;
-    const optimisticListId = activeFavoriteList?.id ?? "";
+    const targetListId = listIdOverride ?? activeFavoriteList?.id;
+    const optimisticListId = targetListId ?? "";
     const wasFavorite = favoriteIds.has(photoId);
 
     if (optimisticListId) {
@@ -423,18 +427,18 @@ export function PublicGallery({
     }
 
     try {
-      const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite, activeFavoriteList?.id);
+      const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite, targetListId);
 
       if (!result.ok) {
         throw new Error(result.message);
       }
 
       if (!result.listId) {
-        throw new Error("Die Favoritenliste konnte nicht gefunden werden.");
+        throw new Error(proofingSelection ? "Die Auswahl konnte nicht gefunden werden." : "Die Favoritenliste konnte nicht gefunden werden.");
       }
 
       const resultListId = result.listId;
-      const resultListName = result.listName ?? "Favoriten";
+      const resultListName = result.listName ?? (proofingSelection ? "Auswahl" : "Favoriten");
 
       setFavoriteLists((current) =>
         current.some((list) => list.id === resultListId)
@@ -466,7 +470,7 @@ export function PublicGallery({
       setActiveFavoriteListId(resultListId);
     } catch (error) {
       setFavoriteLists(previousLists);
-      setFavoriteError(error instanceof Error ? error.message : "Der Favorit konnte nicht gespeichert werden.");
+      setFavoriteError(error instanceof Error ? error.message : proofingSelection ? "Die Auswahl konnte nicht gespeichert werden." : "Der Favorit konnte nicht gespeichert werden.");
     } finally {
       setPendingFavoriteId(null);
     }
@@ -494,7 +498,7 @@ export function PublicGallery({
     let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail);
 
     if (listsResult.ok && listsResult.lists.length === 0) {
-      const created = await createFavoriteListAction(galleryId, normalizedEmail, "Favoriten");
+      const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? "Auswahl" : "Favoriten");
 
       if (created.ok && created.list) {
         listsResult = {
@@ -505,8 +509,14 @@ export function PublicGallery({
     }
 
     if (listsResult.ok) {
+      const nextActiveListId = listsResult.lists[0]?.id ?? "";
       setFavoriteLists(listsResult.lists);
-      setActiveFavoriteListId(listsResult.lists[0]?.id ?? "");
+      setActiveFavoriteListId(nextActiveListId);
+
+      if (queuedPhotoId) {
+        await toggleFavorite(queuedPhotoId, normalizedEmail, nextActiveListId);
+        return;
+      }
     }
 
     if (queuedPhotoId) {
@@ -608,7 +618,7 @@ export function PublicGallery({
           <div className="col-span-full mb-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <span className="text-sm font-medium text-graphite">Favoritenliste</span>
+                <span className="text-sm font-medium text-graphite">{proofingSelection ? "Bildauswahl" : "Favoritenliste"}</span>
                 <select
                   value={activeFavoriteList?.id ?? ""}
                   onChange={(event) => {
@@ -627,26 +637,36 @@ export function PublicGallery({
                 </select>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
-                <input
-                  value={newFavoriteListName}
-                  onChange={(event) => setNewFavoriteListName(event.target.value)}
-                  placeholder="Neue Liste, z. B. Album"
-                  className="h-10 min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50 sm:w-64"
-                />
-                <Button type="button" variant="secondary" onClick={() => void createNewFavoriteList()}>
-                  Liste erstellen
-                </Button>
+                {proofingSelection ? null : (
+                  <>
+                    <input
+                      value={newFavoriteListName}
+                      onChange={(event) => setNewFavoriteListName(event.target.value)}
+                      placeholder="Neue Liste, z. B. Album"
+                      className="h-10 min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50 sm:w-64"
+                    />
+                    <Button type="button" variant="secondary" onClick={() => void createNewFavoriteList()}>
+                      Liste erstellen
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
             <div className="mt-4 flex flex-col gap-3 border-t border-ink/10 pt-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-sm font-medium text-ink">
-                  {activeFavoriteList ? `${activeFavoriteList.name}: ${favoriteCount} Favoriten` : "Keine aktive Liste"}
+                  {activeFavoriteList
+                    ? `${activeFavoriteList.name}: ${favoriteCount} ${proofingSelection ? "ausgewählt" : "Favoriten"}`
+                    : proofingSelection
+                      ? "Keine aktive Auswahl"
+                      : "Keine aktive Liste"}
                 </p>
                 <p className="mt-1 text-sm text-graphite/70">
                   {activeFavoriteList?.submittedAt
-                    ? `Abgeschlossen am ${formatSubmittedAt(activeFavoriteList.submittedAt)}`
-                    : "Wenn deine Auswahl fertig ist, schließe die Liste ab."}
+                    ? `${proofingSelection ? "Abgeschickt" : "Abgeschlossen"} am ${formatSubmittedAt(activeFavoriteList.submittedAt)}`
+                    : proofingSelection
+                      ? "Wenn deine Auswahl fertig ist, schicke sie ab."
+                      : "Wenn deine Auswahl fertig ist, schließe die Liste ab."}
                 </p>
               </div>
               <Button
@@ -660,7 +680,9 @@ export function PublicGallery({
                   ? "Wird gespeichert..."
                   : activeFavoriteList?.submittedAt
                     ? "Auswahl aktualisieren"
-                    : "Auswahl abschließen"}
+                    : proofingSelection
+                      ? "Auswahl abschicken"
+                      : "Auswahl abschließen"}
               </Button>
             </div>
             {favoriteSuccess ? (
@@ -730,8 +752,8 @@ export function PublicGallery({
                   {favoritesEnabled ? (
                     <button
                       type="button"
-                      title="Favorit"
-                      aria-label={`${photo.filename} zu den Favoriten hinzufügen`}
+                      title={proofingSelection ? "Auswählen" : "Favorit"}
+                      aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
                       onClick={() => void toggleFavorite(photo.id)}
                       className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
                         pendingFavoriteId === photo.id ? "opacity-80" : ""
@@ -769,7 +791,7 @@ export function PublicGallery({
               } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
             >
               <Heart size={16} />
-              {favoriteCount} Favoriten
+              {favoriteCount} {proofingSelection ? "ausgewählt" : "Favoriten"}
             </button>
           ) : null}
           {downloadsEnabled ? (
@@ -856,9 +878,13 @@ export function PublicGallery({
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
                   <Heart size={20} />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-ink">Favoriten speichern</h2>
+                <h2 className="mt-4 text-xl font-semibold text-ink">
+                  {proofingSelection ? "Bildauswahl speichern" : "Favoriten speichern"}
+                </h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  Gib deine E-Mail-Adresse ein. Deine ausgewählten Lieblingsfotos werden damit gespeichert.
+                  {proofingSelection
+                    ? "Gib deine E-Mail-Adresse ein, damit wir deine Auswahl zuordnen können."
+                    : "Gib deine E-Mail-Adresse ein. Deine ausgewählten Lieblingsfotos werden damit gespeichert."}
                 </p>
               </div>
               <button
@@ -892,7 +918,7 @@ export function PublicGallery({
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="submit" className="sm:flex-1">
                 <Heart size={16} />
-                Favorit speichern
+                {proofingSelection ? "Auswahl speichern" : "Favorit speichern"}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setFavoritePromptPhotoId(null)}>
                 Abbrechen
@@ -909,13 +935,13 @@ export function PublicGallery({
             <div className="flex items-center gap-2">
               {favoritesEnabled ? (
                 <button
-                  title="Favorit"
-                  aria-label={`${selectedPhoto.filename} zu den Favoriten hinzufügen`}
+                  title={proofingSelection ? "Auswählen" : "Favorit"}
+                  aria-label={`${selectedPhoto.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
                   onClick={() => void toggleFavorite(selectedPhoto.id)}
                   className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition duration-150 active:scale-95 ${favoriteIds.has(selectedPhoto.id) ? "bg-brass text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
                 >
                   <Heart size={16} fill={favoriteIds.has(selectedPhoto.id) ? "currentColor" : "none"} />
-                  Favorit
+                  {proofingSelection ? "Auswählen" : "Favorit"}
                 </button>
               ) : null}
               {downloadsEnabled ? (

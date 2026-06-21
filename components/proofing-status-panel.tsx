@@ -1,12 +1,31 @@
-import { CheckCircle2, Clock, PackageCheck } from "lucide-react";
+import { CheckCircle2, Clock, Heart, Mail, PackageCheck } from "lucide-react";
 import { Button } from "@/components/button";
 import { updateGalleryProofingStatusAction } from "@/lib/gallery-actions";
-import { PROOFING_STATUSES, proofingStatusDescription, proofingStatusLabel, type ProofingStatus } from "@/lib/proofing";
+import {
+  PROOFING_STATUSES,
+  PROOFING_STATUS_DELIVERED,
+  PROOFING_STATUS_IN_PROGRESS,
+  PROOFING_STATUS_NOT_OPENED,
+  PROOFING_STATUS_PROCESSING,
+  PROOFING_STATUS_SUBMITTED,
+  proofingStatusDescription,
+  proofingStatusLabel,
+  type ProofingStatus
+} from "@/lib/proofing";
 
 type ProofingStatusPanelProps = {
   galleryId: string;
   status: string;
   updatedAt: Date | null;
+  metrics: {
+    rawPhotoCount: number;
+    selectedPhotoCount: number;
+    submittedListCount: number;
+    finalPhotoCount: number;
+    clientEmail: string | null;
+    proofingInviteSentAt: Date | null;
+    finalDeliveryEmailSentAt: Date | null;
+  };
 };
 
 function statusClass(status: string, currentStatus: string) {
@@ -17,7 +36,37 @@ function statusClass(status: string, currentStatus: string) {
   return "border-ink/10 bg-paper text-graphite";
 }
 
-export function ProofingStatusPanel({ galleryId, status, updatedAt }: ProofingStatusPanelProps) {
+function nextStepForStatus(status: string, metrics: ProofingStatusPanelProps["metrics"]) {
+  if (status === PROOFING_STATUS_NOT_OPENED) {
+    return metrics.proofingInviteSentAt
+      ? "Várakozás az ügyfél első megnyitására."
+      : "Küldd ki a válogató linket az ügyfélnek.";
+  }
+
+  if (status === PROOFING_STATUS_IN_PROGRESS) {
+    return "Az ügyfél válogat. A leadott lista itt jelenik meg.";
+  }
+
+  if (status === PROOFING_STATUS_SUBMITTED) {
+    return "Dolgozd ki a kiválasztott képeket, majd töltsd fel őket kész képként.";
+  }
+
+  if (status === PROOFING_STATUS_PROCESSING) {
+    return metrics.finalPhotoCount > 0
+      ? "Ellenőrizd a kész képeket, majd add át a galériát."
+      : "A kész képek feltöltése még hiányzik.";
+  }
+
+  if (status === PROOFING_STATUS_DELIVERED) {
+    return metrics.finalDeliveryEmailSentAt
+      ? "A kész képek átadása és az email értesítés megtörtént."
+      : "A kész képek át vannak adva, az email újraküldhető.";
+  }
+
+  return "Ellenőrizd a válogatási státuszt és a feltöltött képeket.";
+}
+
+export function ProofingStatusPanel({ galleryId, status, updatedAt, metrics }: ProofingStatusPanelProps) {
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -41,6 +90,46 @@ export function ProofingStatusPanel({ galleryId, status, updatedAt }: ProofingSt
         <div className="flex items-center gap-2 rounded-md bg-paper px-3 py-2 text-sm text-graphite">
           <PackageCheck size={16} />
           Nyers válogatás
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Nyers képek", value: metrics.rawPhotoCount, icon: PackageCheck },
+          { label: "Kiválasztva", value: metrics.selectedPhotoCount, icon: Heart },
+          { label: "Leadott listák", value: metrics.submittedListCount, icon: CheckCircle2 },
+          { label: "Kész képek", value: metrics.finalPhotoCount, icon: PackageCheck }
+        ].map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <div key={item.label} className="rounded-md bg-paper px-4 py-3">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">
+                <Icon size={14} />
+                {item.label}
+              </div>
+              <p className="mt-2 text-2xl font-semibold text-ink">{item.value}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr]">
+        <div className="rounded-md border border-ink/10 bg-paper px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Következő lépés</p>
+          <p className="mt-2 text-sm font-medium leading-6 text-ink">{nextStepForStatus(status, metrics)}</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper px-4 py-3">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">
+            <Mail size={14} />
+            Email értesítések
+          </div>
+          <p className="mt-2 text-sm font-medium text-ink">{metrics.clientEmail ?? "Nincs ügyfél email"}</p>
+          <p className="mt-1 text-xs leading-5 text-graphite/70">
+            Válogató: {metrics.proofingInviteSentAt ? metrics.proofingInviteSentAt.toLocaleString("hu-HU") : "még nincs kiküldve"}
+            <br />
+            Kész képek: {metrics.finalDeliveryEmailSentAt ? metrics.finalDeliveryEmailSentAt.toLocaleString("hu-HU") : "még nincs kiküldve"}
+          </p>
         </div>
       </div>
 

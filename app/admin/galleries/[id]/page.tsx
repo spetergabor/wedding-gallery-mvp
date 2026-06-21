@@ -228,6 +228,7 @@ export default async function GalleryDetailPage({
   const selectedPhotoIds = Array.from(
     new Set(gallery.favoriteLists.flatMap((list) => list.items.map((item) => item.photo.id)))
   );
+  const submittedListCount = gallery.favoriteLists.filter((list) => list.submittedAt).length;
 
   if (activeTab === "downloads") {
     queueZipPackageKick(gallery.id, gallery.downloadPackages);
@@ -370,6 +371,15 @@ export default async function GalleryDetailPage({
                 galleryId={gallery.id}
                 status={gallery.proofingStatus}
                 updatedAt={gallery.proofingStatusUpdatedAt}
+                metrics={{
+                  rawPhotoCount,
+                  selectedPhotoCount: selectedPhotoIds.length,
+                  submittedListCount,
+                  finalPhotoCount,
+                  clientEmail: gallery.clientEmail,
+                  proofingInviteSentAt: gallery.proofingInviteSentAt,
+                  finalDeliveryEmailSentAt: gallery.finalDeliveryEmailSentAt
+                }}
               />
             ) : null}
             {proofingGallery ? (
@@ -495,7 +505,7 @@ export default async function GalleryDetailPage({
                 </div>
               </div>
             </section>
-            <FavoriteListsLog lists={gallery.favoriteLists} />
+            <FavoriteListsLog lists={gallery.favoriteLists} mode={proofingGallery ? "proofing" : "favorites"} />
           </div>
         ) : null}
 

@@ -65,11 +65,12 @@ export default async function PublicGalleryPage({
   const downloadsEnabled =
     gallery.downloadsEnabled && (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const favoritesEnabled = !proofingGallery || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
+  const proofingSelection = proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
   const coverPhoto =
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
-  const heroMeta = formatEventDate(gallery.eventDate);
+  const heroMeta = proofingSelection ? "Bildauswahl" : formatEventDate(gallery.eventDate);
 
   if (!canView) {
     return (
@@ -144,6 +145,11 @@ export default async function PublicGalleryPage({
               {gallery.title}
             </h1>
             <p className="font-playfair mt-4 text-xl text-ink/75 md:text-2xl">{heroMeta}</p>
+            {proofingSelection ? (
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-ink/75 md:text-base">
+                Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet.
+              </p>
+            ) : null}
             <p className="mt-3 text-sm font-medium uppercase tracking-[0.24em] text-graphite/70">
               {visiblePhotos.length} Medien
             </p>
@@ -162,6 +168,7 @@ export default async function PublicGalleryPage({
             photos={visiblePhotos}
             downloadsEnabled={downloadsEnabled}
             favoritesEnabled={favoritesEnabled}
+            favoriteMode={proofingSelection ? "proofing" : "favorites"}
           />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">

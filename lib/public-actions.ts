@@ -936,10 +936,14 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
     };
   }
 
+  const defaultListName =
+    isProofingGallery(photo.gallery.galleryMode) && photo.gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+      ? "Auswahl"
+      : "Favoriten";
   const existingList = await prisma.galleryFavoriteList.findFirst({
     where: listId
       ? { id: listId, galleryId, email: normalizedEmail }
-      : { galleryId, email: normalizedEmail, name: "Favoriten" },
+      : { galleryId, email: normalizedEmail, name: defaultListName },
     select: {
       id: true,
       name: true,
@@ -955,7 +959,7 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
       data: {
         galleryId,
         email: normalizedEmail,
-        name: "Favoriten"
+        name: defaultListName
       },
       select: {
         id: true,
