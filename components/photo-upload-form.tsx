@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as exifr from "exifr";
 import { ImagePlus, UploadCloud } from "lucide-react";
@@ -8,7 +8,8 @@ import {
   completePhotoUploadsAction,
   createPhotoUploadSessionAction,
   createPhotoUploadTargetsAction,
-  markPhotoUploadItemFailedAction
+  markPhotoUploadItemFailedAction,
+  refreshAdminSessionAction
 } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 import {
@@ -62,6 +63,7 @@ const MAX_UPLOAD_ATTEMPTS = 5;
 const MAX_CONNECTION_RESUME_ATTEMPTS = 60;
 const GALLERY_REFRESH_INTERVAL_MS = 2500;
 const CONNECTION_RETRY_DELAY_MS = 3000;
+const SESSION_KEEPALIVE_INTERVAL_MS = 2 * 60 * 1000;
 
 class UploadUrlExpiredError extends Error {
   constructor(message: string) {
@@ -224,7 +226,39 @@ export function PhotoUploadForm({
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastGalleryRefreshAtRef = useRef(0);
+  const lastSessionRefreshAtRef = useRef(0);
   const scheduledGalleryRefreshRef = useRef<number | null>(null);
+  const keepAdminSessionAlive = useCallback(
+    async ({
+      force = false,
+      showExpiredError = false
+    }: {
+      force?: boolean;
+      showExpiredError?: boolean;
+    } = {}) => {
+      if (!force && Date.now() - lastSessionRefreshAtRef.current < SESSION_KEEPALIVE_INTERVAL_MS) {
+        return true;
+      }
+
+      try {
+        const result = await refreshAdminSessionAction();
+
+        if (result.ok) {
+          lastSessionRefreshAtRef.current = Date.now();
+          return true;
+        }
+      } catch {
+        // The upload flow handles the visible error below.
+      }
+
+      if (showExpiredError) {
+        setUploadError("Az admin belépés lejárt. Jelentkezz be újra, majd indítsd újra a fennmaradó feltöltést.");
+      }
+
+      return false;
+    },
+    []
+  );
   const completedCount = selectedFiles.filter((file) => file.status === "completed").length;
   const failedCount = selectedFiles.filter((file) => file.status === "failed").length;
   const uploadedCount = selectedFiles.filter((file) => file.status === "uploaded" || file.status === "completed").length;
@@ -287,6 +321,31 @@ export function PhotoUploadForm({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isUploading) {
+      return undefined;
+    }
+
+    let isStopped = false;
+    const refreshSession = async () => {
+      const ok = await keepAdminSessionAlive({ force: true });
+
+      if (!ok && !isStopped) {
+        setUploadError("Az admin belépés lejárt. Jelentkezz be újra, majd folytasd a fennmaradó képekkel.");
+      }
+    };
+
+    void refreshSession();
+    const intervalId = window.setInterval(() => {
+      void refreshSession();
+    }, SESSION_KEEPALIVE_INTERVAL_MS);
+
+    return () => {
+      isStopped = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isUploading, keepAdminSessionAlive]);
 
   function refreshGallerySoon(force = false) {
     const runRefresh = () => {
@@ -363,6 +422,14 @@ export function PhotoUploadForm({
         await waitForConnectionRecovery();
         onResume?.();
       }
+    }
+  }
+
+  async function ensureAdminSessionForUpload({ force = false }: { force?: boolean } = {}) {
+    const ok = await keepAdminSessionAlive({ force, showExpiredError: true });
+
+    if (!ok) {
+      throw new Error("Az admin belépés lejárt. Jelentkezz be újra, majd indítsd újra a fennmaradó feltöltést.");
     }
   }
 
@@ -660,6 +727,8 @@ export function PhotoUploadForm({
     onWaiting: () => void;
     onResume: () => void;
   }) {
+    await ensureAdminSessionForUpload();
+
     const targetResult = await runWithConnectionResume({
       operation: () => createPhotoUploadTargetsAction(galleryId, sessionId, files.map(toPhotoUploadRequest)),
       onWaiting,
@@ -784,6 +853,7 @@ export function PhotoUploadForm({
             errorMessage: null,
             uploadBytesSent: selectedFile.file.size
           });
+          await ensureAdminSessionForUpload();
           const completedUpload = {
             ...target,
             fileSize: selectedFile.file.size,
@@ -858,6 +928,8 @@ export function PhotoUploadForm({
     setUploadStartedAt(Date.now());
 
     try {
+      await ensureAdminSessionForUpload({ force: true });
+
       let sessionId = existingSessionId ?? uploadSessionId;
 
       if (!sessionId) {
@@ -878,6 +950,7 @@ export function PhotoUploadForm({
       let failedUploads = 0;
 
       for (const batch of chunkArray(files, UPLOAD_BATCH_SIZE)) {
+        await ensureAdminSessionForUpload();
         const batchResult = await uploadBatch(sessionId, batch);
         failedUploads += batchResult?.failedCount ?? 0;
       }

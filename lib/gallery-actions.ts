@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { normalizeSlug } from "@/lib/slug";
-import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
+import { hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
@@ -302,6 +302,27 @@ type CompletedPhotoUpload = {
   originalIndex?: number;
 };
 
+function photoDuplicateKey(input: {
+  filename: string;
+  mediaType?: string | null;
+  fileSize?: number | null;
+  imageWidth?: number | null;
+  imageHeight?: number | null;
+  capturedAt?: string | Date | null;
+}) {
+  const capturedAtTime = input.capturedAt ? new Date(input.capturedAt).getTime() : 0;
+  const normalizedCapturedAt = Number.isFinite(capturedAtTime) ? capturedAtTime : 0;
+
+  return [
+    input.mediaType === "video" ? "video" : "image",
+    input.filename,
+    input.fileSize ?? 0,
+    input.imageWidth ?? 0,
+    input.imageHeight ?? 0,
+    normalizedCapturedAt
+  ].join("\u001F");
+}
+
 async function refreshUploadSessionCounts(sessionId: string) {
   const [uploadedCount, completedCount, failedCount] = await Promise.all([
     prisma.galleryUploadItem.count({
@@ -503,6 +524,11 @@ export async function registerAdminAction(formData: FormData) {
 export async function logoutAction() {
   await signOutAdmin();
   redirect("/admin/login");
+}
+
+export async function refreshAdminSessionAction() {
+  const admin = await refreshAdminSession();
+  return { ok: Boolean(admin) };
 }
 
 export async function enableTwoFactorAction(formData: FormData) {
@@ -1263,7 +1289,34 @@ export async function completePhotoUploadsAction(
 
   if (sortedUploads.length > 0) {
     const now = new Date();
-    const createdPhotos = sortedUploads.map((upload) => {
+    const existingPhotos = await prisma.photo.findMany({
+      where: {
+        galleryId,
+        deliveryStage: session.deliveryStage,
+        filename: { in: Array.from(new Set(sortedUploads.map((upload) => upload.filename))) }
+      },
+      select: {
+        filename: true,
+        mediaType: true,
+        fileSize: true,
+        imageWidth: true,
+        imageHeight: true,
+        capturedAt: true
+      }
+    });
+    const existingPhotoKeys = new Set(existingPhotos.map((photo) => photoDuplicateKey(photo)));
+    const batchPhotoKeys = new Set<string>();
+    const uploadsToCreate = sortedUploads.filter((upload) => {
+      const key = photoDuplicateKey(upload);
+
+      if (existingPhotoKeys.has(key) || batchPhotoKeys.has(key)) {
+        return false;
+      }
+
+      batchPhotoKeys.add(key);
+      return true;
+    });
+    const createdPhotos = uploadsToCreate.map((upload) => {
       const id = randomUUID();
       const mediaType = upload.mediaType === "video" ? "video" : "image";
       const thumbnailUrl = upload.thumbnailUrl || upload.imageUrl;
@@ -1292,26 +1345,28 @@ export async function completePhotoUploadsAction(
     });
 
     await prisma.$transaction(async (tx) => {
-      await tx.photo.createMany({
-        data: createdPhotos.map((photo) => ({
-          id: photo.id,
-          galleryId: photo.galleryId,
-          filename: photo.filename,
-          r2Key: photo.r2Key,
-          imageUrl: photo.imageUrl,
-          thumbnailUrl: photo.thumbnailUrl,
-          previewUrl: photo.previewUrl,
-          deliveryStage: photo.deliveryStage,
-          mediaType: photo.mediaType,
-          processingStatus: photo.processingStatus,
-          processingRequestedAt: photo.processingRequestedAt,
-          fileSize: photo.fileSize,
-          imageWidth: photo.imageWidth,
-          imageHeight: photo.imageHeight,
-          capturedAt: photo.capturedAt,
-          sortOrder: photo.sortOrder
-        }))
-      });
+      if (createdPhotos.length > 0) {
+        await tx.photo.createMany({
+          data: createdPhotos.map((photo) => ({
+            id: photo.id,
+            galleryId: photo.galleryId,
+            filename: photo.filename,
+            r2Key: photo.r2Key,
+            imageUrl: photo.imageUrl,
+            thumbnailUrl: photo.thumbnailUrl,
+            previewUrl: photo.previewUrl,
+            deliveryStage: photo.deliveryStage,
+            mediaType: photo.mediaType,
+            processingStatus: photo.processingStatus,
+            processingRequestedAt: photo.processingRequestedAt,
+            fileSize: photo.fileSize,
+            imageWidth: photo.imageWidth,
+            imageHeight: photo.imageHeight,
+            capturedAt: photo.capturedAt,
+            sortOrder: photo.sortOrder
+          }))
+        });
+      }
 
       await tx.galleryUploadItem.updateMany({
         where: {
@@ -1342,7 +1397,9 @@ export async function completePhotoUploadsAction(
       }
     }, { timeout: 15000 });
 
-    scheduleGalleryMediaProcessing(galleryId);
+    if (createdPhotos.length > 0) {
+      scheduleGalleryMediaProcessing(galleryId);
+    }
   }
 
   if (
