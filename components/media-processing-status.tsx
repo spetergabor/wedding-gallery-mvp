@@ -3,7 +3,7 @@ import { Button } from "@/components/button";
 import { requeueGalleryMediaProcessingAction } from "@/lib/gallery-actions";
 
 const STALE_JOB_PROCESSING_MS = 30 * 60 * 1000;
-const STALE_PHOTO_PROCESSING_MS = 2 * 60 * 60 * 1000;
+const ACTIVE_PENDING_JOB_MS = 2 * 60 * 60 * 1000;
 
 type MediaProcessingPhoto = {
   id: string;
@@ -37,18 +37,12 @@ function hasLightweightVariant(photo: MediaProcessingPhoto) {
   );
 }
 
-function isPhotoProcessingStale(photo: MediaProcessingPhoto, now: number) {
-  return (
-    photo.mediaType !== "video" &&
-    photo.processingStatus !== "ready" &&
-    photo.processingStatus !== "failed" &&
-    (!photo.processingRequestedAt || now - photo.processingRequestedAt.getTime() > STALE_PHOTO_PROCESSING_MS) &&
-    !hasLightweightVariant(photo)
-  );
-}
-
 function isJobProcessingStale(job: MediaProcessingJob, now: number) {
   return job.status === "processing" && Boolean(job.claimedAt) && now - job.claimedAt!.getTime() > STALE_JOB_PROCESSING_MS;
+}
+
+function isPendingJobActive(job: MediaProcessingJob, now: number) {
+  return job.status === "pending" && now - job.updatedAt.getTime() <= ACTIVE_PENDING_JOB_MS;
 }
 
 function formatDate(date: Date | null) {
@@ -115,10 +109,10 @@ function getStatusMeta({
 
   if (missingVariantCount > 0) {
     return {
-      label: "Hiányzik előnézet",
-      description: "Vannak képek, amelyeknél még nincs külön thumbnail vagy preview fájl.",
-      className: "bg-brass/15 text-brass",
-      icon: AlertCircle
+      label: "Teljes képpel működik",
+      description: "A galéria betölt, csak nincs külön könnyített admin előnézet. Újragenerálással gyorsabb lesz az admin nézet.",
+      className: "bg-ink/5 text-graphite",
+      icon: ImageIcon
     };
   }
 
@@ -155,12 +149,9 @@ export function MediaProcessingStatus({
 
   const readyVariantCount = imagePhotos.filter(hasLightweightVariant).length;
   const missingVariantPhotos = imagePhotos.filter((photo) => !hasLightweightVariant(photo));
-  const pendingCount = imageJobs.filter((job) => job.status === "pending").length;
+  const pendingCount = imageJobs.filter((job) => isPendingJobActive(job, now)).length;
   const processingCount = imageJobs.filter((job) => job.status === "processing" && !isJobProcessingStale(job, now)).length;
-  const stalePhotoIds = new Set([
-    ...imageJobs.filter((job) => isJobProcessingStale(job, now)).map((job) => job.photoId),
-    ...imagePhotos.filter((photo) => isPhotoProcessingStale(photo, now)).map((photo) => photo.id)
-  ]);
+  const stalePhotoIds = new Set(imageJobs.filter((job) => isJobProcessingStale(job, now)).map((job) => job.photoId));
   const staleCount = stalePhotoIds.size;
   const failedPhotos = imagePhotos.filter((photo) => photo.processingStatus === "failed" || Boolean(photo.processingError));
   const failedPhotoIds = new Set([
@@ -184,7 +175,7 @@ export function MediaProcessingStatus({
   const Icon = meta.icon;
   const latestJob = imageJobs[0] ?? null;
   const sampleProblems = imagePhotos
-    .filter((photo) => !hasLightweightVariant(photo) || photo.processingStatus === "failed" || isPhotoProcessingStale(photo, now))
+    .filter((photo) => !hasLightweightVariant(photo) || photo.processingStatus === "failed" || stalePhotoIds.has(photo.id))
     .slice(0, 3);
 
   return (
@@ -225,11 +216,11 @@ export function MediaProcessingStatus({
           </p>
         </div>
         <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Hiányzó</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Eredetivel</p>
           <p className="mt-1 text-lg font-semibold text-ink">{missingVariantPhotos.length}</p>
         </div>
         <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Várakozik</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Sorban</p>
           <p className="mt-1 text-lg font-semibold text-ink">{pendingCount}</p>
         </div>
         <div className="rounded-md bg-paper px-4 py-3">
@@ -244,12 +235,12 @@ export function MediaProcessingStatus({
 
       <div className="mt-4 flex flex-col gap-2 text-sm text-graphite/70 md:flex-row md:items-center md:justify-between">
         <p>Utolsó feldolgozási frissítés: {formatDate(latestJob?.updatedAt ?? null)}</p>
-        <p>Újraindítható képek: {requeueableCount}</p>
+        <p>Optimalizálható képek: {requeueableCount}</p>
       </div>
 
       {sampleProblems.length > 0 ? (
         <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm text-graphite">
-          <p className="font-medium text-ink">Példák javítandó képekre</p>
+          <p className="font-medium text-ink">Példák optimalizálható képekre</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {sampleProblems.map((photo) => {
               const latestJobForPhoto = latestJobByPhotoId.get(photo.id);
