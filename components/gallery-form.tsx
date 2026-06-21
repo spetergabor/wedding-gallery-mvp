@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Eye, LockKeyhole } from "lucide-react";
+import { CalendarDays, Check, Download, Eye, LockKeyhole, ShieldCheck } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 import { SlugFields } from "@/components/slug-fields";
@@ -11,6 +11,9 @@ type GalleryFormProps = {
     password: string | null;
     eventDate: Date | null;
     isActive: boolean;
+    downloadsEnabled: boolean;
+    clientWatermarkEnabled: boolean;
+    clientWatermarkText: string;
   };
 };
 
@@ -84,6 +87,57 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
           <span className="text-sm text-graphite/70">Csak aktív galéria érhető el a publikus linken.</span>
         </span>
       </label>
+
+      <label className="flex items-center gap-3 rounded-md border border-ink/10 bg-paper px-4 py-3 transition hover:border-ink/20">
+        <span className="relative flex size-5 items-center justify-center rounded border border-ink/20 bg-white">
+          <input
+            name="downloadsEnabled"
+            type="checkbox"
+            defaultChecked={gallery?.downloadsEnabled ?? true}
+            className="peer absolute inset-0 opacity-0"
+          />
+          <Check className="hidden text-ink peer-checked:block" size={14} />
+        </span>
+        <span>
+          <span className="flex items-center gap-2 text-sm font-medium text-ink">
+            <Download size={15} />
+            Letöltések engedélyezése
+          </span>
+          <span className="text-sm text-graphite/70">Ha ki van kapcsolva, a teljes ZIP és az egyes képek letöltése sem elérhető a vendégeknek.</span>
+        </span>
+      </label>
+
+      <div className="rounded-md border border-ink/10 bg-paper px-4 py-4">
+        <label className="flex items-start gap-3">
+          <span className="relative mt-0.5 flex size-5 items-center justify-center rounded border border-ink/20 bg-white">
+            <input
+              name="clientWatermarkEnabled"
+              type="checkbox"
+              defaultChecked={gallery?.clientWatermarkEnabled}
+              className="peer absolute inset-0 opacity-0"
+            />
+            <Check className="hidden text-ink peer-checked:block" size={14} />
+          </span>
+          <span>
+            <span className="flex items-center gap-2 text-sm font-medium text-ink">
+              <ShieldCheck size={15} />
+              Vízjel az ügyfél-válogatóban
+            </span>
+            <span className="text-sm text-graphite/70">A pár alacsonyabb felbontású, vízjeles előnézetet lát a nyers válogatáshoz.</span>
+          </span>
+        </label>
+        <label className="mt-4 block space-y-2">
+          <span className="text-sm font-medium text-graphite">Vízjel szöveg</span>
+          <input
+            name="clientWatermarkText"
+            defaultValue={gallery?.clientWatermarkText || gallery?.title || ""}
+            placeholder={gallery?.title || "SPETER"}
+            maxLength={80}
+            className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 outline-none transition focus:border-ink/50"
+          />
+          <span className="block text-xs text-graphite/70">Ha üresen marad, a galéria neve kerül rá.</span>
+        </label>
+      </div>
 
       <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:flex-row sm:items-center">
         <Button type="submit">{gallery ? "Módosítások mentése" : "Galéria létrehozása"}</Button>

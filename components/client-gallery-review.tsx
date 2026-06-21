@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon } from "lucide-react";
 import { Button } from "@/components/button";
 import { SocialShareButtons } from "@/components/social-share-buttons";
@@ -10,24 +10,20 @@ import { toggleClientPhotoVisibilityAction } from "@/lib/client-gallery-actions"
 type ClientPhoto = {
   id: string;
   filename: string;
-  imageUrl: string;
-  thumbnailUrl: string;
-  previewUrl: string;
+  displayUrl: string;
   mediaType: string;
   processingStatus: string;
   isClientHidden: boolean;
 };
 
-function getClientPreviewUrl(photo: ClientPhoto) {
-  if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
-    return photo.thumbnailUrl;
-  }
+function createWatermarkStyle(text: string) {
+  const safeText = text || "Preview";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="160" viewBox="0 0 260 160"><text x="130" y="82" text-anchor="middle" dominant-baseline="middle" transform="rotate(-24 130 82)" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="rgba(255,255,255,0.72)" stroke="rgba(23,23,23,0.28)" stroke-width="1">${safeText.replace(/[<>&"']/g, "")}</text></svg>`;
 
-  if (photo.previewUrl && photo.previewUrl !== photo.imageUrl) {
-    return photo.previewUrl;
-  }
-
-  return photo.imageUrl;
+  return {
+    backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`,
+    backgroundSize: "260px 160px"
+  };
 }
 
 export function ClientGalleryReview({
@@ -35,13 +31,17 @@ export function ClientGalleryReview({
   publicSlug,
   title,
   token,
-  photos
+  photos,
+  watermarkEnabled,
+  watermarkText
 }: {
   galleryId: string;
   publicSlug: string;
   title: string;
   token: string;
   photos: ClientPhoto[];
+  watermarkEnabled: boolean;
+  watermarkText: string;
 }) {
   const [hiddenPhotoIds, setHiddenPhotoIds] = useState<Set<string>>(
     () => new Set(photos.filter((photo) => photo.isClientHidden).map((photo) => photo.id))
@@ -50,6 +50,7 @@ export function ClientGalleryReview({
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const publicHref = `/g/${publicSlug}`;
+  const watermarkStyle = useMemo(() => createWatermarkStyle(watermarkText || title), [title, watermarkText]);
 
   async function copyPublicLink() {
     const publicUrl = new URL(publicHref, window.location.origin).toString();
@@ -134,24 +135,27 @@ export function ClientGalleryReview({
               <div className="relative aspect-[4/3] bg-mist">
                 {photo.mediaType === "video" ? (
                   <div className={`relative h-full w-full bg-ink transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
-                    <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
                     <span className="absolute inset-0 grid place-items-center text-white">
                       <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
                         <Film size={16} />
                         Video
                       </span>
                     </span>
+                    {watermarkEnabled ? <span className="pointer-events-none absolute inset-0 opacity-70" style={watermarkStyle} /> : null}
                   </div>
-                ) : getClientPreviewUrl(photo) ? (
-                  <Image
-                    src={getClientPreviewUrl(photo)}
-                    alt={photo.filename}
-                    fill
-                    unoptimized
-                    loading="lazy"
-                    className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
-                    sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
-                  />
+                ) : photo.displayUrl ? (
+                  <>
+                    <Image
+                      src={photo.displayUrl}
+                      alt={photo.filename}
+                      fill
+                      unoptimized
+                      loading="lazy"
+                      className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
+                      sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+                    />
+                    {watermarkEnabled ? <span className="pointer-events-none absolute inset-0 opacity-70" style={watermarkStyle} /> : null}
+                  </>
                 ) : (
                   <div className={`grid h-full w-full place-items-center text-graphite/60 transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
                     <div className="flex flex-col items-center gap-2 text-center">

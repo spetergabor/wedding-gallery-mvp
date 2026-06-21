@@ -291,6 +291,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       title: true,
       slug: true,
       adminId: true,
+      downloadsEnabled: true,
       admin: {
         select: {
           email: true,
@@ -319,6 +320,10 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
 
   if (!gallery) {
     throw new Error("Diese Galerie wurde nicht gefunden.");
+  }
+
+  if (!gallery.downloadsEnabled) {
+    throw new Error("Downloads sind für diese Galerie derzeit deaktiviert.");
   }
 
   if (gallery.photos.length === 0) {

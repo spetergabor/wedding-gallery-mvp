@@ -3,6 +3,27 @@ import { Camera, ShieldCheck } from "lucide-react";
 import { ClientGalleryReview } from "@/components/client-gallery-review";
 import { prisma } from "@/lib/prisma";
 
+function clientDisplayUrl(photo: {
+  imageUrl: string;
+  thumbnailUrl: string;
+  previewUrl: string;
+  mediaType: string;
+}) {
+  if (photo.mediaType === "video") {
+    return "";
+  }
+
+  if (photo.previewUrl && photo.previewUrl !== photo.imageUrl) {
+    return photo.previewUrl;
+  }
+
+  if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
+    return photo.thumbnailUrl;
+  }
+
+  return "";
+}
+
 export default async function ClientGalleryReviewPage({
   params,
   searchParams
@@ -31,6 +52,15 @@ export default async function ClientGalleryReviewPage({
   if (!gallery) {
     notFound();
   }
+
+  const clientPhotos = gallery.photos.map((photo) => ({
+    id: photo.id,
+    filename: photo.filename,
+    displayUrl: clientDisplayUrl(photo),
+    mediaType: photo.mediaType,
+    processingStatus: photo.processingStatus,
+    isClientHidden: photo.isClientHidden
+  }));
 
   return (
     <main className="min-h-screen bg-paper">
@@ -61,7 +91,9 @@ export default async function ClientGalleryReviewPage({
           publicSlug={gallery.slug}
           title={gallery.title}
           token={token}
-          photos={gallery.photos}
+          photos={clientPhotos}
+          watermarkEnabled={gallery.clientWatermarkEnabled}
+          watermarkText={gallery.clientWatermarkText || gallery.title}
         />
       </section>
     </main>
