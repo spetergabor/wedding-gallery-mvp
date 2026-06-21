@@ -31,6 +31,7 @@ type PreparedUpload = {
   previewR2Key: string | null;
   uploadUrl: string;
   mediaType: "image" | "video";
+  alreadyCompleted?: boolean;
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -809,6 +810,17 @@ export function PhotoUploadForm({
           throw new Error(`${selectedFile.file.name} feltöltése nem lett előkészítve.`);
         }
 
+        if (target.alreadyCompleted) {
+          completedUploads += 1;
+          setFileStatus(selectedFile.clientId, "completed", {
+            uploadItemId: target.uploadItemId,
+            errorMessage: null,
+            uploadBytesSent: selectedFile.file.size
+          });
+          refreshGallerySoon();
+          continue;
+        }
+
         setFileStatus(selectedFile.clientId, "uploading", {
           uploadItemId: target.uploadItemId,
           errorMessage: null,
@@ -841,11 +853,25 @@ export function PhotoUploadForm({
             } catch (error) {
               if (error instanceof UploadUrlExpiredError && urlAttempt < 3) {
                 target = await refreshUploadTarget(sessionId, selectedFile);
+                if (target.alreadyCompleted) {
+                  break;
+                }
                 continue;
               }
 
               throw error;
             }
+          }
+
+          if (target.alreadyCompleted) {
+            completedUploads += 1;
+            setFileStatus(selectedFile.clientId, "completed", {
+              uploadItemId: target.uploadItemId,
+              errorMessage: null,
+              uploadBytesSent: selectedFile.file.size
+            });
+            refreshGallerySoon();
+            continue;
           }
 
           setFileStatus(selectedFile.clientId, "uploaded", {

@@ -1059,9 +1059,104 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
   }
 
   try {
+    const normalizedFiles = validFiles.map((file) => ({
+      ...file,
+      mediaType: file.mediaType === "video" || file.contentType?.startsWith("video/") ? "video" : "image"
+    }));
+    const existingPhotos = await prisma.photo.findMany({
+      where: {
+        galleryId,
+        deliveryStage: session.deliveryStage,
+        filename: { in: Array.from(new Set(normalizedFiles.map((file) => file.filename))) }
+      },
+      select: {
+        filename: true,
+        r2Key: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true,
+        mediaType: true,
+        fileSize: true,
+        imageWidth: true,
+        imageHeight: true,
+        capturedAt: true
+      }
+    });
+    const existingPhotoByKey = new Map(existingPhotos.map((photo) => [photoDuplicateKey(photo), photo]));
+
     const uploads = await Promise.all(
-      validFiles.map(async (file) => {
-        const mediaType = file.mediaType === "video" || file.contentType?.startsWith("video/") ? "video" : "image";
+      normalizedFiles.map(async (file) => {
+        const mediaType = file.mediaType;
+        const existingPhoto = existingPhotoByKey.get(photoDuplicateKey(file));
+
+        if (existingPhoto) {
+          const now = new Date();
+          const uploadItem = await prisma.galleryUploadItem.upsert({
+            where: {
+              sessionId_clientId: {
+                sessionId: session.id,
+                clientId: file.clientId
+              }
+            },
+            create: {
+              sessionId: session.id,
+              clientId: file.clientId,
+              filename: file.filename,
+              deliveryStage: session.deliveryStage,
+              r2Key: existingPhoto.r2Key,
+              imageUrl: existingPhoto.imageUrl,
+              thumbnailUrl: existingPhoto.thumbnailUrl,
+              previewUrl: existingPhoto.previewUrl,
+              mediaType,
+              fileSize: file.fileSize ?? 0,
+              imageWidth: file.imageWidth ?? 0,
+              imageHeight: file.imageHeight ?? 0,
+              capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
+              originalIndex: file.originalIndex ?? 0,
+              status: "completed",
+              errorMessage: null,
+              uploadedAt: now,
+              completedAt: now
+            },
+            update: {
+              filename: file.filename,
+              deliveryStage: session.deliveryStage,
+              r2Key: existingPhoto.r2Key,
+              imageUrl: existingPhoto.imageUrl,
+              thumbnailUrl: existingPhoto.thumbnailUrl,
+              previewUrl: existingPhoto.previewUrl,
+              mediaType,
+              fileSize: file.fileSize ?? 0,
+              imageWidth: file.imageWidth ?? 0,
+              imageHeight: file.imageHeight ?? 0,
+              capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
+              originalIndex: file.originalIndex ?? 0,
+              status: "completed",
+              errorMessage: null,
+              uploadedAt: now,
+              completedAt: now
+            },
+            select: {
+              id: true
+            }
+          });
+
+          return {
+            uploadItemId: uploadItem.id,
+            clientId: file.clientId,
+            filename: file.filename,
+            r2Key: existingPhoto.r2Key,
+            imageUrl: existingPhoto.imageUrl,
+            thumbnailUrl: existingPhoto.thumbnailUrl || existingPhoto.imageUrl,
+            previewUrl: existingPhoto.previewUrl || existingPhoto.imageUrl,
+            thumbnailR2Key: null,
+            previewR2Key: null,
+            mediaType,
+            alreadyCompleted: true,
+            uploadUrl: ""
+          };
+        }
+
         const generatedR2Key = createPhotoObjectKey({
           gallerySlug: session.gallery.slug,
           originalFilename: file.filename
