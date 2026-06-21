@@ -10,6 +10,14 @@ import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { enqueueGalleryZipJob, kickGalleryZipJob, sendGalleryDownloadLinkForRequest } from "@/lib/jobs";
+import {
+  PROOFING_STATUS_DELIVERED,
+  PROOFING_STATUS_IN_PROGRESS,
+  PROOFING_STATUS_NOT_OPENED,
+  PROOFING_STATUS_PROCESSING,
+  PROOFING_STATUS_SUBMITTED,
+  isProofingGallery
+} from "@/lib/proofing";
 
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 
@@ -473,7 +481,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
 export async function recordGalleryViewAction(galleryId: string) {
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
-    select: { id: true, isActive: true }
+    select: { id: true, isActive: true, galleryMode: true, proofingStatus: true }
   });
 
   if (!gallery || !gallery.isActive) {
@@ -487,6 +495,16 @@ export async function recordGalleryViewAction(galleryId: string) {
     galleryId,
     headers: requestHeaders
   });
+
+  if (isProofingGallery(gallery.galleryMode) && gallery.proofingStatus === PROOFING_STATUS_NOT_OPENED) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        proofingStatus: PROOFING_STATUS_IN_PROGRESS,
+        proofingStatusUpdatedAt: new Date()
+      }
+    });
+  }
 
   return {
     ok: true,
@@ -667,6 +685,21 @@ export async function createFavoriteListAction(galleryId: string, email: string,
     }
   });
 
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { galleryMode: true, proofingStatus: true }
+  });
+
+  if (gallery && isProofingGallery(gallery.galleryMode) && gallery.proofingStatus === PROOFING_STATUS_NOT_OPENED) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        proofingStatus: PROOFING_STATUS_IN_PROGRESS,
+        proofingStatusUpdatedAt: new Date()
+      }
+    });
+  }
+
   return {
     ok: true,
     list: {
@@ -704,6 +737,8 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
         select: {
           title: true,
           adminId: true,
+          galleryMode: true,
+          proofingStatus: true,
           admin: {
             select: {
               email: true,
@@ -756,6 +791,19 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
     where: { id: list.id },
     data: { submittedAt }
   });
+
+  if (
+    isProofingGallery(list.gallery.galleryMode) &&
+    ![PROOFING_STATUS_PROCESSING, PROOFING_STATUS_DELIVERED].includes(list.gallery.proofingStatus)
+  ) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        proofingStatus: PROOFING_STATUS_SUBMITTED,
+        proofingStatusUpdatedAt: submittedAt
+      }
+    });
+  }
 
   await prisma.adminNotification.create({
     data: {
@@ -817,7 +865,9 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
       gallery: {
         select: {
           title: true,
-          adminId: true
+          adminId: true,
+          galleryMode: true,
+          proofingStatus: true
         }
       }
     }
@@ -912,6 +962,16 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   const count = await prisma.galleryFavoriteItem.count({
     where: { listId: list.id }
   });
+
+  if (isProofingGallery(photo.gallery.galleryMode) && photo.gallery.proofingStatus === PROOFING_STATUS_NOT_OPENED) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        proofingStatus: PROOFING_STATUS_IN_PROGRESS,
+        proofingStatusUpdatedAt: new Date()
+      }
+    });
+  }
 
   if (list._count.items === 0 && count === 1) {
     await prisma.adminNotification.create({

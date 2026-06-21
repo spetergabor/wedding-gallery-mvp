@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Camera, ShieldCheck } from "lucide-react";
 import { ClientGalleryReview } from "@/components/client-gallery-review";
 import { prisma } from "@/lib/prisma";
+import { PROOFING_STATUS_IN_PROGRESS, PROOFING_STATUS_NOT_OPENED, isProofingGallery } from "@/lib/proofing";
 
 export default async function ClientGalleryReviewPage({
   params,
@@ -30,6 +31,16 @@ export default async function ClientGalleryReviewPage({
 
   if (!gallery) {
     notFound();
+  }
+
+  if (isProofingGallery(gallery.galleryMode) && gallery.proofingStatus === PROOFING_STATUS_NOT_OPENED) {
+    await prisma.gallery.update({
+      where: { id: gallery.id },
+      data: {
+        proofingStatus: PROOFING_STATUS_IN_PROGRESS,
+        proofingStatusUpdatedAt: new Date()
+      }
+    });
   }
 
   return (

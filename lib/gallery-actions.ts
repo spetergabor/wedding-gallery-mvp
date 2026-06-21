@@ -11,6 +11,14 @@ import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth
 import { notificationWhere } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
+  GALLERY_MODE_FULL,
+  GALLERY_MODE_PROOFING,
+  PROOFING_STATUSES,
+  PROOFING_STATUS_NOT_OPENED,
+  type ProofingStatus,
+  isProofingGallery
+} from "@/lib/proofing";
+import {
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
   createPhotoVariantObjectKey,
@@ -38,6 +46,10 @@ function formDate(formData: FormData, key: string) {
   const date = new Date(`${value}T12:00:00.000Z`);
 
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function galleryModeFromForm(formData: FormData) {
+  return formString(formData, "galleryMode") === GALLERY_MODE_PROOFING ? GALLERY_MODE_PROOFING : GALLERY_MODE_FULL;
 }
 
 async function requireGalleryAccess(galleryId: string) {
@@ -395,6 +407,26 @@ export async function restoreClientHiddenPhotoAction(galleryId: string, photoId:
   redirect(`/admin/galleries/${galleryId}?clientRestored=1`);
 }
 
+export async function updateGalleryProofingStatusAction(galleryId: string, status: ProofingStatus) {
+  await requireGalleryAccess(galleryId);
+
+  if (!PROOFING_STATUSES.some((item) => item.key === status)) {
+    redirect(`/admin/galleries/${galleryId}?tab=client&error=proofing-status`);
+  }
+
+  await prisma.gallery.update({
+    where: { id: galleryId },
+    data: {
+      galleryMode: GALLERY_MODE_PROOFING,
+      proofingStatus: status,
+      proofingStatusUpdatedAt: new Date()
+    }
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1`);
+}
+
 export async function createGalleryAction(formData: FormData) {
   const admin = await requireAdmin();
 
@@ -404,6 +436,7 @@ export async function createGalleryAction(formData: FormData) {
   const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
+  const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
 
   if (!title || !slug) {
@@ -421,6 +454,9 @@ export async function createGalleryAction(formData: FormData) {
         password: password || null,
         eventDate,
         isActive,
+        galleryMode,
+        proofingStatus: PROOFING_STATUS_NOT_OPENED,
+        proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
         clientAccessToken: createClientAccessToken()
       }
@@ -446,6 +482,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const eventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
+  const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
 
   if (!title || !slug) {
@@ -457,10 +494,11 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   try {
     const previousGallery = await prisma.gallery.findFirst({
       where: { id },
-      select: { slug: true }
+      select: { slug: true, galleryMode: true }
     });
 
     previousSlug = previousGallery?.slug ?? slug;
+    const becameProofing = !isProofingGallery(previousGallery?.galleryMode) && isProofingGallery(galleryMode);
 
     await prisma.gallery.update({
       where: { id },
@@ -470,6 +508,13 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         password: password || null,
         eventDate,
         isActive,
+        galleryMode,
+        ...(becameProofing
+          ? {
+              proofingStatus: PROOFING_STATUS_NOT_OPENED,
+              proofingStatusUpdatedAt: new Date()
+            }
+          : {}),
         downloadsEnabled
       }
     });

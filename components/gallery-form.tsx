@@ -1,7 +1,8 @@
-import { CalendarDays, Check, Download, Eye, LockKeyhole } from "lucide-react";
+import { CalendarDays, Check, Download, Eye, Images, LockKeyhole } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 import { SlugFields } from "@/components/slug-fields";
+import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
 
 type GalleryFormProps = {
   gallery?: {
@@ -11,6 +12,7 @@ type GalleryFormProps = {
     password: string | null;
     eventDate: Date | null;
     isActive: boolean;
+    galleryMode: string;
     downloadsEnabled: boolean;
   };
 };
@@ -39,8 +41,26 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
 
       <label className="space-y-2">
         <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+          <Images size={15} />
+          Galéria típusa
+        </span>
+        <select
+          name="galleryMode"
+          defaultValue={gallery?.galleryMode ?? GALLERY_MODE_FULL}
+          className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50 md:max-w-md"
+        >
+          <option value={GALLERY_MODE_FULL}>Teljes galéria</option>
+          <option value={GALLERY_MODE_PROOFING}>Nyers képek válogatásra</option>
+        </select>
+        <span className="block text-xs text-graphite/70">
+          Nyers válogatásnál az ügyfél kiválasztási státusza külön követhető lesz.
+        </span>
+      </label>
+
+      <label className="space-y-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
           <CalendarDays size={15} />
-          Esküvő dátuma
+          Esemény dátuma
         </span>
         <input
           name="eventDate"

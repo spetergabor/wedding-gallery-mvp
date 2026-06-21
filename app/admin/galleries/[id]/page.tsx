@@ -13,6 +13,7 @@ import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
+import { ProofingStatusPanel } from "@/components/proofing-status-panel";
 import { StatCard } from "@/components/stat-card";
 import { UploadSessionLog } from "@/components/upload-session-log";
 import { ViewLocationMap } from "@/components/view-location-map";
@@ -22,6 +23,7 @@ import { requireAdmin } from "@/lib/auth";
 import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
 import { kickGalleryZipJob } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
+import { isProofingGallery, proofingStatusLabel } from "@/lib/proofing";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
 type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
@@ -104,6 +106,7 @@ export default async function GalleryDetailPage({
     ordered?: string;
     photoAdded?: string;
     photoError?: string;
+    proofingStatus?: string;
     saved?: string;
     tab?: string;
   }>;
@@ -182,6 +185,8 @@ export default async function GalleryDetailPage({
   const hiddenByClientCount = gallery.photos.filter((photo) => photo.isClientHidden).length;
   const activeTab = getActiveTab(flags);
   const locationPoints = createViewLocationPoints(gallery.views);
+  const proofingGallery = isProofingGallery(gallery.galleryMode);
+  const galleryModeLabel = proofingGallery ? "Nyers válogatás" : "Teljes galéria";
 
   if (activeTab === "downloads") {
     queueZipPackageKick(gallery.id, gallery.downloadPackages);
@@ -215,6 +220,7 @@ export default async function GalleryDetailPage({
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
         {flags.clientLink ? <Alert title="Ügyfél kezelő link elkészítve." variant="success" /> : null}
         {flags.clientRestored ? <Alert title="Fotó visszaállítva a publikus galériába." variant="success" /> : null}
+        {flags.proofingStatus ? <Alert title="Ügyfélválogató státusz frissítve." variant="success" /> : null}
         {flags.ordered ? <Alert title="Fotósorrend frissítve." variant="success" /> : null}
         {flags.archived ? <Alert title="Galéria archiválva." variant="success">A publikus link most nem elérhető.</Alert> : null}
         {flags.activated ? <Alert title="Galéria aktiválva." variant="success">A publikus link újra elérhető.</Alert> : null}
@@ -231,8 +237,9 @@ export default async function GalleryDetailPage({
       </div>
 
       <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-6">
           <StatCard label="Fotók" value={gallery.photos.length} detail="Feltöltött képek száma" />
+          <StatCard label="Típus" value={galleryModeLabel} detail={proofingGallery ? proofingStatusLabel(gallery.proofingStatus) : "Kész galéria átadásra"} />
           <StatCard label="Megtekintések" value={gallery._count.views} detail={`Legutóbbi: ${latestLocation}`} />
           <StatCard label="Kedvenc listák" value={gallery._count.favoriteLists} detail="Emailhez mentett válogatások" />
           <StatCard label="Elrejtve" value={hiddenByClientCount} detail="Ügyfél által publikusból kivéve" />
@@ -270,7 +277,14 @@ export default async function GalleryDetailPage({
         ) : null}
 
         {activeTab === "client" ? (
-          <div className="max-w-4xl">
+          <div className="max-w-4xl space-y-6">
+            {proofingGallery ? (
+              <ProofingStatusPanel
+                galleryId={gallery.id}
+                status={gallery.proofingStatus}
+                updatedAt={gallery.proofingStatusUpdatedAt}
+              />
+            ) : null}
             <FavoriteListsLog lists={gallery.favoriteLists} />
           </div>
         ) : null}
@@ -303,9 +317,11 @@ export default async function GalleryDetailPage({
                     <KeyRound size={15} />
                     Ügyfél kezelő
                   </div>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link a párnak</h2>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">Privát kezelő link az ügyfélnek</h2>
                   <p className="mt-1 text-sm text-graphite/70">
-                    Ezen a linken a pár elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
+                    {proofingGallery
+                      ? "Nyers válogatásnál ezen követhető az ügyfél kiválasztási folyamata."
+                      : "Ezen a linken az ügyfél elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni."}
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">

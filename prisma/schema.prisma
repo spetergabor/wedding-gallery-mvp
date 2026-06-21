@@ -126,6 +126,9 @@ model Gallery {
   password     String?
   eventDate    DateTime?
   isActive     Boolean  @default(false)
+  galleryMode  String   @default("full")
+  proofingStatus String @default("not_opened")
+  proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
   coverPhotoId String?
   clientAccessToken String? @unique
@@ -141,6 +144,8 @@ model Gallery {
   admin        Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
 
   @@index([adminId])
+  @@index([galleryMode])
+  @@index([proofingStatus])
 }
 
 model Photo {
