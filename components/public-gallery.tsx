@@ -108,6 +108,7 @@ export function PublicGallery({
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [isSelectionSummaryOpen, setIsSelectionSummaryOpen] = useState(false);
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
   const proofingSelection = favoritesEnabled && favoriteMode === "proofing";
   const activeFavoriteList = favoriteLists.find((list) => list.id === activeFavoriteListId) ?? favoriteLists[0] ?? null;
@@ -131,6 +132,10 @@ export function PublicGallery({
 
     return visiblePhotos[selectedIndex] ?? null;
   }, [selectedIndex, visiblePhotos]);
+  const selectedFavoritePhotos = useMemo(
+    () => photos.filter((photo) => favoriteIds.has(photo.id)),
+    [favoriteIds, photos]
+  );
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
@@ -581,11 +586,23 @@ export function PublicGallery({
         )
       );
       setFavoriteSuccess(result.message ?? "Die Auswahl wurde gespeichert.");
+      setIsSelectionSummaryOpen(false);
     } catch (error) {
       setFavoriteError(error instanceof Error ? error.message : "Die Auswahl konnte nicht gespeichert werden.");
     } finally {
       setIsSubmittingFavoriteList(false);
     }
+  }
+
+  function handleSelectionSubmitClick() {
+    if (!proofingSelection) {
+      void submitActiveFavoriteList();
+      return;
+    }
+
+    setFavoriteError("");
+    setFavoriteSuccess("");
+    setIsSelectionSummaryOpen(true);
   }
 
   function formatSubmittedAt(value: string) {
@@ -671,7 +688,7 @@ export function PublicGallery({
               </div>
               <Button
                 type="button"
-                onClick={() => void submitActiveFavoriteList()}
+                onClick={handleSelectionSubmitClick}
                 disabled={!activeFavoriteList || favoriteCount === 0 || isSubmittingFavoriteList}
                 className="lg:shrink-0"
               >
@@ -867,6 +884,87 @@ export function PublicGallery({
               </Button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {proofingSelection && isSelectionSummaryOpen && activeFavoriteList ? (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-ink/60 px-5 backdrop-blur-sm">
+          <section className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-soft">
+            <div className="flex items-start justify-between gap-4 border-b border-ink/10 p-5">
+              <div>
+                <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
+                  <Heart size={20} />
+                </div>
+                <h2 className="mt-4 text-xl font-semibold text-ink">Auswahl prüfen</h2>
+                <p className="mt-2 text-sm leading-6 text-graphite/70">
+                  Du hast {favoriteCount} {favoriteCount === 1 ? "Foto" : "Fotos"} ausgewählt. Bitte prüfe die Auswahl,
+                  bevor du sie abschickst.
+                </p>
+              </div>
+              <button
+                type="button"
+                title="Schließen"
+                onClick={() => setIsSelectionSummaryOpen(false)}
+                className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-auto px-5 py-4">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                {selectedFavoritePhotos.slice(0, 18).map((photo) => (
+                  <div key={photo.id} className="overflow-hidden rounded-md border border-ink/10 bg-paper">
+                    <div className="relative aspect-square bg-mist">
+                      {isVideo(photo) ? (
+                        <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover" />
+                      ) : (
+                        <Image
+                          src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
+                          alt={photo.filename}
+                          fill
+                          unoptimized
+                          className="object-cover"
+                          sizes="120px"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {selectedFavoritePhotos.length > 18 ? (
+                <p className="mt-3 text-sm text-graphite/70">
+                  +{selectedFavoritePhotos.length - 18} weitere ausgewählte Fotos
+                </p>
+              ) : null}
+
+              <div className="mt-4 rounded-md bg-paper p-3">
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">Dateinamen</p>
+                <div className="mt-2 max-h-44 overflow-auto rounded-md bg-white px-3 py-2">
+                  <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-5 text-graphite">
+                    {selectedFavoritePhotos.map((photo) => photo.filename).join("\n")}
+                  </pre>
+                </div>
+              </div>
+
+              {favoriteError ? (
+                <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {favoriteError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-ink/10 p-5 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={() => setIsSelectionSummaryOpen(false)}>
+                Zurück zur Auswahl
+              </Button>
+              <Button type="button" onClick={() => void submitActiveFavoriteList()} disabled={isSubmittingFavoriteList}>
+                <Heart size={16} />
+                {isSubmittingFavoriteList ? "Wird abgeschickt..." : "Auswahl abschicken"}
+              </Button>
+            </div>
+          </section>
         </div>
       ) : null}
 

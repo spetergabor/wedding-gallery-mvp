@@ -834,6 +834,7 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
     };
   }
 
+  const proofingSelection = isProofingGallery(list.gallery.galleryMode);
   const submittedAt = new Date();
 
   await prisma.galleryFavoriteList.update({
@@ -888,7 +889,7 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
 
   return {
     ok: true,
-    message: "Die Auswahl wurde gespeichert.",
+    message: proofingSelection ? "Die Auswahl wurde abgeschickt." : "Die Auswahl wurde gespeichert.",
     submittedAt: submittedAt.toISOString()
   };
 }
