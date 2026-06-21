@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { after } from "next/server";
-import { Camera, Download, ExternalLink, Heart, KeyRound, Mail, MapPin, Settings } from "lucide-react";
+import { Camera, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, MapPin, Settings } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
@@ -416,6 +416,29 @@ export default async function GalleryDetailPage({
                     {!gallery.clientEmail ? (
                       <p className="mt-3 text-sm text-red-700">Az email küldéshez előbb add meg az ügyfél email címét a galéria beállításaiban.</p>
                     ) : null}
+                    <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">Fizetés / hozzáférés váz</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="rounded-md border border-sage/20 bg-white px-3 py-3">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                            <Landmark size={16} />
+                            Most: számla és utalás
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-graphite/70">
+                            A kész galéria csak akkor megy ki az ügyfélnek, amikor te manuálisan átadod. Így maradhat a számla után érkező utalás ellenőrzése.
+                          </p>
+                        </div>
+                        <div className="rounded-md border border-ink/10 bg-white/70 px-3 py-3">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                            <CreditCard size={16} />
+                            Később: Stripe kártyás fizetés
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-graphite/70">
+                            Ide kerül majd a kártyás fizetés: sikeres Stripe fizetés után a rendszer automatikusan átadhatja a kész galériát.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <form action={updateGalleryProofingStatusAction.bind(null, gallery.id, PROOFING_STATUS_DELIVERED)}>
