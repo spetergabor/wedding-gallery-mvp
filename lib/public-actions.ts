@@ -38,6 +38,10 @@ function normalizeListName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 80) || "Favoriten";
 }
 
+function favoritesDisabledForGallery(gallery: { galleryMode: string; proofingStatus: string }) {
+  return isProofingGallery(gallery.galleryMode) && gallery.proofingStatus === PROOFING_STATUS_DELIVERED;
+}
+
 function galleryZipFileName(title: string, partIndex?: number, partCount?: number) {
   const baseName = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery";
 
@@ -626,6 +630,19 @@ export async function getFavoriteListsAction(galleryId: string, email: string) {
     };
   }
 
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { isActive: true, galleryMode: true, proofingStatus: true }
+  });
+
+  if (!gallery?.isActive || favoritesDisabledForGallery(gallery)) {
+    return {
+      ok: false,
+      message: "Die Bildauswahl ist für diese Galerie nicht aktiv.",
+      lists: []
+    };
+  }
+
   const lists = await prisma.galleryFavoriteList.findMany({
     where: { galleryId, email: normalizedEmail },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
@@ -658,6 +675,19 @@ export async function createFavoriteListAction(galleryId: string, email: string,
     return {
       ok: false,
       message: "Bitte gib eine gültige E-Mail-Adresse ein.",
+      list: null
+    };
+  }
+
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: { isActive: true, galleryMode: true, proofingStatus: true }
+  });
+
+  if (!gallery?.isActive || favoritesDisabledForGallery(gallery)) {
+    return {
+      ok: false,
+      message: "Die Bildauswahl ist für diese Galerie nicht aktiv.",
       list: null
     };
   }
@@ -699,11 +729,6 @@ export async function createFavoriteListAction(galleryId: string, email: string,
       name: true,
       submittedAt: true
     }
-  });
-
-  const gallery = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: { galleryMode: true, proofingStatus: true }
   });
 
   if (gallery && isProofingGallery(gallery.galleryMode) && gallery.proofingStatus === PROOFING_STATUS_NOT_OPENED) {
@@ -789,6 +814,14 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
     return {
       ok: false,
       message: "Diese Favoritenliste konnte nicht gefunden werden.",
+      submittedAt: null
+    };
+  }
+
+  if (favoritesDisabledForGallery(list.gallery)) {
+    return {
+      ok: false,
+      message: "Die Bildauswahl ist für diese Galerie nicht aktiv.",
       submittedAt: null
     };
   }
@@ -893,6 +926,13 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
     return {
       ok: false,
       message: "Das Foto wurde nicht gefunden."
+    };
+  }
+
+  if (favoritesDisabledForGallery(photo.gallery)) {
+    return {
+      ok: false,
+      message: "Die Bildauswahl ist für diese Galerie nicht aktiv."
     };
   }
 

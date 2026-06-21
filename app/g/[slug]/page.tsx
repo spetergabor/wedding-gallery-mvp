@@ -64,6 +64,7 @@ export default async function PublicGalleryPage({
   const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden && photo.deliveryStage === publicDeliveryStage);
   const downloadsEnabled =
     gallery.downloadsEnabled && (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
+  const favoritesEnabled = !proofingGallery || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
   const coverPhoto =
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
@@ -160,6 +161,7 @@ export default async function PublicGalleryPage({
             title={gallery.title}
             photos={visiblePhotos}
             downloadsEnabled={downloadsEnabled}
+            favoritesEnabled={favoritesEnabled}
           />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
