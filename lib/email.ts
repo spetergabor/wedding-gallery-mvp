@@ -21,6 +21,13 @@ type ClientProofingInviteEmail = {
   proofingGalleryUrl: string;
 };
 
+type ClientFinalDeliveryEmail = {
+  to: string;
+  galleryTitle: string;
+  galleryUrl: string;
+  downloadsEnabled: boolean;
+};
+
 type AdminGalleryZipReadyEmail = {
   to?: string;
   galleryTitle: string;
@@ -231,6 +238,65 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     throw new Error(`Client proofing invite email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+}
+
+function clientFinalDeliveryHtml({
+  galleryTitle,
+  galleryUrl,
+  downloadsEnabled
+}: ClientFinalDeliveryEmail) {
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Deine fertigen Bilder sind bereit</h1>
+      <p style="margin: 0 0 18px;">Hallo,</p>
+      <p style="margin: 0 0 18px;">die fertig bearbeiteten Bilder der Galerie <strong>${escapeHtml(galleryTitle)}</strong> sind jetzt für dich bereit.</p>
+      <p style="margin: 0 0 18px;">${downloadsEnabled ? "Über den folgenden Link kannst du die Bilder ansehen und herunterladen." : "Über den folgenden Link kannst du die Bilder ansehen."}</p>
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(galleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Galerie öffnen</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(galleryUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Client final delivery email skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject: `Deine fertigen Bilder sind bereit: ${payload.galleryTitle}`,
+      html: clientFinalDeliveryHtml(payload),
+      text: [
+        "Deine fertigen Bilder sind bereit",
+        "",
+        `Galerie: ${payload.galleryTitle}`,
+        payload.downloadsEnabled
+          ? "Du kannst die Bilder jetzt ansehen und herunterladen."
+          : "Du kannst die Bilder jetzt ansehen.",
+        "",
+        `Galerie öffnen: ${payload.galleryUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Client final delivery email failed: ${response.status} ${errorText}`);
   }
 
   return true;

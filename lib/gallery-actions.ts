@@ -16,6 +16,7 @@ import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
   PROOFING_STATUSES,
+  PROOFING_STATUS_DELIVERED,
   PROOFING_STATUS_NOT_OPENED,
   PROOFING_STATUS_PROCESSING,
   PROOFING_STATUS_SUBMITTED,
@@ -24,7 +25,7 @@ import {
   isProofingGallery,
   normalizePhotoDeliveryStage
 } from "@/lib/proofing";
-import { publicGalleryUrl, sendClientProofingInviteEmail } from "@/lib/email";
+import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
 import {
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
@@ -146,6 +147,76 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
       where: { id: galleryId },
       data: {
         proofingInviteEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email küldési hiba."
+      }
+    });
+
+    return { ok: false, reason: "send-failed" };
+  }
+}
+
+async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = false }: { force?: boolean } = {}) {
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: {
+      title: true,
+      slug: true,
+      galleryMode: true,
+      clientEmail: true,
+      downloadsEnabled: true,
+      finalDeliveryEmailSentAt: true,
+      finalDeliveryEmailSentTo: true
+    }
+  });
+
+  if (!gallery || !isProofingGallery(gallery.galleryMode)) {
+    return { ok: false, reason: "not-proofing" };
+  }
+
+  const recipient = normalizeEmail(gallery.clientEmail);
+
+  if (!isValidEmail(recipient)) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: { finalDeliveryEmailError: "Hiányzó vagy érvénytelen ügyfél email cím." }
+    });
+    return { ok: false, reason: "missing-email" };
+  }
+
+  if (!force && gallery.finalDeliveryEmailSentAt && gallery.finalDeliveryEmailSentTo === recipient) {
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    const sent = await sendClientFinalDeliveryEmail({
+      to: recipient,
+      galleryTitle: gallery.title,
+      galleryUrl: publicGalleryUrl(gallery.slug),
+      downloadsEnabled: gallery.downloadsEnabled
+    });
+
+    if (!sent) {
+      await prisma.gallery.update({
+        where: { id: galleryId },
+        data: { finalDeliveryEmailError: "Hiányzó email konfiguráció." }
+      });
+      return { ok: false, reason: "email-config" };
+    }
+
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        finalDeliveryEmailSentAt: new Date(),
+        finalDeliveryEmailSentTo: recipient,
+        finalDeliveryEmailError: null
+      }
+    });
+
+    return { ok: true, skipped: false };
+  } catch (error) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        finalDeliveryEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email küldési hiba."
       }
     });
 
@@ -466,6 +537,16 @@ export async function sendProofingInviteAction(galleryId: string) {
   redirect(`/admin/galleries/${galleryId}?tab=client&proofingInvite=${status}`);
 }
 
+export async function sendFinalDeliveryEmailAction(galleryId: string) {
+  await requireGalleryAccess(galleryId);
+
+  const result = await sendFinalDeliveryEmailForGallery(galleryId, { force: true });
+  const status = result.ok ? "sent" : result.reason === "missing-email" ? "missing-email" : "failed";
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  redirect(`/admin/galleries/${galleryId}?tab=client&deliveryEmail=${status}`);
+}
+
 export async function restoreClientHiddenPhotoAction(galleryId: string, photoId: string) {
   await requireGalleryAccess(galleryId);
 
@@ -504,16 +585,55 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
     redirect(`/admin/galleries/${galleryId}?tab=client&error=proofing-status`);
   }
 
-  await prisma.gallery.update({
+  if (status === PROOFING_STATUS_DELIVERED) {
+    const [galleryBeforeDelivery, finalPhotoCount] = await Promise.all([
+      prisma.gallery.findUnique({
+        where: { id: galleryId },
+        select: { clientEmail: true }
+      }),
+      prisma.photo.count({
+        where: {
+          galleryId,
+          deliveryStage: PHOTO_DELIVERY_STAGE_FINAL
+        }
+      })
+    ]);
+
+    if (finalPhotoCount === 0) {
+      redirect(`/admin/galleries/${galleryId}?tab=client&deliveryEmail=no-final-photos`);
+    }
+
+    const recipient = normalizeEmail(galleryBeforeDelivery?.clientEmail);
+
+    if (!isValidEmail(recipient)) {
+      await prisma.gallery.update({
+        where: { id: galleryId },
+        data: { finalDeliveryEmailError: "Hiányzó vagy érvénytelen ügyfél email cím." }
+      });
+      redirect(`/admin/galleries/${galleryId}?tab=client&deliveryEmail=missing-email`);
+    }
+  }
+
+  const gallery = await prisma.gallery.update({
     where: { id: galleryId },
     data: {
       galleryMode: GALLERY_MODE_PROOFING,
       proofingStatus: status,
       proofingStatusUpdatedAt: new Date()
-    }
+    },
+    select: { slug: true, galleryMode: true }
   });
 
   revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+
+  if (status === PROOFING_STATUS_DELIVERED && isProofingGallery(gallery.galleryMode)) {
+    const emailResult = await sendFinalDeliveryEmailForGallery(galleryId);
+    const deliveryEmail = emailResult.ok ? "sent" : emailResult.reason === "missing-email" ? "missing-email" : "failed";
+
+    redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1&deliveryEmail=${deliveryEmail}`);
+  }
+
   redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1`);
 }
 
@@ -612,6 +732,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         galleryMode,
         clientEmail: clientEmail || null,
         proofingInviteEmailError: null,
+        finalDeliveryEmailError: null,
         ...(becameProofing
           ? {
               proofingStatus: PROOFING_STATUS_NOT_OPENED,

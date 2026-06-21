@@ -22,6 +22,7 @@ import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
 import {
   generateClientAccessLinkAction,
+  sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
@@ -62,6 +63,7 @@ function getActiveTab(flags: {
   archived?: string;
   clientLink?: string;
   clientRestored?: string;
+  deliveryEmail?: string;
   error?: string;
   proofingInvite?: string;
   saved?: string;
@@ -75,7 +77,7 @@ function getActiveTab(flags: {
     return "client";
   }
 
-  if (flags.proofingInvite) {
+  if (flags.proofingInvite || flags.deliveryEmail) {
     return "client";
   }
 
@@ -115,6 +117,7 @@ export default async function GalleryDetailPage({
     activated?: string;
     archived?: string;
     coverSet?: string;
+    deliveryEmail?: string;
     clientLink?: string;
     clientRestored?: string;
     error?: string;
@@ -252,6 +255,22 @@ export default async function GalleryDetailPage({
             {gallery.proofingInviteEmailError ?? "Ellenőrizd a Resend beállításokat, majd próbáld újra."}
           </Alert>
         ) : null}
+        {flags.deliveryEmail === "sent" ? <Alert title="Kész képek email elküldve az ügyfélnek." variant="success" /> : null}
+        {flags.deliveryEmail === "missing-email" ? (
+          <Alert title="Hiányzik az ügyfél email címe." variant="error">
+            Add meg az ügyfél e-mail címét a galéria beállításaiban, majd próbáld újra.
+          </Alert>
+        ) : null}
+        {flags.deliveryEmail === "no-final-photos" ? (
+          <Alert title="Még nincs feltöltött kész kép." variant="error">
+            Előbb töltsd fel a kidolgozott képeket, utána tudod átadni a galériát az ügyfélnek.
+          </Alert>
+        ) : null}
+        {flags.deliveryEmail === "failed" ? (
+          <Alert title="A kész képek email küldése nem sikerült." variant="error">
+            {gallery.finalDeliveryEmailError ?? "Ellenőrizd a Resend beállításokat, majd próbáld újra."}
+          </Alert>
+        ) : null}
         {flags.clientRestored ? <Alert title="Fotó visszaállítva a publikus galériába." variant="success" /> : null}
         {flags.proofingStatus ? <Alert title="Ügyfélválogató státusz frissítve." variant="success" /> : null}
         {flags.ordered ? <Alert title="Fotósorrend frissítve." variant="success" /> : null}
@@ -349,17 +368,45 @@ export default async function GalleryDetailPage({
                       Ha feltöltötted a kidolgozott képeket, ezzel váltod át az ügyfél galériáját a kész képekre. Onnantól a letöltések is ezekből készülnek.
                     </p>
                     <p className="mt-3 text-sm font-medium text-ink">Kész képek: {finalPhotoCount}</p>
+                    <div className="mt-4 grid gap-3 text-sm text-graphite md:grid-cols-2">
+                      <div className="rounded-md bg-paper px-3 py-2">
+                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfél email</p>
+                        <p className="mt-1 font-medium text-ink">{gallery.clientEmail ?? "Nincs megadva"}</p>
+                      </div>
+                      <div className="rounded-md bg-paper px-3 py-2">
+                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Átadás email</p>
+                        <p className="mt-1 font-medium text-ink">
+                          {gallery.finalDeliveryEmailSentAt
+                            ? `${gallery.finalDeliveryEmailSentAt.toLocaleString("hu-HU")} · ${gallery.finalDeliveryEmailSentTo ?? gallery.clientEmail ?? ""}`
+                            : gallery.finalDeliveryEmailError
+                              ? "Hibás"
+                              : "Még nem lett kiküldve"}
+                        </p>
+                      </div>
+                    </div>
+                    {!gallery.clientEmail ? (
+                      <p className="mt-3 text-sm text-red-700">Az email küldéshez előbb add meg az ügyfél email címét a galéria beállításaiban.</p>
+                    ) : null}
                   </div>
-                  <form action={updateGalleryProofingStatusAction.bind(null, gallery.id, PROOFING_STATUS_DELIVERED)}>
-                    <Button
-                      type="submit"
-                      variant={gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "secondary" : "primary"}
-                      disabled={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED}
-                      className={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "opacity-60" : ""}
-                    >
-                      Kész képek átadása
-                    </Button>
-                  </form>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <form action={updateGalleryProofingStatusAction.bind(null, gallery.id, PROOFING_STATUS_DELIVERED)}>
+                      <Button
+                        type="submit"
+                        variant={gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "secondary" : "primary"}
+                        disabled={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED || !gallery.clientEmail}
+                        className={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED || !gallery.clientEmail ? "opacity-60" : ""}
+                      >
+                        Kész képek átadása
+                      </Button>
+                    </form>
+                    {gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? (
+                      <form action={sendFinalDeliveryEmailAction.bind(null, gallery.id)}>
+                        <Button type="submit" variant="secondary" disabled={!gallery.clientEmail} className={!gallery.clientEmail ? "opacity-60" : ""}>
+                          Email újraküldése
+                        </Button>
+                      </form>
+                    ) : null}
+                  </div>
                 </div>
               </section>
             ) : null}
