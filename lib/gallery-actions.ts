@@ -284,6 +284,8 @@ type PhotoUploadRequest = {
   originalIndex?: number;
 };
 
+type PhotoDuplicateMode = "skip" | "replace";
+
 type CompletedPhotoUpload = {
   uploadItemId?: string;
   clientId?: string;
@@ -300,7 +302,12 @@ type CompletedPhotoUpload = {
   imageHeight?: number;
   capturedAt?: string | null;
   originalIndex?: number;
+  replacePhotoId?: string | null;
 };
+
+function normalizePhotoDuplicateMode(value: string | null | undefined): PhotoDuplicateMode {
+  return value === "replace" ? "replace" : "skip";
+}
 
 function photoDuplicateKey(input: {
   filename: string;
@@ -1024,7 +1031,12 @@ export async function createPhotoUploadSessionAction(
   };
 }
 
-export async function createPhotoUploadTargetsAction(galleryId: string, sessionId: string, files: PhotoUploadRequest[]) {
+export async function createPhotoUploadTargetsAction(
+  galleryId: string,
+  sessionId: string,
+  files: PhotoUploadRequest[],
+  duplicateMode: PhotoDuplicateMode = "skip"
+) {
   await requireGalleryAccess(galleryId);
 
   if (!isR2StorageEnabled()) {
@@ -1064,6 +1076,7 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
   }
 
   try {
+    const normalizedDuplicateMode = normalizePhotoDuplicateMode(duplicateMode);
     const normalizedFiles = validFiles.map((file) => ({
       ...file,
       mediaType: file.mediaType === "video" || file.contentType?.startsWith("video/") ? "video" : "image"
@@ -1074,7 +1087,9 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
         deliveryStage: session.deliveryStage,
         filename: { in: Array.from(new Set(normalizedFiles.map((file) => file.filename))) }
       },
+      orderBy: [{ createdAt: "asc" }, { sortOrder: "asc" }],
       select: {
+        id: true,
         filename: true,
         r2Key: true,
         imageUrl: true,
@@ -1087,14 +1102,22 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
         capturedAt: true
       }
     });
-    const existingPhotoByKey = new Map(existingPhotos.map((photo) => [photoDuplicateKey(photo), photo]));
+    const existingPhotoByKey = new Map<string, (typeof existingPhotos)[number]>();
+
+    for (const photo of existingPhotos) {
+      const key = photoDuplicateKey(photo);
+
+      if (!existingPhotoByKey.has(key)) {
+        existingPhotoByKey.set(key, photo);
+      }
+    }
 
     const uploads = await Promise.all(
       normalizedFiles.map(async (file) => {
         const mediaType = file.mediaType;
         const existingPhoto = existingPhotoByKey.get(photoDuplicateKey(file));
 
-        if (existingPhoto) {
+        if (existingPhoto && normalizedDuplicateMode === "skip") {
           const now = new Date();
           const uploadItem = await prisma.galleryUploadItem.upsert({
             where: {
@@ -1158,6 +1181,7 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             previewR2Key: null,
             mediaType,
             alreadyCompleted: true,
+            replacePhotoId: null,
             uploadUrl: ""
           };
         }
@@ -1213,6 +1237,10 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
           update: {
             filename: file.filename,
             deliveryStage: session.deliveryStage,
+            r2Key: generatedR2Key,
+            imageUrl: generatedPublicUrl,
+            thumbnailUrl: generatedPublicUrl,
+            previewUrl: generatedPublicUrl,
             mediaType,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
@@ -1248,6 +1276,8 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
           thumbnailR2Key: generatedThumbnailR2Key,
           previewR2Key: generatedPreviewR2Key,
           mediaType,
+          alreadyCompleted: false,
+          replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
           uploadUrl: await createPresignedPhotoUploadUrl({
             r2Key,
             contentType: file.contentType
@@ -1389,24 +1419,57 @@ export async function completePhotoUploadsAction(
 
   if (sortedUploads.length > 0) {
     const now = new Date();
-    const existingPhotos = await prisma.photo.findMany({
-      where: {
-        galleryId,
-        deliveryStage: session.deliveryStage,
-        filename: { in: Array.from(new Set(sortedUploads.map((upload) => upload.filename))) }
-      },
-      select: {
-        filename: true,
-        mediaType: true,
-        fileSize: true,
-        imageWidth: true,
-        imageHeight: true,
-        capturedAt: true
+    const replacementPhotoIds = Array.from(
+      new Set(sortedUploads.map((upload) => upload.replacePhotoId).filter((id): id is string => Boolean(id)))
+    );
+    const replacementPhotos = replacementPhotoIds.length
+      ? await prisma.photo.findMany({
+          where: {
+            id: { in: replacementPhotoIds },
+            galleryId,
+            deliveryStage: session.deliveryStage
+          },
+          select: {
+            id: true,
+            r2Key: true,
+            imageUrl: true,
+            thumbnailUrl: true,
+            previewUrl: true,
+            sortOrder: true
+          }
+        })
+      : [];
+    const replacementPhotoById = new Map(replacementPhotos.map((photo) => [photo.id, photo]));
+    const usedReplacementPhotoIds = new Set<string>();
+    const uploadsToReplace = sortedUploads.filter((upload) => {
+      if (!upload.replacePhotoId || !replacementPhotoById.has(upload.replacePhotoId) || usedReplacementPhotoIds.has(upload.replacePhotoId)) {
+        return false;
       }
+
+      usedReplacementPhotoIds.add(upload.replacePhotoId);
+      return true;
     });
+    const replacementUploadItemIds = new Set(
+      uploadsToReplace.map((upload) => upload.uploadItemId).filter((id): id is string => Boolean(id))
+    );
+    const creationCandidates = sortedUploads.filter((upload) => !upload.uploadItemId || !replacementUploadItemIds.has(upload.uploadItemId));
+    const existingPhotos = creationCandidates.length
+      ? await prisma.photo.findMany({
+          where: {
+            galleryId,
+            deliveryStage: session.deliveryStage,
+            filename: { in: Array.from(new Set(creationCandidates.map((upload) => upload.filename))) }
+          },
+          select: {
+            filename: true,
+            mediaType: true,
+            fileSize: true
+          }
+        })
+      : [];
     const existingPhotoKeys = new Set(existingPhotos.map((photo) => photoDuplicateKey(photo)));
     const batchPhotoKeys = new Set<string>();
-    const uploadsToCreate = sortedUploads.filter((upload) => {
+    const uploadsToCreate = creationCandidates.filter((upload) => {
       const key = photoDuplicateKey(upload);
 
       if (existingPhotoKeys.has(key) || batchPhotoKeys.has(key)) {
@@ -1443,6 +1506,36 @@ export async function completePhotoUploadsAction(
         previewR2Key: upload.previewR2Key ?? null
       };
     });
+    const replacedPhotos = uploadsToReplace.map((upload) => {
+      const id = upload.replacePhotoId!;
+      const existingPhoto = replacementPhotoById.get(id)!;
+      const mediaType = upload.mediaType === "video" ? "video" : "image";
+      const thumbnailUrl = upload.thumbnailUrl || upload.imageUrl;
+      const previewUrl = upload.previewUrl || upload.imageUrl;
+
+      return {
+        id,
+        galleryId,
+        filename: upload.filename,
+        r2Key: upload.r2Key,
+        imageUrl: upload.imageUrl,
+        thumbnailUrl,
+        previewUrl,
+        deliveryStage: session.deliveryStage,
+        mediaType,
+        processingStatus: "pending",
+        processingRequestedAt: now,
+        fileSize: upload.fileSize ?? 0,
+        imageWidth: upload.imageWidth ?? 0,
+        imageHeight: upload.imageHeight ?? 0,
+        capturedAt: upload.capturedAt ? new Date(upload.capturedAt) : null,
+        sortOrder: existingPhoto.sortOrder,
+        thumbnailR2Key: upload.thumbnailR2Key ?? null,
+        previewR2Key: upload.previewR2Key ?? null,
+        previousObjectKeys: photoObjectKeys(existingPhoto)
+      };
+    });
+    const photosForProcessing = [...createdPhotos, ...replacedPhotos];
 
     await prisma.$transaction(async (tx) => {
       if (createdPhotos.length > 0) {
@@ -1468,6 +1561,28 @@ export async function completePhotoUploadsAction(
         });
       }
 
+      for (const photo of replacedPhotos) {
+        await tx.photo.update({
+          where: { id: photo.id },
+          data: {
+            filename: photo.filename,
+            r2Key: photo.r2Key,
+            imageUrl: photo.imageUrl,
+            thumbnailUrl: photo.thumbnailUrl,
+            previewUrl: photo.previewUrl,
+            mediaType: photo.mediaType,
+            processingStatus: photo.processingStatus,
+            processingError: null,
+            processingRequestedAt: photo.processingRequestedAt,
+            processingCompletedAt: null,
+            fileSize: photo.fileSize,
+            imageWidth: photo.imageWidth,
+            imageHeight: photo.imageHeight,
+            capturedAt: photo.capturedAt
+          }
+        });
+      }
+
       await tx.galleryUploadItem.updateMany({
         where: {
           id: { in: sortedUploads.map((upload) => upload.uploadItemId).filter((id): id is string => Boolean(id)) },
@@ -1481,9 +1596,15 @@ export async function completePhotoUploadsAction(
         }
       });
 
-      if (createdPhotos.length > 0) {
+      if (replacedPhotos.length > 0) {
+        await tx.mediaProcessingJob.deleteMany({
+          where: { photoId: { in: replacedPhotos.map((photo) => photo.id) } }
+        });
+      }
+
+      if (photosForProcessing.length > 0) {
         await tx.mediaProcessingJob.createMany({
-          data: createdPhotos.map((photo) => ({
+          data: photosForProcessing.map((photo) => ({
             galleryId: photo.galleryId,
             photoId: photo.id,
             mediaType: photo.mediaType,
@@ -1497,7 +1618,14 @@ export async function completePhotoUploadsAction(
       }
     }, { timeout: 15000 });
 
-    if (createdPhotos.length > 0) {
+    const currentObjectKeys = new Set(photosForProcessing.flatMap(photoObjectKeys));
+    const previousReplacementObjectKeys = Array.from(
+      new Set(replacedPhotos.flatMap((photo) => photo.previousObjectKeys).filter((key) => !currentObjectKeys.has(key)))
+    );
+
+    await Promise.all(previousReplacementObjectKeys.map((key) => deletePhotoObject(key)));
+
+    if (photosForProcessing.length > 0) {
       scheduleGalleryMediaProcessing(galleryId);
     }
   }

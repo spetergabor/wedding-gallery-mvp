@@ -32,6 +32,7 @@ type PreparedUpload = {
   uploadUrl: string;
   mediaType: "image" | "video";
   alreadyCompleted?: boolean;
+  replacePhotoId?: string | null;
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -43,6 +44,7 @@ type RawPreparedUpload = Omit<PreparedUpload, "mediaType"> & {
 };
 
 type PhotoUploadStatus = "queued" | "preparing" | "uploading" | "waiting" | "uploaded" | "completed" | "failed";
+type PhotoDuplicateMode = "skip" | "replace";
 
 type SelectedPhotoFile = {
   clientId: string;
@@ -218,6 +220,7 @@ export function PhotoUploadForm({
   const isProofingUpload = galleryMode === GALLERY_MODE_PROOFING;
   const showDeliveryStageSelect = isProofingUpload && deliveryStageMode !== "fixed";
   const [deliveryStage, setDeliveryStage] = useState(normalizePhotoDeliveryStage(defaultDeliveryStage));
+  const [duplicateMode, setDuplicateMode] = useState<PhotoDuplicateMode>("skip");
   const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isReadingExif, setIsReadingExif] = useState(false);
@@ -731,7 +734,7 @@ export function PhotoUploadForm({
     await ensureAdminSessionForUpload();
 
     const targetResult = await runWithConnectionResume({
-      operation: () => createPhotoUploadTargetsAction(galleryId, sessionId, files.map(toPhotoUploadRequest)),
+      operation: () => createPhotoUploadTargetsAction(galleryId, sessionId, files.map(toPhotoUploadRequest), duplicateMode),
       onWaiting,
       onResume
     });
@@ -1058,6 +1061,24 @@ export function PhotoUploadForm({
                 </select>
               </label>
             ) : null}
+            <label className="mb-5 block space-y-2">
+              <span className="text-sm font-medium text-graphite">Duplikált fájlok kezelése</span>
+              <select
+                value={duplicateMode}
+                onChange={(event) => {
+                  setDuplicateMode(event.target.value === "replace" ? "replace" : "skip");
+                  setUploadSessionId(null);
+                }}
+                disabled={isUploading}
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:opacity-60"
+              >
+                <option value="skip">Duplikátumok kihagyása</option>
+                <option value="replace">Duplikátumok felülírása</option>
+              </select>
+              <p className="text-xs leading-5 text-graphite/70">
+                Azonos fájlnév és méret alapján. Kihagyásnál nem tölti fel újra, felülírásnál a meglévő képet frissíti.
+              </p>
+            </label>
             <p className="text-sm font-medium text-graphite">Kiválasztott médiák</p>
             <p className="mt-2 text-3xl font-semibold text-ink">{selectedFiles.length}</p>
             <p className="mt-1 text-sm text-graphite/70">
