@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { after } from "next/server";
-import { Camera, Download, ExternalLink, Heart, KeyRound, MapPin, Settings } from "lucide-react";
+import { Camera, Download, ExternalLink, Heart, KeyRound, Mail, MapPin, Settings } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
@@ -20,7 +20,7 @@ import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
-import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
+import { generateClientAccessLinkAction, sendProofingInviteAction } from "@/lib/gallery-actions";
 import { kickGalleryZipJob } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
 import { defaultPhotoDeliveryStageForGalleryMode, isProofingGallery, proofingStatusLabel } from "@/lib/proofing";
@@ -53,6 +53,7 @@ function getActiveTab(flags: {
   clientLink?: string;
   clientRestored?: string;
   error?: string;
+  proofingInvite?: string;
   saved?: string;
   tab?: string;
 }): GalleryTab {
@@ -64,7 +65,7 @@ function getActiveTab(flags: {
     return "client";
   }
 
-  if (flags.saved || flags.archived || flags.activated || flags.error) {
+  if (flags.saved || flags.archived || flags.activated || flags.error || flags.proofingInvite) {
     return "settings";
   }
 
@@ -106,6 +107,7 @@ export default async function GalleryDetailPage({
     ordered?: string;
     photoAdded?: string;
     photoError?: string;
+    proofingInvite?: string;
     proofingStatus?: string;
     saved?: string;
     tab?: string;
@@ -221,6 +223,17 @@ export default async function GalleryDetailPage({
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
         {flags.clientLink ? <Alert title="Ügyfél kezelő link elkészítve." variant="success" /> : null}
+        {flags.proofingInvite === "sent" ? <Alert title="Válogató link elküldve emailben." variant="success" /> : null}
+        {flags.proofingInvite === "missing-email" ? (
+          <Alert title="Hiányzik az ügyfél email címe." variant="error">
+            Add meg az ügyfél e-mail címét a galéria beállításaiban vagy a nyers feltöltésnél.
+          </Alert>
+        ) : null}
+        {flags.proofingInvite === "failed" ? (
+          <Alert title="A válogató email küldése nem sikerült." variant="error">
+            {gallery.proofingInviteEmailError ?? "Ellenőrizd a Resend beállításokat, majd próbáld újra."}
+          </Alert>
+        ) : null}
         {flags.clientRestored ? <Alert title="Fotó visszaállítva a publikus galériába." variant="success" /> : null}
         {flags.proofingStatus ? <Alert title="Ügyfélválogató státusz frissítve." variant="success" /> : null}
         {flags.ordered ? <Alert title="Fotósorrend frissítve." variant="success" /> : null}
@@ -230,6 +243,7 @@ export default async function GalleryDetailPage({
           <Alert title="Ez a slug már foglalt." variant="error">Adj meg egy egyedi publikus linket.</Alert>
         ) : null}
         {flags.error === "missing" ? <Alert title="Hiányzó kötelező mező." variant="error" /> : null}
+        {flags.error === "email" ? <Alert title="Érvénytelen email cím." variant="error" /> : null}
         {flags.photoError === "missing" ? <Alert title="Nem választottál ki fotót." variant="error" /> : null}
         {flags.photoError === "storage" ? (
           <Alert title="A feltöltés nem sikerült." variant="error">
@@ -280,6 +294,7 @@ export default async function GalleryDetailPage({
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
               defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+              initialClientEmail={gallery.clientEmail}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <PhotoManager
@@ -338,8 +353,32 @@ export default async function GalleryDetailPage({
                       ? "Nyers válogatásnál ezen követhető az ügyfél kiválasztási folyamata."
                       : "Ezen a linken az ügyfél elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni."}
                   </p>
+                  {proofingGallery ? (
+                    <div className="mt-4 grid gap-3 text-sm text-graphite md:grid-cols-2">
+                      <div className="rounded-md bg-paper px-3 py-2">
+                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfél email</p>
+                        <p className="mt-1 font-medium text-ink">{gallery.clientEmail ?? "Nincs megadva"}</p>
+                      </div>
+                      <div className="rounded-md bg-paper px-3 py-2">
+                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Válogató email</p>
+                        <p className="mt-1 font-medium text-ink">
+                          {gallery.proofingInviteSentAt
+                            ? `${gallery.proofingInviteSentAt.toLocaleString("hu-HU")} · ${gallery.proofingInviteSentTo ?? gallery.clientEmail ?? ""}`
+                            : "Még nem lett kiküldve"}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
+                  {proofingGallery ? (
+                    <form action={sendProofingInviteAction.bind(null, gallery.id)}>
+                      <Button type="submit" variant="secondary" disabled={!gallery.clientEmail} className={!gallery.clientEmail ? "opacity-60" : ""}>
+                        <Mail size={16} />
+                        Válogató link küldése
+                      </Button>
+                    </form>
+                  ) : null}
                   {gallery.clientAccessToken ? (
                     <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
                   ) : (

@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Download, Eye, Images, LockKeyhole } from "lucide-react";
+import { CalendarDays, Check, Download, Eye, Images, LockKeyhole, Mail } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 import { SlugFields } from "@/components/slug-fields";
@@ -14,6 +14,7 @@ type GalleryFormProps = {
     isActive: boolean;
     galleryMode: string;
     downloadsEnabled: boolean;
+    clientEmail: string | null;
   };
 };
 
@@ -54,6 +55,23 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
         </select>
         <span className="block text-xs text-graphite/70">
           Nyers válogatásnál az ügyfél kiválasztási státusza külön követhető lesz.
+        </span>
+      </label>
+
+      <label className="space-y-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+          <Mail size={15} />
+          Ügyfél e-mail címe
+        </span>
+        <input
+          name="clientEmail"
+          type="email"
+          defaultValue={gallery?.clientEmail ?? ""}
+          placeholder="kunde@example.com"
+          className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50 md:max-w-md"
+        />
+        <span className="block text-xs text-graphite/70">
+          Nyers válogatásnál ide küldjük ki automatikusan a privát válogató linket a raw feltöltés végén.
         </span>
       </label>
 

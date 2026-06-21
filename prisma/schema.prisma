@@ -131,7 +131,11 @@ model Gallery {
   proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
   coverPhotoId String?
+  clientEmail  String?
   clientAccessToken String? @unique
+  proofingInviteSentAt DateTime?
+  proofingInviteSentTo String?
+  proofingInviteEmailError String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   photos       Photo[]

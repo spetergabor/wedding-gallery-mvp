@@ -14,6 +14,7 @@ import {
   GALLERY_MODE_FULL,
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
+  PHOTO_DELIVERY_STAGE_RAW,
   PROOFING_STATUSES,
   PROOFING_STATUS_NOT_OPENED,
   PROOFING_STATUS_PROCESSING,
@@ -23,6 +24,7 @@ import {
   isProofingGallery,
   normalizePhotoDeliveryStage
 } from "@/lib/proofing";
+import { clientGalleryUrl, sendClientProofingInviteEmail } from "@/lib/email";
 import {
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
@@ -39,6 +41,14 @@ import { verifyTotpCode } from "@/lib/totp";
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeEmail(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase();
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function formDate(formData: FormData, key: string) {
@@ -64,7 +74,7 @@ async function requireGalleryAccess(galleryId: string) {
       id: galleryId,
       ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
     },
-    select: { id: true, slug: true, galleryMode: true, proofingStatus: true }
+    select: { id: true, slug: true, galleryMode: true, proofingStatus: true, clientAccessToken: true }
   });
 
   if (!gallery) {
@@ -76,6 +86,81 @@ async function requireGalleryAccess(galleryId: string) {
 
 function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
+}
+
+async function sendProofingInviteForGallery(galleryId: string, { force = false }: { force?: boolean } = {}) {
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: {
+      title: true,
+      slug: true,
+      galleryMode: true,
+      clientEmail: true,
+      clientAccessToken: true,
+      proofingInviteSentAt: true,
+      proofingInviteSentTo: true
+    }
+  });
+
+  if (!gallery || !isProofingGallery(gallery.galleryMode)) {
+    return { ok: false, reason: "not-proofing" };
+  }
+
+  const recipient = normalizeEmail(gallery.clientEmail);
+
+  if (!isValidEmail(recipient)) {
+    return { ok: false, reason: "missing-email" };
+  }
+
+  if (!force && gallery.proofingInviteSentAt && gallery.proofingInviteSentTo === recipient) {
+    return { ok: true, skipped: true };
+  }
+
+  const token = gallery.clientAccessToken ?? createClientAccessToken();
+
+  if (!gallery.clientAccessToken) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: { clientAccessToken: token }
+    });
+  }
+
+  try {
+    const sent = await sendClientProofingInviteEmail({
+      to: recipient,
+      galleryTitle: gallery.title,
+      clientGalleryUrl: clientGalleryUrl(gallery.slug, token)
+    });
+
+    if (!sent) {
+      await prisma.gallery.update({
+        where: { id: galleryId },
+        data: { proofingInviteEmailError: "Hiányzó email konfiguráció." }
+      });
+      return { ok: false, reason: "email-config" };
+    }
+
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        clientEmail: recipient,
+        proofingInviteSentAt: new Date(),
+        proofingInviteSentTo: recipient,
+        proofingInviteEmailError: null
+      }
+    });
+
+    return { ok: true, skipped: false };
+  } catch (error) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        proofingInviteEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email küldési hiba."
+      }
+    });
+
+    return { ok: false, reason: "send-failed" };
+  }
 }
 
 type PhotoUploadRequest = {
@@ -381,6 +466,16 @@ export async function generateClientAccessLinkAction(galleryId: string) {
   redirect(`/admin/galleries/${galleryId}?clientLink=1`);
 }
 
+export async function sendProofingInviteAction(galleryId: string) {
+  await requireGalleryAccess(galleryId);
+
+  const result = await sendProofingInviteForGallery(galleryId, { force: true });
+  const status = result.ok ? "sent" : result.reason === "missing-email" ? "missing-email" : "failed";
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  redirect(`/admin/galleries/${galleryId}?tab=settings&proofingInvite=${status}`);
+}
+
 export async function restoreClientHiddenPhotoAction(galleryId: string, photoId: string) {
   await requireGalleryAccess(galleryId);
 
@@ -443,9 +538,14 @@ export async function createGalleryAction(formData: FormData) {
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
+  const clientEmail = normalizeEmail(formString(formData, "clientEmail"));
 
   if (!title || !slug) {
     redirect("/admin/galleries/new?error=missing");
+  }
+
+  if (clientEmail && !isValidEmail(clientEmail)) {
+    redirect("/admin/galleries/new?error=email");
   }
 
   let gallery;
@@ -463,6 +563,7 @@ export async function createGalleryAction(formData: FormData) {
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
+        clientEmail: clientEmail || null,
         clientAccessToken: createClientAccessToken()
       }
     });
@@ -489,9 +590,14 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
+  const clientEmail = normalizeEmail(formString(formData, "clientEmail"));
 
   if (!title || !slug) {
     redirect(`/admin/galleries/${id}?error=missing`);
+  }
+
+  if (clientEmail && !isValidEmail(clientEmail)) {
+    redirect(`/admin/galleries/${id}?error=email`);
   }
 
   let previousSlug = slug;
@@ -514,6 +620,8 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         eventDate,
         isActive,
         galleryMode,
+        clientEmail: clientEmail || null,
+        proofingInviteEmailError: null,
         ...(becameProofing
           ? {
               proofingStatus: PROOFING_STATUS_NOT_OPENED,
@@ -675,18 +783,40 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
 export async function createPhotoUploadSessionAction(
   galleryId: string,
   totalCount: number,
-  deliveryStage?: string
+  deliveryStage?: string,
+  clientEmail?: string
 ): Promise<{ ok: boolean; message?: string; sessionId: string | null }> {
   const { gallery } = await requireGalleryAccess(galleryId);
   const normalizedDeliveryStage = isProofingGallery(gallery.galleryMode)
     ? normalizePhotoDeliveryStage(deliveryStage)
     : PHOTO_DELIVERY_STAGE_FINAL;
+  const proofingRawUpload = isProofingGallery(gallery.galleryMode) && normalizedDeliveryStage === PHOTO_DELIVERY_STAGE_RAW;
+  const normalizedClientEmail = normalizeEmail(clientEmail);
+
+  if (proofingRawUpload && !isValidEmail(normalizedClientEmail)) {
+    return {
+      ok: false,
+      message: "Adj meg egy érvényes ügyfél email címet a válogató link kiküldéséhez.",
+      sessionId: null
+    };
+  }
 
   const latestPhoto = await prisma.photo.findFirst({
     where: { galleryId },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true }
   });
+
+  if (proofingRawUpload) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        clientEmail: normalizedClientEmail,
+        proofingInviteEmailError: null,
+        ...(gallery.clientAccessToken ? {} : { clientAccessToken: createClientAccessToken() })
+      }
+    });
+  }
 
   const session = await prisma.galleryUploadSession.create({
     data: {
@@ -1082,6 +1212,17 @@ export async function completePhotoUploadsAction(
 
     if (session.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL) {
       await invalidatePublicGalleryDownloadPackages(galleryId);
+    }
+
+    if (session.deliveryStage === PHOTO_DELIVERY_STAGE_RAW && isProofingGallery(session.gallery.galleryMode)) {
+      const inviteResult = await sendProofingInviteForGallery(galleryId);
+
+      if (!inviteResult.ok && inviteResult.reason !== "missing-email") {
+        console.error("Proofing invite email failed", {
+          galleryId,
+          reason: inviteResult.reason
+        });
+      }
     }
   }
 

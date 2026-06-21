@@ -15,6 +15,12 @@ type ContractSignatureRequestEmail = {
   contractUrl: string;
 };
 
+type ClientProofingInviteEmail = {
+  to: string;
+  galleryTitle: string;
+  clientGalleryUrl: string;
+};
+
 type AdminGalleryZipReadyEmail = {
   to?: string;
   galleryTitle: string;
@@ -171,8 +177,69 @@ export function publicGalleryUrl(slug: string) {
   return `${appBaseUrl()}/g/${slug}`;
 }
 
+export function clientGalleryUrl(slug: string, token: string) {
+  const url = new URL(`/client/${slug}`, appBaseUrl());
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
 export function galleryDownloadUrl(token: string) {
   return `${appBaseUrl()}/download/${token}`;
+}
+
+function clientProofingInviteHtml({
+  galleryTitle,
+  clientGalleryUrl
+}: ClientProofingInviteEmail) {
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Deine Bildauswahl ist bereit</h1>
+      <p style="margin: 0 0 18px;">Hallo,</p>
+      <p style="margin: 0 0 18px;">die Galerie <strong>${escapeHtml(galleryTitle)}</strong> ist zur Auswahl vorbereitet. Über den folgenden Link kannst du deine Favoriten markieren und die Auswahl anschließend abschicken.</p>
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(clientGalleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Bildauswahl öffnen</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(clientGalleryUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendClientProofingInviteEmail(payload: ClientProofingInviteEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Client proofing invite email skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject: `Deine Bildauswahl ist bereit: ${payload.galleryTitle}`,
+      html: clientProofingInviteHtml(payload),
+      text: [
+        "Deine Bildauswahl ist bereit",
+        "",
+        `Galerie: ${payload.galleryTitle}`,
+        "Öffne den folgenden Link, markiere deine Favoriten und schicke die Auswahl anschließend ab.",
+        "",
+        `Bildauswahl öffnen: ${payload.clientGalleryUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Client proofing invite email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
 }
 
 function galleryZipReadyHtml({
