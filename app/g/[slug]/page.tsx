@@ -5,6 +5,12 @@ import { GalleryViewTracker } from "@/components/gallery-view-tracker";
 import { PublicGallery } from "@/components/public-gallery";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { prisma } from "@/lib/prisma";
+import {
+  PHOTO_DELIVERY_STAGE_FINAL,
+  PHOTO_DELIVERY_STAGE_RAW,
+  PROOFING_STATUS_DELIVERED,
+  isProofingGallery
+} from "@/lib/proofing";
 import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { Button } from "@/components/button";
 
@@ -50,7 +56,14 @@ export default async function PublicGalleryPage({
   });
 
   const canView = await canViewGallery(slug, gallery.password);
-  const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden);
+  const proofingGallery = isProofingGallery(gallery.galleryMode);
+  const publicDeliveryStage =
+    proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+      ? PHOTO_DELIVERY_STAGE_RAW
+      : PHOTO_DELIVERY_STAGE_FINAL;
+  const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden && photo.deliveryStage === publicDeliveryStage);
+  const downloadsEnabled =
+    gallery.downloadsEnabled && (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const coverPhoto =
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
@@ -146,7 +159,7 @@ export default async function PublicGalleryPage({
             galleryId={gallery.id}
             title={gallery.title}
             photos={visiblePhotos}
-            downloadsEnabled={gallery.downloadsEnabled}
+            downloadsEnabled={downloadsEnabled}
           />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">

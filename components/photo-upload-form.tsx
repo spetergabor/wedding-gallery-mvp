@@ -11,6 +11,12 @@ import {
   markPhotoUploadItemFailedAction
 } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
+import {
+  GALLERY_MODE_PROOFING,
+  PHOTO_DELIVERY_STAGE_FINAL,
+  PHOTO_DELIVERY_STAGE_RAW,
+  normalizePhotoDeliveryStage
+} from "@/lib/proofing";
 
 type PreparedUpload = {
   uploadItemId: string;
@@ -155,8 +161,18 @@ function statusClass(status: PhotoUploadStatus) {
   }
 }
 
-export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
+export function PhotoUploadForm({
+  galleryId,
+  galleryMode,
+  defaultDeliveryStage
+}: {
+  galleryId: string;
+  galleryMode: string;
+  defaultDeliveryStage: string;
+}) {
   const router = useRouter();
+  const isProofingUpload = galleryMode === GALLERY_MODE_PROOFING;
+  const [deliveryStage, setDeliveryStage] = useState(normalizePhotoDeliveryStage(defaultDeliveryStage));
   const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isReadingExif, setIsReadingExif] = useState(false);
@@ -740,7 +756,7 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
 
       if (!sessionId) {
         const sessionResult = await runWithConnectionResume({
-          operation: () => createPhotoUploadSessionAction(galleryId, selectedFiles.length),
+          operation: () => createPhotoUploadSessionAction(galleryId, selectedFiles.length, deliveryStage),
           onWaiting: () => setUploadError("Kapcsolatra vár a feltöltés indításához..."),
           onResume: () => setUploadError("")
         });
@@ -819,6 +835,23 @@ export function PhotoUploadForm({ galleryId }: { galleryId: string }) {
 
         <div className="flex flex-col justify-between rounded-lg border border-ink/10 bg-paper p-5">
           <div>
+            {isProofingUpload ? (
+              <label className="mb-5 block space-y-2">
+                <span className="text-sm font-medium text-graphite">Hova kerüljenek a képek?</span>
+                <select
+                  value={deliveryStage}
+                  onChange={(event) => {
+                    setDeliveryStage(normalizePhotoDeliveryStage(event.target.value));
+                    setUploadSessionId(null);
+                  }}
+                  disabled={isUploading}
+                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:opacity-60"
+                >
+                  <option value={PHOTO_DELIVERY_STAGE_RAW}>Nyers képekhez</option>
+                  <option value={PHOTO_DELIVERY_STAGE_FINAL}>Kész képekhez</option>
+                </select>
+              </label>
+            ) : null}
             <p className="text-sm font-medium text-graphite">Kiválasztott médiák</p>
             <p className="mt-2 text-3xl font-semibold text-ink">{selectedFiles.length}</p>
             <p className="mt-1 text-sm text-graphite/70">

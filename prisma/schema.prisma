@@ -156,6 +156,7 @@ model Photo {
   imageUrl     String
   thumbnailUrl String
   previewUrl   String   @default("")
+  deliveryStage String  @default("final")
   mediaType    String   @default("image")
   processingStatus String @default("ready")
   processingError  String?
@@ -176,6 +177,7 @@ model Photo {
   @@index([galleryId])
   @@index([r2Key])
   @@index([galleryId, sortOrder])
+  @@index([galleryId, deliveryStage])
   @@index([capturedAt])
   @@index([processingStatus])
 }
@@ -328,6 +330,7 @@ model GalleryUploadSession {
   id             String   @id @default(cuid())
   galleryId      String
   status         String   @default("pending")
+  deliveryStage  String   @default("final")
   totalCount     Int      @default(0)
   uploadedCount  Int      @default(0)
   completedCount Int      @default(0)
@@ -348,6 +351,7 @@ model GalleryUploadItem {
   sessionId     String
   clientId      String
   filename      String
+  deliveryStage String   @default("final")
   r2Key         String?
   imageUrl      String?
   thumbnailUrl  String?

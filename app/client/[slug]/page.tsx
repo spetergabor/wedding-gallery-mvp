@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import { Camera, ShieldCheck } from "lucide-react";
 import { ClientGalleryReview } from "@/components/client-gallery-review";
 import { prisma } from "@/lib/prisma";
-import { PROOFING_STATUS_IN_PROGRESS, PROOFING_STATUS_NOT_OPENED, isProofingGallery } from "@/lib/proofing";
+import {
+  PHOTO_DELIVERY_STAGE_RAW,
+  PROOFING_STATUS_IN_PROGRESS,
+  PROOFING_STATUS_NOT_OPENED,
+  isProofingGallery
+} from "@/lib/proofing";
 
 export default async function ClientGalleryReviewPage({
   params,
@@ -42,6 +47,9 @@ export default async function ClientGalleryReviewPage({
       }
     });
   }
+  const visiblePhotos = isProofingGallery(gallery.galleryMode)
+    ? gallery.photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW)
+    : gallery.photos;
 
   return (
     <main className="min-h-screen bg-paper">
@@ -60,7 +68,7 @@ export default async function ClientGalleryReviewPage({
             </div>
             <div className="flex items-center gap-2 rounded-md bg-paper px-4 py-3 text-sm text-graphite">
               <Camera size={16} />
-              {gallery.photos.length} Fotos
+              {visiblePhotos.length} Fotos
             </div>
           </div>
         </div>
@@ -72,7 +80,7 @@ export default async function ClientGalleryReviewPage({
           publicSlug={gallery.slug}
           title={gallery.title}
           token={token}
-          photos={gallery.photos}
+          photos={visiblePhotos}
         />
       </section>
     </main>

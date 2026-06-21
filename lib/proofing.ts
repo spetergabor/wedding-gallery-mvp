@@ -1,6 +1,9 @@
 export const GALLERY_MODE_FULL = "full";
 export const GALLERY_MODE_PROOFING = "proofing";
 
+export const PHOTO_DELIVERY_STAGE_RAW = "raw";
+export const PHOTO_DELIVERY_STAGE_FINAL = "final";
+
 export const PROOFING_STATUS_NOT_OPENED = "not_opened";
 export const PROOFING_STATUS_IN_PROGRESS = "in_progress";
 export const PROOFING_STATUS_SUBMITTED = "submitted";
@@ -39,6 +42,18 @@ export type ProofingStatus = (typeof PROOFING_STATUSES)[number]["key"];
 
 export function isProofingGallery(mode: string | null | undefined) {
   return mode === GALLERY_MODE_PROOFING;
+}
+
+export function normalizePhotoDeliveryStage(value: string | null | undefined) {
+  return value === PHOTO_DELIVERY_STAGE_RAW ? PHOTO_DELIVERY_STAGE_RAW : PHOTO_DELIVERY_STAGE_FINAL;
+}
+
+export function defaultPhotoDeliveryStageForGalleryMode(mode: string | null | undefined) {
+  return isProofingGallery(mode) ? PHOTO_DELIVERY_STAGE_RAW : PHOTO_DELIVERY_STAGE_FINAL;
+}
+
+export function photoDeliveryStageLabel(stage: string | null | undefined) {
+  return stage === PHOTO_DELIVERY_STAGE_RAW ? "Nyers" : "Kész";
 }
 
 export function proofingStatusLabel(status: string | null | undefined) {

@@ -13,10 +13,15 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   GALLERY_MODE_FULL,
   GALLERY_MODE_PROOFING,
+  PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUSES,
   PROOFING_STATUS_NOT_OPENED,
+  PROOFING_STATUS_PROCESSING,
+  PROOFING_STATUS_SUBMITTED,
   type ProofingStatus,
-  isProofingGallery
+  defaultPhotoDeliveryStageForGalleryMode,
+  isProofingGallery,
+  normalizePhotoDeliveryStage
 } from "@/lib/proofing";
 import {
   createPresignedPhotoUploadUrl,
@@ -59,7 +64,7 @@ async function requireGalleryAccess(galleryId: string) {
       id: galleryId,
       ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
     },
-    select: { id: true, slug: true }
+    select: { id: true, slug: true, galleryMode: true, proofingStatus: true }
   });
 
   if (!gallery) {
@@ -600,6 +605,7 @@ export async function deleteGalleryAction(id: string) {
 
 export async function addPhotoAction(galleryId: string, formData: FormData) {
   const { gallery } = await requireGalleryAccess(galleryId);
+  const deliveryStage = defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode);
 
   const uploads = formData
     .getAll("photos")
@@ -648,6 +654,7 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
         imageUrl: publicUrl,
         thumbnailUrl: publicUrl,
         previewUrl: publicUrl,
+        deliveryStage,
         fileSize: bytes.length,
         sortOrder: nextSortOrder + index
       };
@@ -667,9 +674,13 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
 
 export async function createPhotoUploadSessionAction(
   galleryId: string,
-  totalCount: number
+  totalCount: number,
+  deliveryStage?: string
 ): Promise<{ ok: boolean; message?: string; sessionId: string | null }> {
-  await requireGalleryAccess(galleryId);
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const normalizedDeliveryStage = isProofingGallery(gallery.galleryMode)
+    ? normalizePhotoDeliveryStage(deliveryStage)
+    : PHOTO_DELIVERY_STAGE_FINAL;
 
   const latestPhoto = await prisma.photo.findFirst({
     where: { galleryId },
@@ -680,6 +691,7 @@ export async function createPhotoUploadSessionAction(
   const session = await prisma.galleryUploadSession.create({
     data: {
       galleryId,
+      deliveryStage: normalizedDeliveryStage,
       totalCount: Math.max(0, totalCount),
       baseSortOrder: (latestPhoto?.sortOrder ?? 0) + 1,
       status: "pending"
@@ -707,6 +719,7 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
     where: { id: sessionId, galleryId },
     select: {
       id: true,
+      deliveryStage: true,
       gallery: {
         select: {
           slug: true
@@ -767,6 +780,7 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
             sessionId: session.id,
             clientId: file.clientId,
             filename: file.filename,
+            deliveryStage: session.deliveryStage,
             r2Key: generatedR2Key,
             imageUrl: generatedPublicUrl,
             thumbnailUrl: generatedPublicUrl,
@@ -784,6 +798,7 @@ export async function createPhotoUploadTargetsAction(galleryId: string, sessionI
           },
           update: {
             filename: file.filename,
+            deliveryStage: session.deliveryStage,
             mediaType,
             fileSize: file.fileSize ?? 0,
             imageWidth: file.imageWidth ?? 0,
@@ -898,9 +913,12 @@ export async function completePhotoUploadsAction(
     select: {
       id: true,
       baseSortOrder: true,
+      deliveryStage: true,
       gallery: {
         select: {
-          slug: true
+          slug: true,
+          galleryMode: true,
+          proofingStatus: true
         }
       }
     }
@@ -971,6 +989,7 @@ export async function completePhotoUploadsAction(
         imageUrl: upload.imageUrl,
         thumbnailUrl,
         previewUrl,
+        deliveryStage: session.deliveryStage,
         mediaType,
         processingStatus: "pending",
         processingRequestedAt: now,
@@ -994,6 +1013,7 @@ export async function completePhotoUploadsAction(
           imageUrl: photo.imageUrl,
           thumbnailUrl: photo.thumbnailUrl,
           previewUrl: photo.previewUrl,
+          deliveryStage: photo.deliveryStage,
           mediaType: photo.mediaType,
           processingStatus: photo.processingStatus,
           processingRequestedAt: photo.processingRequestedAt,
@@ -1036,6 +1056,21 @@ export async function completePhotoUploadsAction(
 
   }
 
+  if (
+    sortedUploads.length > 0 &&
+    session.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL &&
+    isProofingGallery(session.gallery.galleryMode) &&
+    session.gallery.proofingStatus === PROOFING_STATUS_SUBMITTED
+  ) {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data: {
+        proofingStatus: PROOFING_STATUS_PROCESSING,
+        proofingStatusUpdatedAt: new Date()
+      }
+    });
+  }
+
   const uploadSession = await incrementCompletedUploadSessionCounts(session.id, sortedUploads.length);
   const isSessionFinished =
     Boolean(uploadSession) &&
@@ -1044,7 +1079,10 @@ export async function completePhotoUploadsAction(
 
   if (isSessionFinished) {
     await reorderGalleryPhotosByCaptureTime(galleryId);
-    await invalidatePublicGalleryDownloadPackages(galleryId);
+
+    if (session.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL) {
+      await invalidatePublicGalleryDownloadPackages(galleryId);
+    }
   }
 
   if (options.revalidate !== false || isSessionFinished) {

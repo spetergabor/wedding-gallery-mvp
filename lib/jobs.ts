@@ -12,6 +12,7 @@ import {
   sendGuestGalleryDownloadReadyEmail
 } from "@/lib/email";
 import { createGalleryZipObjectKey, createPhotoReadStream, deletePhotoObject, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
+import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 
 export const ZIP_GENERATION_JOB = "zip_generation";
 
@@ -292,6 +293,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       slug: true,
       adminId: true,
       downloadsEnabled: true,
+      galleryMode: true,
+      proofingStatus: true,
       admin: {
         select: {
           email: true,
@@ -303,7 +306,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         }
       },
       photos: {
-        where: { isClientHidden: false },
+        where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         skip: downloadPackage.photoOffset,
         take: downloadPackage.photoLimit ?? undefined,
@@ -324,6 +327,10 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
 
   if (!gallery.downloadsEnabled) {
     throw new Error("Downloads sind für diese Galerie derzeit deaktiviert.");
+  }
+
+  if (isProofingGallery(gallery.galleryMode) && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED) {
+    throw new Error("Die finalen Fotos sind noch nicht freigegeben.");
   }
 
   if (gallery.photos.length === 0) {
@@ -428,7 +435,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     const generatedAt = new Date();
     const zippedPhotoIds = gallery.photos.map((photo) => photo.id);
     const currentVisiblePhotoIds = await prisma.photo.findMany({
-      where: { galleryId: gallery.id, isClientHidden: false },
+      where: { galleryId: gallery.id, isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       skip: downloadPackage.photoOffset,
       take: downloadPackage.photoLimit ?? undefined,

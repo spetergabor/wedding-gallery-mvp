@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
+import { PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 
 function galleryZipFileName(title: string) {
   return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery"}.zip`;
@@ -38,7 +39,9 @@ export async function GET(
       gallery: {
         select: {
           title: true,
-          downloadsEnabled: true
+          downloadsEnabled: true,
+          galleryMode: true,
+          proofingStatus: true
         }
       }
     }
@@ -50,6 +53,13 @@ export async function GET(
 
   if (!downloadPackage.gallery.downloadsEnabled) {
     return plainTextResponse("Downloads sind für diese Galerie derzeit deaktiviert.", 403);
+  }
+
+  if (
+    isProofingGallery(downloadPackage.gallery.galleryMode) &&
+    downloadPackage.gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+  ) {
+    return plainTextResponse("Die finalen Fotos sind noch nicht freigegeben.", 403);
   }
 
   if (!downloadPackage.accessTokenExpiresAt || downloadPackage.accessTokenExpiresAt <= new Date()) {

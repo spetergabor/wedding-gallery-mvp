@@ -11,6 +11,7 @@ import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { enqueueGalleryZipJob, kickGalleryZipJob, sendGalleryDownloadLinkForRequest } from "@/lib/jobs";
 import {
+  PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
   PROOFING_STATUS_IN_PROGRESS,
   PROOFING_STATUS_NOT_OPENED,
@@ -138,9 +139,11 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       title: true,
       slug: true,
       isActive: true,
+      galleryMode: true,
+      proofingStatus: true,
       downloadsEnabled: true,
       photos: {
-        where: { isClientHidden: false },
+        where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         select: {
           filename: true,
@@ -168,6 +171,19 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     return {
       ok: false,
       message: "Downloads sind für diese Galerie derzeit deaktiviert.",
+      downloadUrl: null,
+      filename: null,
+      cached: false,
+      packageId: null,
+      status: "failed",
+      packages: []
+    };
+  }
+
+  if (isProofingGallery(gallery.galleryMode) && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED) {
+    return {
+      ok: false,
+      message: "Die finalen Fotos sind noch nicht freigegeben.",
       downloadUrl: null,
       filename: null,
       cached: false,

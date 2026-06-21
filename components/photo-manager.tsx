@@ -9,6 +9,7 @@ import {
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
+import { isProofingGallery, photoDeliveryStageLabel } from "@/lib/proofing";
 
 type Photo = {
   id: string;
@@ -16,6 +17,7 @@ type Photo = {
   imageUrl: string;
   thumbnailUrl: string;
   previewUrl: string;
+  deliveryStage: string;
   mediaType: string;
   sortOrder: number;
   isClientHidden: boolean;
@@ -39,18 +41,28 @@ function getAdminPreviewUrl(photo: Photo) {
 export function PhotoManager({
   coverPhotoId,
   galleryId,
+  galleryMode,
   photos
 }: {
   coverPhotoId: string | null;
   galleryId: string;
+  galleryMode: string;
   photos: Photo[];
 }) {
+  const proofingGallery = isProofingGallery(galleryMode);
+  const rawCount = photos.filter((photo) => photo.deliveryStage === "raw").length;
+  const finalCount = photos.filter((photo) => photo.deliveryStage === "final").length;
+
   return (
     <section>
       <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
           <h2 className="text-xl font-semibold text-ink">Fotók kezelése</h2>
-          <p className="mt-1 text-sm text-graphite/70">Rendezés, borítókép választás és egyedi törlés.</p>
+          <p className="mt-1 text-sm text-graphite/70">
+            {proofingGallery
+              ? `Rendezés, borítókép választás és egyedi törlés. Nyers: ${rawCount}, kész: ${finalCount}.`
+              : "Rendezés, borítókép választás és egyedi törlés."}
+          </p>
         </div>
         {photos.length > 1 ? (
           <form action={reorderGalleryPhotosAction.bind(null, galleryId)}>
@@ -92,6 +104,11 @@ export function PhotoManager({
                   Borító
                 </span>
               ) : null}
+              {proofingGallery ? (
+                <span className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink">
+                  {photoDeliveryStageLabel(photo.deliveryStage)}
+                </span>
+              ) : null}
               {photo.isClientHidden ? (
                 <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">
                   <EyeOff size={13} />
@@ -107,7 +124,10 @@ export function PhotoManager({
             <div className="space-y-3 p-3">
               <div>
                 <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
-                <p className="mt-1 text-xs text-graphite/70">Sorrend: {index + 1}</p>
+                <p className="mt-1 text-xs text-graphite/70">
+                  Sorrend: {index + 1}
+                  {proofingGallery ? ` · ${photoDeliveryStageLabel(photo.deliveryStage)}` : ""}
+                </p>
                 {photo.processingError ? (
                   <p className="mt-1 text-xs text-red-700">{photo.processingError}</p>
                 ) : null}

@@ -23,7 +23,7 @@ import { requireAdmin } from "@/lib/auth";
 import { generateClientAccessLinkAction } from "@/lib/gallery-actions";
 import { kickGalleryZipJob } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
-import { isProofingGallery, proofingStatusLabel } from "@/lib/proofing";
+import { defaultPhotoDeliveryStageForGalleryMode, isProofingGallery, proofingStatusLabel } from "@/lib/proofing";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
 type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
@@ -187,6 +187,8 @@ export default async function GalleryDetailPage({
   const locationPoints = createViewLocationPoints(gallery.views);
   const proofingGallery = isProofingGallery(gallery.galleryMode);
   const galleryModeLabel = proofingGallery ? "Nyers válogatás" : "Teljes galéria";
+  const rawPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "raw").length;
+  const finalPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "final").length;
 
   if (activeTab === "downloads") {
     queueZipPackageKick(gallery.id, gallery.downloadPackages);
@@ -238,7 +240,11 @@ export default async function GalleryDetailPage({
 
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-6">
-          <StatCard label="Fotók" value={gallery.photos.length} detail="Feltöltött képek száma" />
+          <StatCard
+            label="Fotók"
+            value={gallery.photos.length}
+            detail={proofingGallery ? `Nyers: ${rawPhotoCount} · Kész: ${finalPhotoCount}` : "Feltöltött képek száma"}
+          />
           <StatCard label="Típus" value={galleryModeLabel} detail={proofingGallery ? proofingStatusLabel(gallery.proofingStatus) : "Kész galéria átadásra"} />
           <StatCard label="Megtekintések" value={gallery._count.views} detail={`Legutóbbi: ${latestLocation}`} />
           <StatCard label="Kedvenc listák" value={gallery._count.favoriteLists} detail="Emailhez mentett válogatások" />
@@ -270,9 +276,18 @@ export default async function GalleryDetailPage({
 
         {activeTab === "photos" ? (
           <div className="space-y-8">
-            <PhotoUploadForm galleryId={gallery.id} />
+            <PhotoUploadForm
+              galleryId={gallery.id}
+              galleryMode={gallery.galleryMode}
+              defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+            />
             <UploadSessionLog sessions={gallery.uploadSessions} />
-            <PhotoManager coverPhotoId={gallery.coverPhotoId} galleryId={gallery.id} photos={gallery.photos} />
+            <PhotoManager
+              coverPhotoId={gallery.coverPhotoId}
+              galleryId={gallery.id}
+              galleryMode={gallery.galleryMode}
+              photos={gallery.photos}
+            />
           </div>
         ) : null}
 
