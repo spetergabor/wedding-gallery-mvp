@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, Film, ImageIcon, Star, Trash2 } from "lucide-react";
 import {
+  cleanupDuplicatePhotosAction,
   deletePhotoAction,
   movePhotoAction,
   reorderGalleryPhotosAction,
@@ -25,6 +26,7 @@ type Photo = {
   previewUrl: string;
   deliveryStage: string;
   mediaType: string;
+  fileSize: number;
   sortOrder: number;
   isClientHidden: boolean;
   clientHiddenAt: Date | null;
@@ -73,6 +75,21 @@ function shouldShowProcessingBadge(photo: Photo) {
   return true;
 }
 
+function duplicatePhotoKey(photo: Photo) {
+  return [photo.deliveryStage, photo.mediaType === "video" ? "video" : "image", photo.filename.trim(), photo.fileSize ?? 0].join("\u001F");
+}
+
+function countDuplicatePhotos(photos: Photo[]) {
+  const groups = new Map<string, number>();
+
+  for (const photo of photos) {
+    const key = duplicatePhotoKey(photo);
+    groups.set(key, (groups.get(key) ?? 0) + 1);
+  }
+
+  return [...groups.values()].reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+}
+
 function normalizePhotoManagerSet(value: string | null | undefined): PhotoManagerSet {
   if (value === "raw" || value === "final" || value === "selected") {
     return value;
@@ -101,6 +118,7 @@ export function PhotoManager({
   const rawCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW).length;
   const finalCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL).length;
   const selectedCount = photos.filter((photo) => selectedSet.has(photo.id)).length;
+  const duplicateCount = countDuplicatePhotos(photos);
   const normalizedActiveSet = normalizePhotoManagerSet(activeSet);
   const displayedPhotos = proofingGallery
     ? photos.filter((photo) => {
@@ -145,14 +163,28 @@ export function PhotoManager({
               : "Rendezés, borítókép választás és egyedi törlés."}
           </p>
         </div>
-        {photos.length > 1 ? (
-          <form action={reorderGalleryPhotosAction.bind(null, galleryId)}>
-            <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5 hover:text-ink">
-              <Clock3 size={15} />
-              Capture time szerint rendezés
-            </button>
-          </form>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {duplicateCount > 0 ? (
+            <form action={cleanupDuplicatePhotosAction.bind(null, galleryId)}>
+              <ConfirmSubmitButton
+                message={`Biztosan törlöd a ${duplicateCount} duplikált fotót? A rendszer a legrégebbi példányt tartja meg.`}
+                variant="danger"
+                className="h-10 px-3"
+              >
+                <Trash2 size={15} />
+                {duplicateCount} duplikátum törlése
+              </ConfirmSubmitButton>
+            </form>
+          ) : null}
+          {photos.length > 1 ? (
+            <form action={reorderGalleryPhotosAction.bind(null, galleryId)}>
+              <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5 hover:text-ink">
+                <Clock3 size={15} />
+                Capture time szerint rendezés
+              </button>
+            </form>
+          ) : null}
+        </div>
       </div>
       {proofingGallery ? (
         <nav className="mb-5 grid gap-2 rounded-lg border border-ink/10 bg-white p-2 shadow-soft sm:grid-cols-2 lg:grid-cols-4" aria-label="Fotó készletek">

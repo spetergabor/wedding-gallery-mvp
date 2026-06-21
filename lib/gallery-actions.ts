@@ -306,21 +306,26 @@ function photoDuplicateKey(input: {
   filename: string;
   mediaType?: string | null;
   fileSize?: number | null;
-  imageWidth?: number | null;
-  imageHeight?: number | null;
-  capturedAt?: string | Date | null;
 }) {
-  const capturedAtTime = input.capturedAt ? new Date(input.capturedAt).getTime() : 0;
-  const normalizedCapturedAt = Number.isFinite(capturedAtTime) ? capturedAtTime : 0;
-
   return [
     input.mediaType === "video" ? "video" : "image",
-    input.filename,
-    input.fileSize ?? 0,
-    input.imageWidth ?? 0,
-    input.imageHeight ?? 0,
-    normalizedCapturedAt
+    input.filename.trim(),
+    input.fileSize ?? 0
   ].join("\u001F");
+}
+
+function photoObjectKeys(photo: {
+  r2Key?: string | null;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+  previewUrl?: string | null;
+}) {
+  return [
+    photo.r2Key,
+    getR2KeyFromPublicUrl(photo.imageUrl),
+    getR2KeyFromPublicUrl(photo.thumbnailUrl),
+    getR2KeyFromPublicUrl(photo.previewUrl)
+  ].filter((key): key is string => Boolean(key));
 }
 
 async function refreshUploadSessionCounts(sessionId: string) {
@@ -1590,6 +1595,129 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   if (gallery) {
     revalidatePath(`/g/${gallery.slug}`);
   }
+}
+
+export async function cleanupDuplicatePhotosAction(galleryId: string) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+
+  const [currentGallery, photos] = await Promise.all([
+    prisma.gallery.findUnique({
+      where: { id: galleryId },
+      select: { coverPhotoId: true }
+    }),
+    prisma.photo.findMany({
+      where: { galleryId },
+      orderBy: [
+        { deliveryStage: "asc" },
+        { mediaType: "asc" },
+        { filename: "asc" },
+        { fileSize: "asc" },
+        { createdAt: "asc" },
+        { sortOrder: "asc" }
+      ],
+      select: {
+        id: true,
+        filename: true,
+        mediaType: true,
+        deliveryStage: true,
+        fileSize: true,
+        r2Key: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true
+      }
+    })
+  ]);
+  const groups = new Map<string, typeof photos>();
+
+  for (const photo of photos) {
+    const key = `${photo.deliveryStage}\u001F${photoDuplicateKey(photo)}`;
+    const group = groups.get(key) ?? [];
+    group.push(photo);
+    groups.set(key, group);
+  }
+
+  const replacementPhotoIdByDuplicateId = new Map<string, string>();
+  const duplicatePhotos = [...groups.values()].flatMap((group) => {
+    const [photoToKeep, ...duplicates] = group;
+
+    for (const duplicate of duplicates) {
+      replacementPhotoIdByDuplicateId.set(duplicate.id, photoToKeep.id);
+    }
+
+    return duplicates;
+  });
+
+  if (duplicatePhotos.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&duplicateCleanup=none`);
+  }
+
+  const duplicatePhotoIds = duplicatePhotos.map((photo) => photo.id);
+  const duplicatePhotoIdSet = new Set(duplicatePhotoIds);
+  const retainedObjectKeys = new Set(photos.filter((photo) => !duplicatePhotoIdSet.has(photo.id)).flatMap(photoObjectKeys));
+  const duplicateObjectKeys = Array.from(
+    new Set(duplicatePhotos.flatMap(photoObjectKeys).filter((key) => !retainedObjectKeys.has(key)))
+  );
+
+  await prisma.$transaction(async (tx) => {
+    const favoriteItems = await tx.galleryFavoriteItem.findMany({
+      where: { photoId: { in: duplicatePhotoIds } },
+      select: { listId: true, photoId: true }
+    });
+
+    for (const item of favoriteItems) {
+      const replacementPhotoId = replacementPhotoIdByDuplicateId.get(item.photoId);
+
+      if (!replacementPhotoId) {
+        continue;
+      }
+
+      await tx.galleryFavoriteItem.upsert({
+        where: {
+          listId_photoId: {
+            listId: item.listId,
+            photoId: replacementPhotoId
+          }
+        },
+        update: {},
+        create: {
+          listId: item.listId,
+          photoId: replacementPhotoId
+        }
+      });
+    }
+
+    await tx.galleryFavoriteItem.deleteMany({
+      where: { photoId: { in: duplicatePhotoIds } }
+    });
+    await tx.mediaProcessingJob.deleteMany({
+      where: { photoId: { in: duplicatePhotoIds } }
+    });
+
+    const coverReplacementId = currentGallery?.coverPhotoId
+      ? replacementPhotoIdByDuplicateId.get(currentGallery.coverPhotoId)
+      : null;
+
+    if (coverReplacementId) {
+      await tx.gallery.update({
+        where: { id: galleryId },
+        data: { coverPhotoId: coverReplacementId }
+      });
+    }
+
+    await tx.photo.deleteMany({
+      where: { id: { in: duplicatePhotoIds } }
+    });
+  }, { timeout: 30000 });
+
+  await Promise.all(duplicateObjectKeys.map((key) => deletePhotoObject(key)));
+  await reorderGalleryPhotosByCaptureTime(galleryId);
+  await invalidatePublicGalleryDownloadPackages(galleryId);
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/client/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&duplicateCleanup=${duplicatePhotos.length}`);
 }
 
 export async function requeueGalleryMediaProcessingAction(galleryId: string) {

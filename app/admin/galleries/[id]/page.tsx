@@ -120,6 +120,7 @@ export default async function GalleryDetailPage({
     archived?: string;
     coverSet?: string;
     deliveryEmail?: string;
+    duplicateCleanup?: string;
     clientLink?: string;
     clientRestored?: string;
     error?: string;
@@ -259,6 +260,10 @@ export default async function GalleryDetailPage({
       <div className="mb-5 space-y-3">
         {flags.saved ? <Alert title="Galéria mentve." variant="success" /> : null}
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
+        {flags.duplicateCleanup && flags.duplicateCleanup !== "none" ? (
+          <Alert title={`${flags.duplicateCleanup} duplikált fotó törölve.`} variant="success" />
+        ) : null}
+        {flags.duplicateCleanup === "none" ? <Alert title="Nem találtam törölhető duplikátumot." variant="info" /> : null}
         {flags.mediaProcessing === "queued" ? <Alert title="Hiányzó előnézetek újra sorba állítva." variant="success" /> : null}
         {flags.mediaProcessing === "none" ? <Alert title="Nincs újraindítható előnézet." variant="info" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
