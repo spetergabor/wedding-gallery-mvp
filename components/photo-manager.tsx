@@ -30,9 +30,12 @@ type Photo = {
   clientHiddenAt: Date | null;
   processingStatus: string;
   processingError: string | null;
+  processingRequestedAt: Date | null;
 };
 
 export type PhotoManagerSet = "all" | "raw" | "final" | "selected";
+
+const STALE_PROCESSING_BADGE_MS = 2 * 60 * 60 * 1000;
 
 function getAdminPreviewUrl(photo: Photo) {
   if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
@@ -44,6 +47,30 @@ function getAdminPreviewUrl(photo: Photo) {
   }
 
   return photo.imageUrl;
+}
+
+function hasProcessedVariant(photo: Photo) {
+  return (
+    photo.mediaType !== "video" &&
+    ((photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) ||
+      (photo.previewUrl && photo.previewUrl !== photo.imageUrl))
+  );
+}
+
+function shouldShowProcessingBadge(photo: Photo) {
+  if (photo.processingStatus === "ready" || hasProcessedVariant(photo)) {
+    return false;
+  }
+
+  if (
+    photo.processingStatus !== "failed" &&
+    (!photo.processingRequestedAt ||
+      Date.now() - photo.processingRequestedAt.getTime() > STALE_PROCESSING_BADGE_MS)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function normalizePhotoManagerSet(value: string | null | undefined): PhotoManagerSet {
@@ -191,7 +218,7 @@ export function PhotoManager({
                   Ügyfél elrejtette
                 </span>
               ) : null}
-              {photo.processingStatus !== "ready" ? (
+              {shouldShowProcessingBadge(photo) ? (
                 <span className="absolute bottom-3 left-3 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-graphite">
                   {photo.processingStatus === "failed" ? "Feldolgozás hibás" : "Feldolgozás alatt"}
                 </span>

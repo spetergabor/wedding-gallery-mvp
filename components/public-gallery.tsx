@@ -48,11 +48,11 @@ function isVideo(photo: PublicPhoto) {
 }
 
 function hasLightweightThumbnail(photo: PublicPhoto) {
-  return !isVideo(photo) && photo.processingStatus === "ready" && photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl;
+  return !isVideo(photo) && photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl;
 }
 
 function hasLightweightPreview(photo: PublicPhoto) {
-  return !isVideo(photo) && photo.processingStatus === "ready" && photo.previewUrl && photo.previewUrl !== photo.imageUrl;
+  return !isVideo(photo) && photo.previewUrl && photo.previewUrl !== photo.imageUrl;
 }
 
 function getColumnCount(width: number) {
