@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages";
+import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
@@ -123,6 +125,16 @@ function isRequeueableMediaPhoto(photo: {
     photo.processingStatus !== "ready" &&
     (!photo.processingRequestedAt || Date.now() - photo.processingRequestedAt.getTime() > STALE_MEDIA_PROCESSING_MS)
   );
+}
+
+function scheduleGalleryMediaProcessing(galleryId: string, { force = false }: { force?: boolean } = {}) {
+  try {
+    after(async () => {
+      await kickGalleryMediaProcessing({ galleryId, force });
+    });
+  } catch {
+    void kickGalleryMediaProcessing({ galleryId, force });
+  }
 }
 
 async function sendProofingInviteForGallery(galleryId: string, { force = false }: { force?: boolean } = {}) {
@@ -1330,6 +1342,7 @@ export async function completePhotoUploadsAction(
       }
     }, { timeout: 15000 });
 
+    scheduleGalleryMediaProcessing(galleryId);
   }
 
   if (
@@ -1522,6 +1535,7 @@ export async function requeueGalleryMediaProcessingAction(galleryId: string) {
 
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);
+  scheduleGalleryMediaProcessing(galleryId, { force: true });
   redirect(`/admin/galleries/${galleryId}?tab=photos&mediaProcessing=queued`);
 }
 

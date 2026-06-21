@@ -63,10 +63,14 @@ For large full-gallery ZIP files, use the Trigger.dev worker instead of Vercel f
 
 ```text
 ZIP_WORKER_DRIVER="trigger"
+MEDIA_WORKER_DRIVER="trigger"
 TRIGGER_PROJECT_REF="proj_..."
 TRIGGER_SECRET_KEY="tr_..."
 TRIGGER_MAX_DURATION_SECONDS="7200"
 TRIGGER_ZIP_MAX_DURATION_SECONDS="7200"
+TRIGGER_MEDIA_MAX_DURATION_SECONDS="7200"
+MEDIA_PROCESSING_BATCH_SIZE="20"
+MEDIA_PROCESSING_MAX_ROUNDS="200"
 ```
 
 Deploy the Trigger task after setting the same production `DATABASE_URL`, `STORAGE_DRIVER`, `R2_*`, and `NEXT_PUBLIC_R2_PUBLIC_BASE_URL` values in Trigger.dev:
@@ -79,8 +83,11 @@ When `ZIP_WORKER_DRIVER` is `trigger`, `/api/jobs/process` skips ZIP processing 
 
 ## Media processing queue
 
-Heavy image/video derivative generation should run outside Vercel. New uploads create rows in `MediaProcessingJob`.
-A Cloudflare Worker can claim jobs from:
+Heavy image derivative generation runs in the Trigger.dev `media-processing` task. New uploads create rows in
+`MediaProcessingJob`, and the app dispatches a deduplicated Trigger run as photos are saved. The worker reads originals
+from R2, writes lightweight thumbnail and preview JPG files back to R2, then marks each photo `ready`.
+
+The legacy HTTP worker API is still available for external workers. A worker can claim jobs from:
 
 ```text
 POST /api/media-processing/jobs

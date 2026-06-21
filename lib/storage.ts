@@ -1,6 +1,6 @@
 import path from "node:path";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import {
@@ -242,6 +242,41 @@ export async function savePhotoObject({
   const filePath = getLocalUploadPath(r2Key);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, bytes);
+}
+
+export async function loadPhotoObjectBuffer({
+  r2Key,
+  publicUrl
+}: {
+  r2Key?: string | null;
+  publicUrl?: string | null;
+}) {
+  if (STORAGE_DRIVER === "r2") {
+    if (!r2Key) {
+      throw new Error("Missing R2 object key for media processing.");
+    }
+
+    const response = await getR2Client().send(
+      new GetObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key
+      })
+    );
+
+    return responseBodyToBuffer(response.Body);
+  }
+
+  if (r2Key) {
+    return readFile(getLocalUploadPath(r2Key));
+  }
+
+  const localPath = publicUrl ? localPublicPath(publicUrl) : null;
+
+  if (localPath) {
+    return readFile(localPath);
+  }
+
+  throw new Error("Missing local media path for media processing.");
 }
 
 function sleep(ms: number) {
