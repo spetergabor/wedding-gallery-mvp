@@ -53,6 +53,7 @@ type SelectedPhotoFile = {
   status: PhotoUploadStatus;
   errorMessage: string | null;
   uploadItemId: string | null;
+  uploadBytesSent: number;
 };
 
 const UPLOAD_BATCH_SIZE = 24;
@@ -103,6 +104,40 @@ function wait(milliseconds: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, milliseconds);
   });
+}
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 MB";
+  }
+
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDuration(milliseconds: number) {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
+    return "";
+  }
+
+  const totalSeconds = Math.max(1, Math.round(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours} ó ${remainingMinutes} p`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} p ${seconds} mp`;
+  }
+
+  return `${seconds} mp`;
 }
 
 function isOnline() {
@@ -185,13 +220,44 @@ export function PhotoUploadForm({
   const [isReadingExif, setIsReadingExif] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSessionId, setUploadSessionId] = useState<string | null>(null);
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastGalleryRefreshAtRef = useRef(0);
   const scheduledGalleryRefreshRef = useRef<number | null>(null);
   const completedCount = selectedFiles.filter((file) => file.status === "completed").length;
   const failedCount = selectedFiles.filter((file) => file.status === "failed").length;
+  const uploadedCount = selectedFiles.filter((file) => file.status === "uploaded" || file.status === "completed").length;
+  const queuedCount = selectedFiles.filter((file) => file.status === "queued").length;
+  const preparingCount = selectedFiles.filter((file) => file.status === "preparing").length;
+  const uploadingCount = selectedFiles.filter((file) => file.status === "uploading").length;
+  const waitingCount = selectedFiles.filter((file) => file.status === "waiting").length;
   const activeCount = selectedFiles.filter((file) => ["preparing", "uploading", "waiting", "uploaded"].includes(file.status)).length;
+  const totalBytes = selectedFiles.reduce((sum, file) => sum + file.file.size, 0);
+  const uploadedBytes = selectedFiles.reduce((sum, file) => {
+    if (file.status === "uploaded" || file.status === "completed") {
+      return sum + file.file.size;
+    }
+
+    return sum + Math.min(file.uploadBytesSent, file.file.size);
+  }, 0);
+  const byteProgress = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 0;
+  const elapsedUploadMs = uploadStartedAt ? Date.now() - uploadStartedAt : 0;
+  const uploadSpeedBytesPerMs = elapsedUploadMs > 0 ? uploadedBytes / elapsedUploadMs : 0;
+  const remainingUploadMs =
+    uploadSpeedBytesPerMs > 0 && uploadedBytes < totalBytes ? (totalBytes - uploadedBytes) / uploadSpeedBytesPerMs : 0;
+  const uploadPhaseLabel =
+    waitingCount > 0
+      ? "Kapcsolatra vár, automatikusan folytatja"
+      : uploadingCount > 0
+        ? "Fájlok mennek fel R2-be"
+        : preparingCount > 0
+          ? "Feltöltési linkek készülnek"
+          : uploadedCount > completedCount
+            ? "Galériába mentés folyamatban"
+            : queuedCount > 0
+              ? "Sorban áll"
+              : "Kész";
   const previewFiles = useMemo(() => {
     return [...selectedFiles].sort((a, b) => {
       if (a.status === "failed" && b.status !== "failed") {
@@ -358,6 +424,7 @@ export function PhotoUploadForm({
     setIsReadingExif(true);
     setUploadError("");
     setUploadSessionId(null);
+    setUploadStartedAt(null);
 
     const enrichedFiles = await Promise.all(
       mediaFiles.map(async (file, index) => {
@@ -378,7 +445,8 @@ export function PhotoUploadForm({
           originalIndex: index,
           status: "queued" as PhotoUploadStatus,
           errorMessage: null,
-          uploadItemId: null
+          uploadItemId: null,
+          uploadBytesSent: 0
         };
       })
     );
@@ -437,6 +505,7 @@ export function PhotoUploadForm({
     setSelectedFiles([]);
     setUploadError("");
     setUploadSessionId(null);
+    setUploadStartedAt(null);
     if (inputRef.current) {
       inputRef.current.value = "";
     }
@@ -462,7 +531,8 @@ export function PhotoUploadForm({
     filename,
     contentType,
     onWaiting,
-    onResume
+    onResume,
+    onProgress
   }: {
     body: Blob;
     uploadUrl: string;
@@ -470,25 +540,41 @@ export function PhotoUploadForm({
     contentType: string;
     onWaiting: () => void;
     onResume: () => void;
+    onProgress: (bytesSent: number) => void;
   }) {
     let lastError: unknown = null;
 
     for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt += 1) {
       try {
-        const response = await runWithConnectionResume({
+        const response = await runWithConnectionResume<{ ok: boolean; status: number }>({
           operation: () =>
-            fetch(uploadUrl, {
-              method: "PUT",
-              headers: {
-                "Content-Type": contentType
-              },
-              body
+            new Promise((resolve, reject) => {
+              const request = new XMLHttpRequest();
+
+              request.open("PUT", uploadUrl);
+              request.setRequestHeader("Content-Type", contentType);
+              request.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                  onProgress(event.loaded);
+                }
+              };
+              request.onload = () => {
+                resolve({
+                  ok: request.status >= 200 && request.status < 300,
+                  status: request.status
+                });
+              };
+              request.onerror = () => reject(new Error("Failed to fetch"));
+              request.onabort = () => reject(new Error("Upload aborted"));
+              request.ontimeout = () => reject(new Error("Upload timed out"));
+              request.send(body);
             }),
           onWaiting,
           onResume
         });
 
         if (response.ok) {
+          onProgress(body.size);
           return;
         }
 
@@ -506,6 +592,7 @@ export function PhotoUploadForm({
       }
 
       if (attempt < MAX_UPLOAD_ATTEMPTS) {
+        onProgress(0);
         await wait(800 * attempt);
       }
     }
@@ -517,12 +604,14 @@ export function PhotoUploadForm({
     file,
     target,
     onWaiting,
-    onResume
+    onResume,
+    onProgress
   }: {
     file: File;
     target: PreparedUpload;
     onWaiting: () => void;
     onResume: () => void;
+    onProgress: (bytesSent: number) => void;
   }) {
     await uploadBlob({
       body: file,
@@ -530,7 +619,8 @@ export function PhotoUploadForm({
       filename: file.name,
       contentType: file.type || "application/octet-stream",
       onWaiting,
-      onResume
+      onResume,
+      onProgress
     });
   }
 
@@ -608,7 +698,8 @@ export function PhotoUploadForm({
 
     setFileStatus(selectedFile.clientId, "uploading", {
       uploadItemId: target.uploadItemId,
-      errorMessage: null
+      errorMessage: null,
+      uploadBytesSent: 0
     });
 
     return target;
@@ -651,7 +742,8 @@ export function PhotoUploadForm({
 
         setFileStatus(selectedFile.clientId, "uploading", {
           uploadItemId: target.uploadItemId,
-          errorMessage: null
+          errorMessage: null,
+          uploadBytesSent: 0
         });
 
         try {
@@ -669,6 +761,11 @@ export function PhotoUploadForm({
                   setFileStatus(selectedFile.clientId, "uploading", {
                     uploadItemId: target?.uploadItemId ?? null,
                     errorMessage: null
+                  }),
+                onProgress: (bytesSent) =>
+                  setFileStatus(selectedFile.clientId, "uploading", {
+                    uploadItemId: target?.uploadItemId ?? null,
+                    uploadBytesSent: bytesSent
                   })
               });
               break;
@@ -684,7 +781,8 @@ export function PhotoUploadForm({
 
           setFileStatus(selectedFile.clientId, "uploaded", {
             uploadItemId: target.uploadItemId,
-            errorMessage: null
+            errorMessage: null,
+            uploadBytesSent: selectedFile.file.size
           });
           const completedUpload = {
             ...target,
@@ -757,6 +855,7 @@ export function PhotoUploadForm({
 
     setIsUploading(true);
     setUploadError("");
+    setUploadStartedAt(Date.now());
 
     try {
       let sessionId = existingSessionId ?? uploadSessionId;
@@ -794,6 +893,7 @@ export function PhotoUploadForm({
       setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
     } finally {
       setIsUploading(false);
+      setUploadStartedAt(null);
     }
   }
 
@@ -871,22 +971,38 @@ export function PhotoUploadForm({
 
             {selectedFiles.length > 0 ? (
               <div className="mt-5 max-h-44 space-y-2 overflow-auto pr-1">
-                {previewFiles.slice(0, 10).map((item) => (
-                  <div key={item.clientId} className="rounded-md bg-white px-3 py-2 text-sm text-graphite">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate">{item.file.name}</p>
-                        <p className="mt-0.5 text-xs text-graphite/60">
-                          {item.mediaType === "video" ? "Videó" : captureDateLabel(item.capturedAt)}
-                        </p>
+                {previewFiles.slice(0, 10).map((item) => {
+                  const itemProgress =
+                    item.file.size > 0 ? Math.min(100, Math.round((item.uploadBytesSent / item.file.size) * 100)) : 0;
+                  const showItemProgress = ["uploading", "waiting", "uploaded", "completed"].includes(item.status);
+
+                  return (
+                    <div key={item.clientId} className="rounded-md bg-white px-3 py-2 text-sm text-graphite">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate">{item.file.name}</p>
+                          <p className="mt-0.5 text-xs text-graphite/60">
+                            {item.mediaType === "video" ? "Videó" : captureDateLabel(item.capturedAt)} · {formatBytes(item.file.size)}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${statusClass(item.status)}`}>
+                          {showItemProgress && item.status !== "completed" ? `${itemProgress}%` : statusLabel(item.status)}
+                        </span>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${statusClass(item.status)}`}>
-                        {statusLabel(item.status)}
-                      </span>
+                      {showItemProgress ? (
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              item.status === "completed" ? "bg-sage" : item.status === "waiting" ? "bg-amber-500" : "bg-ink"
+                            }`}
+                            style={{ width: `${item.status === "completed" ? 100 : itemProgress}%` }}
+                          />
+                        </div>
+                      ) : null}
+                      {item.errorMessage ? <p className="mt-2 text-xs text-red-700">{item.errorMessage}</p> : null}
                     </div>
-                    {item.errorMessage ? <p className="mt-2 text-xs text-red-700">{item.errorMessage}</p> : null}
-                  </div>
-                ))}
+                  );
+                })}
                 {previewFiles.length > 10 ? (
                   <p className="text-xs text-graphite/70">+{previewFiles.length - 10} további média</p>
                 ) : null}
@@ -923,22 +1039,54 @@ export function PhotoUploadForm({
       {isUploading || completedCount > 0 || failedCount > 0 ? (
         <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4" aria-live="polite">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-ink">
-              {isUploading ? "Feltöltés folyamatban" : failedCount > 0 ? "Feltöltés részben kész" : "Feltöltés kész"}
-            </p>
-            <p className="text-sm text-graphite/70">
-              {uploadStatusLabel({ completedCount, failedCount, totalCount: selectedFiles.length })}
-            </p>
+            <div>
+              <p className="text-sm font-medium text-ink">
+                {isUploading ? "Feltöltés folyamatban" : failedCount > 0 ? "Feltöltés részben kész" : "Feltöltés kész"}
+              </p>
+              <p className="mt-0.5 text-xs text-graphite/70">{uploadPhaseLabel}</p>
+            </div>
+            <div className="text-left text-sm text-graphite/70 sm:text-right">
+              <p>{uploadStatusLabel({ completedCount, failedCount, totalCount: selectedFiles.length })}</p>
+              <p className="mt-0.5 text-xs">
+                {formatBytes(uploadedBytes)} / {formatBytes(totalBytes)} · {byteProgress}%
+              </p>
+            </div>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
             <div
               className="h-full rounded-full bg-ink transition-all duration-300"
-              style={{ width: `${progress}%` }}
+              style={{ width: `${byteProgress}%` }}
             />
+          </div>
+          <div className="mt-2 flex flex-col gap-1 text-xs text-graphite/70 sm:flex-row sm:items-center sm:justify-between">
+            <span>R2 feltöltés: {byteProgress}%</span>
+            <span>Galériába mentés: {progress}%</span>
+            {uploadSpeedBytesPerMs > 0 && isUploading ? (
+              <span>
+                {formatBytes(uploadSpeedBytesPerMs * 1000)}/s
+                {remainingUploadMs > 0 ? ` · kb. ${formatDuration(remainingUploadMs)} hátra` : ""}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 lg:grid-cols-7">
+            {[
+              { label: "Sorban", value: queuedCount },
+              { label: "Előkészítés", value: preparingCount },
+              { label: "Feltöltés", value: uploadingCount },
+              { label: "Vár", value: waitingCount },
+              { label: "R2-ben", value: uploadedCount },
+              { label: "Mentve", value: completedCount },
+              { label: "Hibás", value: failedCount }
+            ].map((item) => (
+              <div key={item.label} className="rounded-md bg-white px-3 py-2">
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-graphite/50">{item.label}</p>
+                <p className="mt-1 text-base font-semibold text-ink">{item.value}</p>
+              </div>
+            ))}
           </div>
           <p className="mt-3 text-xs text-graphite/70">
             {activeCount > 0
-              ? `Aktív fájlok: ${activeCount}. A mentett képek pár másodpercen belül megjelennek lent a galériában.`
+              ? `Aktív fájlok: ${activeCount}. A fájl először R2-be kerül, utána rögtön mentjük a galériába, ezért a kész képek folyamatosan jelennek meg.`
               : failedCount > 0
                 ? "A hibás elemek listája fent látszik, ezeket külön újra tudod próbálni."
                 : "Minden kiválasztott média mentve lett."}

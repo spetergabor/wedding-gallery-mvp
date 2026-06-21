@@ -6,6 +6,7 @@ type UploadSession = {
   id: string;
   status: string;
   totalCount: number;
+  uploadedCount: number;
   completedCount: number;
   failedCount: number;
   createdAt: Date;
@@ -81,6 +82,10 @@ export function UploadSessionLog({ sessions }: { sessions: UploadSession[] }) {
         <div className="mt-5 space-y-3">
           {sessions.map((session) => {
             const failedItems = session.items.filter((item) => item.status === "failed");
+            const uploadedProgress =
+              session.totalCount > 0 ? Math.round((session.uploadedCount / session.totalCount) * 100) : 0;
+            const savedProgress =
+              session.totalCount > 0 ? Math.round((session.completedCount / session.totalCount) * 100) : 0;
 
             return (
               <div key={session.id} className="rounded-md border border-ink/10 p-4">
@@ -112,9 +117,35 @@ export function UploadSessionLog({ sessions }: { sessions: UploadSession[] }) {
                   </div>
                 </div>
 
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between gap-3 text-xs text-graphite/70">
+                      <span>R2 feltöltés</span>
+                      <span>
+                        {session.uploadedCount}/{session.totalCount}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-paper">
+                      <div className="h-full rounded-full bg-graphite transition-all" style={{ width: `${uploadedProgress}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between gap-3 text-xs text-graphite/70">
+                      <span>Galériába mentve</span>
+                      <span>
+                        {session.completedCount}/{session.totalCount}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-paper">
+                      <div className="h-full rounded-full bg-ink transition-all" style={{ width: `${savedProgress}%` }} />
+                    </div>
+                  </div>
+                </div>
+
                 {isInterruptedSession(session) ? (
                   <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
-                    Ez a feltöltés valószínűleg megszakadt. Az oldal frissítése után a böngészőben futó feltöltés nem folytatódik automatikusan.
+                    Ez a feltöltés valószínűleg megszakadt. Ha ugyanazokat a fájlokat ugyanabban a listában újra kiválasztod,
+                    a már mentett elemek nem duplázódnak, a hiányzó vagy hibás elemeket pedig újra tudod próbálni.
                   </p>
                 ) : null}
 
