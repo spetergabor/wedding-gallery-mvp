@@ -1,8 +1,9 @@
 import Image from "next/image";
-import { ExternalLink, ImagePlus, MessageSquare, Plus } from "lucide-react";
+import { ExternalLink, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { AlbumSpreadUploadForm } from "@/components/album-spread-upload-form";
 import { Button } from "@/components/button";
-import { createAlbumReviewAction } from "@/lib/album-review-actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { createAlbumReviewAction, deleteAlbumReviewSpreadAction } from "@/lib/album-review-actions";
 
 type AlbumReview = {
   id: string;
@@ -138,8 +139,23 @@ export function AlbumReviewManager({
                           ))}
                         </div>
                         <div className="p-3">
-                          <p className="font-medium text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
-                          <p className="mt-1 truncate text-sm text-graphite/70">{spread.filename}</p>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-medium text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
+                              <p className="mt-1 truncate text-sm text-graphite/70">{spread.filename}</p>
+                            </div>
+                            <form action={deleteAlbumReviewSpreadAction.bind(null, customerId, review.id, spread.id)} className="shrink-0">
+                              <ConfirmSubmitButton
+                                title="Oldalpár törlése"
+                                message="Biztosan törlöd ezt az album oldalpárt? A hozzá tartozó ügyfél címkék is törlődnek."
+                                variant="danger"
+                                className="h-9 px-3"
+                              >
+                                <Trash2 size={15} />
+                                Törlés
+                              </ConfirmSubmitButton>
+                            </form>
+                          </div>
                           {spread.comments.length > 0 ? (
                             <div className="mt-3 space-y-2">
                               {spread.comments.map((comment, index) => (

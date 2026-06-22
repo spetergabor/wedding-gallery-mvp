@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createAlbumReviewSpreadObjectKey,
   createPresignedPhotoUploadUrl,
+  deletePhotoObject,
   getPhotoPublicUrl,
   isR2StorageEnabled
 } from "@/lib/storage";
@@ -58,9 +59,7 @@ async function requireAlbumReviewAccess(customerId: string, reviewId: string) {
       id: true,
       customerId: true,
       title: true,
-      _count: {
-        select: { spreads: true }
-      }
+      accessToken: true
     }
   });
 
@@ -128,10 +127,15 @@ export async function createAlbumReviewSpreadUploadTargetsAction(
   }
 
   try {
-    const existingCount = review._count.spreads;
+    const latestSpread = await prisma.albumReviewSpread.findFirst({
+      where: { reviewId: review.id },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true }
+    });
+    const baseSortOrder = latestSpread?.sortOrder ?? 0;
     const uploads = await Promise.all(
       normalizedFiles.map(async (file, index) => {
-        const sortOrder = existingCount + index + 1;
+        const sortOrder = baseSortOrder + index + 1;
         const title = `Oldalpár ${sortOrder}`;
         const r2Key = createAlbumReviewSpreadObjectKey({
           customerId,
@@ -213,6 +217,7 @@ export async function completeAlbumReviewSpreadUploadsAction(
     });
 
     revalidatePath(`/admin/clients/${customerId}`);
+    revalidatePath(`/album/${review.accessToken}`);
 
     return {
       ok: true,
@@ -230,6 +235,33 @@ export async function completeAlbumReviewSpreadUploadsAction(
       message: "Az album oldalpárok feltöltődtek, de a mentés nem sikerült."
     };
   }
+}
+
+export async function deleteAlbumReviewSpreadAction(customerId: string, reviewId: string, spreadId: string) {
+  const { review } = await requireAlbumReviewAccess(customerId, reviewId);
+  const spread = await prisma.albumReviewSpread.findFirst({
+    where: {
+      id: spreadId,
+      reviewId: review.id
+    },
+    select: {
+      id: true,
+      r2Key: true
+    }
+  });
+
+  if (!spread) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumError=missing`);
+  }
+
+  await prisma.albumReviewSpread.delete({
+    where: { id: spread.id }
+  });
+
+  await deletePhotoObject(spread.r2Key);
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath(`/album/${review.accessToken}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadDeleted=1`);
 }
 
 export async function createAlbumReviewCommentAction({
