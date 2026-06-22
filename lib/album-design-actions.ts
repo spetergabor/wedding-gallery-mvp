@@ -32,6 +32,12 @@ function getSelectedPhotoIds(formData: FormData) {
   ];
 }
 
+function getOrderedFormStrings(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
 function shufflePhotoIds(photoIds: string[]) {
   const shuffledPhotoIds = [...photoIds];
 
@@ -566,6 +572,67 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string, desi
       }
     });
   }
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
+}
+
+export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, designId: string, spreadId: string, formData: FormData) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+  }
+
+  const spread = await prisma.albumDesignSpread.findFirst({
+    where: {
+      id: spreadId,
+      designId: design.id
+    },
+    select: {
+      id: true,
+      layoutKey: true
+    }
+  });
+
+  if (!spread) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+  }
+
+  const layout = getAlbumLayoutTemplate(spread.layoutKey);
+  const photoIds = getOrderedFormStrings(formData, "slotPhotoIds");
+
+  if (photoIds.length !== layout.slots.length) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+  }
+
+  const uniquePhotoIds = [...new Set(photoIds)];
+  const validPhotos = await prisma.photo.findMany({
+    where: {
+      id: { in: uniquePhotoIds },
+      favoriteItems: {
+        some: {
+          listId: design.favoriteListId
+        }
+      }
+    },
+    select: { id: true }
+  });
+  const validPhotoIds = new Set(validPhotos.map((photo) => photo.id));
+
+  if (uniquePhotoIds.some((photoId) => !validPhotoIds.has(photoId))) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+  }
+
+  await prisma.albumDesignSpread.update({
+    where: { id: spread.id },
+    data: {
+      items: {
+        deleteMany: {},
+        create: createSpreadItems(layout, photoIds)
+      }
+    }
+  });
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
