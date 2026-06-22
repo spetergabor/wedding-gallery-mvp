@@ -160,6 +160,30 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "five-left-page-hero-right-grid",
+    name: "Bal nagy kép, jobb négyes rács",
+    photoCount: 5,
+    slots: [
+      { x: 0, y: 0, width: 50, height: 100 },
+      { x: 57.5, y: 15, width: 17.5, height: 35 },
+      { x: 75, y: 15, width: 17.5, height: 35 },
+      { x: 57.5, y: 50, width: 17.5, height: 35 },
+      { x: 75, y: 50, width: 17.5, height: 35 }
+    ]
+  },
+  {
+    key: "five-left-grid-right-page-hero",
+    name: "Bal négyes rács, jobb nagy kép",
+    photoCount: 5,
+    slots: [
+      { x: 50, y: 0, width: 50, height: 100 },
+      { x: 7.5, y: 15, width: 17.5, height: 35 },
+      { x: 25, y: 15, width: 17.5, height: 35 },
+      { x: 7.5, y: 50, width: 17.5, height: 35 },
+      { x: 25, y: 50, width: 17.5, height: 35 }
+    ]
+  },
+  {
     key: "six-even-grid",
     name: "Hat képes rács",
     photoCount: 6,
