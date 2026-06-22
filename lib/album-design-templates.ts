@@ -184,6 +184,113 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
       { x: 66.67, y: 50, width: 16.66, height: 50 },
       { x: 83.33, y: 50, width: 16.67, height: 50 }
     ]
+  },
+  {
+    key: "seven-wide-mosaic-strip",
+    name: "Hét képes széles mozaik",
+    photoCount: 7,
+    slots: [
+      { x: 8, y: 18, width: 12, height: 32 },
+      { x: 20, y: 18, width: 28, height: 32 },
+      { x: 48, y: 18, width: 12, height: 32 },
+      { x: 60, y: 18, width: 32, height: 32 },
+      { x: 8, y: 50, width: 26, height: 32 },
+      { x: 34, y: 50, width: 14, height: 32 },
+      { x: 48, y: 50, width: 44, height: 32 }
+    ]
+  },
+  {
+    key: "seven-left-run-right-hero",
+    name: "Bal mozaik, jobb nagy kép",
+    photoCount: 7,
+    slots: [
+      { x: 0, y: 12, width: 12, height: 38 },
+      { x: 12, y: 12, width: 15, height: 38 },
+      { x: 27, y: 12, width: 30, height: 38 },
+      { x: 57, y: 12, width: 15, height: 38 },
+      { x: 12, y: 50, width: 14, height: 38 },
+      { x: 26, y: 50, width: 31, height: 38 },
+      { x: 72, y: 12, width: 28, height: 76 }
+    ]
+  },
+  {
+    key: "eight-balanced-mosaic",
+    name: "Nyolc képes kiegyensúlyozott mozaik",
+    photoCount: 8,
+    slots: [
+      { x: 7, y: 18, width: 12, height: 31 },
+      { x: 19, y: 18, width: 26, height: 31 },
+      { x: 45, y: 18, width: 12, height: 31 },
+      { x: 57, y: 18, width: 36, height: 31 },
+      { x: 7, y: 49, width: 27, height: 32 },
+      { x: 34, y: 49, width: 11, height: 32 },
+      { x: 45, y: 49, width: 12, height: 32 },
+      { x: 57, y: 49, width: 36, height: 32 }
+    ]
+  },
+  {
+    key: "eight-center-cluster",
+    name: "Nyolc képes középső klaszter",
+    photoCount: 8,
+    slots: [
+      { x: 0, y: 16, width: 16, height: 48 },
+      { x: 16, y: 16, width: 16, height: 48 },
+      { x: 32, y: 16, width: 29, height: 24 },
+      { x: 61, y: 16, width: 15, height: 24 },
+      { x: 76, y: 16, width: 24, height: 48 },
+      { x: 32, y: 40, width: 15, height: 24 },
+      { x: 47, y: 40, width: 14, height: 24 },
+      { x: 61, y: 40, width: 15, height: 24 }
+    ]
+  },
+  {
+    key: "nine-left-story-right-grid",
+    name: "Bal történet, jobb négyes blokk",
+    photoCount: 9,
+    slots: [
+      { x: 0, y: 18, width: 10, height: 30 },
+      { x: 10, y: 18, width: 26, height: 30 },
+      { x: 36, y: 18, width: 21, height: 30 },
+      { x: 0, y: 48, width: 14, height: 30 },
+      { x: 14, y: 48, width: 23, height: 30 },
+      { x: 37, y: 48, width: 20, height: 30 },
+      { x: 70, y: 18, width: 15, height: 30 },
+      { x: 85, y: 18, width: 15, height: 30 },
+      { x: 70, y: 48, width: 30, height: 30 }
+    ]
+  },
+  {
+    key: "nine-hero-left-grid-right",
+    name: "Bal nagy kép, jobb négyes blokk",
+    photoCount: 9,
+    slots: [
+      { x: 5, y: 16, width: 32, height: 68 },
+      { x: 38, y: 16, width: 24, height: 34 },
+      { x: 62, y: 16, width: 24, height: 34 },
+      { x: 38, y: 50, width: 24, height: 34 },
+      { x: 62, y: 50, width: 24, height: 34 },
+      { x: 86, y: 16, width: 7, height: 34 },
+      { x: 93, y: 16, width: 7, height: 34 },
+      { x: 86, y: 50, width: 7, height: 34 },
+      { x: 93, y: 50, width: 7, height: 34 }
+    ]
+  },
+  {
+    key: "ten-dense-story-grid",
+    name: "Tíz képes sűrű történet",
+    photoCount: 10,
+    slots: [
+      { x: 0, y: 16, width: 25, height: 34 },
+      { x: 25, y: 16, width: 24, height: 34 },
+      { x: 49, y: 16, width: 25, height: 34 },
+      { x: 74, y: 16, width: 12, height: 34 },
+      { x: 86, y: 16, width: 14, height: 34 },
+      { x: 0, y: 50, width: 25, height: 34 },
+      { x: 25, y: 50, width: 12, height: 34 },
+      { x: 37, y: 50, width: 12, height: 34 },
+      { x: 49, y: 50, width: 25, height: 34 },
+      { x: 74, y: 50, width: 26, height: 34 }
+    ]
   }
 ];
 

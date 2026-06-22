@@ -15,6 +15,8 @@ import {
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX } from "@/lib/album-design-templates";
 
+const maxAlbumLayoutPhotoCount = Math.max(...ALBUM_LAYOUT_TEMPLATES.map((template) => template.photoCount));
+
 type FavoritePhoto = {
   id: string;
   filename: string;
@@ -163,7 +165,7 @@ function AlbumSpreadCreateForm({
           <div>
             <p className="text-sm font-medium text-ink">{title}</p>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-graphite/60">
-              Jelölj ki 1-6 képet, majd generálj belőlük automatikus oldalpárt. Ha a kompozíció nem jó, az oldalpárnál az Újragenerálás gombbal másik verziót kapsz.
+              Jelölj ki 1-{maxAlbumLayoutPhotoCount} képet, majd generálj belőlük automatikus oldalpárt. Ha a kompozíció nem jó, az oldalpárnál az Újragenerálás gombbal másik verziót kapsz.
             </p>
           </div>
           <Button type="submit" formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, designId)} className="shrink-0">
