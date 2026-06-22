@@ -440,6 +440,7 @@ export default async function AdminClientDetailPage({
     albumError?: string;
     albumDesignCreated?: string;
     albumDesignDeleted?: string;
+    albumDesignExported?: string;
     albumSpreadAutoCreated?: string;
     albumSpreadCreated?: string;
     albumSpreadRegenerated?: string;
@@ -662,6 +663,7 @@ export default async function AdminClientDetailPage({
         {flags.albumUploaded ? <Alert title={`${flags.albumUploaded} album oldalpár feltöltve.`} variant="success" /> : null}
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
         {flags.albumDesignDeleted ? <Alert title="Albumterv törölve." variant="success" /> : null}
+        {flags.albumDesignExported ? <Alert title={`${flags.albumDesignExported} albumterv oldalpár bekerült az album ellenőrzőbe.`} variant="success" /> : null}
         {flags.albumSpreadAutoCreated ? <Alert title="Automatikus album oldalpár létrehozva." variant="success" /> : null}
         {flags.albumSpreadCreated ? <Alert title="Album oldalpár létrehozva." variant="success" /> : null}
         {flags.albumSpreadRegenerated ? <Alert title="Album oldalpár újragenerálva." variant="success" /> : null}
@@ -673,6 +675,8 @@ export default async function AdminClientDetailPage({
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
         {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
         {flags.albumDesignError === "layout-count" ? <Alert title="Ehhez a képszámhoz még nincs album layout sablon." variant="error" /> : null}
+        {flags.albumDesignError === "no-spreads" ? <Alert title="Nincs exportálható album oldalpár ebben a tervben." variant="error" /> : null}
+        {flags.albumDesignError === "export-failed" ? <Alert title="Az albumterv JPG exportja nem sikerült." variant="error" /> : null}
         {flags.albumDesignError === "invalid-photos" ? <Alert title="A kiválasztott képek nem ehhez a favorite listához tartoznak." variant="error" /> : null}
         {flags.albumDesignError === "slot" ? <Alert title="A kiválasztott album slot nem érvényes." variant="error" /> : null}
         {flags.albumDesignError === "missing" ? <Alert title="Az albumterv nem található." variant="error" /> : null}

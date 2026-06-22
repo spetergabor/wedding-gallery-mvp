@@ -1,11 +1,14 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { albumDesignSpreadExportFilename, renderAlbumDesignSpreadJpeg, type AlbumDesignSpreadExportData } from "@/lib/album-design-export";
 import { requireAdmin } from "@/lib/auth";
 import { getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
+import { createAlbumReviewSpreadObjectKey, deletePhotoObject, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -49,6 +52,10 @@ function createSpreadItems(layout: AlbumLayoutTemplate, photoIds: string[]) {
     width: slot.width,
     height: slot.height
   }));
+}
+
+function createAlbumAccessToken() {
+  return randomBytes(32).toString("base64url");
 }
 
 async function requireCustomerAccess(customerId: string) {
@@ -357,6 +364,138 @@ export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadRegenerated=1`);
+}
+
+export async function exportAlbumDesignToReviewAction(customerId: string, designId: string) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+  const albumDesign = await prisma.albumDesign.findUnique({
+    where: { id: design.id },
+    select: {
+      id: true,
+      title: true,
+      customerId: true,
+      customer: {
+        select: {
+          primaryEmail: true
+        }
+      },
+      spreads: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          title: true,
+          sortOrder: true,
+          design: {
+            select: {
+              title: true,
+              customerId: true
+            }
+          },
+          items: {
+            orderBy: { slotIndex: "asc" },
+            select: {
+              id: true,
+              slotIndex: true,
+              x: true,
+              y: true,
+              width: true,
+              height: true,
+              photo: {
+                select: {
+                  filename: true,
+                  r2Key: true,
+                  imageUrl: true,
+                  previewUrl: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!albumDesign) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+  }
+
+  const spreads = albumDesign.spreads.filter((spread) => spread.items.length > 0) satisfies AlbumDesignSpreadExportData[];
+
+  if (spreads.length === 0) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=no-spreads`);
+  }
+
+  const review = await prisma.albumReview.create({
+    data: {
+      customerId: albumDesign.customerId,
+      title: `${albumDesign.title} ellenőrző`,
+      status: "ready",
+      clientEmail: albumDesign.customer.primaryEmail,
+      accessToken: createAlbumAccessToken()
+    },
+    select: {
+      id: true,
+      accessToken: true
+    }
+  });
+  const uploadedObjectKeys: string[] = [];
+
+  try {
+    const reviewSpreads = [];
+
+    for (const [index, spread] of spreads.entries()) {
+      const jpegBuffer = await renderAlbumDesignSpreadJpeg(spread);
+      const filename = albumDesignSpreadExportFilename(spread);
+      const r2Key = createAlbumReviewSpreadObjectKey({
+        customerId: albumDesign.customerId,
+        reviewId: review.id,
+        originalFilename: filename
+      });
+
+      await savePhotoObject({
+        r2Key,
+        bytes: jpegBuffer,
+        contentType: "image/jpeg"
+      });
+      uploadedObjectKeys.push(r2Key);
+
+      reviewSpreads.push({
+        filename,
+        title: spread.title ?? `Oldalpár ${spread.sortOrder}`,
+        r2Key,
+        imageUrl: getPhotoPublicUrl(r2Key),
+        fileSize: jpegBuffer.length,
+        imageWidth: 3600,
+        imageHeight: 1800,
+        sortOrder: index + 1
+      });
+    }
+
+    await prisma.albumReview.update({
+      where: { id: review.id },
+      data: {
+        spreads: {
+          createMany: {
+            data: reviewSpreads
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Album design export failed", {
+      customerId,
+      designId,
+      error
+    });
+
+    await prisma.albumReview.delete({ where: { id: review.id } }).catch(() => undefined);
+    await Promise.all(uploadedObjectKeys.map((r2Key) => deletePhotoObject(r2Key)));
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=export-failed`);
+  }
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath(`/album/${review.accessToken}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumDesignExported=${spreads.length}`);
 }
 
 export async function updateAlbumDesignSpreadSlotAction(customerId: string, designId: string, spreadId: string, formData: FormData) {

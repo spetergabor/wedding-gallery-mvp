@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Grid3X3, LayoutTemplate, Plus, RefreshCcw, Shuffle, Trash2 } from "lucide-react";
+import { Download, Grid3X3, LayoutTemplate, Plus, RefreshCcw, Send, Shuffle, Trash2 } from "lucide-react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -9,6 +9,7 @@ import {
   createAlbumDesignSpreadAction,
   deleteAlbumDesignAction,
   deleteAlbumDesignSpreadAction,
+  exportAlbumDesignToReviewAction,
   regenerateAlbumDesignSpreadLayoutAction,
   updateAlbumDesignSpreadAction
 } from "@/lib/album-design-actions";
@@ -216,86 +217,104 @@ export function AlbumDesignManager({
                       </p>
                     ) : null}
                   </div>
-                  <form action={deleteAlbumDesignAction.bind(null, customerId, design.id)} className="shrink-0">
-                    <ConfirmSubmitButton
-                      title="Albumterv törlése"
-                      message="Biztosan törlöd ezt az albumtervet? Az összes hozzá tartozó tervezett oldalpár is törlődik."
-                      variant="danger"
-                      className="h-10 px-3"
-                    >
-                      <Trash2 size={15} />
-                      Albumterv törlése
-                    </ConfirmSubmitButton>
-                  </form>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {design.spreads.length > 0 ? (
+                      <form action={exportAlbumDesignToReviewAction.bind(null, customerId, design.id)}>
+                        <ConfirmSubmitButton
+                          title="Album ellenőrző létrehozása"
+                          message="Létrehozunk egy új album ellenőrzőt az albumterv JPG oldalpárjaiból. Mehet?"
+                          className="h-10 px-3"
+                        >
+                          <Send size={15} />
+                          Ellenőrzőbe küldés
+                        </ConfirmSubmitButton>
+                      </form>
+                    ) : null}
+                    <form action={deleteAlbumDesignAction.bind(null, customerId, design.id)}>
+                      <ConfirmSubmitButton
+                        title="Albumterv törlése"
+                        message="Biztosan törlöd ezt az albumtervet? Az összes hozzá tartozó tervezett oldalpár is törlődik."
+                        variant="danger"
+                        className="h-10 px-3"
+                      >
+                        <Trash2 size={15} />
+                        Albumterv törlése
+                      </ConfirmSubmitButton>
+                    </form>
+                  </div>
                 </div>
 
                 {design.favoriteList ? (
                   <form action={createAlbumDesignSpreadAction.bind(null, customerId, design.id)} className="mt-5 rounded-md border border-ink/10 bg-white p-4">
-                    <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-                      <div>
-                        <label className="block text-sm font-medium text-graphite">Layout template</label>
-                        <select
-                          name="layoutKey"
-                          className="mt-2 h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                          defaultValue={ALBUM_LAYOUT_TEMPLATES[1]?.key ?? ALBUM_LAYOUT_TEMPLATES[0].key}
-                        >
-                          {ALBUM_LAYOUT_TEMPLATES.map((template) => (
-                            <option key={template.key} value={template.key}>
-                              {template.name} · {template.photoCount} kép
-                            </option>
-                          ))}
-                        </select>
-                        <div className="mt-3 grid gap-2">
-                          {ALBUM_LAYOUT_TEMPLATES.map((template) => (
-                            <div key={template.key}>
-                              <TemplatePreview layoutKey={template.key} />
-                              <p className="mt-1 text-xs text-graphite/60">{template.name}</p>
-                            </div>
-                          ))}
+                    <div className="flex flex-col gap-4">
+                      <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                        <div>
+                          <p className="text-sm font-medium text-ink">Új oldalpár</p>
+                          <p className="mt-1 max-w-2xl text-xs leading-5 text-graphite/60">
+                            Jelölj ki 1-6 képet, majd generálj belőlük automatikus oldalpárt. Ha a kompozíció nem jó, az oldalpárnál az Újragenerálás gombbal másik verziót kapsz.
+                          </p>
                         </div>
+                        <Button type="submit" formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, design.id)} className="shrink-0">
+                          <Shuffle size={16} />
+                          Automatikus oldalpár
+                        </Button>
                       </div>
 
-                      <div>
-                        <div className="flex items-center justify-between gap-3">
+                      <div className="grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+                        {sourcePhotos.map((photo) => (
+                          <label key={photo.id} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
+                            <input name="photoIds" value={photo.id} type="checkbox" className="peer absolute left-2 top-2 z-10 size-4 accent-ink" />
+                            <span className="relative block aspect-[4/3]">
+                              <Image
+                                src={photo.thumbnailUrl || photo.imageUrl}
+                                alt={photo.filename}
+                                fill
+                                unoptimized
+                                sizes="160px"
+                                className="object-cover transition group-hover:scale-[1.02]"
+                              />
+                            </span>
+                            <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
+                              {photo.filename}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <details className="rounded-md border border-ink/10 bg-paper">
+                        <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
+                          <Grid3X3 size={15} />
+                          Kézi layout választása
+                        </summary>
+                        <div className="grid gap-4 border-t border-ink/10 p-3 xl:grid-cols-[260px_minmax(0,1fr)]">
                           <div>
-                            <p className="text-sm font-medium text-graphite">Képek kiválasztása</p>
-                            <p className="mt-1 text-xs text-graphite/60">
-                              Válassz 1-6 képet. Az automatikus gomb véletlen layoutot és képsorrendet választ, a kézi gomb a bal oldali layoutot használja.
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button type="submit" formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, design.id)}>
-                              <Shuffle size={16} />
-                              Automatikus oldalpár
-                            </Button>
-                            <Button type="submit" variant="secondary">
+                            <label className="block text-xs font-medium uppercase tracking-[0.14em] text-graphite/70">Layout template</label>
+                            <select
+                              name="layoutKey"
+                              className="mt-2 h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                              defaultValue={ALBUM_LAYOUT_TEMPLATES[1]?.key ?? ALBUM_LAYOUT_TEMPLATES[0].key}
+                            >
+                              {ALBUM_LAYOUT_TEMPLATES.map((template) => (
+                                <option key={template.key} value={template.key}>
+                                  {template.name} · {template.photoCount} kép
+                                </option>
+                              ))}
+                            </select>
+                            <Button type="submit" variant="secondary" className="mt-3 w-full">
                               <Grid3X3 size={16} />
-                              Kézi layout
+                              Kézi layout létrehozása
                             </Button>
                           </div>
+                          <div className="grid max-h-64 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                            {ALBUM_LAYOUT_TEMPLATES.map((template) => (
+                              <div key={template.key} className="rounded-md bg-white p-2">
+                                <TemplatePreview layoutKey={template.key} />
+                                <p className="mt-1 truncate text-xs text-graphite/60">{template.name}</p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-
-                        <div className="mt-3 grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-                          {sourcePhotos.map((photo) => (
-                            <label key={photo.id} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
-                              <input name="photoIds" value={photo.id} type="checkbox" className="peer absolute left-2 top-2 z-10 size-4 accent-ink" />
-                              <span className="relative block aspect-[4/3]">
-                                <Image
-                                  src={photo.thumbnailUrl || photo.imageUrl}
-                                  alt={photo.filename}
-                                  fill
-                                  unoptimized
-                                  sizes="160px"
-                                  className="object-cover transition group-hover:scale-[1.02]"
-                                />
-                              </span>
-                              <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
-                                {photo.filename}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
+                      </details>
                     </div>
                   </form>
                 ) : null}
@@ -312,6 +331,13 @@ export function AlbumDesignManager({
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            <a
+                              href={`/admin/album-design-spreads/${spread.id}/export`}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                            >
+                              <Download size={15} />
+                              JPG export
+                            </a>
                             <form action={regenerateAlbumDesignSpreadLayoutAction.bind(null, customerId, design.id, spread.id)}>
                               <Button type="submit" variant="secondary" className="h-9 px-3" disabled={spread.items.length === 0}>
                                 <Shuffle size={15} />
