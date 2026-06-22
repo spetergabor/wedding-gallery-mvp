@@ -144,8 +144,8 @@ export function UploadSessionLog({ sessions }: { sessions: UploadSession[] }) {
 
                 {isInterruptedSession(session) ? (
                   <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
-                    Ez a feltöltés valószínűleg megszakadt. Ha ugyanazokat a fájlokat ugyanabban a listában újra kiválasztod,
-                    a már mentett elemek nem duplázódnak, a hiányzó vagy hibás elemeket pedig újra tudod próbálni.
+                    Ez a feltöltés valószínűleg megszakadt. A fenti feltöltőpanelen válaszd a Folytatás módot, majd jelöld ki
+                    újra ugyanazokat a fájlokat vagy a maradékot. A már mentett elemeket kihagyjuk, a hiányzó vagy hibás elemeket újrapróbáljuk.
                   </p>
                 ) : null}
 

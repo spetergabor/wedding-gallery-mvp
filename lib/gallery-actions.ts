@@ -1102,7 +1102,29 @@ export async function createPhotoUploadTargetsAction(
         capturedAt: true
       }
     });
+    const existingUploadItems = await prisma.galleryUploadItem.findMany({
+      where: {
+        sessionId: session.id,
+        filename: { in: Array.from(new Set(normalizedFiles.map((file) => file.filename))) }
+      },
+      orderBy: [{ completedAt: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        status: true,
+        filename: true,
+        r2Key: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true,
+        mediaType: true,
+        fileSize: true,
+        imageWidth: true,
+        imageHeight: true,
+        capturedAt: true
+      }
+    });
     const existingPhotoByKey = new Map<string, (typeof existingPhotos)[number]>();
+    const existingUploadItemByKey = new Map<string, (typeof existingUploadItems)[number]>();
 
     for (const photo of existingPhotos) {
       const key = photoDuplicateKey(photo);
@@ -1112,62 +1134,84 @@ export async function createPhotoUploadTargetsAction(
       }
     }
 
+    for (const item of existingUploadItems) {
+      const key = photoDuplicateKey(item);
+
+      if (!existingUploadItemByKey.has(key)) {
+        existingUploadItemByKey.set(key, item);
+      }
+    }
+
     const uploads = await Promise.all(
       normalizedFiles.map(async (file) => {
         const mediaType = file.mediaType;
-        const existingPhoto = existingPhotoByKey.get(photoDuplicateKey(file));
+        const fileDuplicateKey = photoDuplicateKey(file);
+        const existingUploadItem = existingUploadItemByKey.get(fileDuplicateKey);
+        const existingPhoto = existingPhotoByKey.get(fileDuplicateKey);
+
+        if (existingUploadItem?.status === "completed" && existingUploadItem.r2Key && existingUploadItem.imageUrl) {
+          return {
+            uploadItemId: existingUploadItem.id,
+            clientId: file.clientId,
+            filename: file.filename,
+            r2Key: existingUploadItem.r2Key,
+            imageUrl: existingUploadItem.imageUrl,
+            thumbnailUrl: existingUploadItem.thumbnailUrl || existingUploadItem.imageUrl,
+            previewUrl: existingUploadItem.previewUrl || existingUploadItem.imageUrl,
+            thumbnailR2Key: null,
+            previewR2Key: null,
+            mediaType,
+            alreadyCompleted: true,
+            replacePhotoId: null,
+            uploadUrl: ""
+          };
+        }
 
         if (existingPhoto && normalizedDuplicateMode === "skip") {
           const now = new Date();
-          const uploadItem = await prisma.galleryUploadItem.upsert({
-            where: {
-              sessionId_clientId: {
-                sessionId: session.id,
-                clientId: file.clientId
-              }
-            },
-            create: {
-              sessionId: session.id,
-              clientId: file.clientId,
-              filename: file.filename,
-              deliveryStage: session.deliveryStage,
-              r2Key: existingPhoto.r2Key,
-              imageUrl: existingPhoto.imageUrl,
-              thumbnailUrl: existingPhoto.thumbnailUrl,
-              previewUrl: existingPhoto.previewUrl,
-              mediaType,
-              fileSize: file.fileSize ?? 0,
-              imageWidth: file.imageWidth ?? 0,
-              imageHeight: file.imageHeight ?? 0,
-              capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
-              originalIndex: file.originalIndex ?? 0,
-              status: "completed",
-              errorMessage: null,
-              uploadedAt: now,
-              completedAt: now
-            },
-            update: {
-              filename: file.filename,
-              deliveryStage: session.deliveryStage,
-              r2Key: existingPhoto.r2Key,
-              imageUrl: existingPhoto.imageUrl,
-              thumbnailUrl: existingPhoto.thumbnailUrl,
-              previewUrl: existingPhoto.previewUrl,
-              mediaType,
-              fileSize: file.fileSize ?? 0,
-              imageWidth: file.imageWidth ?? 0,
-              imageHeight: file.imageHeight ?? 0,
-              capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
-              originalIndex: file.originalIndex ?? 0,
-              status: "completed",
-              errorMessage: null,
-              uploadedAt: now,
-              completedAt: now
-            },
-            select: {
-              id: true
-            }
-          });
+          const completedUploadItemData = {
+            filename: file.filename,
+            deliveryStage: session.deliveryStage,
+            r2Key: existingPhoto.r2Key,
+            imageUrl: existingPhoto.imageUrl,
+            thumbnailUrl: existingPhoto.thumbnailUrl,
+            previewUrl: existingPhoto.previewUrl,
+            mediaType,
+            fileSize: file.fileSize ?? 0,
+            imageWidth: file.imageWidth ?? 0,
+            imageHeight: file.imageHeight ?? 0,
+            capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
+            originalIndex: file.originalIndex ?? 0,
+            status: "completed",
+            errorMessage: null,
+            uploadedAt: now,
+            completedAt: now
+          };
+          const uploadItem = existingUploadItem
+            ? await prisma.galleryUploadItem.update({
+                where: { id: existingUploadItem.id },
+                data: completedUploadItemData,
+                select: {
+                  id: true
+                }
+              })
+            : await prisma.galleryUploadItem.upsert({
+                where: {
+                  sessionId_clientId: {
+                    sessionId: session.id,
+                    clientId: file.clientId
+                  }
+                },
+                create: {
+                  sessionId: session.id,
+                  clientId: file.clientId,
+                  ...completedUploadItemData
+                },
+                update: completedUploadItemData,
+                select: {
+                  id: true
+                }
+              });
 
           return {
             uploadItemId: uploadItem.id,
@@ -1207,59 +1251,57 @@ export async function createPhotoUploadTargetsAction(
               })
             : null;
         const generatedPublicUrl = getPhotoPublicUrl(generatedR2Key);
-        const uploadItem = await prisma.galleryUploadItem.upsert({
-          where: {
-            sessionId_clientId: {
-              sessionId: session.id,
-              clientId: file.clientId
-            }
-          },
-          create: {
-            sessionId: session.id,
-            clientId: file.clientId,
-            filename: file.filename,
-            deliveryStage: session.deliveryStage,
-            r2Key: generatedR2Key,
-            imageUrl: generatedPublicUrl,
-            thumbnailUrl: generatedPublicUrl,
-            previewUrl: generatedPublicUrl,
-            mediaType,
-            fileSize: file.fileSize ?? 0,
-            imageWidth: file.imageWidth ?? 0,
-            imageHeight: file.imageHeight ?? 0,
-            capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
-            originalIndex: file.originalIndex ?? 0,
-            status: "uploading",
-            errorMessage: null,
-            uploadedAt: null,
-            completedAt: null
-          },
-          update: {
-            filename: file.filename,
-            deliveryStage: session.deliveryStage,
-            r2Key: generatedR2Key,
-            imageUrl: generatedPublicUrl,
-            thumbnailUrl: generatedPublicUrl,
-            previewUrl: generatedPublicUrl,
-            mediaType,
-            fileSize: file.fileSize ?? 0,
-            imageWidth: file.imageWidth ?? 0,
-            imageHeight: file.imageHeight ?? 0,
-            capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
-            originalIndex: file.originalIndex ?? 0,
-            status: "uploading",
-            errorMessage: null,
-            uploadedAt: null,
-            completedAt: null
-          },
-          select: {
-            id: true,
-            r2Key: true,
-            imageUrl: true,
-            thumbnailUrl: true,
-            previewUrl: true
-          }
-        });
+        const uploadingUploadItemData = {
+          filename: file.filename,
+          deliveryStage: session.deliveryStage,
+          r2Key: generatedR2Key,
+          imageUrl: generatedPublicUrl,
+          thumbnailUrl: generatedPublicUrl,
+          previewUrl: generatedPublicUrl,
+          mediaType,
+          fileSize: file.fileSize ?? 0,
+          imageWidth: file.imageWidth ?? 0,
+          imageHeight: file.imageHeight ?? 0,
+          capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
+          originalIndex: file.originalIndex ?? 0,
+          status: "uploading",
+          errorMessage: null,
+          uploadedAt: null,
+          completedAt: null
+        };
+        const uploadItem = existingUploadItem
+          ? await prisma.galleryUploadItem.update({
+              where: { id: existingUploadItem.id },
+              data: uploadingUploadItemData,
+              select: {
+                id: true,
+                r2Key: true,
+                imageUrl: true,
+                thumbnailUrl: true,
+                previewUrl: true
+              }
+            })
+          : await prisma.galleryUploadItem.upsert({
+              where: {
+                sessionId_clientId: {
+                  sessionId: session.id,
+                  clientId: file.clientId
+                }
+              },
+              create: {
+                sessionId: session.id,
+                clientId: file.clientId,
+                ...uploadingUploadItemData
+              },
+              update: uploadingUploadItemData,
+              select: {
+                id: true,
+                r2Key: true,
+                imageUrl: true,
+                thumbnailUrl: true,
+                previewUrl: true
+              }
+            });
         const r2Key = uploadItem.r2Key ?? generatedR2Key;
         const imageUrl = uploadItem.imageUrl ?? getPhotoPublicUrl(r2Key);
         const thumbnailUrl = uploadItem.thumbnailUrl ?? imageUrl;

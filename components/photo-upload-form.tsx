@@ -3,7 +3,7 @@
 import { ChangeEvent, DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as exifr from "exifr";
-import { ImagePlus, UploadCloud } from "lucide-react";
+import { ImagePlus, RefreshCw, UploadCloud } from "lucide-react";
 import {
   completePhotoUploadsAction,
   createPhotoUploadSessionAction,
@@ -45,6 +45,18 @@ type RawPreparedUpload = Omit<PreparedUpload, "mediaType"> & {
 
 type PhotoUploadStatus = "queued" | "preparing" | "uploading" | "waiting" | "uploaded" | "completed" | "failed";
 type PhotoDuplicateMode = "skip" | "replace";
+
+type ResumableUploadSession = {
+  id: string;
+  status: string;
+  deliveryStage: string;
+  totalCount: number;
+  uploadedCount: number;
+  completedCount: number;
+  failedCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
 type SelectedPhotoFile = {
   clientId: string;
@@ -145,6 +157,19 @@ function formatDuration(milliseconds: number) {
   return `${seconds} mp`;
 }
 
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleString("hu-HU", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+}
+
 function isOnline() {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
@@ -201,11 +226,16 @@ function statusClass(status: PhotoUploadStatus) {
   }
 }
 
+function isResumableUploadSession(session: ResumableUploadSession) {
+  return session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount;
+}
+
 export function PhotoUploadForm({
   galleryId,
   galleryMode,
   defaultDeliveryStage,
   deliveryStageMode = "select",
+  resumableSessions = [],
   title = "Fotók és videók feltöltése",
   description = "Húzd ide a képeket és videókat, vagy kattints a fájlok kiválasztásához. A videók a galéria elejére kerülnek."
 }: {
@@ -213,6 +243,7 @@ export function PhotoUploadForm({
   galleryMode: string;
   defaultDeliveryStage: string;
   deliveryStageMode?: "select" | "fixed";
+  resumableSessions?: ResumableUploadSession[];
   title?: string;
   description?: string;
 }) {
@@ -226,6 +257,7 @@ export function PhotoUploadForm({
   const [isReadingExif, setIsReadingExif] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadSessionId, setUploadSessionId] = useState<string | null>(null);
+  const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -309,6 +341,16 @@ export function PhotoUploadForm({
       return a.originalIndex - b.originalIndex;
     });
   }, [selectedFiles]);
+  const currentResumableSessions = useMemo(() => {
+    return resumableSessions
+      .filter((session) => session.deliveryStage === deliveryStage && isResumableUploadSession(session))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [deliveryStage, resumableSessions]);
+  const selectedResumeSession = currentResumableSessions.find((session) => session.id === resumeSessionId) ?? null;
+  const suggestedResumeSession = currentResumableSessions[0] ?? null;
+  const resumeRemainingCount = selectedResumeSession
+    ? Math.max(0, selectedResumeSession.totalCount - selectedResumeSession.completedCount)
+    : 0;
 
   const progress = useMemo(() => {
     if (selectedFiles.length === 0) {
@@ -325,6 +367,12 @@ export function PhotoUploadForm({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (resumeSessionId && !currentResumableSessions.some((session) => session.id === resumeSessionId)) {
+      setResumeSessionId(null);
+    }
+  }, [currentResumableSessions, resumeSessionId]);
 
   useEffect(() => {
     if (!isUploading) {
@@ -576,6 +624,7 @@ export function PhotoUploadForm({
     setSelectedFiles([]);
     setUploadError("");
     setUploadSessionId(null);
+    setResumeSessionId(null);
     setUploadStartedAt(null);
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -974,6 +1023,8 @@ export function PhotoUploadForm({
 
         sessionId = sessionResult.sessionId;
         setUploadSessionId(sessionId);
+      } else {
+        setUploadSessionId(sessionId);
       }
 
       let failedUploads = 0;
@@ -985,6 +1036,7 @@ export function PhotoUploadForm({
       }
 
       if (failedUploads === 0) {
+        setResumeSessionId(null);
         window.location.href = `/admin/galleries/${galleryId}?photoAdded=1`;
       } else {
         refreshGallerySoon(true);
@@ -1001,7 +1053,7 @@ export function PhotoUploadForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await uploadFiles(selectedFiles.filter((file) => file.status !== "completed"));
+    await uploadFiles(selectedFiles.filter((file) => file.status !== "completed"), resumeSessionId);
   }
 
   async function retryFailedUploads() {
@@ -1052,6 +1104,7 @@ export function PhotoUploadForm({
                   onChange={(event) => {
                     setDeliveryStage(normalizePhotoDeliveryStage(event.target.value));
                     setUploadSessionId(null);
+                    setResumeSessionId(null);
                   }}
                   disabled={isUploading}
                   className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:opacity-60"
@@ -1061,6 +1114,64 @@ export function PhotoUploadForm({
                 </select>
               </label>
             ) : null}
+            {suggestedResumeSession ? (
+              <div
+                className={`mb-5 rounded-md border p-4 ${
+                  selectedResumeSession ? "border-brass/40 bg-brass/10" : "border-ink/10 bg-white"
+                }`}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">
+                      {selectedResumeSession ? "Félbemaradt feltöltés folytatása aktív" : "Félbemaradt feltöltés található"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-graphite/70">
+                      {suggestedResumeSession.completedCount}/{suggestedResumeSession.totalCount} már mentve ·{" "}
+                      {suggestedResumeSession.failedCount} hibás · frissítve: {formatDateTime(suggestedResumeSession.updatedAt)}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-graphite/70">
+                      Válaszd ki újra ugyanazokat a fájlokat vagy a maradékot. A már mentett képeket kihagyjuk, csak a hiányzókat küldjük fel.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-2">
+                    {selectedResumeSession ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResumeSessionId(null);
+                          setUploadSessionId(null);
+                        }}
+                        disabled={isUploading}
+                        className="h-10 rounded-md px-3 text-xs font-medium text-graphite hover:bg-ink/5 disabled:opacity-60"
+                      >
+                        Új feltöltés
+                      </button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setResumeSessionId(suggestedResumeSession.id);
+                          setUploadSessionId(suggestedResumeSession.id);
+                          setDuplicateMode("skip");
+                          setUploadError("");
+                        }}
+                        disabled={isUploading}
+                        className="h-10 px-3 text-xs"
+                      >
+                        <RefreshCw size={14} />
+                        Folytatás
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {selectedResumeSession ? (
+                  <p className="mt-3 rounded-md bg-white px-3 py-2 text-xs font-medium text-ink">
+                    Még kb. {resumeRemainingCount} média hiányzik ebből a feltöltésből.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <label className="mb-5 block space-y-2">
               <span className="text-sm font-medium text-graphite">Duplikált fájlok kezelése</span>
               <select
@@ -1068,15 +1179,18 @@ export function PhotoUploadForm({
                 onChange={(event) => {
                   setDuplicateMode(event.target.value === "replace" ? "replace" : "skip");
                   setUploadSessionId(null);
+                  setResumeSessionId(null);
                 }}
-                disabled={isUploading}
+                disabled={isUploading || Boolean(selectedResumeSession)}
                 className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:opacity-60"
               >
                 <option value="skip">Duplikátumok kihagyása</option>
                 <option value="replace">Duplikátumok felülírása</option>
               </select>
               <p className="text-xs leading-5 text-graphite/70">
-                Azonos fájlnév és méret alapján. Kihagyásnál nem tölti fel újra, felülírásnál a meglévő képet frissíti.
+                {selectedResumeSession
+                  ? "Folytatáskor automatikusan kihagyjuk a már mentett fájlokat, hogy ne legyen duplikáció."
+                  : "Azonos fájlnév és méret alapján. Kihagyásnál nem tölti fel újra, felülírásnál a meglévő képet frissíti."}
               </p>
             </label>
             <p className="text-sm font-medium text-graphite">Kiválasztott médiák</p>
@@ -1135,7 +1249,9 @@ export function PhotoUploadForm({
               <UploadCloud size={16} />
               {isUploading
                 ? "Feltöltés..."
-                : failedCount > 0
+                : selectedResumeSession
+                  ? "Feltöltés folytatása"
+                  : failedCount > 0
                   ? "Feltöltés folytatása"
                   : selectedFiles.length > 0
                     ? `${selectedFiles.length} média feltöltése`

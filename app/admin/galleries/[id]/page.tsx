@@ -231,6 +231,19 @@ export default async function GalleryDetailPage({
     new Set(gallery.favoriteLists.flatMap((list) => list.items.map((item) => item.photo.id)))
   );
   const submittedListCount = gallery.favoriteLists.filter((list) => list.submittedAt).length;
+  const resumableUploadSessions = gallery.uploadSessions
+    .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
+    .map((session) => ({
+      id: session.id,
+      status: session.status,
+      deliveryStage: session.deliveryStage,
+      totalCount: session.totalCount,
+      uploadedCount: session.uploadedCount,
+      completedCount: session.completedCount,
+      failedCount: session.failedCount,
+      createdAt: session.createdAt.toISOString(),
+      updatedAt: session.updatedAt.toISOString()
+    }));
 
   if (activeTab === "downloads") {
     queueZipPackageKick(gallery.id, gallery.downloadPackages);
@@ -356,6 +369,7 @@ export default async function GalleryDetailPage({
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
               defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+              resumableSessions={resumableUploadSessions}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
@@ -475,6 +489,7 @@ export default async function GalleryDetailPage({
                 galleryMode={gallery.galleryMode}
                 defaultDeliveryStage={PHOTO_DELIVERY_STAGE_FINAL}
                 deliveryStageMode="fixed"
+                resumableSessions={resumableUploadSessions}
                 title="Kész képek feltöltése"
                 description="Ide töltsd fel a kidolgozott képeket, amelyeket az ügyfél kiválasztott. Ezek külön kész képként kerülnek a galériába."
               />
