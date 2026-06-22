@@ -1,6 +1,20 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Camera, CheckCircle2, ExternalLink, Heart, Mail, Plus, Trash2, Upload } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  Camera,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  ExternalLink,
+  FileText,
+  Heart,
+  Mail,
+  Plus,
+  Trash2,
+  Upload
+} from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
@@ -10,16 +24,15 @@ import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { customerStatusLabel, customerTypeLabel } from "@/lib/customer-options";
+import { CustomerWorkflowIconKey, getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { deleteCustomerAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 import {
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
-  PROOFING_STATUS_DELIVERED,
-  PROOFING_STATUS_IN_PROGRESS,
-  PROOFING_STATUS_NOT_OPENED,
   PROOFING_STATUS_PROCESSING,
-  PROOFING_STATUS_SUBMITTED
+  PROOFING_STATUS_SUBMITTED,
+  proofingStatusLabel
 } from "@/lib/proofing";
 
 function formatDate(date: Date | null) {
@@ -34,112 +47,302 @@ function formatDate(date: Date | null) {
   });
 }
 
-type CustomerGallerySummary = {
-  id: string;
+function formatDateTime(date: Date | null) {
+  if (!date) {
+    return null;
+  }
+
+  return date.toLocaleString("hu-HU", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+}
+
+const workflowIconMap: Record<CustomerWorkflowIconKey, typeof Camera> = {
+  camera: Camera,
+  check: CheckCircle2,
+  heart: Heart,
+  mail: Mail,
+  plus: Plus,
+  upload: Upload
+};
+
+type CustomerTask = {
   title: string;
-  galleryMode: string;
-  proofingStatus: string;
-  clientEmail: string | null;
-  proofingInviteSentAt: Date | null;
-  finalDeliveryEmailSentAt: Date | null;
-  _count: {
-    photos: number;
-  };
-  photos: Array<{
+  detail: string;
+  state: "action" | "done" | "info" | "waiting";
+  href?: string;
+};
+
+type TimelineEvent = {
+  date: Date;
+  title: string;
+  detail: string;
+  href?: string;
+};
+
+type CustomerWorkflowInput = {
+  id: string;
+  createdAt: Date;
+  primaryEmail: string;
+  contracts: Array<{
     id: string;
+    title: string;
+    status: string;
+    sentAt: Date | null;
+    openedAt: Date | null;
+    signedAt: Date | null;
+    createdAt: Date;
+  }>;
+  galleries: Array<{
+    id: string;
+    title: string;
+    galleryMode: string;
+    proofingStatus: string;
+    proofingStatusUpdatedAt: Date | null;
+    proofingInviteSentAt: Date | null;
+    finalDeliveryEmailSentAt: Date | null;
+    createdAt: Date;
+    _count: {
+      photos: number;
+    };
+    photos: Array<{ id: string }>;
+    favoriteLists: Array<{
+      email: string;
+      name: string;
+      submittedAt: Date | null;
+      _count: { items: number };
+    }>;
+    uploadSessions: Array<{
+      status: string;
+      deliveryStage: string;
+      totalCount: number;
+      completedCount: number;
+      failedCount: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
   }>;
 };
 
-function getNextCustomerAction(customer: { id: string; galleries: CustomerGallerySummary[] }) {
+function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: ReturnType<typeof getCustomerWorkflowSummary>) {
   const latestGallery = customer.galleries[0] ?? null;
-  const proofingGallery = customer.galleries.find(
-    (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+  const activeProofingGallery = customer.galleries.find(
+    (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && ["not_opened", "in_progress", "submitted", "processing"].includes(gallery.proofingStatus)
   );
-  const finishedProofingGallery = customer.galleries.find(
-    (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && gallery.proofingStatus === PROOFING_STATUS_DELIVERED
-  );
+  const contract = customer.contracts[0] ?? null;
+  const tasks: CustomerTask[] = [
+    {
+      title: "Ügyfél email",
+      detail: customer.primaryEmail ? customer.primaryEmail : "Hiányzik az elsődleges email cím",
+      state: customer.primaryEmail ? "done" : "action",
+      href: customer.primaryEmail ? undefined : `/admin/clients/${customer.id}?edit=1`
+    }
+  ];
 
   if (!latestGallery) {
-    return {
-      icon: Plus,
-      title: "Első galéria létrehozása",
-      description: "Az ügyfél megvan. A következő lépés egy galéria vagy nyers válogatás indítása ehhez az ügyfélhez.",
-      href: `/admin/galleries/new?customerId=${customer.id}`,
-      buttonLabel: "Új galéria"
-    };
+    tasks.push({
+      title: "Galéria",
+      detail: "Még nincs galéria ehhez az ügyfélhez.",
+      state: "action",
+      href: `/admin/galleries/new?customerId=${customer.id}`
+    });
+  } else {
+    tasks.push({
+      title: "Galéria",
+      detail: `${latestGallery.title} · ${latestGallery._count.photos} média`,
+      state: latestGallery._count.photos > 0 ? "done" : "action",
+      href: `/admin/galleries/${latestGallery.id}?tab=photos`
+    });
   }
 
-  if (latestGallery._count.photos === 0) {
-    return {
-      icon: Upload,
-      title: "Képek feltöltése",
-      description: `${latestGallery.title} már létrejött, de még nincs benne fotó. Innen érdemes folytatni a munkát.`,
-      href: `/admin/galleries/${latestGallery.id}?tab=photos`,
-      buttonLabel: "Feltöltés megnyitása"
-    };
+  if (activeProofingGallery) {
+    const hasFinalPhotos = activeProofingGallery.photos.length > 0;
+
+    tasks.push({
+      title: "Válogató link",
+      detail: activeProofingGallery.proofingInviteSentAt ? "Kiküldve az ügyfélnek." : "Még nincs kiküldve.",
+      state: activeProofingGallery.proofingInviteSentAt ? "done" : "action",
+      href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
+    });
+    tasks.push({
+      title: "Ügyfél válogatás",
+      detail: proofingStatusLabel(activeProofingGallery.proofingStatus),
+      state:
+        activeProofingGallery.proofingStatus === PROOFING_STATUS_SUBMITTED ||
+        activeProofingGallery.proofingStatus === PROOFING_STATUS_PROCESSING
+          ? "done"
+          : "waiting",
+      href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
+    });
+    tasks.push({
+      title: "Kész képek",
+      detail: hasFinalPhotos ? "Van feltöltött kész anyag." : "Még nincs kész kép feltöltve.",
+      state: hasFinalPhotos ? "done" : activeProofingGallery.proofingStatus === PROOFING_STATUS_SUBMITTED ? "action" : "info",
+      href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
+    });
   }
 
-  if (proofingGallery?.proofingStatus === PROOFING_STATUS_SUBMITTED) {
-    const hasFinalPhotos = proofingGallery.photos.length > 0;
-
-    return {
-      icon: hasFinalPhotos ? CheckCircle2 : Upload,
-      title: hasFinalPhotos ? "Kész képek átadása" : "Kész képek feltöltése",
-      description: hasFinalPhotos
-        ? "Az ügyfél leadta a válogatást, és már van kész kép feltöltve. A következő lépés az átadás emaillel."
-        : "Az ügyfél leadta a válogatást. Most a kidolgozott képeket töltsd vissza ugyanebbe a galériába.",
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-      buttonLabel: hasFinalPhotos ? "Átadás kezelése" : "Kész képek feltöltése"
-    };
+  if (contract) {
+    tasks.push({
+      title: "Szerződés",
+      detail: contract.signedAt
+        ? "Aláírva."
+        : contract.sentAt
+          ? "Kiküldve, ügyfélre vár."
+          : "Feltöltve, de még nincs kiküldve.",
+      state: contract.signedAt ? "done" : contract.sentAt ? "waiting" : "action"
+    });
+  } else {
+    tasks.push({
+      title: "Szerződés",
+      detail: "Még nincs szerződés rögzítve ehhez az ügyfélhez.",
+      state: "info"
+    });
   }
 
-  if (proofingGallery?.proofingStatus === PROOFING_STATUS_PROCESSING) {
-    const hasFinalPhotos = proofingGallery.photos.length > 0;
+  tasks.push({
+    title: "Aktuális fókusz",
+    detail: nextAction.title,
+    state: nextAction.lane === "complete" ? "done" : nextAction.lane === "waiting_client" ? "waiting" : "action",
+    href: nextAction.href
+  });
 
-    return {
-      icon: hasFinalPhotos ? CheckCircle2 : Upload,
-      title: hasFinalPhotos ? "Kész képek átadása" : "Kidolgozás folyamatban",
-      description: hasFinalPhotos
-        ? "A galéria feldolgozás alatt van, és már van kész anyag. Innen tudod lezárni és elküldeni az ügyfélnek."
-        : "A válogatás feldolgozás alatt van jelölve. Ha elkészültek a képek, ide töltsd fel őket.",
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-      buttonLabel: hasFinalPhotos ? "Átadás megnyitása" : "Kész képek feltöltése"
-    };
-  }
+  return tasks;
+}
 
-  if (
-    proofingGallery?.proofingStatus === PROOFING_STATUS_NOT_OPENED ||
-    proofingGallery?.proofingStatus === PROOFING_STATUS_IN_PROGRESS
-  ) {
-    return {
-      icon: proofingGallery.proofingInviteSentAt ? Heart : Mail,
-      title: proofingGallery.proofingInviteSentAt ? "Válogatás követése" : "Válogató link kiküldése",
-      description: proofingGallery.proofingInviteSentAt
-        ? "A nyers válogató link már ki lett küldve. Itt látod, hogy az ügyfél hol tart a kiválasztással."
-        : "A nyers képes galéria készen áll. A következő lépés a válogató link emailes kiküldése.",
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-      buttonLabel: proofingGallery.proofingInviteSentAt ? "Válogatás megnyitása" : "Link küldése"
-    };
-  }
+function createCustomerTimeline(customer: CustomerWorkflowInput) {
+  const events: TimelineEvent[] = [
+    {
+      date: customer.createdAt,
+      title: "Ügyfél létrehozva",
+      detail: "Az ügyfél bekerült a rendszerbe.",
+      href: `/admin/clients/${customer.id}`
+    }
+  ];
 
-  if (finishedProofingGallery) {
+  customer.contracts.forEach((contract) => {
+    events.push({
+      date: contract.createdAt,
+      title: "Szerződés létrehozva",
+      detail: contract.title
+    });
+
+    if (contract.sentAt) {
+      events.push({
+        date: contract.sentAt,
+        title: "Szerződés elküldve",
+        detail: contract.title
+      });
+    }
+
+    if (contract.openedAt) {
+      events.push({
+        date: contract.openedAt,
+        title: "Szerződés megnyitva",
+        detail: contract.title
+      });
+    }
+
+    if (contract.signedAt) {
+      events.push({
+        date: contract.signedAt,
+        title: "Szerződés aláírva",
+        detail: contract.title
+      });
+    }
+  });
+
+  customer.galleries.forEach((gallery) => {
+    events.push({
+      date: gallery.createdAt,
+      title: "Galéria létrehozva",
+      detail: gallery.title,
+      href: `/admin/galleries/${gallery.id}`
+    });
+
+    gallery.uploadSessions.forEach((session) => {
+      events.push({
+        date: session.updatedAt,
+        title: session.status === "completed" ? "Feltöltés befejezve" : "Feltöltés frissült",
+        detail: `${gallery.title} · ${session.completedCount}/${session.totalCount} kép · ${session.failedCount} hibás`,
+        href: `/admin/galleries/${gallery.id}?tab=photos`
+      });
+    });
+
+    if (gallery.proofingStatusUpdatedAt) {
+      events.push({
+        date: gallery.proofingStatusUpdatedAt,
+        title: "Válogatás státusz frissült",
+        detail: `${gallery.title} · ${proofingStatusLabel(gallery.proofingStatus)}`,
+        href: `/admin/galleries/${gallery.id}?tab=client`
+      });
+    }
+
+    if (gallery.proofingInviteSentAt) {
+      events.push({
+        date: gallery.proofingInviteSentAt,
+        title: "Válogató link kiküldve",
+        detail: gallery.title,
+        href: `/admin/galleries/${gallery.id}?tab=client`
+      });
+    }
+
+    gallery.favoriteLists.forEach((list) => {
+      if (!list.submittedAt) {
+        return;
+      }
+
+      events.push({
+        date: list.submittedAt,
+        title: "Válogatás leadva",
+        detail: `${list.email} · ${list._count.items} kiválasztott kép`,
+        href: `/admin/galleries/${gallery.id}?tab=client`
+      });
+    });
+
+    if (gallery.finalDeliveryEmailSentAt) {
+      events.push({
+        date: gallery.finalDeliveryEmailSentAt,
+        title: "Kész képek átadva",
+        detail: gallery.title,
+        href: `/admin/galleries/${gallery.id}?tab=client`
+      });
+    }
+  });
+
+  return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 12);
+}
+
+function taskStyles(state: CustomerTask["state"]) {
+  if (state === "done") {
     return {
       icon: CheckCircle2,
-      title: "Kész képek átadva",
-      description: finishedProofingGallery.finalDeliveryEmailSentAt
-        ? "A kész galéria átadás emailje már ki lett küldve. Innen visszanézheted vagy újraküldheted."
-        : "A kész galéria átadott státuszban van. Ellenőrizheted az átadás email állapotát.",
-      href: `/admin/galleries/${finishedProofingGallery.id}?tab=client`,
-      buttonLabel: "Átadás megnyitása"
+      className: "border-sage/20 bg-sage/10 text-sage",
+      label: "Kész"
+    };
+  }
+
+  if (state === "waiting") {
+    return {
+      icon: Clock3,
+      className: "border-brass/25 bg-brass/10 text-brass",
+      label: "Vár"
+    };
+  }
+
+  if (state === "action") {
+    return {
+      icon: ArrowRight,
+      className: "border-ink/15 bg-ink text-white",
+      label: "Lépés"
     };
   }
 
   return {
-    icon: Camera,
-    title: "Galéria kezelése",
-    description: "Van aktív galéria ehhez az ügyfélhez. Itt tudod folytatni a feltöltést, beállításokat vagy átadást.",
-    href: `/admin/galleries/${latestGallery.id}`,
-    buttonLabel: "Galéria megnyitása"
+    icon: Circle,
+    className: "border-ink/10 bg-paper text-graphite",
+    label: "Info"
   };
 }
 
@@ -170,10 +373,36 @@ export default async function AdminClientDetailPage({
       galleries: {
         orderBy: { createdAt: "desc" },
         include: {
+          favoriteLists: {
+            where: { submittedAt: { not: null } },
+            orderBy: { submittedAt: "desc" },
+            take: 3,
+            select: {
+              email: true,
+              name: true,
+              submittedAt: true,
+              _count: {
+                select: { items: true }
+              }
+            }
+          },
           photos: {
             where: { deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
             select: { id: true },
             take: 1
+          },
+          uploadSessions: {
+            orderBy: { updatedAt: "desc" },
+            take: 3,
+            select: {
+              status: true,
+              deliveryStage: true,
+              totalCount: true,
+              completedCount: true,
+              failedCount: true,
+              createdAt: true,
+              updatedAt: true
+            }
           },
           _count: {
             select: { photos: true }
@@ -189,8 +418,10 @@ export default async function AdminClientDetailPage({
 
   const isEditing = flags.edit === "1";
   const typeLabel = customerTypeLabel(customer.customerType);
-  const nextAction = getNextCustomerAction(customer);
-  const NextActionIcon = nextAction.icon;
+  const nextAction = getCustomerWorkflowSummary(customer);
+  const NextActionIcon = workflowIconMap[nextAction.iconKey];
+  const customerTasks = createCustomerTasks(customer, nextAction);
+  const timelineEvents = createCustomerTimeline(customer);
 
   return (
     <AdminShell>
@@ -257,6 +488,94 @@ export default async function AdminClientDetailPage({
           </ButtonLink>
         </div>
       </section>
+
+      <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
+            <div>
+              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                <CheckCircle2 size={15} />
+                Teendők
+              </div>
+              <h2 className="mt-2 text-xl font-semibold text-ink">Leadás előtti checklist</h2>
+              <p className="mt-1 text-sm leading-6 text-graphite/70">
+                A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.
+              </p>
+            </div>
+            <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+              {nextAction.laneLabel}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {customerTasks.map((task) => {
+              const styles = taskStyles(task.state);
+              const TaskIcon = styles.icon;
+              const content = (
+                <>
+                  <div className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${styles.className}`}>
+                    <TaskIcon size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-ink">{task.title}</p>
+                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                        {styles.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm leading-5 text-graphite/70">{task.detail}</p>
+                  </div>
+                </>
+              );
+
+              return task.href ? (
+                <Link key={`${task.title}-${task.detail}`} href={task.href} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3 transition hover:border-ink/20 hover:bg-ink/[0.03]">
+                  {content}
+                </Link>
+              ) : (
+                <div key={`${task.title}-${task.detail}`} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3">
+                  {content}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <div className="border-b border-ink/10 pb-4">
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+              <CalendarClock size={15} />
+              Timeline
+            </div>
+            <h2 className="mt-2 text-xl font-semibold text-ink">Legutóbbi események</h2>
+          </div>
+          <div className="mt-4 space-y-4">
+            {timelineEvents.map((event) => {
+              const content = (
+                <>
+                  <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-paper text-brass">
+                    <FileText size={14} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink">{event.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-graphite/70">{event.detail}</p>
+                    <p className="mt-1 text-xs text-graphite/55">{formatDateTime(event.date)}</p>
+                  </div>
+                </>
+              );
+
+              return event.href ? (
+                <Link key={`${event.title}-${event.date.toISOString()}`} href={event.href} className="flex gap-3 rounded-md p-2 transition hover:bg-ink/[0.03]">
+                  {content}
+                </Link>
+              ) : (
+                <div key={`${event.title}-${event.date.toISOString()}`} className="flex gap-3 rounded-md p-2">
+                  {content}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">

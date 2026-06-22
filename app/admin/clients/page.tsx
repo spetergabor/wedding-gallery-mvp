@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, Mail, Plus, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, Mail, Plus, Users } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -7,7 +7,9 @@ import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
+import { CUSTOMER_WORKFLOW_LANES, getCustomerWorkflowSummary, normalizeCustomerWorkflowLane } from "@/lib/customer-workflow";
 import { prisma } from "@/lib/prisma";
+import { PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -24,12 +26,13 @@ function formatDate(date: Date | null) {
 export default async function AdminClientsPage({
   searchParams
 }: {
-  searchParams: Promise<{ deleted?: string; q?: string; status?: string; type?: string }>;
+  searchParams: Promise<{ deleted?: string; q?: string; status?: string; type?: string; view?: string }>;
 }) {
   const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
   const query = (params.q ?? "").trim();
   const statusFilter = params.status ? normalizeCustomerStatus(params.status) : "";
   const typeFilter = params.type ? normalizeCustomerType(params.type) : "";
+  const workflowView = normalizeCustomerWorkflowLane(params.view);
   const statusValues =
     statusFilter === "offer_sent"
       ? ["offer_sent", "contract_pending"]
@@ -58,6 +61,34 @@ export default async function AdminClientsPage({
     },
     orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }],
     include: {
+      contracts: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          status: true,
+          sentAt: true,
+          signedAt: true
+        }
+      },
+      galleries: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          galleryMode: true,
+          proofingStatus: true,
+          proofingInviteSentAt: true,
+          finalDeliveryEmailSentAt: true,
+          photos: {
+            where: { deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+            select: { id: true },
+            take: 1
+          },
+          _count: {
+            select: { photos: true }
+          }
+        }
+      },
       _count: {
         select: {
           galleries: true,
@@ -66,6 +97,43 @@ export default async function AdminClientsPage({
       }
     }
   });
+  const customersWithWorkflow = customers.map((customer) => ({
+    ...customer,
+    workflow: getCustomerWorkflowSummary(customer)
+  }));
+  const visibleCustomers = workflowView
+    ? customersWithWorkflow.filter((customer) => customer.workflow.lane === workflowView)
+    : customersWithWorkflow;
+  const workflowCounts = CUSTOMER_WORKFLOW_LANES.reduce<Record<string, number>>(
+    (acc, lane) => {
+      acc[lane.value] = customersWithWorkflow.filter((customer) => customer.workflow.lane === lane.value).length;
+      return acc;
+    },
+    { all: customersWithWorkflow.length }
+  );
+
+  function clientsHref(nextView: string) {
+    const search = new URLSearchParams();
+
+    if (query) {
+      search.set("q", query);
+    }
+
+    if (typeFilter) {
+      search.set("type", typeFilter);
+    }
+
+    if (statusFilter) {
+      search.set("status", statusFilter);
+    }
+
+    if (nextView) {
+      search.set("view", nextView);
+    }
+
+    const queryString = search.toString();
+    return queryString ? `/admin/clients?${queryString}` : "/admin/clients";
+  }
 
   return (
     <AdminShell>
@@ -90,6 +158,7 @@ export default async function AdminClientsPage({
       ) : null}
 
       <form className="mb-5 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
+        {workflowView ? <input type="hidden" name="view" value={workflowView} /> : null}
         <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
           <label className="space-y-2">
             <span className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Keresés</span>
@@ -141,12 +210,34 @@ export default async function AdminClientsPage({
         </div>
       </form>
 
-      {customers.length === 0 ? (
+      <div className="mb-5 flex flex-wrap gap-2">
+        <Link
+          href={clientsHref("")}
+          className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
+            !workflowView ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-ink/20"
+          }`}
+        >
+          Összes · {workflowCounts.all}
+        </Link>
+        {CUSTOMER_WORKFLOW_LANES.map((lane) => (
+          <Link
+            key={lane.value}
+            href={clientsHref(lane.value)}
+            className={`rounded-md border px-3 py-2 text-sm font-medium transition ${
+              workflowView === lane.value ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-ink/20"
+            }`}
+          >
+            {lane.label} · {workflowCounts[lane.value] ?? 0}
+          </Link>
+        ))}
+      </div>
+
+      {visibleCustomers.length === 0 ? (
         <EmptyState
           icon={<Users size={22} />}
-          title={query || statusFilter || typeFilter ? "Nincs találat" : "Még nincs ügyfél"}
+          title={query || statusFilter || typeFilter || workflowView ? "Nincs találat" : "Még nincs ügyfél"}
           description={
-            query || statusFilter || typeFilter
+            query || statusFilter || typeFilter || workflowView
               ? "Módosítsd a keresést vagy töröld a szűrőket."
               : "Vidd fel az első ügyfelet, utána ehhez tudsz galériát, szerződést és átadást kapcsolni."
           }
@@ -160,7 +251,7 @@ export default async function AdminClientsPage({
       ) : (
         <section className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
           <div className="divide-y divide-ink/10">
-            {customers.map((customer) => (
+            {visibleCustomers.map((customer) => (
               <Link
                 key={customer.id}
                 href={`/admin/clients/${customer.id}`}
@@ -175,6 +266,9 @@ export default async function AdminClientsPage({
                     <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
                       {customerTypeLabel(customer.customerType)}
                     </span>
+                    <span className="rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
+                      {customer.workflow.laneLabel}
+                    </span>
                   </div>
                   <div className="mt-2 flex flex-col gap-1 text-sm text-graphite/70 sm:flex-row sm:items-center sm:gap-4">
                     <span className="inline-flex items-center gap-1.5">
@@ -186,6 +280,10 @@ export default async function AdminClientsPage({
                       {formatDate(customer.weddingDate)}
                     </span>
                   </div>
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-ink">
+                    {customer.workflow.title}
+                    <ArrowRight size={14} />
+                  </p>
                 </div>
                 <div className="text-sm text-graphite/70 md:text-right">
                   <p>{customer.venue || "Nincs helyszín"}</p>
