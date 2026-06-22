@@ -5,7 +5,6 @@ import { Camera, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, 
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
-import { customerTypeLabel } from "@/components/customer-form";
 import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
@@ -23,6 +22,7 @@ import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
+import { customerTypeLabel } from "@/lib/customer-options";
 import {
   generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,

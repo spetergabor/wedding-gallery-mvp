@@ -3,19 +3,11 @@ import { CalendarDays, Mail, Plus, Users } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
-import { customerTypeLabel } from "@/components/customer-form";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
+import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { prisma } from "@/lib/prisma";
-
-const statusLabels: Record<string, string> = {
-  lead: "Érdeklődő",
-  contract_pending: "Szerződésre vár",
-  booked: "Szerződött",
-  completed: "Teljesítve",
-  archived: "Archivált"
-};
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -32,12 +24,38 @@ function formatDate(date: Date | null) {
 export default async function AdminClientsPage({
   searchParams
 }: {
-  searchParams: Promise<{ deleted?: string }>;
+  searchParams: Promise<{ deleted?: string; q?: string; status?: string; type?: string }>;
 }) {
   const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
+  const query = (params.q ?? "").trim();
+  const statusFilter = params.status ? normalizeCustomerStatus(params.status) : "";
+  const typeFilter = params.type ? normalizeCustomerType(params.type) : "";
+  const statusValues =
+    statusFilter === "offer_sent"
+      ? ["offer_sent", "contract_pending"]
+      : statusFilter === "delivered"
+        ? ["delivered", "completed"]
+        : statusFilter
+          ? [statusFilter]
+          : [];
 
   const customers = await prisma.customer.findMany({
-    where: adminOwnedWhere(admin),
+    where: {
+      ...adminOwnedWhere(admin),
+      ...(statusValues.length > 0 ? { status: { in: statusValues } } : {}),
+      ...(typeFilter ? { customerType: typeFilter } : {}),
+      ...(query
+        ? {
+            OR: [
+              { coupleName: { contains: query, mode: "insensitive" } },
+              { primaryEmail: { contains: query, mode: "insensitive" } },
+              { secondaryEmail: { contains: query, mode: "insensitive" } },
+              { phone: { contains: query, mode: "insensitive" } },
+              { venue: { contains: query, mode: "insensitive" } }
+            ]
+          }
+        : {})
+    },
     orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }],
     include: {
       _count: {
@@ -71,11 +89,67 @@ export default async function AdminClientsPage({
         </div>
       ) : null}
 
+      <form className="mb-5 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
+        <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
+          <label className="space-y-2">
+            <span className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Keresés</span>
+            <input
+              name="q"
+              defaultValue={query}
+              placeholder="Név, email, telefon, helyszín..."
+              className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Típus</span>
+            <select
+              name="type"
+              defaultValue={typeFilter}
+              className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            >
+              <option value="">Minden típus</option>
+              {CUSTOMER_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Státusz</span>
+            <select
+              name="status"
+              defaultValue={statusFilter}
+              className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            >
+              <option value="">Minden státusz</option>
+              {CUSTOMER_STATUSES.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button className="h-11 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+              Szűrés
+            </button>
+            <Link href="/admin/clients" className="inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-graphite hover:bg-ink/5">
+              Törlés
+            </Link>
+          </div>
+        </div>
+      </form>
+
       {customers.length === 0 ? (
         <EmptyState
           icon={<Users size={22} />}
-          title="Még nincs ügyfél"
-          description="Vidd fel az első ügyfelet, utána ehhez tudsz galériát, szerződést és átadást kapcsolni."
+          title={query || statusFilter || typeFilter ? "Nincs találat" : "Még nincs ügyfél"}
+          description={
+            query || statusFilter || typeFilter
+              ? "Módosítsd a keresést vagy töröld a szűrőket."
+              : "Vidd fel az első ügyfelet, utána ehhez tudsz galériát, szerződést és átadást kapcsolni."
+          }
           action={
             <ButtonLink href="/admin/clients/new">
               <Plus size={16} />
@@ -96,7 +170,7 @@ export default async function AdminClientsPage({
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-lg font-semibold text-ink">{customer.coupleName}</p>
                     <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                      {statusLabels[customer.status] ?? customer.status}
+                      {customerStatusLabel(customer.status)}
                     </span>
                     <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
                       {customerTypeLabel(customer.customerType)}

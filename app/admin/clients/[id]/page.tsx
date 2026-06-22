@@ -1,24 +1,26 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Camera, CheckCircle2, ExternalLink, Heart, Mail, Plus, Trash2, Upload } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
-import { CustomerForm, CustomerProfileCard, customerTypeLabel } from "@/components/customer-form";
+import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { customerStatusLabel, customerTypeLabel } from "@/lib/customer-options";
 import { deleteCustomerAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
-
-const statusLabels: Record<string, string> = {
-  lead: "Érdeklődő",
-  contract_pending: "Szerződésre vár",
-  booked: "Szerződött",
-  completed: "Teljesítve",
-  archived: "Archivált"
-};
+import {
+  GALLERY_MODE_PROOFING,
+  PHOTO_DELIVERY_STAGE_FINAL,
+  PROOFING_STATUS_DELIVERED,
+  PROOFING_STATUS_IN_PROGRESS,
+  PROOFING_STATUS_NOT_OPENED,
+  PROOFING_STATUS_PROCESSING,
+  PROOFING_STATUS_SUBMITTED
+} from "@/lib/proofing";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -30,6 +32,115 @@ function formatDate(date: Date | null) {
     month: "long",
     day: "numeric"
   });
+}
+
+type CustomerGallerySummary = {
+  id: string;
+  title: string;
+  galleryMode: string;
+  proofingStatus: string;
+  clientEmail: string | null;
+  proofingInviteSentAt: Date | null;
+  finalDeliveryEmailSentAt: Date | null;
+  _count: {
+    photos: number;
+  };
+  photos: Array<{
+    id: string;
+  }>;
+};
+
+function getNextCustomerAction(customer: { id: string; galleries: CustomerGallerySummary[] }) {
+  const latestGallery = customer.galleries[0] ?? null;
+  const proofingGallery = customer.galleries.find(
+    (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+  );
+  const finishedProofingGallery = customer.galleries.find(
+    (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && gallery.proofingStatus === PROOFING_STATUS_DELIVERED
+  );
+
+  if (!latestGallery) {
+    return {
+      icon: Plus,
+      title: "Első galéria létrehozása",
+      description: "Az ügyfél megvan. A következő lépés egy galéria vagy nyers válogatás indítása ehhez az ügyfélhez.",
+      href: `/admin/galleries/new?customerId=${customer.id}`,
+      buttonLabel: "Új galéria"
+    };
+  }
+
+  if (latestGallery._count.photos === 0) {
+    return {
+      icon: Upload,
+      title: "Képek feltöltése",
+      description: `${latestGallery.title} már létrejött, de még nincs benne fotó. Innen érdemes folytatni a munkát.`,
+      href: `/admin/galleries/${latestGallery.id}?tab=photos`,
+      buttonLabel: "Feltöltés megnyitása"
+    };
+  }
+
+  if (proofingGallery?.proofingStatus === PROOFING_STATUS_SUBMITTED) {
+    const hasFinalPhotos = proofingGallery.photos.length > 0;
+
+    return {
+      icon: hasFinalPhotos ? CheckCircle2 : Upload,
+      title: hasFinalPhotos ? "Kész képek átadása" : "Kész képek feltöltése",
+      description: hasFinalPhotos
+        ? "Az ügyfél leadta a válogatást, és már van kész kép feltöltve. A következő lépés az átadás emaillel."
+        : "Az ügyfél leadta a válogatást. Most a kidolgozott képeket töltsd vissza ugyanebbe a galériába.",
+      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      buttonLabel: hasFinalPhotos ? "Átadás kezelése" : "Kész képek feltöltése"
+    };
+  }
+
+  if (proofingGallery?.proofingStatus === PROOFING_STATUS_PROCESSING) {
+    const hasFinalPhotos = proofingGallery.photos.length > 0;
+
+    return {
+      icon: hasFinalPhotos ? CheckCircle2 : Upload,
+      title: hasFinalPhotos ? "Kész képek átadása" : "Kidolgozás folyamatban",
+      description: hasFinalPhotos
+        ? "A galéria feldolgozás alatt van, és már van kész anyag. Innen tudod lezárni és elküldeni az ügyfélnek."
+        : "A válogatás feldolgozás alatt van jelölve. Ha elkészültek a képek, ide töltsd fel őket.",
+      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      buttonLabel: hasFinalPhotos ? "Átadás megnyitása" : "Kész képek feltöltése"
+    };
+  }
+
+  if (
+    proofingGallery?.proofingStatus === PROOFING_STATUS_NOT_OPENED ||
+    proofingGallery?.proofingStatus === PROOFING_STATUS_IN_PROGRESS
+  ) {
+    return {
+      icon: proofingGallery.proofingInviteSentAt ? Heart : Mail,
+      title: proofingGallery.proofingInviteSentAt ? "Válogatás követése" : "Válogató link kiküldése",
+      description: proofingGallery.proofingInviteSentAt
+        ? "A nyers válogató link már ki lett küldve. Itt látod, hogy az ügyfél hol tart a kiválasztással."
+        : "A nyers képes galéria készen áll. A következő lépés a válogató link emailes kiküldése.",
+      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      buttonLabel: proofingGallery.proofingInviteSentAt ? "Válogatás megnyitása" : "Link küldése"
+    };
+  }
+
+  if (finishedProofingGallery) {
+    return {
+      icon: CheckCircle2,
+      title: "Kész képek átadva",
+      description: finishedProofingGallery.finalDeliveryEmailSentAt
+        ? "A kész galéria átadás emailje már ki lett küldve. Innen visszanézheted vagy újraküldheted."
+        : "A kész galéria átadott státuszban van. Ellenőrizheted az átadás email állapotát.",
+      href: `/admin/galleries/${finishedProofingGallery.id}?tab=client`,
+      buttonLabel: "Átadás megnyitása"
+    };
+  }
+
+  return {
+    icon: Camera,
+    title: "Galéria kezelése",
+    description: "Van aktív galéria ehhez az ügyfélhez. Itt tudod folytatni a feltöltést, beállításokat vagy átadást.",
+    href: `/admin/galleries/${latestGallery.id}`,
+    buttonLabel: "Galéria megnyitása"
+  };
 }
 
 export default async function AdminClientDetailPage({
@@ -59,6 +170,11 @@ export default async function AdminClientDetailPage({
       galleries: {
         orderBy: { createdAt: "desc" },
         include: {
+          photos: {
+            where: { deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+            select: { id: true },
+            take: 1
+          },
           _count: {
             select: { photos: true }
           }
@@ -73,6 +189,8 @@ export default async function AdminClientDetailPage({
 
   const isEditing = flags.edit === "1";
   const typeLabel = customerTypeLabel(customer.customerType);
+  const nextAction = getNextCustomerAction(customer);
+  const NextActionIcon = nextAction.icon;
 
   return (
     <AdminShell>
@@ -82,7 +200,7 @@ export default async function AdminClientDetailPage({
           <div>
             <h1 className="text-4xl font-semibold text-ink">{customer.coupleName}</h1>
             <p className="mt-3 text-sm text-graphite/70">
-              {typeLabel} · {statusLabels[customer.status] ?? customer.status} · {formatDate(customer.weddingDate)}
+              {typeLabel} · {customerStatusLabel(customer.status)} · {formatDate(customer.weddingDate)}
             </p>
           </div>
         </div>
@@ -95,7 +213,7 @@ export default async function AdminClientDetailPage({
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
         {flags.error === "missing" ? (
-            <Alert title="Hiányzó kötelező mező." variant="error">
+          <Alert title="Hiányzó kötelező mező." variant="error">
             Az ügyfél/projekt neve és az elsődleges email cím kötelező.
           </Alert>
         ) : null}
@@ -120,6 +238,25 @@ export default async function AdminClientDetailPage({
           </Alert>
         ) : null}
       </div>
+
+      <section className="mb-6 rounded-lg border border-brass/25 bg-brass/10 p-5 shadow-soft">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="flex gap-4">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-brass shadow-sm">
+              <NextActionIcon size={20} />
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Következő teendő</p>
+              <h2 className="mt-1 text-xl font-semibold text-ink">{nextAction.title}</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/75">{nextAction.description}</p>
+            </div>
+          </div>
+          <ButtonLink href={nextAction.href} className="shrink-0">
+            {nextAction.buttonLabel}
+            <ArrowRight size={16} />
+          </ButtonLink>
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">

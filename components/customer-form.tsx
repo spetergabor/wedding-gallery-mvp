@@ -2,6 +2,7 @@ import { createCustomerAction, updateCustomerAction } from "@/lib/customer-actio
 import { Button, ButtonLink } from "@/components/button";
 import { Calendar, Mail, MapPin, Pencil, Phone, StickyNote, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
+import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 
 type CustomerFormValue = {
   id: string;
@@ -15,27 +16,6 @@ type CustomerFormValue = {
   status: string;
   notes: string | null;
 };
-
-const statuses = [
-  { value: "lead", label: "Érdeklődő" },
-  { value: "contract_pending", label: "Szerződésre vár" },
-  { value: "booked", label: "Szerződött" },
-  { value: "completed", label: "Teljesítve" },
-  { value: "archived", label: "Archivált" }
-];
-
-const customerTypes = [
-  { value: "wedding_couple", label: "Esküvős pár" },
-  { value: "couple_session", label: "Párfotózás" },
-  { value: "individual", label: "Egyéni ügyfél" },
-  { value: "family", label: "Család" },
-  { value: "event", label: "Esemény / rendezvény" },
-  { value: "company", label: "Cég / brand" }
-];
-
-export function customerTypeLabel(value: string | null | undefined) {
-  return customerTypes.find((item) => item.value === value)?.label ?? "Ügyfél";
-}
 
 function dateInputValue(date: Date | null | undefined) {
   if (!date) {
@@ -82,7 +62,7 @@ function DetailItem({
 }
 
 export function CustomerProfileCard({ customer }: { customer: CustomerFormValue }) {
-  const status = statuses.find((item) => item.value === customer.status)?.label ?? customer.status;
+  const status = customerStatusLabel(customer.status);
   const typeLabel = customerTypeLabel(customer.customerType);
 
   return (
@@ -148,7 +128,7 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
             defaultValue={customer?.customerType ?? "wedding_couple"}
             className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
           >
-            {customerTypes.map((type) => (
+            {CUSTOMER_TYPES.map((type) => (
               <option key={type.value} value={type.value}>
                 {type.label}
               </option>
@@ -224,10 +204,10 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
           <span className="text-sm font-medium text-graphite">Státusz</span>
           <select
             name="status"
-            defaultValue={customer?.status ?? "lead"}
+            defaultValue={normalizeCustomerStatus(customer?.status)}
             className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
           >
-            {statuses.map((status) => (
+            {CUSTOMER_STATUSES.map((status) => (
               <option key={status.value} value={status.value}>
                 {status.label}
               </option>

@@ -3,9 +3,9 @@ import { Camera, ExternalLink, Film, Plus } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
-import { customerTypeLabel } from "@/components/customer-form";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
+import { customerTypeLabel } from "@/lib/customer-options";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminGalleriesPage({

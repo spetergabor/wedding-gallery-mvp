@@ -2,7 +2,7 @@ import { CalendarDays, Check, Download, Eye, Images, LockKeyhole, UserRound } fr
 import type { ReactNode } from "react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
-import { customerTypeLabel } from "@/components/customer-form";
+import { customerTypeLabel } from "@/lib/customer-options";
 import { SlugFields } from "@/components/slug-fields";
 import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
 

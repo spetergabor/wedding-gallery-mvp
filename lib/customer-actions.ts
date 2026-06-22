@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoObject } from "@/lib/storage";
 
@@ -28,16 +29,6 @@ function formDate(formData: FormData, key: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function normalizeStatus(value: string) {
-  const allowed = new Set(["lead", "contract_pending", "booked", "completed", "archived"]);
-  return allowed.has(value) ? value : "lead";
-}
-
-function normalizeCustomerType(value: string) {
-  const allowed = new Set(["wedding_couple", "couple_session", "individual", "family", "event", "company"]);
-  return allowed.has(value) ? value : "wedding_couple";
-}
-
 function customerPayload(formData: FormData) {
   const coupleName = formString(formData, "coupleName");
   const primaryEmail = formString(formData, "primaryEmail").toLowerCase();
@@ -54,7 +45,7 @@ function customerPayload(formData: FormData) {
     phone: formOptionalString(formData, "phone"),
     weddingDate: formDate(formData, "weddingDate"),
     venue: formOptionalString(formData, "venue"),
-    status: normalizeStatus(formString(formData, "status")),
+    status: normalizeCustomerStatus(formString(formData, "status")),
     notes: formOptionalString(formData, "notes")
   };
 }
