@@ -3,7 +3,7 @@ import { ExternalLink, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-rea
 import { AlbumSpreadUploadForm } from "@/components/album-spread-upload-form";
 import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { createAlbumReviewAction, deleteAlbumReviewSpreadAction } from "@/lib/album-review-actions";
+import { createAlbumReviewAction, deleteAlbumReviewAction, deleteAlbumReviewSpreadAction } from "@/lib/album-review-actions";
 
 type AlbumReview = {
   id: string;
@@ -103,14 +103,27 @@ export function AlbumReviewManager({
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">Létrehozva: {formatDate(review.createdAt)}</p>
-                    <a
-                      href={albumLink(review.accessToken)}
-                      target="_blank"
-                      className="mt-3 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-                    >
-                      <ExternalLink size={15} />
-                      Ügyfél album link megnyitása
-                    </a>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <a
+                        href={albumLink(review.accessToken)}
+                        target="_blank"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                      >
+                        <ExternalLink size={15} />
+                        Ügyfél album link megnyitása
+                      </a>
+                      <form action={deleteAlbumReviewAction.bind(null, customerId, review.id)}>
+                        <ConfirmSubmitButton
+                          title="Album ellenőrző törlése"
+                          message="Biztosan törlöd ezt az album ellenőrzőt? Az összes oldalpár és ügyfél címke is törlődik."
+                          variant="danger"
+                          className="h-10 px-3"
+                        >
+                          <Trash2 size={15} />
+                          Ellenőrző törlése
+                        </ConfirmSubmitButton>
+                      </form>
+                    </div>
                   </div>
                   <AlbumSpreadUploadForm customerId={customerId} reviewId={review.id} />
                 </div>

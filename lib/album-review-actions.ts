@@ -95,6 +95,24 @@ export async function createAlbumReviewAction(customerId: string, formData: Form
   redirect(`/admin/clients/${customerId}?tab=album&albumCreated=1`);
 }
 
+export async function deleteAlbumReviewAction(customerId: string, reviewId: string) {
+  const { review } = await requireAlbumReviewAccess(customerId, reviewId);
+  const spreads = await prisma.albumReviewSpread.findMany({
+    where: { reviewId: review.id },
+    select: { r2Key: true }
+  });
+
+  await prisma.albumReview.delete({
+    where: { id: review.id }
+  });
+
+  await Promise.all(spreads.map((spread) => deletePhotoObject(spread.r2Key)));
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath(`/album/${review.accessToken}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumDeleted=1`);
+}
+
 function isImageUploadRequest(file: AlbumSpreadUploadRequest) {
   return (
     file.clientId &&

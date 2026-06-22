@@ -436,6 +436,7 @@ export default async function AdminClientDetailPage({
     statusUpdated?: string;
     tab?: string;
     albumCreated?: string;
+    albumDeleted?: string;
     albumUploaded?: string;
     albumError?: string;
     albumDesignCreated?: string;
@@ -660,6 +661,7 @@ export default async function AdminClientDetailPage({
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
+        {flags.albumDeleted ? <Alert title="Album ellenőrző törölve." variant="success" /> : null}
         {flags.albumUploaded ? <Alert title={`${flags.albumUploaded} album oldalpár feltöltve.`} variant="success" /> : null}
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
         {flags.albumDesignDeleted ? <Alert title="Albumterv törölve." variant="success" /> : null}
