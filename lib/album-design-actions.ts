@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { getAlbumLayoutTemplate } from "@/lib/album-design-templates";
+import { getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 
 function formString(formData: FormData, key: string) {
@@ -27,6 +27,28 @@ function getSelectedPhotoIds(formData: FormData) {
         .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     )
   ];
+}
+
+function shufflePhotoIds(photoIds: string[]) {
+  const shuffledPhotoIds = [...photoIds];
+
+  for (let index = shuffledPhotoIds.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffledPhotoIds[index], shuffledPhotoIds[swapIndex]] = [shuffledPhotoIds[swapIndex], shuffledPhotoIds[index]];
+  }
+
+  return shuffledPhotoIds;
+}
+
+function createSpreadItems(layout: AlbumLayoutTemplate, photoIds: string[]) {
+  return layout.slots.map((slot, index) => ({
+    photoId: photoIds[index],
+    slotIndex: index,
+    x: slot.x,
+    y: slot.y,
+    width: slot.width,
+    height: slot.height
+  }));
 }
 
 async function requireCustomerAccess(customerId: string) {
@@ -189,20 +211,62 @@ export async function createAlbumDesignSpreadAction(customerId: string, designId
       layoutKey: layout.key,
       sortOrder,
       items: {
-        create: layout.slots.map((slot, index) => ({
-          photoId: photoIds[index],
-          slotIndex: index,
-          x: slot.x,
-          y: slot.y,
-          width: slot.width,
-          height: slot.height
-        }))
+        create: createSpreadItems(layout, photoIds)
       }
     }
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadCreated=1`);
+}
+
+export async function createAutoAlbumDesignSpreadAction(customerId: string, designId: string, formData: FormData) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+  }
+
+  const selectedPhotoIds = getSelectedPhotoIds(formData);
+
+  if (selectedPhotoIds.length === 0) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+  }
+
+  const layout = pickRandomAlbumLayoutTemplate(selectedPhotoIds.length);
+
+  if (!layout) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=layout-count`);
+  }
+
+  const photoIds = await getVerifiedDesignPhotoIds({
+    customerId,
+    favoriteListId: design.favoriteListId,
+    formData,
+    photoCount: selectedPhotoIds.length
+  });
+
+  const latestSpread = await prisma.albumDesignSpread.findFirst({
+    where: { designId: design.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true }
+  });
+  const sortOrder = (latestSpread?.sortOrder ?? 0) + 1;
+
+  await prisma.albumDesignSpread.create({
+    data: {
+      designId: design.id,
+      title: `Oldalpár ${sortOrder}`,
+      layoutKey: layout.key,
+      sortOrder,
+      items: {
+        create: createSpreadItems(layout, shufflePhotoIds(photoIds))
+      }
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadAutoCreated=1`);
 }
 
 export async function updateAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string, formData: FormData) {
@@ -238,20 +302,61 @@ export async function updateAlbumDesignSpreadAction(customerId: string, designId
       layoutKey: layout.key,
       items: {
         deleteMany: {},
-        create: layout.slots.map((slot, index) => ({
-          photoId: photoIds[index],
-          slotIndex: index,
-          x: slot.x,
-          y: slot.y,
-          width: slot.width,
-          height: slot.height
-        }))
+        create: createSpreadItems(layout, photoIds)
       }
     }
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadUpdated=1`);
+}
+
+export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string, designId: string, spreadId: string) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+  const spread = await prisma.albumDesignSpread.findFirst({
+    where: {
+      id: spreadId,
+      designId: design.id
+    },
+    select: {
+      id: true,
+      layoutKey: true,
+      items: {
+        orderBy: { slotIndex: "asc" },
+        select: { photoId: true }
+      }
+    }
+  });
+
+  if (!spread) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+  }
+
+  const photoIds = spread.items.map((item) => item.photoId);
+
+  if (photoIds.length === 0) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+  }
+
+  const layout = pickRandomAlbumLayoutTemplate(photoIds.length, spread.layoutKey);
+
+  if (!layout) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=layout-count`);
+  }
+
+  await prisma.albumDesignSpread.update({
+    where: { id: spread.id },
+    data: {
+      layoutKey: layout.key,
+      items: {
+        deleteMany: {},
+        create: createSpreadItems(layout, shufflePhotoIds(photoIds))
+      }
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadRegenerated=1`);
 }
 
 export async function updateAlbumDesignSpreadSlotAction(customerId: string, designId: string, spreadId: string, formData: FormData) {

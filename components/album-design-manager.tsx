@@ -1,13 +1,15 @@
 import Image from "next/image";
-import { Grid3X3, LayoutTemplate, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import { Grid3X3, LayoutTemplate, Plus, RefreshCcw, Shuffle, Trash2 } from "lucide-react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
   createAlbumDesignAction,
+  createAutoAlbumDesignSpreadAction,
   createAlbumDesignSpreadAction,
   deleteAlbumDesignAction,
   deleteAlbumDesignSpreadAction,
+  regenerateAlbumDesignSpreadLayoutAction,
   updateAlbumDesignSpreadAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES } from "@/lib/album-design-templates";
@@ -258,13 +260,19 @@ export function AlbumDesignManager({
                           <div>
                             <p className="text-sm font-medium text-graphite">Képek kiválasztása</p>
                             <p className="mt-1 text-xs text-graphite/60">
-                              Válassz pontosan annyi képet, amennyit a layout kér. Ebben az első verzióban a képek a slotok sorrendjében kerülnek be.
+                              Válassz 1-6 képet. Az automatikus gomb véletlen layoutot és képsorrendet választ, a kézi gomb a bal oldali layoutot használja.
                             </p>
                           </div>
-                          <Button type="submit">
-                            <Grid3X3 size={16} />
-                            Oldalpár létrehozása
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button type="submit" formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, design.id)}>
+                              <Shuffle size={16} />
+                              Automatikus oldalpár
+                            </Button>
+                            <Button type="submit" variant="secondary">
+                              <Grid3X3 size={16} />
+                              Kézi layout
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="mt-3 grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
@@ -303,12 +311,20 @@ export function AlbumDesignManager({
                               {spread.layoutKey} · {spread.items.length} kép
                             </p>
                           </div>
-                          <form action={deleteAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)}>
-                            <Button type="submit" variant="danger" className="h-9 px-3">
-                              <Trash2 size={15} />
-                              Törlés
-                            </Button>
-                          </form>
+                          <div className="flex flex-wrap gap-2">
+                            <form action={regenerateAlbumDesignSpreadLayoutAction.bind(null, customerId, design.id, spread.id)}>
+                              <Button type="submit" variant="secondary" className="h-9 px-3" disabled={spread.items.length === 0}>
+                                <Shuffle size={15} />
+                                Újragenerálás
+                              </Button>
+                            </form>
+                            <form action={deleteAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)}>
+                              <Button type="submit" variant="danger" className="h-9 px-3">
+                                <Trash2 size={15} />
+                                Törlés
+                              </Button>
+                            </form>
+                          </div>
                         </div>
                         <AlbumSpreadSlotEditor customerId={customerId} designId={design.id} spread={spread} photos={sourcePhotos} />
                         <details className="mt-4 rounded-md border border-ink/10 bg-paper">
