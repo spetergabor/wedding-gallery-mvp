@@ -1,7 +1,12 @@
 import Image from "next/image";
-import { Grid3X3, LayoutTemplate, Plus, Trash2 } from "lucide-react";
+import { Grid3X3, LayoutTemplate, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/button";
-import { createAlbumDesignAction, createAlbumDesignSpreadAction, deleteAlbumDesignSpreadAction } from "@/lib/album-design-actions";
+import {
+  createAlbumDesignAction,
+  createAlbumDesignSpreadAction,
+  deleteAlbumDesignSpreadAction,
+  updateAlbumDesignSpreadAction
+} from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
@@ -316,6 +321,69 @@ export function AlbumDesignManager({
                           </form>
                         </div>
                         <SpreadPreview spread={spread} />
+                        <details className="mt-3 rounded-md border border-ink/10 bg-paper">
+                          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium text-ink">
+                            <RefreshCcw size={15} />
+                            Oldalpár újratervezése
+                          </summary>
+                          <form action={updateAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)} className="border-t border-ink/10 p-3">
+                            <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+                              <div>
+                                <label className="block text-xs font-medium uppercase tracking-[0.14em] text-graphite/70">Layout</label>
+                                <select
+                                  name="layoutKey"
+                                  className="mt-2 h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                                  defaultValue={spread.layoutKey}
+                                >
+                                  {ALBUM_LAYOUT_TEMPLATES.map((template) => (
+                                    <option key={template.key} value={template.key}>
+                                      {template.name} · {template.photoCount} kép
+                                    </option>
+                                  ))}
+                                </select>
+                                <Button type="submit" className="mt-3 w-full">
+                                  <RefreshCcw size={15} />
+                                  Mentés
+                                </Button>
+                              </div>
+                              <div>
+                                <p className="text-xs text-graphite/60">
+                                  Válaszd ki az új layoutnak megfelelő pontos képszámot. A képek a kijelölés sorrendjében kerülnek a slotokba.
+                                </p>
+                                <div className="mt-2 grid max-h-80 gap-2 overflow-auto pr-1 sm:grid-cols-3 2xl:grid-cols-4">
+                                  {sourcePhotos.map((photo) => {
+                                    const isSelected = spread.items.some((item) => item.photo.id === photo.id);
+
+                                    return (
+                                      <label key={`${spread.id}-${photo.id}`} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
+                                        <input
+                                          name="photoIds"
+                                          value={photo.id}
+                                          type="checkbox"
+                                          defaultChecked={isSelected}
+                                          className="peer absolute left-2 top-2 z-10 size-4 accent-ink"
+                                        />
+                                        <span className="relative block aspect-[4/3]">
+                                          <Image
+                                            src={photo.thumbnailUrl || photo.imageUrl}
+                                            alt={photo.filename}
+                                            fill
+                                            unoptimized
+                                            sizes="140px"
+                                            className="object-cover transition group-hover:scale-[1.02]"
+                                          />
+                                        </span>
+                                        <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
+                                          {photo.filename}
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </form>
+                        </details>
                       </div>
                     ))}
                   </div>

@@ -12,6 +12,16 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function getSelectedPhotoIds(formData: FormData) {
+  return [
+    ...new Set(
+      formData
+        .getAll("photoIds")
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    )
+  ];
+}
+
 async function requireCustomerAccess(customerId: string) {
   const admin = await requireAdmin();
   const customer = await prisma.customer.findFirst({
@@ -45,6 +55,44 @@ async function requireAlbumDesignAccess(customerId: string, designId: string) {
   }
 
   return { admin, design };
+}
+
+async function getVerifiedDesignPhotoIds({
+  customerId,
+  favoriteListId,
+  formData,
+  photoCount
+}: {
+  customerId: string;
+  favoriteListId: string;
+  formData: FormData;
+  photoCount: number;
+}) {
+  const selectedPhotoIds = getSelectedPhotoIds(formData);
+
+  if (selectedPhotoIds.length !== photoCount) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+  }
+
+  const photos = await prisma.photo.findMany({
+    where: {
+      id: { in: selectedPhotoIds },
+      favoriteItems: {
+        some: {
+          listId: favoriteListId
+        }
+      }
+    },
+    select: { id: true }
+  });
+  const validPhotoIds = new Set(photos.map((photo) => photo.id));
+  const photoIds = selectedPhotoIds.filter((photoId) => validPhotoIds.has(photoId));
+
+  if (photoIds.length !== photoCount) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+  }
+
+  return photoIds;
 }
 
 export async function createAlbumDesignAction(customerId: string, formData: FormData) {
@@ -85,31 +133,12 @@ export async function createAlbumDesignSpreadAction(customerId: string, designId
   }
 
   const layout = getAlbumLayoutTemplate(formString(formData, "layoutKey"));
-  const selectedPhotoIds = formData
-    .getAll("photoIds")
-    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    .slice(0, layout.photoCount);
-
-  if (selectedPhotoIds.length !== layout.photoCount) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
-  }
-
-  const photos = await prisma.photo.findMany({
-    where: {
-      id: { in: selectedPhotoIds },
-      favoriteItems: {
-        some: {
-          listId: design.favoriteListId
-        }
-      }
-    },
-    select: { id: true }
+  const photoIds = await getVerifiedDesignPhotoIds({
+    customerId,
+    favoriteListId: design.favoriteListId,
+    formData,
+    photoCount: layout.photoCount
   });
-  const photoIds = selectedPhotoIds.filter((photoId) => photos.some((photo) => photo.id === photoId));
-
-  if (photoIds.length !== layout.photoCount) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
-  }
 
   const latestSpread = await prisma.albumDesignSpread.findFirst({
     where: { designId: design.id },
@@ -139,6 +168,55 @@ export async function createAlbumDesignSpreadAction(customerId: string, designId
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadCreated=1`);
+}
+
+export async function updateAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string, formData: FormData) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+  }
+
+  const spread = await prisma.albumDesignSpread.findFirst({
+    where: {
+      id: spreadId,
+      designId: design.id
+    },
+    select: { id: true }
+  });
+
+  if (!spread) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+  }
+
+  const layout = getAlbumLayoutTemplate(formString(formData, "layoutKey"));
+  const photoIds = await getVerifiedDesignPhotoIds({
+    customerId,
+    favoriteListId: design.favoriteListId,
+    formData,
+    photoCount: layout.photoCount
+  });
+
+  await prisma.albumDesignSpread.update({
+    where: { id: spread.id },
+    data: {
+      layoutKey: layout.key,
+      items: {
+        deleteMany: {},
+        create: layout.slots.map((slot, index) => ({
+          photoId: photoIds[index],
+          slotIndex: index,
+          x: slot.x,
+          y: slot.y,
+          width: slot.width,
+          height: slot.height
+        }))
+      }
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadUpdated=1`);
 }
 
 export async function deleteAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string) {
