@@ -166,7 +166,7 @@ export default async function ContractPublicPage({
               <h1 className="mt-3 text-3xl font-semibold text-ink md:text-4xl">{contract.title}</h1>
               <p className="mt-3 text-base text-graphite/75">{contract.customer.coupleName}</p>
               <div className="mt-5 grid gap-2 text-sm text-graphite/65 sm:grid-cols-2">
-                <p>Hochzeitsdatum: {formatDate(contract.customer.weddingDate)}</p>
+                <p>Datum: {formatDate(contract.customer.weddingDate)}</p>
                 <p>Location: {contract.customer.venue || "Nicht angegeben"}</p>
                 <p>Gesendet: {formatDateTime(contract.sentAt) ?? "keine Angabe"}</p>
                 <p>Link gültig bis: {formatDateTime(contract.accessTokenExpiresAt)}</p>

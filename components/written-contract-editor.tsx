@@ -53,7 +53,7 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
           Saját szerződés írása
         </div>
         <p className="mt-1 text-sm text-graphite/70">
-          Írás közben szúrd be a kitöltendő mezőket a szövegbe. A pár pontosan ott fogja kitölteni őket.
+          Írás közben szúrd be a kitöltendő mezőket a szövegbe. Az ügyfél pontosan ott fogja kitölteni őket.
         </p>
       </div>
 
@@ -62,7 +62,7 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
         <input
           name="title"
           required
-          placeholder="pl. Esküvői fotózás szerződés"
+          placeholder="pl. Fotózás szerződés"
           className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
         />
       </label>
@@ -97,7 +97,7 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
       </label>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-graphite">A pár által kitöltendő mezők</legend>
+        <legend className="text-sm font-medium text-graphite">Az ügyfél által kitöltendő mezők</legend>
         <p className="text-xs leading-5 text-graphite/60">
           A beszúrt mezőket automatikusan hozzáadjuk. Itt külön is jelölhetsz mezőket, ha a szöveg végén szeretnéd
           őket bekérni.

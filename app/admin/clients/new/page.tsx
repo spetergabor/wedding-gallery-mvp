@@ -15,16 +15,16 @@ export default async function NewCustomerPage({
     <AdminShell>
       <div className="mb-8">
         <p className="text-sm uppercase tracking-[0.24em] text-brass">Új ügyfél</p>
-        <h1 className="mt-2 text-4xl font-semibold text-ink">Pár felvitele</h1>
+        <h1 className="mt-2 text-4xl font-semibold text-ink">Ügyfél felvitele</h1>
         <p className="mt-3 max-w-2xl text-sm text-graphite/70">
-          Ezekből az adatokból fog később a szerződéskezelő és ügyfél workflow dolgozni.
+          Válaszd ki, milyen típusú munkáról van szó: esküvő, párfotózás, egyéni ügyfél, család, esemény vagy cég.
         </p>
       </div>
 
       {flags.error === "missing" ? (
         <div className="mb-5">
           <Alert title="Hiányzó kötelező mező." variant="error">
-            A pár neve és az elsődleges email cím kötelező.
+            Az ügyfél/projekt neve és az elsődleges email cím kötelező.
           </Alert>
         </div>
       ) : null}

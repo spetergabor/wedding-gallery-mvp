@@ -3,6 +3,7 @@ import { Camera, ExternalLink, Film, Plus } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
+import { customerTypeLabel } from "@/components/customer-form";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +25,7 @@ export default async function AdminGalleriesPage({
       customer: {
         select: {
           id: true,
+          customerType: true,
           coupleName: true
         }
       },
@@ -96,7 +98,9 @@ export default async function AdminGalleriesPage({
                   <p className="text-lg font-semibold text-ink">{gallery.title}</p>
                   <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
                   <p className="mt-1 text-sm text-graphite/60">
-                    {gallery.customer ? `Ügyfél: ${gallery.customer.coupleName}` : "Nincs ügyfélhez rendelve"}
+                    {gallery.customer
+                      ? `Ügyfél: ${gallery.customer.coupleName} · ${customerTypeLabel(gallery.customer.customerType)}`
+                      : "Nincs ügyfélhez rendelve"}
                   </p>
                 </div>
               </a>

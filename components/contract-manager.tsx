@@ -83,7 +83,7 @@ export function ContractManager({
               Kész PDF feltöltése
             </div>
             <p className="mt-1 text-sm text-graphite/70">
-              Ha már van kész szerződésed PDF-ben, ezt használd. A pár csak megnyitja és aláírja.
+              Ha már van kész szerződésed PDF-ben, ezt használd. Az ügyfél csak megnyitja és aláírja.
             </p>
           </div>
           <label className="block space-y-2">
@@ -91,7 +91,7 @@ export function ContractManager({
             <input
               name="title"
               required
-              placeholder="pl. Esküvői fotózás szerződés"
+              placeholder="pl. Fotózás szerződés"
               className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
             />
           </label>

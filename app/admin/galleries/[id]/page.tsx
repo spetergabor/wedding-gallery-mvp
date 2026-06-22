@@ -5,6 +5,7 @@ import { Camera, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, 
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
+import { customerTypeLabel } from "@/components/customer-form";
 import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
@@ -186,6 +187,7 @@ export default async function GalleryDetailPage({
       customer: {
         select: {
           id: true,
+          customerType: true,
           coupleName: true,
           primaryEmail: true
         }
@@ -229,6 +231,7 @@ export default async function GalleryDetailPage({
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
+      customerType: true,
       coupleName: true,
       primaryEmail: true,
       weddingDate: true
@@ -285,7 +288,7 @@ export default async function GalleryDetailPage({
                 className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite hover:bg-ink/10"
               >
                 <UserRound size={13} />
-                {gallery.customer.coupleName}
+                {gallery.customer.coupleName} · {customerTypeLabel(gallery.customer.customerType)}
               </Link>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">

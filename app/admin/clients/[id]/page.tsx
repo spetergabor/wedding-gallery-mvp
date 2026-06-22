@@ -6,7 +6,7 @@ import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
-import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
+import { CustomerForm, CustomerProfileCard, customerTypeLabel } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { deleteCustomerAction } from "@/lib/customer-actions";
@@ -72,6 +72,7 @@ export default async function AdminClientDetailPage({
   }
 
   const isEditing = flags.edit === "1";
+  const typeLabel = customerTypeLabel(customer.customerType);
 
   return (
     <AdminShell>
@@ -81,7 +82,7 @@ export default async function AdminClientDetailPage({
           <div>
             <h1 className="text-4xl font-semibold text-ink">{customer.coupleName}</h1>
             <p className="mt-3 text-sm text-graphite/70">
-              {statusLabels[customer.status] ?? customer.status} · {formatDate(customer.weddingDate)}
+              {typeLabel} · {statusLabels[customer.status] ?? customer.status} · {formatDate(customer.weddingDate)}
             </p>
           </div>
         </div>
@@ -94,8 +95,8 @@ export default async function AdminClientDetailPage({
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
         {flags.error === "missing" ? (
-          <Alert title="Hiányzó kötelező mező." variant="error">
-            A pár neve és az elsődleges email cím kötelező.
+            <Alert title="Hiányzó kötelező mező." variant="error">
+            Az ügyfél/projekt neve és az elsődleges email cím kötelező.
           </Alert>
         ) : null}
         {flags.contractError === "missing" ? (
@@ -179,6 +180,10 @@ export default async function AdminClientDetailPage({
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <h2 className="text-lg font-semibold text-ink">Gyors adatok</h2>
             <dl className="mt-4 space-y-3 text-sm">
+              <div>
+                <dt className="text-graphite/60">Típus</dt>
+                <dd className="font-medium text-ink">{typeLabel}</dd>
+              </div>
               <div>
                 <dt className="text-graphite/60">Elsődleges email</dt>
                 <dd className="font-medium text-ink">{customer.primaryEmail}</dd>

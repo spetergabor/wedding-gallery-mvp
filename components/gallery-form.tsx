@@ -2,11 +2,13 @@ import { CalendarDays, Check, Download, Eye, Images, LockKeyhole, UserRound } fr
 import type { ReactNode } from "react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
+import { customerTypeLabel } from "@/components/customer-form";
 import { SlugFields } from "@/components/slug-fields";
 import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
 
 type CustomerOption = {
   id: string;
+  customerType: string;
   coupleName: string;
   primaryEmail: string;
   weddingDate: Date | null;
@@ -127,7 +129,7 @@ export function GalleryForm({ gallery, customers = [], selectedCustomerId = null
                 {gallery ? <option value="">Nincs ügyfélhez rendelve</option> : null}
                 {customers.map((customer) => (
                   <option key={customer.id} value={customer.id}>
-                    {customer.coupleName} · {customer.primaryEmail}
+                    {customer.coupleName} · {customerTypeLabel(customer.customerType)} · {customer.primaryEmail}
                   </option>
                 ))}
               </select>

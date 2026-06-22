@@ -5,11 +5,11 @@ export type ContractFieldDefinition = {
 };
 
 export const CONTRACT_FIELD_OPTIONS: ContractFieldDefinition[] = [
-  { key: "coupleName", label: "Name des Paares", type: "text" },
+  { key: "coupleName", label: "Kunde / Projekt", type: "text" },
   { key: "primaryEmail", label: "E-Mail-Adresse", type: "email" },
   { key: "phone", label: "Telefonnummer", type: "tel" },
-  { key: "weddingDate", label: "Hochzeitsdatum", type: "date" },
-  { key: "venue", label: "Hochzeitslocation", type: "text" },
+  { key: "weddingDate", label: "Datum", type: "date" },
+  { key: "venue", label: "Location", type: "text" },
   { key: "billingAddress", label: "Rechnungsadresse", type: "textarea" },
   { key: "personalId", label: "Ausweisnummer / Identifikation", type: "text" },
   { key: "notes", label: "Anmerkung", type: "textarea" }

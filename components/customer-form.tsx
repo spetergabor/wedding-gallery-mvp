@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 type CustomerFormValue = {
   id: string;
+  customerType: string;
   coupleName: string;
   primaryEmail: string;
   secondaryEmail: string | null;
@@ -22,6 +23,19 @@ const statuses = [
   { value: "completed", label: "Teljesítve" },
   { value: "archived", label: "Archivált" }
 ];
+
+const customerTypes = [
+  { value: "wedding_couple", label: "Esküvős pár" },
+  { value: "couple_session", label: "Párfotózás" },
+  { value: "individual", label: "Egyéni ügyfél" },
+  { value: "family", label: "Család" },
+  { value: "event", label: "Esemény / rendezvény" },
+  { value: "company", label: "Cég / brand" }
+];
+
+export function customerTypeLabel(value: string | null | undefined) {
+  return customerTypes.find((item) => item.value === value)?.label ?? "Ügyfél";
+}
 
 function dateInputValue(date: Date | null | undefined) {
   if (!date) {
@@ -69,15 +83,16 @@ function DetailItem({
 
 export function CustomerProfileCard({ customer }: { customer: CustomerFormValue }) {
   const status = statuses.find((item) => item.value === customer.status)?.label ?? customer.status;
+  const typeLabel = customerTypeLabel(customer.customerType);
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
       <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 sm:flex-row sm:items-start">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Esküvői adatlap</p>
+          <p className="text-sm uppercase tracking-[0.24em] text-brass">Ügyfél adatlap</p>
           <h2 className="mt-2 text-2xl font-semibold text-ink">{customer.coupleName}</h2>
           <p className="mt-2 text-sm text-graphite/70">
-            {status} · {displayDate(customer.weddingDate)}
+            {typeLabel} · {status} · {displayDate(customer.weddingDate)}
           </p>
         </div>
         <ButtonLink href={`/admin/clients/${customer.id}?edit=1`} variant="secondary">
@@ -87,8 +102,9 @@ export function CustomerProfileCard({ customer }: { customer: CustomerFormValue 
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
-        <DetailItem icon={UserRound} label="Pár neve" value={customer.coupleName} />
-        <DetailItem icon={Calendar} label="Esküvő dátuma" value={displayDate(customer.weddingDate)} />
+        <DetailItem icon={UserRound} label="Ügyfél / projekt" value={customer.coupleName} />
+        <DetailItem icon={UserRound} label="Típus" value={typeLabel} />
+        <DetailItem icon={Calendar} label="Dátum" value={displayDate(customer.weddingDate)} />
         <DetailItem icon={Mail} label="Elsődleges email" value={customer.primaryEmail} />
         <DetailItem icon={Mail} label="Másodlagos email" value={detailValue(customer.secondaryEmail)} />
         <DetailItem icon={Phone} label="Telefon" value={detailValue(customer.phone)} />
@@ -125,13 +141,28 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
         </div>
       ) : null}
       <div className="grid gap-5 md:grid-cols-2">
-        <label className="space-y-2 md:col-span-2">
-          <span className="text-sm font-medium text-graphite">Pár neve</span>
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-graphite">Ügyféltípus</span>
+          <select
+            name="customerType"
+            defaultValue={customer?.customerType ?? "wedding_couple"}
+            className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+          >
+            {customerTypes.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-graphite">Ügyfél / projekt neve</span>
           <input
             name="coupleName"
             defaultValue={customer?.coupleName ?? ""}
             required
-            placeholder="pl. Esther und Oliver"
+            placeholder="pl. Esther und Oliver, Anna Müller, céges rendezvény"
             className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
           />
         </label>
@@ -170,7 +201,7 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-medium text-graphite">Esküvő dátuma</span>
+          <span className="text-sm font-medium text-graphite">Dátum</span>
           <input
             name="weddingDate"
             type="date"
@@ -184,7 +215,7 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
           <input
             name="venue"
             defaultValue={customer?.venue ?? ""}
-            placeholder="pl. Graz, Schlossberg, ..."
+            placeholder="pl. Graz, Studio, rendezvényhelyszín..."
             className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
           />
         </label>
@@ -210,7 +241,7 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
             name="notes"
             defaultValue={customer?.notes ?? ""}
             rows={6}
-            placeholder="Belső jegyzetek: csomag, fontos kérések, szerződéses megállapodások..."
+            placeholder="Belső jegyzetek: csomag, fontos kérések, szerződéses megállapodások, projektinfók..."
             className="w-full rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition focus:border-ink/50"
           />
         </label>

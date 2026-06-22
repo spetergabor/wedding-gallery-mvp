@@ -33,6 +33,11 @@ function normalizeStatus(value: string) {
   return allowed.has(value) ? value : "lead";
 }
 
+function normalizeCustomerType(value: string) {
+  const allowed = new Set(["wedding_couple", "couple_session", "individual", "family", "event", "company"]);
+  return allowed.has(value) ? value : "wedding_couple";
+}
+
 function customerPayload(formData: FormData) {
   const coupleName = formString(formData, "coupleName");
   const primaryEmail = formString(formData, "primaryEmail").toLowerCase();
@@ -42,6 +47,7 @@ function customerPayload(formData: FormData) {
   }
 
   return {
+    customerType: normalizeCustomerType(formString(formData, "customerType")),
     coupleName,
     primaryEmail,
     secondaryEmail: formOptionalString(formData, "secondaryEmail")?.toLowerCase() ?? null,

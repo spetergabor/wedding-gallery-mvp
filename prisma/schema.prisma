@@ -68,6 +68,7 @@ model SiteSettings {
 model Customer {
   id             String   @id @default(cuid())
   adminId        String?
+  customerType   String   @default("wedding_couple")
   coupleName     String
   primaryEmail   String
   secondaryEmail String?
@@ -83,6 +84,7 @@ model Customer {
   galleries      Gallery[]
 
   @@index([adminId])
+  @@index([customerType])
   @@index([status])
   @@index([weddingDate])
   @@index([primaryEmail])

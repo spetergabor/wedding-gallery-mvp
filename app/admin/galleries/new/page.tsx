@@ -20,6 +20,7 @@ export default async function NewGalleryPage({
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
+      customerType: true,
       coupleName: true,
       primaryEmail: true,
       weddingDate: true

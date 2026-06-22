@@ -3,6 +3,7 @@ import { CalendarDays, Mail, Plus, Users } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
+import { customerTypeLabel } from "@/components/customer-form";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
@@ -96,6 +97,9 @@ export default async function AdminClientsPage({
                     <p className="text-lg font-semibold text-ink">{customer.coupleName}</p>
                     <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                       {statusLabels[customer.status] ?? customer.status}
+                    </span>
+                    <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                      {customerTypeLabel(customer.customerType)}
                     </span>
                   </div>
                   <div className="mt-2 flex flex-col gap-1 text-sm text-graphite/70 sm:flex-row sm:items-center sm:gap-4">
