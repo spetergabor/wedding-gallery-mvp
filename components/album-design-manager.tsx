@@ -293,12 +293,12 @@ export function AlbumDesignManager({
                 ) : null}
 
                 {design.spreads.length > 0 ? (
-                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <div className="mt-5 space-y-5">
                     {design.spreads.map((spread) => (
-                      <div key={spread.id} className="rounded-md border border-ink/10 bg-white p-3">
-                        <div className="mb-2 flex items-center justify-between gap-3">
+                      <div key={spread.id} className="rounded-lg border border-ink/10 bg-white p-4">
+                        <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-3 sm:flex-row sm:items-start">
                           <div>
-                            <p className="font-medium text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
+                            <p className="text-lg font-semibold text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
                             <p className="mt-0.5 text-xs text-graphite/60">
                               {spread.layoutKey} · {spread.items.length} kép
                             </p>
@@ -311,10 +311,10 @@ export function AlbumDesignManager({
                           </form>
                         </div>
                         <AlbumSpreadSlotEditor customerId={customerId} designId={design.id} spread={spread} photos={sourcePhotos} />
-                        <details className="mt-3 rounded-md border border-ink/10 bg-paper">
-                          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium text-ink">
+                        <details className="mt-4 rounded-md border border-ink/10 bg-paper">
+                          <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
                             <RefreshCcw size={15} />
-                            Oldalpár újratervezése
+                            Layout és képkészlet cseréje
                           </summary>
                           <form action={updateAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)} className="border-t border-ink/10 p-3">
                             <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
