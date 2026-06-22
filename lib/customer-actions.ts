@@ -99,6 +99,29 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
   redirect(`/admin/clients/${customerId}?updated=1`);
 }
 
+export async function updateCustomerStatusAction(customerId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const status = normalizeCustomerStatus(formString(formData, "status"));
+
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: { status }
+  });
+
+  revalidatePath("/admin/clients");
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?statusUpdated=1`);
+}
+
 export async function deleteCustomerAction(customerId: string) {
   const admin = await requireAdmin();
 

@@ -11,7 +11,9 @@ import {
   FileText,
   Heart,
   Mail,
+  MessageSquare,
   Plus,
+  Settings,
   Trash2,
   Upload
 } from "lucide-react";
@@ -23,9 +25,9 @@ import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
-import { customerStatusLabel, customerTypeLabel } from "@/lib/customer-options";
+import { CUSTOMER_STATUSES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 import { CustomerWorkflowIconKey, getCustomerWorkflowSummary } from "@/lib/customer-workflow";
-import { deleteCustomerAction } from "@/lib/customer-actions";
+import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 import {
   GALLERY_MODE_PROOFING,
@@ -80,6 +82,21 @@ type TimelineEvent = {
   detail: string;
   href?: string;
 };
+
+type CustomerTab = "overview" | "galleries" | "proofing" | "contracts" | "communication" | "details";
+
+const customerTabs: Array<{
+  key: CustomerTab;
+  label: string;
+  icon: typeof Camera;
+}> = [
+  { key: "overview", label: "Áttekintés", icon: CheckCircle2 },
+  { key: "galleries", label: "Galériák", icon: Camera },
+  { key: "proofing", label: "Válogatás", icon: Heart },
+  { key: "contracts", label: "Szerződések", icon: FileText },
+  { key: "communication", label: "Kommunikáció", icon: MessageSquare },
+  { key: "details", label: "Adatok", icon: Settings }
+];
 
 type CustomerWorkflowInput = {
   id: string;
@@ -314,6 +331,42 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
   return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 12);
 }
 
+function createCommunicationEvents(customer: CustomerWorkflowInput) {
+  const events: TimelineEvent[] = [];
+
+  customer.contracts.forEach((contract) => {
+    if (contract.sentAt) {
+      events.push({
+        date: contract.sentAt,
+        title: "Szerződés email",
+        detail: contract.title
+      });
+    }
+  });
+
+  customer.galleries.forEach((gallery) => {
+    if (gallery.proofingInviteSentAt) {
+      events.push({
+        date: gallery.proofingInviteSentAt,
+        title: "Válogató link email",
+        detail: gallery.title,
+        href: `/admin/galleries/${gallery.id}?tab=client`
+      });
+    }
+
+    if (gallery.finalDeliveryEmailSentAt) {
+      events.push({
+        date: gallery.finalDeliveryEmailSentAt,
+        title: "Kész galéria email",
+        detail: gallery.title,
+        href: `/admin/galleries/${gallery.id}?tab=client`
+      });
+    }
+  });
+
+  return events.sort((a, b) => b.date.getTime() - a.date.getTime());
+}
+
 function taskStyles(state: CustomerTask["state"]) {
   if (state === "done") {
     return {
@@ -346,6 +399,22 @@ function taskStyles(state: CustomerTask["state"]) {
   };
 }
 
+function getActiveTab(flags: { edit?: string; tab?: string; contractUploaded?: string; contractWritten?: string; contractSent?: string }): CustomerTab {
+  if (flags.edit === "1") {
+    return "details";
+  }
+
+  if (flags.contractUploaded || flags.contractWritten || flags.contractSent) {
+    return "contracts";
+  }
+
+  if (customerTabs.some((tab) => tab.key === flags.tab)) {
+    return flags.tab as CustomerTab;
+  }
+
+  return "overview";
+}
+
 export default async function AdminClientDetailPage({
   params,
   searchParams
@@ -360,6 +429,8 @@ export default async function AdminClientDetailPage({
     contractSent?: string;
     contractError?: string;
     edit?: string;
+    statusUpdated?: string;
+    tab?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -422,6 +493,9 @@ export default async function AdminClientDetailPage({
   const NextActionIcon = workflowIconMap[nextAction.iconKey];
   const customerTasks = createCustomerTasks(customer, nextAction);
   const timelineEvents = createCustomerTimeline(customer);
+  const communicationEvents = createCommunicationEvents(customer);
+  const activeTab = getActiveTab(flags);
+  const proofingGalleries = customer.galleries.filter((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING);
 
   return (
     <AdminShell>
@@ -434,6 +508,27 @@ export default async function AdminClientDetailPage({
               {typeLabel} · {customerStatusLabel(customer.status)} · {formatDate(customer.weddingDate)}
             </p>
           </div>
+          <form action={updateCustomerStatusAction.bind(null, customer.id)} className="rounded-lg border border-ink/10 bg-white p-3 shadow-soft">
+            <label className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+              <span className="space-y-1">
+                <span className="block text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Fő státusz</span>
+                <select
+                  name="status"
+                  defaultValue={normalizeCustomerStatus(customer.status)}
+                  className="h-10 w-full min-w-56 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                >
+                  {CUSTOMER_STATUSES.map((status) => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </span>
+              <button className="h-10 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+                Mentés
+              </button>
+            </label>
+          </form>
         </div>
       </div>
 
@@ -443,6 +538,7 @@ export default async function AdminClientDetailPage({
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
+        {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.error === "missing" ? (
           <Alert title="Hiányzó kötelező mező." variant="error">
             Az ügyfél/projekt neve és az elsődleges email cím kötelező.
@@ -489,195 +585,313 @@ export default async function AdminClientDetailPage({
         </div>
       </section>
 
-      <div className="mb-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-          <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
-            <div>
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                <CheckCircle2 size={15} />
-                Teendők
-              </div>
-              <h2 className="mt-2 text-xl font-semibold text-ink">Leadás előtti checklist</h2>
-              <p className="mt-1 text-sm leading-6 text-graphite/70">
-                A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.
-              </p>
-            </div>
-            <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-              {nextAction.laneLabel}
-            </span>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {customerTasks.map((task) => {
-              const styles = taskStyles(task.state);
-              const TaskIcon = styles.icon;
-              const content = (
-                <>
-                  <div className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${styles.className}`}>
-                    <TaskIcon size={16} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-ink">{task.title}</p>
-                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
-                        {styles.label}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm leading-5 text-graphite/70">{task.detail}</p>
-                  </div>
-                </>
-              );
+      <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
+        <nav className="grid gap-2 lg:grid-cols-6" aria-label="Ügyfél munkaterületek">
+          {customerTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
 
-              return task.href ? (
-                <Link key={`${task.title}-${task.detail}`} href={task.href} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3 transition hover:border-ink/20 hover:bg-ink/[0.03]">
-                  {content}
-                </Link>
-              ) : (
-                <div key={`${task.title}-${task.detail}`} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3">
-                  {content}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-          <div className="border-b border-ink/10 pb-4">
-            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-              <CalendarClock size={15} />
-              Timeline
-            </div>
-            <h2 className="mt-2 text-xl font-semibold text-ink">Legutóbbi események</h2>
-          </div>
-          <div className="mt-4 space-y-4">
-            {timelineEvents.map((event) => {
-              const content = (
-                <>
-                  <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-paper text-brass">
-                    <FileText size={14} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-ink">{event.title}</p>
-                    <p className="mt-1 text-sm leading-5 text-graphite/70">{event.detail}</p>
-                    <p className="mt-1 text-xs text-graphite/55">{formatDateTime(event.date)}</p>
-                  </div>
-                </>
-              );
-
-              return event.href ? (
-                <Link key={`${event.title}-${event.date.toISOString()}`} href={event.href} className="flex gap-3 rounded-md p-2 transition hover:bg-ink/[0.03]">
-                  {content}
-                </Link>
-              ) : (
-                <div key={`${event.title}-${event.date.toISOString()}`} className="flex gap-3 rounded-md p-2">
-                  {content}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+            return (
+              <Link
+                key={tab.key}
+                href={`/admin/clients/${customer.id}?tab=${tab.key}`}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                  isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                }`}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-6">
-          {isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} />}
+      {activeTab === "overview" ? (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+            <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
               <div>
                 <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                  <Camera size={15} />
-                  Galériák
+                  <CheckCircle2 size={15} />
+                  Teendők
                 </div>
-                <h2 className="mt-2 text-xl font-semibold text-ink">Ügyfélhez tartozó galériák</h2>
+                <h2 className="mt-2 text-xl font-semibold text-ink">Leadás előtti checklist</h2>
                 <p className="mt-1 text-sm leading-6 text-graphite/70">
-                  Innen induljon az új feltöltés. Így a galéria, a válogatás, az átadás és a szerződések egy ügyfél alatt maradnak.
+                  A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.
                 </p>
               </div>
-              <ButtonLink href={`/admin/galleries/new?customerId=${customer.id}`}>
-                <Plus size={16} />
-                Új galéria
-              </ButtonLink>
+              <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+                {nextAction.laneLabel}
+              </span>
             </div>
-
-            {customer.galleries.length === 0 ? (
-              <div className="mt-5 rounded-md bg-paper px-4 py-4">
-                <p className="text-sm font-medium text-ink">Még nincs galéria ehhez az ügyfélhez</p>
-                <p className="mt-1 text-sm text-graphite/70">Hozd létre az első galériát, majd ott tudod feltölteni a képeket.</p>
-              </div>
-            ) : (
-              <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
-                {customer.galleries.map((gallery) => (
-                  <div key={gallery.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
-                    <Link href={`/admin/galleries/${gallery.id}`} className="min-w-0">
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {customerTasks.map((task) => {
+                const styles = taskStyles(task.state);
+                const TaskIcon = styles.icon;
+                const content = (
+                  <>
+                    <div className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${styles.className}`}>
+                      <TaskIcon size={16} />
+                    </div>
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-ink">{gallery.title}</p>
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
-                          {gallery.isActive ? "Aktív" : "Archivált"}
+                        <p className="font-medium text-ink">{task.title}</p>
+                        <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                          {styles.label}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
-                    </Link>
-                    <div className="flex items-center gap-2">
-                      <ButtonLink href={`/admin/galleries/${gallery.id}`} variant="secondary" className="h-10">
-                        Kezelés
-                      </ButtonLink>
-                      <a className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5" href={`/g/${gallery.slug}`} target="_blank">
-                        <ExternalLink size={16} />
-                      </a>
+                      <p className="mt-1 text-sm leading-5 text-graphite/70">{task.detail}</p>
                     </div>
+                  </>
+                );
+
+                return task.href ? (
+                  <Link key={`${task.title}-${task.detail}`} href={task.href} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3 transition hover:border-ink/20 hover:bg-ink/[0.03]">
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={`${task.title}-${task.detail}`} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3">
+                    {content}
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </section>
-          <ContractManager customerId={customer.id} contracts={customer.contracts} />
-        </div>
 
-        <aside className="space-y-6">
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-            <h2 className="text-lg font-semibold text-ink">Gyors adatok</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div>
-                <dt className="text-graphite/60">Típus</dt>
-                <dd className="font-medium text-ink">{typeLabel}</dd>
+            <div className="border-b border-ink/10 pb-4">
+              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                <CalendarClock size={15} />
+                Timeline
               </div>
-              <div>
-                <dt className="text-graphite/60">Elsődleges email</dt>
-                <dd className="font-medium text-ink">{customer.primaryEmail}</dd>
-              </div>
-              <div>
-                <dt className="text-graphite/60">Másodlagos email</dt>
-                <dd className="font-medium text-ink">{customer.secondaryEmail || "Nincs megadva"}</dd>
-              </div>
-              <div>
-                <dt className="text-graphite/60">Telefon</dt>
-                <dd className="font-medium text-ink">{customer.phone || "Nincs megadva"}</dd>
-              </div>
-              <div>
-                <dt className="text-graphite/60">Helyszín</dt>
-                <dd className="font-medium text-ink">{customer.venue || "Nincs megadva"}</dd>
-              </div>
-            </dl>
-          </section>
+              <h2 className="mt-2 text-xl font-semibold text-ink">Legutóbbi események</h2>
+            </div>
+            <div className="mt-4 space-y-4">
+              {timelineEvents.map((event) => {
+                const content = (
+                  <>
+                    <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-paper text-brass">
+                      <FileText size={14} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{event.title}</p>
+                      <p className="mt-1 text-sm leading-5 text-graphite/70">{event.detail}</p>
+                      <p className="mt-1 text-xs text-graphite/55">{formatDateTime(event.date)}</p>
+                    </div>
+                  </>
+                );
 
-          <section className="rounded-lg border border-red-200 bg-white p-5 shadow-soft">
-            <h2 className="text-lg font-semibold text-ink">Veszélyzóna</h2>
-            <p className="mt-2 text-sm leading-6 text-graphite/70">
-              Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A galériák megmaradnak,
-              de ügyfél nélküli régi galériaként folytatják. A művelet nem vonható vissza.
-            </p>
-            <form action={deleteCustomerAction.bind(null, customer.id)} className="mt-4">
-              <ConfirmSubmitButton
-                variant="danger"
-                message={`Biztosan törlöd ezt az ügyfelet: ${customer.coupleName}? Ez nem vonható vissza.`}
-                className="w-full"
-              >
-                <Trash2 size={16} />
-                Ügyfél törlése
-              </ConfirmSubmitButton>
-            </form>
+                return event.href ? (
+                  <Link key={`${event.title}-${event.date.toISOString()}`} href={event.href} className="flex gap-3 rounded-md p-2 transition hover:bg-ink/[0.03]">
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={`${event.title}-${event.date.toISOString()}`} className="flex gap-3 rounded-md p-2">
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
           </section>
-        </aside>
-      </div>
+        </div>
+      ) : null}
+
+      {activeTab === "galleries" ? (
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+            <div>
+              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                <Camera size={15} />
+                Galériák
+              </div>
+              <h2 className="mt-2 text-xl font-semibold text-ink">Ügyfélhez tartozó galériák</h2>
+              <p className="mt-1 text-sm leading-6 text-graphite/70">
+                Innen induljon az új feltöltés. Így a galéria, a válogatás, az átadás és a szerződések egy ügyfél alatt maradnak.
+              </p>
+            </div>
+            <ButtonLink href={`/admin/galleries/new?customerId=${customer.id}`}>
+              <Plus size={16} />
+              Új galéria
+            </ButtonLink>
+          </div>
+
+          {customer.galleries.length === 0 ? (
+            <div className="mt-5 rounded-md bg-paper px-4 py-4">
+              <p className="text-sm font-medium text-ink">Még nincs galéria ehhez az ügyfélhez</p>
+              <p className="mt-1 text-sm text-graphite/70">Hozd létre az első galériát, majd ott tudod feltölteni a képeket.</p>
+            </div>
+          ) : (
+            <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
+              {customer.galleries.map((gallery) => (
+                <div key={gallery.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                  <Link href={`/admin/galleries/${gallery.id}`} className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-ink">{gallery.title}</p>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
+                        {gallery.isActive ? "Aktív" : "Archivált"}
+                      </span>
+                      <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                        {gallery.galleryMode === GALLERY_MODE_PROOFING ? "Nyers válogatás" : "Teljes galéria"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <ButtonLink href={`/admin/galleries/${gallery.id}`} variant="secondary" className="h-10">
+                      Kezelés
+                    </ButtonLink>
+                    <a className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5" href={`/g/${gallery.slug}`} target="_blank">
+                      <ExternalLink size={16} />
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {activeTab === "proofing" ? (
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+            <Heart size={15} />
+            Válogatás
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">Nyers képes workflow</h2>
+          <p className="mt-1 text-sm leading-6 text-graphite/70">
+            Itt látod az ügyfél válogató galériáit, leadott listáit és a kész képek átadási pontját.
+          </p>
+
+          {proofingGalleries.length === 0 ? (
+            <div className="mt-5 rounded-md bg-paper px-4 py-4">
+              <p className="text-sm font-medium text-ink">Nincs nyers válogatás ehhez az ügyfélhez</p>
+              <p className="mt-1 text-sm text-graphite/70">Ha ilyen workflow kell, hozz létre nyers képes válogatás típusú galériát.</p>
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-3">
+              {proofingGalleries.map((gallery) => (
+                <Link key={gallery.id} href={`/admin/galleries/${gallery.id}?tab=client`} className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-ink/20 hover:bg-ink/[0.03]">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-ink">{gallery.title}</p>
+                        <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                          {proofingStatusLabel(gallery.proofingStatus)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-graphite/70">
+                        {gallery.favoriteLists.length} leadott lista · {gallery.photos.length > 0 ? "van kész kép feltöltve" : "nincs kész kép feltöltve"}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
+                      Kezelés
+                      <ArrowRight size={14} />
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {activeTab === "contracts" ? <ContractManager customerId={customer.id} contracts={customer.contracts} /> : null}
+
+      {activeTab === "communication" ? (
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+            <MessageSquare size={15} />
+            Kommunikáció
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">Kiküldött email események</h2>
+          <p className="mt-1 text-sm leading-6 text-graphite/70">
+            Szerződés, válogató link és kész galéria email állapotok egy helyen.
+          </p>
+
+          {communicationEvents.length === 0 ? (
+            <div className="mt-5 rounded-md bg-paper px-4 py-4">
+              <p className="text-sm font-medium text-ink">Még nincs kiküldött email esemény</p>
+              <p className="mt-1 text-sm text-graphite/70">Itt fog megjelenni a szerződés, válogató és kész galéria kiküldése.</p>
+            </div>
+          ) : (
+            <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
+              {communicationEvents.map((event) => {
+                const content = (
+                  <>
+                    <div>
+                      <p className="font-medium text-ink">{event.title}</p>
+                      <p className="mt-1 text-sm text-graphite/70">{event.detail}</p>
+                    </div>
+                    <p className="text-sm text-graphite/60">{formatDateTime(event.date)}</p>
+                  </>
+                );
+
+                return event.href ? (
+                  <Link key={`${event.title}-${event.date.toISOString()}`} href={event.href} className="grid gap-2 px-4 py-4 transition hover:bg-ink/[0.03] sm:grid-cols-[1fr_auto] sm:items-center">
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={`${event.title}-${event.date.toISOString()}`} className="grid gap-2 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {activeTab === "details" ? (
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div>{isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} />}</div>
+          <aside className="space-y-6">
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <h2 className="text-lg font-semibold text-ink">Gyors adatok</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div>
+                  <dt className="text-graphite/60">Típus</dt>
+                  <dd className="font-medium text-ink">{typeLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-graphite/60">Elsődleges email</dt>
+                  <dd className="font-medium text-ink">{customer.primaryEmail}</dd>
+                </div>
+                <div>
+                  <dt className="text-graphite/60">Másodlagos email</dt>
+                  <dd className="font-medium text-ink">{customer.secondaryEmail || "Nincs megadva"}</dd>
+                </div>
+                <div>
+                  <dt className="text-graphite/60">Telefon</dt>
+                  <dd className="font-medium text-ink">{customer.phone || "Nincs megadva"}</dd>
+                </div>
+                <div>
+                  <dt className="text-graphite/60">Helyszín</dt>
+                  <dd className="font-medium text-ink">{customer.venue || "Nincs megadva"}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="rounded-lg border border-red-200 bg-white p-5 shadow-soft">
+              <h2 className="text-lg font-semibold text-ink">Veszélyzóna</h2>
+              <p className="mt-2 text-sm leading-6 text-graphite/70">
+                Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A galériák megmaradnak,
+                de ügyfél nélküli régi galériaként folytatják. A művelet nem vonható vissza.
+              </p>
+              <form action={deleteCustomerAction.bind(null, customer.id)} className="mt-4">
+                <ConfirmSubmitButton
+                  variant="danger"
+                  message={`Biztosan törlöd ezt az ügyfelet: ${customer.coupleName}? Ez nem vonható vissza.`}
+                  className="w-full"
+                >
+                  <Trash2 size={16} />
+                  Ügyfél törlése
+                </ConfirmSubmitButton>
+              </form>
+            </section>
+          </aside>
+        </div>
+      ) : null}
     </AdminShell>
   );
 }
