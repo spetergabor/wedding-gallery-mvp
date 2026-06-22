@@ -6,7 +6,29 @@ import { redirect } from "next/navigation";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createAlbumReviewSpreadObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
+import {
+  createAlbumReviewSpreadObjectKey,
+  createPresignedPhotoUploadUrl,
+  getPhotoPublicUrl,
+  isR2StorageEnabled
+} from "@/lib/storage";
+
+type AlbumSpreadUploadRequest = {
+  clientId: string;
+  filename: string;
+  contentType: string;
+  fileSize: number;
+};
+
+type CompletedAlbumSpreadUpload = {
+  clientId: string;
+  filename: string;
+  r2Key: string;
+  imageUrl: string;
+  fileSize: number;
+  sortOrder: number;
+  title: string;
+};
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -74,57 +96,140 @@ export async function createAlbumReviewAction(customerId: string, formData: Form
   redirect(`/admin/clients/${customerId}?tab=album&albumCreated=1`);
 }
 
-export async function uploadAlbumReviewSpreadsAction(customerId: string, reviewId: string, formData: FormData) {
+function isImageUploadRequest(file: AlbumSpreadUploadRequest) {
+  return (
+    file.clientId &&
+    file.filename &&
+    file.fileSize > 0 &&
+    (file.contentType.startsWith("image/") || /\.(jpe?g|png|webp|gif|tiff?|heic)$/i.test(file.filename))
+  );
+}
+
+export async function createAlbumReviewSpreadUploadTargetsAction(
+  customerId: string,
+  reviewId: string,
+  files: AlbumSpreadUploadRequest[]
+) {
   const { review } = await requireAlbumReviewAccess(customerId, reviewId);
-  const files = formData
-    .getAll("albumSpreads")
-    .filter((value): value is File => value instanceof File && value.size > 0 && value.type.startsWith("image/"));
+  const normalizedFiles = files.filter(isImageUploadRequest).slice(0, 50);
 
-  if (files.length === 0) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumError=no-files`);
+  if (!isR2StorageEnabled()) {
+    return {
+      ok: false,
+      message: "Az album oldalpárok feltöltéséhez R2 tárhely szükséges."
+    };
   }
 
-  const existingCount = review._count.spreads;
-  const spreads = [];
+  if (normalizedFiles.length === 0) {
+    return {
+      ok: false,
+      message: "Válassz ki legalább egy album oldalpár képet."
+    };
+  }
 
-  for (const [index, file] of files.entries()) {
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const r2Key = createAlbumReviewSpreadObjectKey({
+  try {
+    const existingCount = review._count.spreads;
+    const uploads = await Promise.all(
+      normalizedFiles.map(async (file, index) => {
+        const sortOrder = existingCount + index + 1;
+        const title = `Oldalpár ${sortOrder}`;
+        const r2Key = createAlbumReviewSpreadObjectKey({
+          customerId,
+          reviewId: review.id,
+          originalFilename: file.filename
+        });
+        const imageUrl = getPhotoPublicUrl(r2Key);
+
+        return {
+          clientId: file.clientId,
+          filename: file.filename,
+          r2Key,
+          imageUrl,
+          fileSize: file.fileSize,
+          sortOrder,
+          title,
+          uploadUrl: await createPresignedPhotoUploadUrl({
+            r2Key,
+            contentType: file.contentType || "application/octet-stream"
+          })
+        };
+      })
+    );
+
+    return {
+      ok: true,
+      uploads
+    };
+  } catch (error) {
+    console.error("Album review upload target creation failed", {
       customerId,
-      reviewId: review.id,
-      originalFilename: file.name
+      reviewId,
+      error
     });
 
-    await savePhotoObject({
-      r2Key,
-      bytes,
-      contentType: file.type || "image/jpeg"
-    });
+    return {
+      ok: false,
+      message: "Nem sikerült előkészíteni az album oldalpár feltöltést."
+    };
+  }
+}
 
-    spreads.push({
-      filename: file.name,
-      title: `Oldalpár ${existingCount + index + 1}`,
-      r2Key,
-      imageUrl: getPhotoPublicUrl(r2Key),
-      fileSize: file.size,
-      sortOrder: existingCount + index + 1
-    });
+export async function completeAlbumReviewSpreadUploadsAction(
+  customerId: string,
+  reviewId: string,
+  uploads: CompletedAlbumSpreadUpload[]
+) {
+  const { review } = await requireAlbumReviewAccess(customerId, reviewId);
+  const keyPrefix = `album-reviews/${customerId}/${review.id}/`;
+  const spreads = uploads
+    .filter((upload) => upload.r2Key.startsWith(keyPrefix) && upload.filename && upload.imageUrl)
+    .map((upload) => ({
+      filename: upload.filename,
+      title: upload.title,
+      r2Key: upload.r2Key,
+      imageUrl: upload.imageUrl,
+      fileSize: upload.fileSize,
+      sortOrder: upload.sortOrder
+    }));
+
+  if (spreads.length === 0) {
+    return {
+      ok: false,
+      message: "Nem érkezett menthető album oldalpár."
+    };
   }
 
-  await prisma.albumReview.update({
-    where: { id: review.id },
-    data: {
-      status: "ready",
-      spreads: {
-        createMany: {
-          data: spreads
+  try {
+    await prisma.albumReview.update({
+      where: { id: review.id },
+      data: {
+        status: "ready",
+        spreads: {
+          createMany: {
+            data: spreads
+          }
         }
       }
-    }
-  });
+    });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumUploaded=${spreads.length}`);
+    revalidatePath(`/admin/clients/${customerId}`);
+
+    return {
+      ok: true,
+      count: spreads.length
+    };
+  } catch (error) {
+    console.error("Album review upload completion failed", {
+      customerId,
+      reviewId,
+      error
+    });
+
+    return {
+      ok: false,
+      message: "Az album oldalpárok feltöltődtek, de a mentés nem sikerült."
+    };
+  }
 }
 
 export async function createAlbumReviewCommentAction({

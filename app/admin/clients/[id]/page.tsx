@@ -441,6 +441,7 @@ export default async function AdminClientDetailPage({
 }) {
   const admin = await requireAdmin();
   const [{ id }, flags] = await Promise.all([params, searchParams]);
+  const activeTab = getActiveTab(flags);
   const customer = await prisma.customer.findFirst({
     where: customerAccessWhere(admin, id),
     include: {
@@ -485,19 +486,6 @@ export default async function AdminClientDetailPage({
             select: { photos: true }
           }
         }
-      },
-      albumReviews: {
-        orderBy: { createdAt: "desc" },
-        include: {
-          spreads: {
-            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            include: {
-              comments: {
-                orderBy: { createdAt: "asc" }
-              }
-            }
-          }
-        }
       }
     }
   });
@@ -506,6 +494,23 @@ export default async function AdminClientDetailPage({
     notFound();
   }
 
+  const albumReviews =
+    activeTab === "album"
+      ? await prisma.albumReview.findMany({
+          where: { customerId: customer.id },
+          orderBy: { createdAt: "desc" },
+          include: {
+            spreads: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              include: {
+                comments: {
+                  orderBy: { createdAt: "asc" }
+                }
+              }
+            }
+          }
+        })
+      : [];
   const isEditing = flags.edit === "1";
   const typeLabel = customerTypeLabel(customer.customerType);
   const nextAction = getCustomerWorkflowSummary(customer);
@@ -513,7 +518,6 @@ export default async function AdminClientDetailPage({
   const customerTasks = createCustomerTasks(customer, nextAction);
   const timelineEvents = createCustomerTimeline(customer);
   const communicationEvents = createCommunicationEvents(customer);
-  const activeTab = getActiveTab(flags);
   const proofingGalleries = customer.galleries.filter((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING);
 
   return (
@@ -820,7 +824,7 @@ export default async function AdminClientDetailPage({
       ) : null}
 
       {activeTab === "album" ? (
-        <AlbumReviewManager customerId={customer.id} reviews={customer.albumReviews} />
+        <AlbumReviewManager customerId={customer.id} reviews={albumReviews} />
       ) : null}
 
       {activeTab === "contracts" ? <ContractManager customerId={customer.id} contracts={customer.contracts} /> : null}
