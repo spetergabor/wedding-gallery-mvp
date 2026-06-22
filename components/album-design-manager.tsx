@@ -1,7 +1,7 @@
 import Image from "next/image";
-import { Grid3X3, Images, LayoutTemplate, Plus } from "lucide-react";
+import { Grid3X3, LayoutTemplate, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/button";
-import { createAlbumDesignAction, createAlbumDesignSpreadAction } from "@/lib/album-design-actions";
+import { createAlbumDesignAction, createAlbumDesignSpreadAction, deleteAlbumDesignSpreadAction } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
@@ -308,7 +308,12 @@ export function AlbumDesignManager({
                               {spread.layoutKey} · {spread.items.length} kép
                             </p>
                           </div>
-                          <Images size={16} className="text-brass" />
+                          <form action={deleteAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)}>
+                            <Button type="submit" variant="danger" className="h-9 px-3">
+                              <Trash2 size={15} />
+                              Törlés
+                            </Button>
+                          </form>
                         </div>
                         <SpreadPreview spread={spread} />
                       </div>

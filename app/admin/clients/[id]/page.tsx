@@ -440,6 +440,7 @@ export default async function AdminClientDetailPage({
     albumError?: string;
     albumDesignCreated?: string;
     albumSpreadCreated?: string;
+    albumSpreadDeleted?: string;
     albumDesignError?: string;
   }>;
 }) {
@@ -656,6 +657,7 @@ export default async function AdminClientDetailPage({
         {flags.albumUploaded ? <Alert title={`${flags.albumUploaded} album oldalpár feltöltve.`} variant="success" /> : null}
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
         {flags.albumSpreadCreated ? <Alert title="Album oldalpár létrehozva." variant="success" /> : null}
+        {flags.albumSpreadDeleted ? <Alert title="Album oldalpár törölve." variant="success" /> : null}
         {flags.albumError === "no-files" ? <Alert title="Nem választottál ki album oldalpár képet." variant="error" /> : null}
         {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}

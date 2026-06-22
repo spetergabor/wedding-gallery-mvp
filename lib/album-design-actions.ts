@@ -36,10 +36,7 @@ async function requireAlbumDesignAccess(customerId: string, designId: string) {
     select: {
       id: true,
       customerId: true,
-      favoriteListId: true,
-      _count: {
-        select: { spreads: true }
-      }
+      favoriteListId: true
     }
   });
 
@@ -114,7 +111,13 @@ export async function createAlbumDesignSpreadAction(customerId: string, designId
     redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
   }
 
-  const sortOrder = design._count.spreads + 1;
+  const latestSpread = await prisma.albumDesignSpread.findFirst({
+    where: { designId: design.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true }
+  });
+  const sortOrder = (latestSpread?.sortOrder ?? 0) + 1;
+
   await prisma.albumDesignSpread.create({
     data: {
       designId: design.id,
@@ -136,4 +139,26 @@ export async function createAlbumDesignSpreadAction(customerId: string, designId
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadCreated=1`);
+}
+
+export async function deleteAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+  const spread = await prisma.albumDesignSpread.findFirst({
+    where: {
+      id: spreadId,
+      designId: design.id
+    },
+    select: { id: true }
+  });
+
+  if (!spread) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+  }
+
+  await prisma.albumDesignSpread.delete({
+    where: { id: spread.id }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadDeleted=1`);
 }
