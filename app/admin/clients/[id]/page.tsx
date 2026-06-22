@@ -11,6 +11,7 @@ import {
   FileText,
   Heart,
   ImagePlus,
+  LayoutTemplate,
   Mail,
   MessageSquare,
   Plus,
@@ -87,6 +88,7 @@ type TimelineEvent = {
 };
 
 type CustomerTab = "overview" | "galleries" | "proofing" | "album" | "contracts" | "communication" | "details";
+type AlbumMode = "editor" | "upload";
 
 const customerTabs: Array<{
   key: CustomerTab;
@@ -419,6 +421,10 @@ function getActiveTab(flags: { edit?: string; tab?: string; contractUploaded?: s
   return "overview";
 }
 
+function getAlbumMode(flags: { albumMode?: string }): AlbumMode {
+  return flags.albumMode === "upload" ? "upload" : "editor";
+}
+
 export default async function AdminClientDetailPage({
   params,
   searchParams
@@ -437,6 +443,7 @@ export default async function AdminClientDetailPage({
     tab?: string;
     albumCreated?: string;
     albumDeleted?: string;
+    albumMode?: string;
     albumUploaded?: string;
     albumError?: string;
     albumDesignCreated?: string;
@@ -454,6 +461,7 @@ export default async function AdminClientDetailPage({
   const admin = await requireAdmin();
   const [{ id }, flags] = await Promise.all([params, searchParams]);
   const activeTab = getActiveTab(flags);
+  const albumMode = getAlbumMode(flags);
   const customer = await prisma.customer.findFirst({
     where: customerAccessWhere(admin, id),
     include: {
@@ -941,12 +949,66 @@ export default async function AdminClientDetailPage({
 
       {activeTab === "album" ? (
         <div className="space-y-6">
-          <AlbumDesignManager
-            customerId={customer.id}
-            favoriteLists={albumFavoriteLists.filter((list) => list._count.items > 0)}
-            designs={albumDesigns}
-          />
-          <AlbumReviewManager customerId={customer.id} reviews={albumReviews} />
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+              <div>
+                <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                  <ImagePlus size={15} />
+                  Album workflow
+                </div>
+                <h2 className="mt-2 text-xl font-semibold text-ink">Albumterv indítása</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
+                  Válaszd ki, hogy az appon belül építed fel az oldalpárokat, vagy egy külső programból exportált albumtervet töltesz fel ellenőrzésre.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
+                <Link
+                  href={`/admin/clients/${customer.id}?tab=album&albumMode=editor`}
+                  className={`rounded-md border p-4 transition ${
+                    albumMode === "editor" ? "border-ink bg-ink text-white shadow-soft" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <LayoutTemplate size={16} />
+                    Beépített szerkesztő
+                  </span>
+                  <span className={`mt-1 block text-xs leading-5 ${albumMode === "editor" ? "text-white/70" : "text-graphite/65"}`}>
+                    Favorite listából automatikus oldalpárok és JPG export.
+                  </span>
+                  <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${albumMode === "editor" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
+                    {albumDesigns.length} albumterv
+                  </span>
+                </Link>
+                <Link
+                  href={`/admin/clients/${customer.id}?tab=album&albumMode=upload`}
+                  className={`rounded-md border p-4 transition ${
+                    albumMode === "upload" ? "border-ink bg-ink text-white shadow-soft" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Upload size={16} />
+                    Egyéni albumterv feltöltése
+                  </span>
+                  <span className={`mt-1 block text-xs leading-5 ${albumMode === "upload" ? "text-white/70" : "text-graphite/65"}`}>
+                    SmartAlbumsból vagy máshonnan exportált JPG oldalpárok ellenőrzése.
+                  </span>
+                  <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${albumMode === "upload" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
+                    {albumReviews.length} ellenőrző
+                  </span>
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          {albumMode === "editor" ? (
+            <AlbumDesignManager
+              customerId={customer.id}
+              favoriteLists={albumFavoriteLists.filter((list) => list._count.items > 0)}
+              designs={albumDesigns}
+            />
+          ) : (
+            <AlbumReviewManager customerId={customer.id} reviews={albumReviews} />
+          )}
         </div>
       ) : null}
 

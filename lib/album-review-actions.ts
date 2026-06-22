@@ -92,7 +92,7 @@ export async function createAlbumReviewAction(customerId: string, formData: Form
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumCreated=1`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumCreated=1`);
 }
 
 export async function deleteAlbumReviewAction(customerId: string, reviewId: string) {
@@ -110,7 +110,7 @@ export async function deleteAlbumReviewAction(customerId: string, reviewId: stri
 
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath(`/album/${review.accessToken}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumDeleted=1`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumDeleted=1`);
 }
 
 function isImageUploadRequest(file: AlbumSpreadUploadRequest) {
@@ -279,7 +279,7 @@ export async function deleteAlbumReviewSpreadAction(customerId: string, reviewId
   await deletePhotoObject(spread.r2Key);
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath(`/album/${review.accessToken}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadDeleted=1`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumSpreadDeleted=1`);
 }
 
 export async function createAlbumReviewCommentAction({

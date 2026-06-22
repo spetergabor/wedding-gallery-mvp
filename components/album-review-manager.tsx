@@ -59,11 +59,11 @@ export function AlbumReviewManager({
         <div>
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <ImagePlus size={15} />
-            Album ellenőrző
+            Egyéni albumterv
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">Album oldalpárok ellenőrzése</h2>
+          <h2 className="mt-2 text-xl font-semibold text-ink">Külső oldalpár képek feltöltése</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            Tölts fel album oldalpár képeket. Az ügyfél a privát linken bárhova kattinthat a képen, és címkés megjegyzést írhat képcseréhez vagy javításhoz.
+            Tölts fel SmartAlbumsból vagy más programból exportált JPG oldalpárokat. Az ügyfél a privát linken bárhova kattinthat a képen, és címkés megjegyzést írhat képcseréhez vagy javításhoz.
           </p>
         </div>
         <form action={createAlbumReviewAction.bind(null, customerId)} className="flex min-w-72 gap-2">
@@ -74,7 +74,7 @@ export function AlbumReviewManager({
           />
           <Button type="submit">
             <Plus size={16} />
-            Új
+            Új ellenőrző
           </Button>
         </form>
       </div>
@@ -82,7 +82,7 @@ export function AlbumReviewManager({
       {reviews.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
           <p className="text-sm font-medium text-ink">Még nincs album ellenőrző ehhez az ügyfélhez</p>
-          <p className="mt-1 text-sm text-graphite/70">Hozd létre az első album ellenőrzőt, majd töltsd fel az oldalpár képeket.</p>
+          <p className="mt-1 text-sm text-graphite/70">Hozz létre egy ellenőrzőt, majd töltsd fel a külső programból exportált oldalpár JPG-ket.</p>
         </div>
       ) : (
         <div className="mt-5 space-y-6">
