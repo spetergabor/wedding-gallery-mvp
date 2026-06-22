@@ -726,24 +726,37 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
 export async function createGalleryAction(formData: FormData) {
   const admin = await requireAdmin();
 
+  const customerId = formString(formData, "customerId");
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
   const password = formString(formData, "password");
-  const eventDate = formDate(formData, "eventDate");
+  const submittedEventDate = formDate(formData, "eventDate");
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
-  const clientEmail = normalizeEmail(formString(formData, "clientEmail"));
 
-  if (!title || !slug) {
+  if (!title || !slug || !customerId) {
     redirect("/admin/galleries/new?error=missing");
   }
 
-  if (clientEmail && !isValidEmail(clientEmail)) {
-    redirect("/admin/galleries/new?error=email");
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id: customerId,
+      ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+    },
+    select: {
+      id: true,
+      primaryEmail: true,
+      weddingDate: true
+    }
+  });
+
+  if (!customer) {
+    redirect("/admin/galleries/new?error=customer");
   }
 
+  const eventDate = submittedEventDate ?? customer.weddingDate;
   let gallery;
 
   try {
@@ -752,6 +765,7 @@ export async function createGalleryAction(formData: FormData) {
         title,
         slug,
         adminId: admin.id,
+        customerId: customer.id,
         password: password || null,
         eventDate,
         isActive,
@@ -759,7 +773,7 @@ export async function createGalleryAction(formData: FormData) {
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
-        clientEmail: clientEmail || null,
+        clientEmail: normalizeEmail(customer.primaryEmail),
         clientAccessToken: createClientAccessToken()
       }
     });
@@ -772,12 +786,15 @@ export async function createGalleryAction(formData: FormData) {
   }
 
   revalidatePath("/admin/galleries");
+  revalidatePath("/admin/clients");
+  revalidatePath(`/admin/clients/${customer.id}`);
   redirect(`/admin/galleries/${gallery.id}`);
 }
 
 export async function updateGalleryAction(id: string, formData: FormData) {
-  await requireGalleryAccess(id);
+  const { admin } = await requireGalleryAccess(id);
 
+  const customerId = formString(formData, "customerId");
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
   const password = formString(formData, "password");
@@ -786,25 +803,39 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
-  const clientEmail = normalizeEmail(formString(formData, "clientEmail"));
 
   if (!title || !slug) {
     redirect(`/admin/galleries/${id}?error=missing`);
   }
 
-  if (clientEmail && !isValidEmail(clientEmail)) {
-    redirect(`/admin/galleries/${id}?error=email`);
+  const selectedCustomer = customerId
+    ? await prisma.customer.findFirst({
+        where: {
+          id: customerId,
+          ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+        },
+        select: {
+          id: true,
+          primaryEmail: true
+        }
+      })
+    : null;
+
+  if (customerId && !selectedCustomer) {
+    redirect(`/admin/galleries/${id}?error=customer`);
   }
 
   let previousSlug = slug;
+  let previousCustomerId: string | null = null;
 
   try {
     const previousGallery = await prisma.gallery.findFirst({
       where: { id },
-      select: { slug: true, galleryMode: true }
+      select: { slug: true, galleryMode: true, clientEmail: true, customerId: true }
     });
 
     previousSlug = previousGallery?.slug ?? slug;
+    previousCustomerId = previousGallery?.customerId ?? null;
     const becameProofing = !isProofingGallery(previousGallery?.galleryMode) && isProofingGallery(galleryMode);
 
     await prisma.gallery.update({
@@ -812,11 +843,12 @@ export async function updateGalleryAction(id: string, formData: FormData) {
       data: {
         title,
         slug,
+        customerId: selectedCustomer?.id ?? null,
         password: password || null,
         eventDate,
         isActive,
         galleryMode,
-        clientEmail: clientEmail || null,
+        clientEmail: selectedCustomer ? normalizeEmail(selectedCustomer.primaryEmail) : previousGallery?.clientEmail ?? null,
         proofingInviteEmailError: null,
         finalDeliveryEmailError: null,
         ...(becameProofing
@@ -837,6 +869,13 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   }
 
   revalidatePath("/admin/galleries");
+  revalidatePath("/admin/clients");
+  if (previousCustomerId) {
+    revalidatePath(`/admin/clients/${previousCustomerId}`);
+  }
+  if (selectedCustomer?.id) {
+    revalidatePath(`/admin/clients/${selectedCustomer.id}`);
+  }
   revalidatePath(`/g/${previousSlug}`);
   revalidatePath(`/g/${slug}`);
 

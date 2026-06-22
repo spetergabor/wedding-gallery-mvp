@@ -37,7 +37,15 @@ export default async function AdminClientsPage({
 
   const customers = await prisma.customer.findMany({
     where: adminOwnedWhere(admin),
-    orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }]
+    orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }],
+    include: {
+      _count: {
+        select: {
+          galleries: true,
+          contracts: true
+        }
+      }
+    }
   });
 
   return (
@@ -47,7 +55,7 @@ export default async function AdminClientsPage({
           <p className="text-sm uppercase tracking-[0.24em] text-brass">Ügyfelek</p>
           <h1 className="mt-2 text-4xl font-semibold text-ink">Ügyfélkezelő</h1>
           <p className="mt-3 max-w-2xl text-sm text-graphite/70">
-            Párok, esküvői adatok és szerződés előkészítés egy helyen.
+            Az ügyfél a nulladik pont: innen indul a galéria, a feltöltés, a válogatás és a szerződés.
           </p>
         </div>
         <ButtonLink href="/admin/clients/new">
@@ -66,7 +74,7 @@ export default async function AdminClientsPage({
         <EmptyState
           icon={<Users size={22} />}
           title="Még nincs ügyfél"
-          description="Vidd fel az első párt, majd később ehhez kapcsoljuk a szerződést és aláírást."
+          description="Vidd fel az első ügyfelet, utána ehhez tudsz galériát, szerződést és átadást kapcsolni."
           action={
             <ButtonLink href="/admin/clients/new">
               <Plus size={16} />
@@ -103,7 +111,7 @@ export default async function AdminClientsPage({
                 </div>
                 <div className="text-sm text-graphite/70 md:text-right">
                   <p>{customer.venue || "Nincs helyszín"}</p>
-                  <p>Frissítve: {formatDate(customer.updatedAt)}</p>
+                  <p>{customer._count.galleries} galéria · {customer._count.contracts} szerződés</p>
                 </div>
               </Link>
             ))}

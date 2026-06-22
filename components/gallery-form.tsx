@@ -1,13 +1,21 @@
-import { CalendarDays, Check, Download, Eye, Images, LockKeyhole, Mail } from "lucide-react";
+import { CalendarDays, Check, Download, Eye, Images, LockKeyhole, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
 import { SlugFields } from "@/components/slug-fields";
 import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
 
+type CustomerOption = {
+  id: string;
+  coupleName: string;
+  primaryEmail: string;
+  weddingDate: Date | null;
+};
+
 type GalleryFormProps = {
   gallery?: {
     id: string;
+    customerId: string | null;
     title: string;
     slug: string;
     password: string | null;
@@ -17,6 +25,8 @@ type GalleryFormProps = {
     downloadsEnabled: boolean;
     clientEmail: string | null;
   };
+  customers?: CustomerOption[];
+  selectedCustomerId?: string | null;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -74,10 +84,13 @@ function ToggleField({
   );
 }
 
-export function GalleryForm({ gallery }: GalleryFormProps) {
+export function GalleryForm({ gallery, customers = [], selectedCustomerId = null }: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
     : createGalleryAction;
+  const defaultCustomerId = gallery?.customerId ?? selectedCustomerId ?? customers[0]?.id ?? "";
+  const selectedCustomer = customers.find((customer) => customer.id === defaultCustomerId) ?? null;
+  const defaultEventDate = gallery?.eventDate ?? selectedCustomer?.weddingDate ?? null;
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -85,7 +98,7 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
         <div>
           <h2 className="text-xl font-semibold text-ink">Galéria adatai</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            A publikus link a galéria nevéből készül, de kézzel is finomítható. A válogatós projektekhez itt add meg az ügyfél email címét.
+            A galéria egy ügyfélhez tartozik. Az ügyfél email címéből dolgozik a válogató és az átadási értesítés.
           </p>
         </div>
       </div>
@@ -97,8 +110,40 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
           <section className="space-y-5">
             <SectionTitle
               title="Alapadatok"
-              description="A projekt típusa, az ügyfél értesítése és a borítón megjelenő dátum."
+              description="Ügyfél, projekt típusa és a borítón megjelenő dátum."
             />
+
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                <UserRound size={15} />
+                Ügyfél
+              </span>
+              <select
+                name="customerId"
+                defaultValue={defaultCustomerId}
+                required={!gallery}
+                className={fieldClass}
+              >
+                {gallery ? <option value="">Nincs ügyfélhez rendelve</option> : null}
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.coupleName} · {customer.primaryEmail}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs leading-5 text-graphite/70">
+                Új munkánál először az ügyfelet hozd létre, utána ehhez kapcsolódik a galéria, szerződés és később a fizetés.
+              </span>
+              {selectedCustomer ? (
+                <span className="block rounded-md bg-paper px-3 py-2 text-xs leading-5 text-graphite">
+                  Értesítési email: <span className="font-medium text-ink">{selectedCustomer.primaryEmail}</span>
+                </span>
+              ) : gallery?.clientEmail ? (
+                <span className="block rounded-md bg-paper px-3 py-2 text-xs leading-5 text-graphite">
+                  Régi galéria email: <span className="font-medium text-ink">{gallery.clientEmail}</span>
+                </span>
+              ) : null}
+            </label>
 
             <label className="block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">
@@ -118,23 +163,6 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
               </span>
             </label>
 
-            <label className="block space-y-2">
-              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                <Mail size={15} />
-                Ügyfél e-mail címe
-              </span>
-              <input
-                name="clientEmail"
-                type="email"
-                defaultValue={gallery?.clientEmail ?? ""}
-                placeholder="kunde@example.com"
-                className={fieldClass}
-              />
-              <span className="block text-xs leading-5 text-graphite/70">
-                Válogatós projektnél ide küldjük a válogató linket, később pedig a kész képek értesítését.
-              </span>
-            </label>
-
             <label className="block max-w-xs space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">
                 <CalendarDays size={15} />
@@ -143,7 +171,7 @@ export function GalleryForm({ gallery }: GalleryFormProps) {
               <input
                 name="eventDate"
                 type="date"
-                defaultValue={dateInputValue(gallery?.eventDate)}
+                defaultValue={dateInputValue(defaultEventDate)}
                 className={fieldClass}
               />
               <span className="block text-xs leading-5 text-graphite/70">

@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Camera, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
+import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
@@ -53,6 +55,14 @@ export default async function AdminClientDetailPage({
     include: {
       contracts: {
         orderBy: { createdAt: "desc" }
+      },
+      galleries: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: { photos: true }
+          }
+        }
       }
     }
   });
@@ -113,6 +123,55 @@ export default async function AdminClientDetailPage({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-6">
           {isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} />}
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+              <div>
+                <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                  <Camera size={15} />
+                  Galériák
+                </div>
+                <h2 className="mt-2 text-xl font-semibold text-ink">Ügyfélhez tartozó galériák</h2>
+                <p className="mt-1 text-sm leading-6 text-graphite/70">
+                  Innen induljon az új feltöltés. Így a galéria, a válogatás, az átadás és a szerződések egy ügyfél alatt maradnak.
+                </p>
+              </div>
+              <ButtonLink href={`/admin/galleries/new?customerId=${customer.id}`}>
+                <Plus size={16} />
+                Új galéria
+              </ButtonLink>
+            </div>
+
+            {customer.galleries.length === 0 ? (
+              <div className="mt-5 rounded-md bg-paper px-4 py-4">
+                <p className="text-sm font-medium text-ink">Még nincs galéria ehhez az ügyfélhez</p>
+                <p className="mt-1 text-sm text-graphite/70">Hozd létre az első galériát, majd ott tudod feltölteni a képeket.</p>
+              </div>
+            ) : (
+              <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
+                {customer.galleries.map((gallery) => (
+                  <div key={gallery.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <Link href={`/admin/galleries/${gallery.id}`} className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-ink">{gallery.title}</p>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
+                          {gallery.isActive ? "Aktív" : "Archivált"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      <ButtonLink href={`/admin/galleries/${gallery.id}`} variant="secondary" className="h-10">
+                        Kezelés
+                      </ButtonLink>
+                      <a className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5" href={`/g/${gallery.slug}`} target="_blank">
+                        <ExternalLink size={16} />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
           <ContractManager customerId={customer.id} contracts={customer.contracts} />
         </div>
 
@@ -142,8 +201,8 @@ export default async function AdminClientDetailPage({
           <section className="rounded-lg border border-red-200 bg-white p-5 shadow-soft">
             <h2 className="text-lg font-semibold text-ink">Veszélyzóna</h2>
             <p className="mt-2 text-sm leading-6 text-graphite/70">
-              Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A művelet nem vonható
-              vissza.
+              Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A galériák megmaradnak,
+              de ügyfél nélküli régi galériaként folytatják. A művelet nem vonható vissza.
             </p>
             <form action={deleteCustomerAction.bind(null, customer.id)} className="mt-4">
               <ConfirmSubmitButton

@@ -21,6 +21,12 @@ export default async function AdminGalleriesPage({
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { photos: true } },
+      customer: {
+        select: {
+          id: true,
+          coupleName: true
+        }
+      },
       photos: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         select: { id: true, imageUrl: true, thumbnailUrl: true, filename: true, mediaType: true }
@@ -34,6 +40,9 @@ export default async function AdminGalleriesPage({
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-brass">Galériák</p>
           <h1 className="mt-2 text-4xl font-semibold text-ink">Galériakezelés</h1>
+          <p className="mt-3 max-w-2xl text-sm text-graphite/70">
+            A galériák mostantól ügyfelekhez kapcsolódnak. Új munka előtt érdemes az ügyfél adatlapjáról indítani.
+          </p>
         </div>
         <ButtonLink href="/admin/galleries/new">Új galéria</ButtonLink>
       </div>
@@ -86,6 +95,9 @@ export default async function AdminGalleriesPage({
                 <div>
                   <p className="text-lg font-semibold text-ink">{gallery.title}</p>
                   <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
+                  <p className="mt-1 text-sm text-graphite/60">
+                    {gallery.customer ? `Ügyfél: ${gallery.customer.coupleName}` : "Nincs ügyfélhez rendelve"}
+                  </p>
                 </div>
               </a>
               <div className="flex items-center gap-3">

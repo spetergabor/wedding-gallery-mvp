@@ -80,6 +80,7 @@ model Customer {
   updatedAt      DateTime @updatedAt
   admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   contracts      Contract[]
+  galleries      Gallery[]
 
   @@index([adminId])
   @@index([status])
@@ -121,6 +122,7 @@ model Contract {
 model Gallery {
   id           String   @id @default(cuid())
   adminId      String?
+  customerId   String?
   title        String
   slug         String   @unique
   password     String?
@@ -149,8 +151,10 @@ model Gallery {
   uploadSessions GalleryUploadSession[]
   mediaProcessingJobs MediaProcessingJob[]
   admin        Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([adminId])
+  @@index([customerId])
   @@index([galleryMode])
   @@index([proofingStatus])
 }

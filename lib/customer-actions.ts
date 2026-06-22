@@ -133,6 +133,7 @@ export async function deleteCustomerAction(customerId: string) {
   await Promise.all(contractObjectKeys.map((key) => deletePhotoObject(key)));
 
   revalidatePath("/admin/clients");
+  revalidatePath("/admin/galleries");
   revalidatePath("/admin/dashboard");
   redirect("/admin/clients?deleted=1");
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { after } from "next/server";
-import { Camera, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, MapPin, Settings } from "lucide-react";
+import { Camera, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, MapPin, Settings, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
@@ -21,6 +21,7 @@ import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
+import { adminOwnedWhere } from "@/lib/admin-scope";
 import {
   generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
@@ -182,6 +183,13 @@ export default async function GalleryDetailPage({
         }
       },
       photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      customer: {
+        select: {
+          id: true,
+          coupleName: true,
+          primaryEmail: true
+        }
+      },
       uploadSessions: {
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -215,6 +223,17 @@ export default async function GalleryDetailPage({
   if (!gallery) {
     notFound();
   }
+
+  const customers = await prisma.customer.findMany({
+    where: adminOwnedWhere(admin),
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      coupleName: true,
+      primaryEmail: true,
+      weddingDate: true
+    }
+  });
 
   const latestView = gallery.views[0];
   const latestLocation = latestView
@@ -260,6 +279,20 @@ export default async function GalleryDetailPage({
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
               {gallery.isActive ? "Aktív" : "Archivált"}
             </span>
+            {gallery.customer ? (
+              <Link
+                href={`/admin/clients/${gallery.customer.id}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite hover:bg-ink/10"
+              >
+                <UserRound size={13} />
+                {gallery.customer.coupleName}
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                <UserRound size={13} />
+                Nincs ügyfélhez rendelve
+              </span>
+            )}
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -319,6 +352,7 @@ export default async function GalleryDetailPage({
         ) : null}
         {flags.error === "missing" ? <Alert title="Hiányzó kötelező mező." variant="error" /> : null}
         {flags.error === "email" ? <Alert title="Érvénytelen email cím." variant="error" /> : null}
+        {flags.error === "customer" ? <Alert title="Válassz érvényes ügyfelet." variant="error" /> : null}
         {flags.photoError === "missing" ? <Alert title="Nem választottál ki fotót." variant="error" /> : null}
         {flags.photoError === "storage" ? (
           <Alert title="A feltöltés nem sikerült." variant="error">
@@ -574,7 +608,7 @@ export default async function GalleryDetailPage({
 
         {activeTab === "settings" ? (
           <div className="space-y-8">
-            <GalleryForm gallery={gallery} />
+            <GalleryForm gallery={gallery} customers={customers} selectedCustomerId={gallery.customerId} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
           </div>
         ) : null}
