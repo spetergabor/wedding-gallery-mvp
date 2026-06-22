@@ -11,26 +11,26 @@ import {
   FileText,
   Heart,
   ImagePlus,
-  LayoutTemplate,
   Mail,
   MessageSquare,
   Plus,
   Settings,
-  Trash2,
-  Upload
+  Trash2
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { AlbumDesignManager } from "@/components/album-design-manager";
 import { AlbumReviewManager } from "@/components/album-review-manager";
+import { AlbumWorkflowTabs } from "@/components/album-workflow-tabs";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
+import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { CUSTOMER_STATUSES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
-import { CustomerWorkflowIconKey, getCustomerWorkflowSummary } from "@/lib/customer-workflow";
+import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 import {
@@ -63,15 +63,6 @@ function formatDateTime(date: Date | null) {
     timeStyle: "short"
   });
 }
-
-const workflowIconMap: Record<CustomerWorkflowIconKey, typeof Camera> = {
-  camera: Camera,
-  check: CheckCircle2,
-  heart: Heart,
-  mail: Mail,
-  plus: Plus,
-  upload: Upload
-};
 
 type CustomerTask = {
   title: string;
@@ -620,7 +611,6 @@ export default async function AdminClientDetailPage({
   const isEditing = flags.edit === "1";
   const typeLabel = customerTypeLabel(customer.customerType);
   const nextAction = getCustomerWorkflowSummary(customer);
-  const NextActionIcon = workflowIconMap[nextAction.iconKey];
   const customerTasks = createCustomerTasks(customer, nextAction);
   const timelineEvents = createCustomerTimeline(customer);
   const communicationEvents = createCommunicationEvents(customer);
@@ -717,24 +707,14 @@ export default async function AdminClientDetailPage({
         ) : null}
       </div>
 
-      <section className="mb-6 rounded-lg border border-brass/25 bg-brass/10 p-5 shadow-soft">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div className="flex gap-4">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-brass shadow-sm">
-              <NextActionIcon size={20} />
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Következő teendő</p>
-              <h2 className="mt-1 text-xl font-semibold text-ink">{nextAction.title}</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/75">{nextAction.description}</p>
-            </div>
-          </div>
-          <ButtonLink href={nextAction.href} className="shrink-0">
-            {nextAction.buttonLabel}
-            <ArrowRight size={16} />
-          </ButtonLink>
-        </div>
-      </section>
+      <DismissibleNextAction
+        customerId={customer.id}
+        title={nextAction.title}
+        description={nextAction.description}
+        buttonLabel={nextAction.buttonLabel}
+        href={nextAction.href}
+        iconKey={nextAction.iconKey}
+      />
 
       <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
         <nav className="grid gap-2 md:grid-cols-2 xl:grid-cols-7" aria-label="Ügyfél munkaterületek">
@@ -948,68 +928,19 @@ export default async function AdminClientDetailPage({
       ) : null}
 
       {activeTab === "album" ? (
-        <div className="space-y-6">
-          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-            <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-              <div>
-                <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                  <ImagePlus size={15} />
-                  Album workflow
-                </div>
-                <h2 className="mt-2 text-xl font-semibold text-ink">Albumterv indítása</h2>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-                  Válaszd ki, hogy az appon belül építed fel az oldalpárokat, vagy egy külső programból exportált albumtervet töltesz fel ellenőrzésre.
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
-                <Link
-                  href={`/admin/clients/${customer.id}?tab=album&albumMode=editor`}
-                  className={`rounded-md border p-4 transition ${
-                    albumMode === "editor" ? "border-ink bg-ink text-white shadow-soft" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-                  }`}
-                >
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <LayoutTemplate size={16} />
-                    Beépített szerkesztő
-                  </span>
-                  <span className={`mt-1 block text-xs leading-5 ${albumMode === "editor" ? "text-white/70" : "text-graphite/65"}`}>
-                    Favorite listából automatikus oldalpárok és JPG export.
-                  </span>
-                  <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${albumMode === "editor" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
-                    {albumDesigns.length} albumterv
-                  </span>
-                </Link>
-                <Link
-                  href={`/admin/clients/${customer.id}?tab=album&albumMode=upload`}
-                  className={`rounded-md border p-4 transition ${
-                    albumMode === "upload" ? "border-ink bg-ink text-white shadow-soft" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-                  }`}
-                >
-                  <span className="flex items-center gap-2 text-sm font-semibold">
-                    <Upload size={16} />
-                    Egyéni albumterv feltöltése
-                  </span>
-                  <span className={`mt-1 block text-xs leading-5 ${albumMode === "upload" ? "text-white/70" : "text-graphite/65"}`}>
-                    SmartAlbumsból vagy máshonnan exportált JPG oldalpárok ellenőrzése.
-                  </span>
-                  <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${albumMode === "upload" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
-                    {albumReviews.length} ellenőrző
-                  </span>
-                </Link>
-              </div>
-            </div>
-          </section>
-
-          {albumMode === "editor" ? (
+        <AlbumWorkflowTabs
+          initialMode={albumMode}
+          editorCount={albumDesigns.length}
+          reviewCount={albumReviews.length}
+          editorContent={
             <AlbumDesignManager
               customerId={customer.id}
               favoriteLists={albumFavoriteLists.filter((list) => list._count.items > 0)}
               designs={albumDesigns}
             />
-          ) : (
-            <AlbumReviewManager customerId={customer.id} reviews={albumReviews} />
-          )}
-        </div>
+          }
+          uploadContent={<AlbumReviewManager customerId={customer.id} reviews={albumReviews} />}
+        />
       ) : null}
 
       {activeTab === "contracts" ? <ContractManager customerId={customer.id} contracts={customer.contracts} /> : null}
