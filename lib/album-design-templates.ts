@@ -261,18 +261,18 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
   },
   {
     key: "nine-hero-left-grid-right",
-    name: "Bal nagy kép, jobb négyes blokk",
+    name: "Bal nagy kép, jobb nyolcas rács",
     photoCount: 9,
     slots: [
-      { x: 5, y: 16, width: 32, height: 68 },
-      { x: 38, y: 16, width: 24, height: 34 },
-      { x: 62, y: 16, width: 24, height: 34 },
-      { x: 38, y: 50, width: 24, height: 34 },
-      { x: 62, y: 50, width: 24, height: 34 },
-      { x: 86, y: 16, width: 7, height: 34 },
-      { x: 93, y: 16, width: 7, height: 34 },
-      { x: 86, y: 50, width: 7, height: 34 },
-      { x: 93, y: 50, width: 7, height: 34 }
+      { x: 0, y: 0, width: 34, height: 100 },
+      { x: 34, y: 0, width: 16.5, height: 50 },
+      { x: 50.5, y: 0, width: 16.5, height: 50 },
+      { x: 67, y: 0, width: 16.5, height: 50 },
+      { x: 83.5, y: 0, width: 16.5, height: 50 },
+      { x: 34, y: 50, width: 16.5, height: 50 },
+      { x: 50.5, y: 50, width: 16.5, height: 50 },
+      { x: 67, y: 50, width: 16.5, height: 50 },
+      { x: 83.5, y: 50, width: 16.5, height: 50 }
     ]
   },
   {
