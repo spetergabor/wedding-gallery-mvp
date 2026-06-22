@@ -48,7 +48,7 @@ export function AlbumSpreadSlotEditor({
 
   return (
     <div className="mt-4">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-4">
         <div className="rounded-md border border-ink/10 bg-paper p-3">
           <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <p className="flex items-center gap-2 text-sm font-medium text-ink">
@@ -112,11 +112,14 @@ export function AlbumSpreadSlotEditor({
         </div>
 
         <aside className="rounded-md border border-ink/10 bg-paper p-3">
-          <div className="rounded-md bg-white px-3 py-2">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">Aktív slot {selectedSlotIndex + 1}</p>
-            <p className="mt-1 truncate text-sm font-medium text-ink">{selectedItem?.photo.filename ?? "Nincs kép"}</p>
+          <div className="flex flex-col justify-between gap-3 rounded-md bg-white px-3 py-2 sm:flex-row sm:items-center">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">Aktív slot {selectedSlotIndex + 1}</p>
+              <p className="mt-1 truncate text-sm font-medium text-ink">{selectedItem?.photo.filename ?? "Nincs kép"}</p>
+            </div>
+            <p className="text-xs text-graphite/60">Válassz képet az aktív slot cseréjéhez.</p>
           </div>
-          <div className="mt-3 grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
             {photos.map((photo) => {
               const isCurrent = selectedItem?.photo.id === photo.id;
 
@@ -126,7 +129,7 @@ export function AlbumSpreadSlotEditor({
                   <input type="hidden" name="photoId" value={photo.id} />
                   <button
                     type="submit"
-                    className={`grid w-full grid-cols-[64px_minmax(0,1fr)] items-center gap-2 rounded-md border p-1 text-left transition ${
+                    className={`grid w-[220px] shrink-0 grid-cols-[86px_minmax(0,1fr)] items-center gap-2 rounded-md border p-1.5 text-left transition ${
                       isCurrent ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-graphite hover:border-brass hover:bg-brass/10"
                     }`}
                     disabled={isCurrent}
@@ -137,7 +140,7 @@ export function AlbumSpreadSlotEditor({
                         alt={photo.filename}
                         fill
                         unoptimized
-                        sizes="64px"
+                        sizes="86px"
                         className="object-cover"
                       />
                     </span>
