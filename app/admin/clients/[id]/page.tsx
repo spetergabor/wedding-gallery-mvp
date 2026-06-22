@@ -441,6 +441,7 @@ export default async function AdminClientDetailPage({
     albumDesignCreated?: string;
     albumSpreadCreated?: string;
     albumSpreadUpdated?: string;
+    albumSpreadSlotUpdated?: string;
     albumSpreadDeleted?: string;
     albumDesignError?: string;
   }>;
@@ -659,12 +660,14 @@ export default async function AdminClientDetailPage({
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
         {flags.albumSpreadCreated ? <Alert title="Album oldalpár létrehozva." variant="success" /> : null}
         {flags.albumSpreadUpdated ? <Alert title="Album oldalpár frissítve." variant="success" /> : null}
+        {flags.albumSpreadSlotUpdated ? <Alert title="Album oldalpár képe frissítve." variant="success" /> : null}
         {flags.albumSpreadDeleted ? <Alert title="Album oldalpár törölve." variant="success" /> : null}
         {flags.albumError === "no-files" ? <Alert title="Nem választottál ki album oldalpár képet." variant="error" /> : null}
         {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
         {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
         {flags.albumDesignError === "invalid-photos" ? <Alert title="A kiválasztott képek nem ehhez a favorite listához tartoznak." variant="error" /> : null}
+        {flags.albumDesignError === "slot" ? <Alert title="A kiválasztott album slot nem érvényes." variant="error" /> : null}
         {flags.albumDesignError === "missing" ? <Alert title="Az albumterv nem található." variant="error" /> : null}
         {flags.error === "missing" ? (
           <Alert title="Hiányzó kötelező mező." variant="error">

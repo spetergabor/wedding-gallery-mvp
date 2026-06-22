@@ -12,6 +12,13 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function formInteger(formData: FormData, key: string) {
+  const value = formString(formData, key);
+  const parsed = Number.parseInt(value, 10);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function getSelectedPhotoIds(formData: FormData) {
   return [
     ...new Set(
@@ -93,6 +100,34 @@ async function getVerifiedDesignPhotoIds({
   }
 
   return photoIds;
+}
+
+async function requireFavoritePhoto({
+  customerId,
+  favoriteListId,
+  photoId
+}: {
+  customerId: string;
+  favoriteListId: string;
+  photoId: string;
+}) {
+  const photo = await prisma.photo.findFirst({
+    where: {
+      id: photoId,
+      favoriteItems: {
+        some: {
+          listId: favoriteListId
+        }
+      }
+    },
+    select: { id: true }
+  });
+
+  if (!photo) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+  }
+
+  return photo;
 }
 
 export async function createAlbumDesignAction(customerId: string, formData: FormData) {
@@ -217,6 +252,79 @@ export async function updateAlbumDesignSpreadAction(customerId: string, designId
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadUpdated=1`);
+}
+
+export async function updateAlbumDesignSpreadSlotAction(customerId: string, designId: string, spreadId: string, formData: FormData) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+  }
+
+  const slotIndex = formInteger(formData, "slotIndex");
+  const photoId = formString(formData, "photoId");
+
+  if (slotIndex === null || !photoId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=slot`);
+  }
+
+  const spread = await prisma.albumDesignSpread.findFirst({
+    where: {
+      id: spreadId,
+      designId: design.id
+    },
+    select: {
+      id: true,
+      layoutKey: true
+    }
+  });
+
+  if (!spread) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+  }
+
+  const layout = getAlbumLayoutTemplate(spread.layoutKey);
+  const slot = layout.slots[slotIndex];
+
+  if (!slot) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=slot`);
+  }
+
+  await requireFavoritePhoto({
+    customerId,
+    favoriteListId: design.favoriteListId,
+    photoId
+  });
+
+  const item = await prisma.albumDesignSpreadItem.findFirst({
+    where: {
+      spreadId: spread.id,
+      slotIndex
+    },
+    select: { id: true }
+  });
+
+  if (item) {
+    await prisma.albumDesignSpreadItem.update({
+      where: { id: item.id },
+      data: { photoId }
+    });
+  } else {
+    await prisma.albumDesignSpreadItem.create({
+      data: {
+        spreadId: spread.id,
+        photoId,
+        slotIndex,
+        x: slot.x,
+        y: slot.y,
+        width: slot.width,
+        height: slot.height
+      }
+    });
+  }
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
 }
 
 export async function deleteAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string) {

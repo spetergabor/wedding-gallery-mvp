@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { Grid3X3, LayoutTemplate, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { Button } from "@/components/button";
 import {
   createAlbumDesignAction,
@@ -109,35 +110,6 @@ function TemplatePreview({ layoutKey }: { layoutKey: string }) {
             height: `${slot.height}%`
           }}
         />
-      ))}
-    </div>
-  );
-}
-
-function SpreadPreview({ spread }: { spread: AlbumDesign["spreads"][number] }) {
-  return (
-    <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-mist">
-      <div className="absolute left-1/2 top-0 z-10 h-full w-px bg-white/80 shadow-sm" />
-      {spread.items.map((item) => (
-        <div
-          key={item.id}
-          className="absolute overflow-hidden border border-white bg-white"
-          style={{
-            left: `${item.x}%`,
-            top: `${item.y}%`,
-            width: `${item.width}%`,
-            height: `${item.height}%`
-          }}
-        >
-          <Image
-            src={item.photo.thumbnailUrl || item.photo.imageUrl}
-            alt={item.photo.filename}
-            fill
-            unoptimized
-            sizes="(min-width: 1024px) 320px, 100vw"
-            className="object-cover"
-          />
-        </div>
       ))}
     </div>
   );
@@ -320,7 +292,7 @@ export function AlbumDesignManager({
                             </Button>
                           </form>
                         </div>
-                        <SpreadPreview spread={spread} />
+                        <AlbumSpreadSlotEditor customerId={customerId} designId={design.id} spread={spread} photos={sourcePhotos} />
                         <details className="mt-3 rounded-md border border-ink/10 bg-paper">
                           <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium text-ink">
                             <RefreshCcw size={15} />
