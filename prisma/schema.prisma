@@ -83,6 +83,7 @@ model Customer {
   contracts      Contract[]
   galleries      Gallery[]
   albumReviews   AlbumReview[]
+  albumDesigns   AlbumDesign[]
 
   @@index([adminId])
   @@index([customerType])
@@ -144,6 +145,58 @@ model AlbumReviewComment {
   @@index([spreadId])
   @@index([status])
   @@index([createdAt])
+}
+
+model AlbumDesign {
+  id             String   @id @default(cuid())
+  customerId     String
+  favoriteListId String?
+  title          String   @default("Albumterv")
+  status         String   @default("draft")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  favoriteList   GalleryFavoriteList? @relation(fields: [favoriteListId], references: [id], onDelete: SetNull)
+  spreads        AlbumDesignSpread[]
+
+  @@index([customerId])
+  @@index([favoriteListId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AlbumDesignSpread {
+  id        String   @id @default(cuid())
+  designId  String
+  title     String?
+  layoutKey String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  design    AlbumDesign @relation(fields: [designId], references: [id], onDelete: Cascade)
+  items     AlbumDesignSpreadItem[]
+
+  @@index([designId])
+  @@index([designId, sortOrder])
+}
+
+model AlbumDesignSpreadItem {
+  id        String   @id @default(cuid())
+  spreadId  String
+  photoId   String
+  slotIndex Int      @default(0)
+  x         Float
+  y         Float
+  width     Float
+  height    Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  spread    AlbumDesignSpread @relation(fields: [spreadId], references: [id], onDelete: Cascade)
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@index([spreadId])
+  @@index([photoId])
+  @@index([spreadId, slotIndex])
 }
 
 model Contract {
@@ -242,6 +295,7 @@ model Photo {
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   favoriteItems GalleryFavoriteItem[]
   processingJobs MediaProcessingJob[]
+  albumDesignItems AlbumDesignSpreadItem[]
 
   @@index([galleryId])
   @@index([r2Key])
@@ -376,6 +430,7 @@ model GalleryFavoriteList {
   updatedAt DateTime @updatedAt
   gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   items     GalleryFavoriteItem[]
+  albumDesigns AlbumDesign[]
 
   @@unique([galleryId, email, name])
   @@index([galleryId])

@@ -19,6 +19,7 @@ import {
   Upload
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { AlbumDesignManager } from "@/components/album-design-manager";
 import { AlbumReviewManager } from "@/components/album-review-manager";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
@@ -437,6 +438,9 @@ export default async function AdminClientDetailPage({
     albumCreated?: string;
     albumUploaded?: string;
     albumError?: string;
+    albumDesignCreated?: string;
+    albumSpreadCreated?: string;
+    albumDesignError?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -511,6 +515,92 @@ export default async function AdminClientDetailPage({
           }
         })
       : [];
+  const albumFavoriteLists =
+    activeTab === "album"
+      ? await prisma.galleryFavoriteList.findMany({
+          where: {
+            gallery: {
+              customerId: customer.id
+            }
+          },
+          orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
+          include: {
+            gallery: {
+              select: {
+                title: true
+              }
+            },
+            _count: {
+              select: { items: true }
+            },
+            items: {
+              orderBy: { createdAt: "asc" },
+              take: 120,
+              select: {
+                photo: {
+                  select: {
+                    id: true,
+                    filename: true,
+                    imageUrl: true,
+                    thumbnailUrl: true
+                  }
+                }
+              }
+            }
+          }
+        })
+      : [];
+  const albumDesigns =
+    activeTab === "album"
+      ? await prisma.albumDesign.findMany({
+          where: { customerId: customer.id },
+          orderBy: { createdAt: "desc" },
+          include: {
+            favoriteList: {
+              include: {
+                gallery: {
+                  select: { title: true }
+                },
+                _count: {
+                  select: { items: true }
+                },
+                items: {
+                  orderBy: { createdAt: "asc" },
+                  take: 120,
+                  select: {
+                    photo: {
+                      select: {
+                        id: true,
+                        filename: true,
+                        imageUrl: true,
+                        thumbnailUrl: true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            spreads: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              include: {
+                items: {
+                  orderBy: { slotIndex: "asc" },
+                  include: {
+                    photo: {
+                      select: {
+                        id: true,
+                        filename: true,
+                        imageUrl: true,
+                        thumbnailUrl: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        })
+      : [];
   const isEditing = flags.edit === "1";
   const typeLabel = customerTypeLabel(customer.customerType);
   const nextAction = getCustomerWorkflowSummary(customer);
@@ -564,8 +654,14 @@ export default async function AdminClientDetailPage({
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
         {flags.albumUploaded ? <Alert title={`${flags.albumUploaded} album oldalpár feltöltve.`} variant="success" /> : null}
+        {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
+        {flags.albumSpreadCreated ? <Alert title="Album oldalpár létrehozva." variant="success" /> : null}
         {flags.albumError === "no-files" ? <Alert title="Nem választottál ki album oldalpár képet." variant="error" /> : null}
         {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
+        {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
+        {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
+        {flags.albumDesignError === "invalid-photos" ? <Alert title="A kiválasztott képek nem ehhez a favorite listához tartoznak." variant="error" /> : null}
+        {flags.albumDesignError === "missing" ? <Alert title="Az albumterv nem található." variant="error" /> : null}
         {flags.error === "missing" ? (
           <Alert title="Hiányzó kötelező mező." variant="error">
             Az ügyfél/projekt neve és az elsődleges email cím kötelező.
@@ -824,7 +920,14 @@ export default async function AdminClientDetailPage({
       ) : null}
 
       {activeTab === "album" ? (
-        <AlbumReviewManager customerId={customer.id} reviews={albumReviews} />
+        <div className="space-y-6">
+          <AlbumDesignManager
+            customerId={customer.id}
+            favoriteLists={albumFavoriteLists.filter((list) => list._count.items > 0)}
+            designs={albumDesigns}
+          />
+          <AlbumReviewManager customerId={customer.id} reviews={albumReviews} />
+        </div>
       ) : null}
 
       {activeTab === "contracts" ? <ContractManager customerId={customer.id} contracts={customer.contracts} /> : null}
