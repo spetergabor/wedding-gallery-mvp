@@ -13,7 +13,7 @@ import {
   regenerateAlbumDesignSpreadLayoutAction,
   updateAlbumDesignSpreadAction
 } from "@/lib/album-design-actions";
-import { ALBUM_LAYOUT_TEMPLATES } from "@/lib/album-design-templates";
+import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
   id: string;
@@ -104,19 +104,19 @@ function getTemplate(layoutKey: string) {
 
 function TemplatePreview({ layoutKey }: { layoutKey: string }) {
   const template = getTemplate(layoutKey);
+  const inset = ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX;
 
   return (
-    <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white">
-      <div className="absolute left-1/2 top-0 h-full w-px bg-ink/20" />
+    <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10" style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}>
       {template.slots.map((slot, index) => (
         <div
           key={`${template.key}-${index}`}
           className="absolute border border-brass/50 bg-brass/15"
           style={{
-            left: `${slot.x}%`,
-            top: `${slot.y}%`,
-            width: `${slot.width}%`,
-            height: `${slot.height}%`
+            left: `calc(${slot.x}% + ${inset}px)`,
+            top: `calc(${slot.y}% + ${inset}px)`,
+            width: `calc(${slot.width}% - ${inset * 2}px)`,
+            height: `calc(${slot.height}% - ${inset * 2}px)`
           }}
         />
       ))}

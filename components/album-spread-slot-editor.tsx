@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ImageIcon, MousePointer2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { updateAlbumDesignSpreadSlotAction } from "@/lib/album-design-actions";
+import { ALBUM_SPREAD_BACKGROUND, ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
   id: string;
@@ -43,6 +44,7 @@ export function AlbumSpreadSlotEditor({
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(orderedItems[0]?.slotIndex ?? 0);
   const selectedItem = orderedItems.find((item) => item.slotIndex === selectedSlotIndex) ?? orderedItems[0] ?? null;
+  const slotInset = ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX;
 
   return (
     <div className="mt-4">
@@ -72,8 +74,7 @@ export function AlbumSpreadSlotEditor({
               })}
             </div>
           </div>
-          <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-mist">
-            <div className="absolute left-1/2 top-0 z-20 h-full w-px bg-white/80 shadow-sm" />
+          <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10" style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}>
             {orderedItems.map((item) => {
               const isSelected = item.slotIndex === selectedSlotIndex;
 
@@ -86,10 +87,10 @@ export function AlbumSpreadSlotEditor({
                     isSelected ? "z-10 border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.18)]" : "border-white hover:border-brass"
                   }`}
                   style={{
-                    left: `${item.x}%`,
-                    top: `${item.y}%`,
-                    width: `${item.width}%`,
-                    height: `${item.height}%`
+                    left: `calc(${item.x}% + ${slotInset}px)`,
+                    top: `calc(${item.y}% + ${slotInset}px)`,
+                    width: `calc(${item.width}% - ${slotInset * 2}px)`,
+                    height: `calc(${item.height}% - ${slotInset * 2}px)`
                   }}
                   aria-label={`${item.slotIndex + 1}. slot kiválasztása`}
                 >

@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { adminOwnedWhere } from "@/lib/admin-scope";
+import { ALBUM_SPREAD_BACKGROUND, ALBUM_SPREAD_EXPORT_SLOT_INSET_PX } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
 
@@ -34,8 +35,6 @@ export type AlbumDesignSpreadExportData = {
 
 const EXPORT_WIDTH = 3600;
 const EXPORT_HEIGHT = 1800;
-const EXPORT_BACKGROUND = "#ede8df";
-const EXPORT_GUTTER = "#ffffff";
 
 export async function loadAlbumDesignSpreadForExport({
   admin,
@@ -92,8 +91,10 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
         r2Key: photoR2Key,
         publicUrl: item.photo.previewUrl || item.photo.imageUrl
       });
-      const width = Math.max(1, Math.round((item.width / 100) * EXPORT_WIDTH));
-      const height = Math.max(1, Math.round((item.height / 100) * EXPORT_HEIGHT));
+      const slotWidth = Math.round((item.width / 100) * EXPORT_WIDTH);
+      const slotHeight = Math.round((item.height / 100) * EXPORT_HEIGHT);
+      const width = Math.max(1, slotWidth - ALBUM_SPREAD_EXPORT_SLOT_INSET_PX * 2);
+      const height = Math.max(1, slotHeight - ALBUM_SPREAD_EXPORT_SLOT_INSET_PX * 2);
       const input = await sharp(photoBuffer, { failOn: "none" })
         .rotate()
         .resize(width, height, { fit: "cover", position: "centre" })
@@ -102,13 +103,10 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
 
       return {
         input,
-        left: Math.round((item.x / 100) * EXPORT_WIDTH),
-        top: Math.round((item.y / 100) * EXPORT_HEIGHT)
+        left: Math.round((item.x / 100) * EXPORT_WIDTH) + ALBUM_SPREAD_EXPORT_SLOT_INSET_PX,
+        top: Math.round((item.y / 100) * EXPORT_HEIGHT) + ALBUM_SPREAD_EXPORT_SLOT_INSET_PX
       };
     })
-  );
-  const gutterSvg = Buffer.from(
-    `<svg width="${EXPORT_WIDTH}" height="${EXPORT_HEIGHT}" xmlns="http://www.w3.org/2000/svg"><rect x="${EXPORT_WIDTH / 2 - 1}" y="0" width="2" height="${EXPORT_HEIGHT}" fill="${EXPORT_GUTTER}" fill-opacity="0.82"/></svg>`
   );
 
   return sharp({
@@ -116,10 +114,10 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
       width: EXPORT_WIDTH,
       height: EXPORT_HEIGHT,
       channels: 3,
-      background: EXPORT_BACKGROUND
+      background: ALBUM_SPREAD_BACKGROUND
     }
   })
-    .composite([...composites, { input: gutterSvg, left: 0, top: 0 }])
+    .composite(composites)
     .jpeg({ quality: 92, mozjpeg: true })
     .toBuffer();
 }

@@ -12,6 +12,10 @@ export type AlbumLayoutTemplate = {
   slots: AlbumLayoutSlot[];
 };
 
+export const ALBUM_SPREAD_BACKGROUND = "#ffffff";
+export const ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX = 4;
+export const ALBUM_SPREAD_EXPORT_SLOT_INSET_PX = 14;
+
 export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
   {
     key: "spread-hero",
