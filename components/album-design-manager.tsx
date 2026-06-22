@@ -2,9 +2,11 @@ import Image from "next/image";
 import { Grid3X3, LayoutTemplate, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { Button } from "@/components/button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
   createAlbumDesignAction,
   createAlbumDesignSpreadAction,
+  deleteAlbumDesignAction,
   deleteAlbumDesignSpreadAction,
   updateAlbumDesignSpreadAction
 } from "@/lib/album-design-actions";
@@ -206,7 +208,23 @@ export function AlbumDesignManager({
                         {design.favoriteList.email} · {design.favoriteList._count.items} kép · Leadva: {formatDate(design.favoriteList.submittedAt)}
                       </p>
                     ) : null}
+                    {design.spreads.length > 0 ? (
+                      <p className="mt-2 text-sm font-medium text-ink">
+                        Vizuális szerkesztő aktív: kattints egy képslotra, majd válassz új képet.
+                      </p>
+                    ) : null}
                   </div>
+                  <form action={deleteAlbumDesignAction.bind(null, customerId, design.id)} className="shrink-0">
+                    <ConfirmSubmitButton
+                      title="Albumterv törlése"
+                      message="Biztosan törlöd ezt az albumtervet? Az összes hozzá tartozó tervezett oldalpár is törlődik."
+                      variant="danger"
+                      className="h-10 px-3"
+                    >
+                      <Trash2 size={15} />
+                      Albumterv törlése
+                    </ConfirmSubmitButton>
+                  </form>
                 </div>
 
                 {design.favoriteList ? (

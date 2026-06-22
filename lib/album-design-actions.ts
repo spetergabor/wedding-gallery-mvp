@@ -327,6 +327,17 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string, desi
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
 }
 
+export async function deleteAlbumDesignAction(customerId: string, designId: string) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  await prisma.albumDesign.delete({
+    where: { id: design.id }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumDesignDeleted=1`);
+}
+
 export async function deleteAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
   const spread = await prisma.albumDesignSpread.findFirst({
