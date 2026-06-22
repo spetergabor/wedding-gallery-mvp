@@ -98,8 +98,12 @@ function statusLabel(status: string) {
   return status;
 }
 
+function getTemplate(layoutKey: string) {
+  return ALBUM_LAYOUT_TEMPLATES.find((item) => item.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
+}
+
 function TemplatePreview({ layoutKey }: { layoutKey: string }) {
-  const template = ALBUM_LAYOUT_TEMPLATES.find((item) => item.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
+  const template = getTemplate(layoutKey);
 
   return (
     <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white">
@@ -117,6 +121,93 @@ function TemplatePreview({ layoutKey }: { layoutKey: string }) {
         />
       ))}
     </div>
+  );
+}
+
+function AlbumLayoutRadioGrid({ defaultLayoutKey }: { defaultLayoutKey?: string }) {
+  const fallbackLayoutKey = defaultLayoutKey ?? ALBUM_LAYOUT_TEMPLATES[1]?.key ?? ALBUM_LAYOUT_TEMPLATES[0].key;
+
+  return (
+    <div className="grid max-h-72 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+      {ALBUM_LAYOUT_TEMPLATES.map((template) => (
+        <label key={template.key} className="group cursor-pointer rounded-md border border-ink/10 bg-white p-2 transition hover:border-brass">
+          <input name="layoutKey" value={template.key} type="radio" defaultChecked={template.key === fallbackLayoutKey} className="peer sr-only" />
+          <div className="rounded-md border-2 border-transparent transition peer-checked:border-ink">
+            <TemplatePreview layoutKey={template.key} />
+          </div>
+          <span className="mt-2 flex items-start justify-between gap-2 text-xs">
+            <span className="font-medium text-ink">{template.name}</span>
+            <span className="shrink-0 rounded-full bg-ink/5 px-2 py-0.5 text-graphite">{template.photoCount} kép</span>
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function AlbumSpreadCreateForm({
+  customerId,
+  designId,
+  sourcePhotos,
+  title = "Új oldalpár"
+}: {
+  customerId: string;
+  designId: string;
+  sourcePhotos: FavoritePhoto[];
+  title?: string;
+}) {
+  return (
+    <form action={createAlbumDesignSpreadAction.bind(null, customerId, designId)} className="rounded-md border border-ink/10 bg-white p-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+          <div>
+            <p className="text-sm font-medium text-ink">{title}</p>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-graphite/60">
+              Jelölj ki 1-6 képet, majd generálj belőlük automatikus oldalpárt. Ha a kompozíció nem jó, az oldalpárnál az Újragenerálás gombbal másik verziót kapsz.
+            </p>
+          </div>
+          <Button type="submit" formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, designId)} className="shrink-0">
+            <Shuffle size={16} />
+            Automatikus oldalpár
+          </Button>
+        </div>
+
+        <div className="grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+          {sourcePhotos.map((photo) => (
+            <label key={photo.id} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
+              <input name="photoIds" value={photo.id} type="checkbox" className="peer absolute left-2 top-2 z-10 size-4 accent-ink" />
+              <span className="relative block aspect-[4/3]">
+                <Image
+                  src={photo.thumbnailUrl || photo.imageUrl}
+                  alt={photo.filename}
+                  fill
+                  unoptimized
+                  sizes="160px"
+                  className="object-cover transition group-hover:scale-[1.02]"
+                />
+              </span>
+              <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
+                {photo.filename}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <details className="rounded-md border border-ink/10 bg-paper">
+          <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
+            <Grid3X3 size={15} />
+            Kézi layout választása
+          </summary>
+          <div className="border-t border-ink/10 p-3">
+            <AlbumLayoutRadioGrid />
+            <Button type="submit" variant="secondary" className="mt-3">
+              <Grid3X3 size={16} />
+              Kézi layout létrehozása
+            </Button>
+          </div>
+        </details>
+      </div>
+    </form>
   );
 }
 
@@ -245,78 +336,9 @@ export function AlbumDesignManager({
                 </div>
 
                 {design.favoriteList ? (
-                  <form action={createAlbumDesignSpreadAction.bind(null, customerId, design.id)} className="mt-5 rounded-md border border-ink/10 bg-white p-4">
-                    <div className="flex flex-col gap-4">
-                      <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-                        <div>
-                          <p className="text-sm font-medium text-ink">Új oldalpár</p>
-                          <p className="mt-1 max-w-2xl text-xs leading-5 text-graphite/60">
-                            Jelölj ki 1-6 képet, majd generálj belőlük automatikus oldalpárt. Ha a kompozíció nem jó, az oldalpárnál az Újragenerálás gombbal másik verziót kapsz.
-                          </p>
-                        </div>
-                        <Button type="submit" formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, design.id)} className="shrink-0">
-                          <Shuffle size={16} />
-                          Automatikus oldalpár
-                        </Button>
-                      </div>
-
-                      <div className="grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
-                        {sourcePhotos.map((photo) => (
-                          <label key={photo.id} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
-                            <input name="photoIds" value={photo.id} type="checkbox" className="peer absolute left-2 top-2 z-10 size-4 accent-ink" />
-                            <span className="relative block aspect-[4/3]">
-                              <Image
-                                src={photo.thumbnailUrl || photo.imageUrl}
-                                alt={photo.filename}
-                                fill
-                                unoptimized
-                                sizes="160px"
-                                className="object-cover transition group-hover:scale-[1.02]"
-                              />
-                            </span>
-                            <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
-                              {photo.filename}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-
-                      <details className="rounded-md border border-ink/10 bg-paper">
-                        <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
-                          <Grid3X3 size={15} />
-                          Kézi layout választása
-                        </summary>
-                        <div className="grid gap-4 border-t border-ink/10 p-3 xl:grid-cols-[260px_minmax(0,1fr)]">
-                          <div>
-                            <label className="block text-xs font-medium uppercase tracking-[0.14em] text-graphite/70">Layout template</label>
-                            <select
-                              name="layoutKey"
-                              className="mt-2 h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                              defaultValue={ALBUM_LAYOUT_TEMPLATES[1]?.key ?? ALBUM_LAYOUT_TEMPLATES[0].key}
-                            >
-                              {ALBUM_LAYOUT_TEMPLATES.map((template) => (
-                                <option key={template.key} value={template.key}>
-                                  {template.name} · {template.photoCount} kép
-                                </option>
-                              ))}
-                            </select>
-                            <Button type="submit" variant="secondary" className="mt-3 w-full">
-                              <Grid3X3 size={16} />
-                              Kézi layout létrehozása
-                            </Button>
-                          </div>
-                          <div className="grid max-h-64 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                            {ALBUM_LAYOUT_TEMPLATES.map((template) => (
-                              <div key={template.key} className="rounded-md bg-white p-2">
-                                <TemplatePreview layoutKey={template.key} />
-                                <p className="mt-1 truncate text-xs text-graphite/60">{template.name}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </details>
-                    </div>
-                  </form>
+                  <div className="mt-5">
+                    <AlbumSpreadCreateForm customerId={customerId} designId={design.id} sourcePhotos={sourcePhotos} />
+                  </div>
                 ) : null}
 
                 {design.spreads.length > 0 ? (
@@ -327,7 +349,7 @@ export function AlbumDesignManager({
                           <div>
                             <p className="text-lg font-semibold text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
                             <p className="mt-0.5 text-xs text-graphite/60">
-                              {spread.layoutKey} · {spread.items.length} kép
+                              {getTemplate(spread.layoutKey).name} · {spread.items.length} kép
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -359,20 +381,12 @@ export function AlbumDesignManager({
                             Layout és képkészlet cseréje
                           </summary>
                           <form action={updateAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)} className="border-t border-ink/10 p-3">
-                            <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+                            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                               <div>
-                                <label className="block text-xs font-medium uppercase tracking-[0.14em] text-graphite/70">Layout</label>
-                                <select
-                                  name="layoutKey"
-                                  className="mt-2 h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                                  defaultValue={spread.layoutKey}
-                                >
-                                  {ALBUM_LAYOUT_TEMPLATES.map((template) => (
-                                    <option key={template.key} value={template.key}>
-                                      {template.name} · {template.photoCount} kép
-                                    </option>
-                                  ))}
-                                </select>
+                                <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/70">Layout</p>
+                                <div className="mt-2">
+                                  <AlbumLayoutRadioGrid defaultLayoutKey={spread.layoutKey} />
+                                </div>
                                 <Button type="submit" className="mt-3 w-full">
                                   <RefreshCcw size={15} />
                                   Mentés
@@ -418,6 +432,22 @@ export function AlbumDesignManager({
                         </details>
                       </div>
                     ))}
+                    {design.favoriteList ? (
+                      <details className="rounded-lg border border-dashed border-ink/20 bg-white">
+                        <summary className="flex cursor-pointer items-center justify-center gap-2 px-4 py-4 text-sm font-medium text-ink transition hover:bg-paper">
+                          <Plus size={16} />
+                          További oldalpár létrehozása
+                        </summary>
+                        <div className="border-t border-ink/10 p-4">
+                          <AlbumSpreadCreateForm
+                            customerId={customerId}
+                            designId={design.id}
+                            sourcePhotos={sourcePhotos}
+                            title="További oldalpár"
+                          />
+                        </div>
+                      </details>
+                    ) : null}
                   </div>
                 ) : null}
               </article>
