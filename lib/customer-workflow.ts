@@ -6,6 +6,7 @@ import {
   PROOFING_STATUS_PROCESSING,
   PROOFING_STATUS_SUBMITTED
 } from "@/lib/proofing";
+import { normalizeCustomerStatus } from "@/lib/customer-options";
 
 export const CUSTOMER_WORKFLOW_LANES = [
   { value: "needs_work", label: "Most dolgozni kell rajta" },
@@ -43,6 +44,7 @@ type WorkflowGallery = {
 
 type WorkflowCustomer = {
   id: string;
+  status: string;
   galleries: WorkflowGallery[];
 };
 
@@ -56,12 +58,28 @@ export function normalizeCustomerWorkflowLane(value: string | null | undefined) 
 
 export function getCustomerWorkflowSummary(customer: WorkflowCustomer): CustomerWorkflowSummary {
   const latestGallery = customer.galleries[0] ?? null;
+  const normalizedStatus = normalizeCustomerStatus(customer.status);
+  const manuallyCompleted = normalizedStatus === "delivered" || normalizedStatus === "archived";
   const proofingGallery = customer.galleries.find(
     (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
   );
   const finishedProofingGallery = customer.galleries.find(
     (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && gallery.proofingStatus === PROOFING_STATUS_DELIVERED
   );
+
+  if (manuallyCompleted) {
+    const lane = "complete" satisfies CustomerWorkflowLane;
+
+    return {
+      lane,
+      laneLabel: laneLabel(lane),
+      iconKey: "check" satisfies CustomerWorkflowIconKey,
+      title: normalizedStatus === "archived" ? "Archivált ügyfél" : "Kézzel készre állítva",
+      description: "Ez az ügyfél azért van kész állapotban, mert te így állítottad be az ügyfél státuszát. A feltöltött galéria önmagában nem zárja le a folyamatot.",
+      href: latestGallery ? `/admin/galleries/${latestGallery.id}` : `/admin/clients/${customer.id}?edit=1`,
+      buttonLabel: latestGallery ? "Galéria megnyitása" : "Státusz szerkesztése"
+    };
+  }
 
   if (!latestGallery) {
     const lane = "needs_work" satisfies CustomerWorkflowLane;
@@ -145,29 +163,29 @@ export function getCustomerWorkflowSummary(customer: WorkflowCustomer): Customer
   }
 
   if (finishedProofingGallery) {
-    const lane = finishedProofingGallery.finalDeliveryEmailSentAt ? "complete" : "delivery_ready";
+    const lane = finishedProofingGallery.finalDeliveryEmailSentAt ? "waiting_client" : "delivery_ready";
 
     return {
       lane,
       laneLabel: laneLabel(lane),
       iconKey: "check" satisfies CustomerWorkflowIconKey,
-      title: "Kész képek átadva",
+      title: finishedProofingGallery.finalDeliveryEmailSentAt ? "Átadás kiküldve" : "Kész képek átadásra várnak",
       description: finishedProofingGallery.finalDeliveryEmailSentAt
-        ? "A kész galéria átadás emailje már ki lett küldve. Innen visszanézheted vagy újraküldheted."
-        : "A kész galéria átadott státuszban van. Ellenőrizheted az átadás email állapotát.",
+        ? "A kész galéria átadás emailje már ki lett küldve, de az ügyfelet csak te állítod készre az ügyfél státuszával."
+        : "A kész galéria átadott állapotban van, de az ügyfél folyamatát kézzel érdemes lezárni.",
       href: `/admin/galleries/${finishedProofingGallery.id}?tab=client`,
       buttonLabel: "Átadás megnyitása"
     };
   }
 
-  const lane = "complete" satisfies CustomerWorkflowLane;
+  const lane = "waiting_client" satisfies CustomerWorkflowLane;
 
   return {
     lane,
     laneLabel: laneLabel(lane),
     iconKey: "camera" satisfies CustomerWorkflowIconKey,
-    title: "Galéria rendben",
-    description: "Van aktív galéria ehhez az ügyfélhez. Itt tudod folytatni a feltöltést, beállításokat vagy átadást.",
+    title: "Galéria használatban",
+    description: "A galéria fent van, de az ügyfél még válogathat, kedvenceket készíthet vagy visszajelezhet. Készre csak kézzel, az ügyfél státuszával állítod.",
     href: `/admin/galleries/${latestGallery.id}`,
     buttonLabel: "Galéria megnyitása"
   };
