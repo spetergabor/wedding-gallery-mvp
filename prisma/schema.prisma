@@ -82,12 +82,68 @@ model Customer {
   admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   contracts      Contract[]
   galleries      Gallery[]
+  albumReviews   AlbumReview[]
 
   @@index([adminId])
   @@index([customerType])
   @@index([status])
   @@index([weddingDate])
   @@index([primaryEmail])
+}
+
+model AlbumReview {
+  id          String   @id @default(cuid())
+  customerId  String
+  title       String   @default("Album ellenőrző")
+  status      String   @default("draft")
+  accessToken String   @unique
+  clientEmail String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  spreads     AlbumReviewSpread[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([accessToken])
+}
+
+model AlbumReviewSpread {
+  id          String   @id @default(cuid())
+  reviewId    String
+  title       String?
+  filename    String
+  r2Key       String
+  imageUrl    String
+  fileSize    Int      @default(0)
+  imageWidth  Int      @default(0)
+  imageHeight Int      @default(0)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  review      AlbumReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  comments    AlbumReviewComment[]
+
+  @@index([reviewId])
+  @@index([reviewId, sortOrder])
+  @@index([r2Key])
+}
+
+model AlbumReviewComment {
+  id        String   @id @default(cuid())
+  spreadId  String
+  x         Float
+  y         Float
+  text      String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  spread    AlbumReviewSpread @relation(fields: [spreadId], references: [id], onDelete: Cascade)
+
+  @@index([spreadId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Contract {

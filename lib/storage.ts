@@ -161,6 +161,22 @@ export function createContractObjectKey({
   return `contracts/${customerId}/${uniqueName}`;
 }
 
+export function createAlbumReviewSpreadObjectKey({
+  customerId,
+  reviewId,
+  originalFilename
+}: {
+  customerId: string;
+  reviewId: string;
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".jpg";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "album";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `album-reviews/${customerId}/${reviewId}/${uniqueName}`;
+}
+
 export function createSignedContractObjectKey({
   customerId,
   contractId

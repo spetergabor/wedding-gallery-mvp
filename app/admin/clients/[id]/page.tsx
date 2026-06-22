@@ -10,6 +10,7 @@ import {
   ExternalLink,
   FileText,
   Heart,
+  ImagePlus,
   Mail,
   MessageSquare,
   Plus,
@@ -18,6 +19,7 @@ import {
   Upload
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { AlbumReviewManager } from "@/components/album-review-manager";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -83,7 +85,7 @@ type TimelineEvent = {
   href?: string;
 };
 
-type CustomerTab = "overview" | "galleries" | "proofing" | "contracts" | "communication" | "details";
+type CustomerTab = "overview" | "galleries" | "proofing" | "album" | "contracts" | "communication" | "details";
 
 const customerTabs: Array<{
   key: CustomerTab;
@@ -93,6 +95,7 @@ const customerTabs: Array<{
   { key: "overview", label: "Áttekintés", icon: CheckCircle2 },
   { key: "galleries", label: "Galériák", icon: Camera },
   { key: "proofing", label: "Válogatás", icon: Heart },
+  { key: "album", label: "Album", icon: ImagePlus },
   { key: "contracts", label: "Szerződések", icon: FileText },
   { key: "communication", label: "Kommunikáció", icon: MessageSquare },
   { key: "details", label: "Adatok", icon: Settings }
@@ -431,6 +434,9 @@ export default async function AdminClientDetailPage({
     edit?: string;
     statusUpdated?: string;
     tab?: string;
+    albumCreated?: string;
+    albumUploaded?: string;
+    albumError?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -477,6 +483,19 @@ export default async function AdminClientDetailPage({
           },
           _count: {
             select: { photos: true }
+          }
+        }
+      },
+      albumReviews: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          spreads: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            include: {
+              comments: {
+                orderBy: { createdAt: "asc" }
+              }
+            }
           }
         }
       }
@@ -539,6 +558,10 @@ export default async function AdminClientDetailPage({
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
+        {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
+        {flags.albumUploaded ? <Alert title={`${flags.albumUploaded} album oldalpár feltöltve.`} variant="success" /> : null}
+        {flags.albumError === "no-files" ? <Alert title="Nem választottál ki album oldalpár képet." variant="error" /> : null}
+        {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
         {flags.error === "missing" ? (
           <Alert title="Hiányzó kötelező mező." variant="error">
             Az ügyfél/projekt neve és az elsődleges email cím kötelező.
@@ -586,7 +609,7 @@ export default async function AdminClientDetailPage({
       </section>
 
       <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
-        <nav className="grid gap-2 lg:grid-cols-6" aria-label="Ügyfél munkaterületek">
+        <nav className="grid gap-2 md:grid-cols-2 xl:grid-cols-7" aria-label="Ügyfél munkaterületek">
           {customerTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.key;
@@ -794,6 +817,10 @@ export default async function AdminClientDetailPage({
             </div>
           )}
         </section>
+      ) : null}
+
+      {activeTab === "album" ? (
+        <AlbumReviewManager customerId={customer.id} reviews={customer.albumReviews} />
       ) : null}
 
       {activeTab === "contracts" ? <ContractManager customerId={customer.id} contracts={customer.contracts} /> : null}
