@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
-import { Check, CheckCircle2, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon, RefreshCw } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, CheckCircle2, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon, RefreshCw, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/button";
 import { SocialShareButtons } from "@/components/social-share-buttons";
-import { toggleClientPhotoVisibilityAction } from "@/lib/client-gallery-actions";
+import { saveClientPhotoVisibilityChangesAction } from "@/lib/client-gallery-actions";
 
 type ClientPhoto = {
   id: string;
@@ -19,7 +19,7 @@ type ClientPhoto = {
 };
 
 type SaveNotice = {
-  hidden: boolean;
+  hiddenCount: number;
   zipRefreshing: boolean;
 };
 
@@ -51,13 +51,30 @@ export function ClientGalleryReview({
   const [hiddenPhotoIds, setHiddenPhotoIds] = useState<Set<string>>(
     () => new Set(photos.filter((photo) => photo.isClientHidden).map((photo) => photo.id))
   );
-  const [pendingPhotoId, setPendingPhotoId] = useState<string | null>(null);
+  const [savedHiddenPhotoIds, setSavedHiddenPhotoIds] = useState<Set<string>>(
+    () => new Set(photos.filter((photo) => photo.isClientHidden).map((photo) => photo.id))
+  );
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [saveNotice, setSaveNotice] = useState<SaveNotice | null>(null);
   const [copied, setCopied] = useState(false);
   const publicHref = `/g/${publicSlug}`;
   const hiddenCount = hiddenPhotoIds.size;
   const visibleCount = photos.length - hiddenCount;
+  const reviewedPhotoIds = useMemo(() => photos.map((photo) => photo.id), [photos]);
+  const hasUnsavedChanges = useMemo(() => {
+    if (hiddenPhotoIds.size !== savedHiddenPhotoIds.size) {
+      return true;
+    }
+
+    for (const photoId of hiddenPhotoIds) {
+      if (!savedHiddenPhotoIds.has(photoId)) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [hiddenPhotoIds, savedHiddenPhotoIds]);
 
   async function copyPublicLink() {
     const publicUrl = new URL(publicHref, window.location.origin).toString();
@@ -71,41 +88,54 @@ export function ClientGalleryReview({
     }
   }
 
-  async function togglePhoto(photoId: string) {
-    const nextHidden = !hiddenPhotoIds.has(photoId);
-    setPendingPhotoId(photoId);
+  function togglePhoto(photoId: string) {
     setError("");
-
-    const result = await toggleClientPhotoVisibilityAction({
-      galleryId,
-      photoId,
-      token,
-      hidden: nextHidden
-    });
-
-    if (!result.ok) {
-      setError(result.message ?? "Die Sichtbarkeit des Fotos konnte nicht geändert werden.");
-      setPendingPhotoId(null);
-      return;
-    }
+    setSaveNotice(null);
 
     setHiddenPhotoIds((current) => {
       const next = new Set(current);
 
-      if (nextHidden) {
-        next.add(photoId);
-      } else {
+      if (next.has(photoId)) {
         next.delete(photoId);
+      } else {
+        next.add(photoId);
       }
 
       return next;
     });
+  }
+
+  function resetChanges() {
+    setHiddenPhotoIds(new Set(savedHiddenPhotoIds));
+    setError("");
+    setSaveNotice(null);
+  }
+
+  async function saveChanges() {
+    setIsSaving(true);
+    setError("");
+    setSaveNotice(null);
+
+    const result = await saveClientPhotoVisibilityChangesAction({
+      galleryId,
+      token,
+      reviewedPhotoIds,
+      hiddenPhotoIds: Array.from(hiddenPhotoIds)
+    });
+
+    if (!result.ok) {
+      setError(result.message ?? "Die Sichtbarkeit der Fotos konnte nicht gespeichert werden.");
+      setIsSaving(false);
+      return;
+    }
+
+    setSavedHiddenPhotoIds(new Set(hiddenPhotoIds));
     setSaveNotice({
-      hidden: nextHidden,
+      hiddenCount: result.hiddenCount ?? hiddenPhotoIds.size,
       zipRefreshing: Boolean(result.zipRefreshing)
     });
     window.setTimeout(() => setSaveNotice(null), 4500);
-    setPendingPhotoId(null);
+    setIsSaving(false);
   }
 
   return (
@@ -122,7 +152,7 @@ export function ClientGalleryReview({
               {visibleCount} sichtbar · {hiddenCount} ausgeblendet
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
-              Jede Änderung wird sofort gespeichert. Die öffentliche Galerie und das Download-Paket werden automatisch aktualisiert.
+              Wählt in Ruhe aus. Eure Änderungen werden erst übernommen, wenn ihr unten speichert; danach werden die öffentliche Galerie und das Download-Paket aktualisiert.
             </p>
           </div>
           <div className="grid min-w-[220px] grid-cols-2 gap-2 text-center">
@@ -143,7 +173,7 @@ export function ClientGalleryReview({
               <CheckCircle2 className="mt-0.5 shrink-0 text-sage" size={17} />
               <div>
                 <p className="font-medium">
-                  Gespeichert: Das Foto ist jetzt {saveNotice.hidden ? "nicht mehr für Gäste sichtbar" : "wieder für Gäste sichtbar"}.
+                  Gespeichert: {photos.length - saveNotice.hiddenCount} Fotos sind sichtbar, {saveNotice.hiddenCount} sind ausgeblendet.
                 </p>
                 <p className="mt-1 text-graphite/70">
                   Die öffentliche Galerie ist aktualisiert.
@@ -172,10 +202,11 @@ export function ClientGalleryReview({
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {photos.map((photo) => {
           const isHidden = hiddenPhotoIds.has(photo.id);
-          const isPending = pendingPhotoId === photo.id;
+          const wasHidden = savedHiddenPhotoIds.has(photo.id);
+          const hasDraftChange = isHidden !== wasHidden;
 
           return (
-            <article key={photo.id} className={`overflow-hidden rounded-lg border bg-white shadow-soft ${isHidden ? "border-brass/40" : "border-ink/10"}`}>
+            <article key={photo.id} className={`overflow-hidden rounded-lg border bg-white shadow-soft ${isHidden ? "border-brass/40" : hasDraftChange ? "border-sage/50" : "border-ink/10"}`}>
               <div className="relative aspect-[4/3] bg-mist">
                 {photo.mediaType === "video" ? (
                   <div className={`relative h-full w-full bg-ink transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
@@ -216,6 +247,12 @@ export function ClientGalleryReview({
                     Für Gäste sichtbar
                   </span>
                 )}
+                {hasDraftChange ? (
+                  <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-md bg-sage px-2.5 py-1 text-xs font-medium text-white shadow-soft">
+                    <Save size={13} />
+                    Ungespeichert
+                  </span>
+                ) : null}
               </div>
               <div className="space-y-3 p-3">
                 <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
@@ -228,11 +265,11 @@ export function ClientGalleryReview({
                   type="button"
                   variant={isHidden ? "secondary" : "danger"}
                   className="w-full"
-                  disabled={isPending}
-                  onClick={() => void togglePhoto(photo.id)}
+                  disabled={isSaving}
+                  onClick={() => togglePhoto(photo.id)}
                 >
-                  {isPending ? <RefreshCw className="animate-spin" size={16} /> : isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
-                  {isPending ? "Wird gespeichert" : isHidden ? "Für Gäste wieder anzeigen" : "Für Gäste ausblenden"}
+                  {isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+                  {isHidden ? "Für Gäste wieder anzeigen" : "Für Gäste ausblenden"}
                 </Button>
               </div>
             </article>
@@ -243,7 +280,7 @@ export function ClientGalleryReview({
       <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 text-center shadow-soft">
         <p className="text-lg font-semibold text-ink">Seid ihr mit dem Ausblenden fertig?</p>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-graphite/70">
-          Ihr müsst nichts extra speichern. In der öffentlichen Galerie erscheinen nur die Fotos, die als sichtbar markiert sind; den Link könnt ihr an Familie und Gäste weitergeben.
+          Speichert die Auswahl, wenn alles passt. Erst danach erscheinen die Änderungen in der öffentlichen Galerie und im Gäste-Download.
         </p>
         <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
           <Button type="button" variant="secondary" onClick={copyPublicLink}>
@@ -262,6 +299,31 @@ export function ClientGalleryReview({
           <SocialShareButtons path={publicHref} title={title} variant="card" />
         </div>
       </section>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink/10 bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(31,29,26,0.12)] backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink">
+              {hiddenCount} ausgeblendet · {visibleCount} sichtbar
+            </p>
+            <p className="mt-0.5 text-xs text-graphite/70">
+              {hasUnsavedChanges
+                ? "Ungespeicherte Änderungen. Speichern aktualisiert die Gästegalerie und startet ein neues Download-Paket."
+                : "Alles gespeichert. Das aktuelle Download-Paket passt zur Auswahl."}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button type="button" variant="secondary" disabled={!hasUnsavedChanges || isSaving} onClick={resetChanges}>
+              <RotateCcw size={16} />
+              Zurücksetzen
+            </Button>
+            <Button type="button" disabled={!hasUnsavedChanges || isSaving} onClick={() => void saveChanges()}>
+              {isSaving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
+              {isSaving ? "Wird gespeichert" : "Auswahl speichern"}
+            </Button>
+          </div>
+        </div>
+      </div>
     </>
   );
 }

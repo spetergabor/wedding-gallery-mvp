@@ -63,7 +63,7 @@ export default async function ClientGalleryReviewPage({
             <div>
               <h1 className="text-4xl font-semibold text-ink">{gallery.title}</h1>
               <p className="mt-3 max-w-2xl text-graphite/70">
-                Hier legt ihr fest, welche Fotos Familie und Gäste in der öffentlichen Galerie sehen und herunterladen können. Änderungen werden sofort gespeichert.
+                Hier legt ihr fest, welche Fotos Familie und Gäste in der öffentlichen Galerie sehen und herunterladen können. Geht die Auswahl in Ruhe durch und speichert sie am Ende.
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-md bg-paper px-4 py-3 text-sm text-graphite">
@@ -74,7 +74,7 @@ export default async function ClientGalleryReviewPage({
         </div>
       </header>
 
-      <section className="mx-auto w-full max-w-7xl px-5 py-8 lg:px-8">
+      <section className="mx-auto w-full max-w-7xl px-5 pb-32 pt-8 lg:px-8">
         <ClientGalleryReview
           galleryId={gallery.id}
           publicSlug={gallery.slug}

@@ -6,16 +6,16 @@ import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages
 import { kickGalleryZipJobs, preparePublicGalleryZipPackages } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
 
-export async function toggleClientPhotoVisibilityAction({
+export async function saveClientPhotoVisibilityChangesAction({
   galleryId,
-  photoId,
   token,
-  hidden
+  reviewedPhotoIds,
+  hiddenPhotoIds
 }: {
   galleryId: string;
-  photoId: string;
   token: string;
-  hidden: boolean;
+  reviewedPhotoIds: string[];
+  hiddenPhotoIds: string[];
 }) {
   const gallery = await prisma.gallery.findFirst({
     where: {
@@ -35,30 +35,54 @@ export async function toggleClientPhotoVisibilityAction({
     };
   }
 
-  const photo = await prisma.photo.findFirst({
-    where: {
-      id: photoId,
-      galleryId
-    },
-    select: {
-      id: true
-    }
+  const photos = await prisma.photo.findMany({
+    where: { galleryId },
+    select: { id: true }
   });
+  const validPhotoIds = new Set(photos.map((photo) => photo.id));
+  const nextReviewedPhotoIds = Array.from(new Set(reviewedPhotoIds)).filter((photoId) => validPhotoIds.has(photoId));
+  const nextHiddenPhotoIds = Array.from(new Set(hiddenPhotoIds)).filter((photoId) => validPhotoIds.has(photoId));
 
-  if (!photo) {
+  if (nextReviewedPhotoIds.length !== reviewedPhotoIds.length || nextHiddenPhotoIds.length !== hiddenPhotoIds.length) {
     return {
       ok: false,
-      message: "Das Foto wurde nicht gefunden."
+      message: "Einige Fotos konnten nicht zugeordnet werden."
     };
   }
 
-  await prisma.photo.update({
-    where: { id: photoId },
-    data: {
-      isClientHidden: hidden,
-      clientHiddenAt: hidden ? new Date() : null
-    }
-  });
+  const reviewedPhotoIdSet = new Set(nextReviewedPhotoIds);
+
+  if (nextHiddenPhotoIds.some((photoId) => !reviewedPhotoIdSet.has(photoId))) {
+    return {
+      ok: false,
+      message: "Einige Fotos konnten nicht zugeordnet werden."
+    };
+  }
+
+  const now = new Date();
+
+  await prisma.$transaction([
+    prisma.photo.updateMany({
+      where: {
+        galleryId,
+        id: { in: nextHiddenPhotoIds }
+      },
+      data: {
+        isClientHidden: true,
+        clientHiddenAt: now
+      }
+    }),
+    prisma.photo.updateMany({
+      where: {
+        galleryId,
+        id: { in: nextReviewedPhotoIds.filter((photoId) => !nextHiddenPhotoIds.includes(photoId)) }
+      },
+      data: {
+        isClientHidden: false,
+        clientHiddenAt: null
+      }
+    })
+  ]);
   await invalidatePublicGalleryDownloadPackages(galleryId);
   const zipResult = await preparePublicGalleryZipPackages(galleryId);
 
@@ -74,7 +98,7 @@ export async function toggleClientPhotoVisibilityAction({
 
   return {
     ok: true,
-    hidden,
+    hiddenCount: nextHiddenPhotoIds.length,
     zipStatus: zipResult.ok ? zipResult.status : null,
     zipRefreshing: zipResult.ok && !zipResult.cached
   };
