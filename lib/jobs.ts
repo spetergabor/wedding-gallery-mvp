@@ -17,6 +17,7 @@ import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGaller
 
 export const ZIP_GENERATION_JOB = "zip_generation";
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
+const REMOTE_FILE_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -152,26 +153,39 @@ function safeRevalidatePath(path: string) {
 function createRemoteFileStream(photo: { filename: string; imageUrl: string }) {
   return Readable.from(
     (async function* () {
-      const response = await fetch(photo.imageUrl, { cache: "no-store" });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`${photo.filename} konnte nicht geladen werden.`);
-      }
-
-      const reader = response.body.getReader();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REMOTE_FILE_FETCH_TIMEOUT_MS);
 
       try {
-        while (true) {
-          const result = await reader.read();
+        const response = await fetch(photo.imageUrl, { cache: "no-store", signal: controller.signal });
 
-          if (result.done) {
-            break;
-          }
-
-          yield Buffer.from(result.value);
+        if (!response.ok || !response.body) {
+          throw new Error(`${photo.filename} konnte nicht geladen werden.`);
         }
+
+        const reader = response.body.getReader();
+
+        try {
+          while (true) {
+            const result = await reader.read();
+
+            if (result.done) {
+              break;
+            }
+
+            yield Buffer.from(result.value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new Error(`${photo.filename} letöltése túl sokáig tartott.`);
+        }
+
+        throw error;
       } finally {
-        reader.releaseLock();
+        clearTimeout(timeout);
       }
     })()
   );
@@ -241,7 +255,7 @@ async function triggerExternalZipWorker(payload: ZipGenerationPayload) {
     const { tasks } = await import("@trigger.dev/sdk/v3");
 
     await tasks.trigger("gallery-zip", payload, {
-      idempotencyKey: payload.packageId,
+      idempotencyKey: payload.jobId ?? payload.packageId,
       queue: "gallery-zip",
       tags: [`gallery:${payload.galleryId}`, `package:${payload.packageId}`]
     });
@@ -737,13 +751,13 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     zip.pipe(zipStream);
 
     for (const [index, photo] of gallery.photos.entries()) {
-      const mediaStream = photo.r2Key
-        ? createPhotoReadStream({
+      const mediaStream = photo.imageUrl
+        ? createRemoteFileStream(photo)
+        : createPhotoReadStream({
             r2Key: photo.r2Key,
             publicUrl: photo.imageUrl,
             byteLength: photo.fileSize
-          })
-        : createRemoteFileStream(photo);
+          });
 
       zip.append(mediaStream, {
         name: photoZipFileName(photo.filename, downloadPackage.photoOffset + index)
