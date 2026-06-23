@@ -305,7 +305,7 @@ export function AlbumDesignManager({
                     ) : null}
                     {design.spreads.length > 0 ? (
                       <p className="mt-2 text-sm font-medium text-ink/80">
-                        Munkapad aktív: egy oldalpárt szerkesztesz, alul tudsz váltani a többi oldalpárra.
+                        Minden oldalpár teljes szélességben látszik, a képcserét az adott oldalpár alatt nyithatod meg.
                       </p>
                     ) : null}
                   </div>

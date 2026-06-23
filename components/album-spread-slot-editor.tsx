@@ -182,7 +182,7 @@ export function AlbumSpreadSlotEditor({
   }
 
   return (
-    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="mt-4 space-y-3">
       <div className="rounded-md border border-ink/10 bg-paper p-3">
         <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p className="flex items-center gap-2 text-sm font-medium text-ink">
@@ -252,14 +252,16 @@ export function AlbumSpreadSlotEditor({
         </div>
       </div>
 
-      <aside className="rounded-md border border-ink/10 bg-paper p-3 xl:sticky xl:top-4 xl:self-start">
-        <div className="rounded-md bg-white p-3">
+      <div className="rounded-md border border-ink/10 bg-paper p-3">
+        <div className="flex flex-col gap-3 rounded-md bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">Aktív slot {selectedSlotIndex + 1}</p>
-          <p className="mt-1 truncate text-base font-semibold text-ink">{selectedItem?.photo.filename ?? "Nincs kép"}</p>
-          <p className="mt-2 text-xs leading-5 text-graphite/60">
-            {hasChanges ? "Nem mentett módosítások vannak. Mentésig csak ezen a munkapadon változik." : "Képet húzással pozicionálsz, alul pedig gyorsan cserélheted."}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold text-ink">{selectedItem?.photo.filename ?? "Nincs kép"}</p>
+            <p className="mt-1 text-xs leading-5 text-graphite/60">
+              {hasChanges ? "Nem mentett módosítások vannak. Mentésig csak ebben a nézetben változik." : "Képet húzással pozicionálsz a sloton belül."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={centerSelectedSlotCrop}
@@ -278,90 +280,99 @@ export function AlbumSpreadSlotEditor({
               <RotateCcw size={14} />
               Vissza
             </button>
+            <form action={saveAlbumDesignSpreadSlotDraftAction.bind(null, customerId, designId, spread.id)}>
+              {draftItems.map((item) => (
+                <span key={`slot-draft-${item.slotIndex}`}>
+                  <input type="hidden" name="slotPhotoIds" value={item.photo.id} />
+                  <input type="hidden" name="slotCropX" value={formatCropPosition(item.cropX)} />
+                  <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />
+                </span>
+              ))}
+              <button
+                type="submit"
+                disabled={!hasChanges}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-ink px-3 text-xs font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Save size={14} />
+                Mentés
+              </button>
+            </form>
           </div>
-          <form action={saveAlbumDesignSpreadSlotDraftAction.bind(null, customerId, designId, spread.id)} className="mt-2">
-            {draftItems.map((item) => (
-              <span key={`slot-draft-${item.slotIndex}`}>
-                <input type="hidden" name="slotPhotoIds" value={item.photo.id} />
-                <input type="hidden" name="slotCropX" value={formatCropPosition(item.cropX)} />
-                <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />
-              </span>
-            ))}
-            <button
-              type="submit"
-              disabled={!hasChanges}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Save size={15} />
-              Módosítások mentése
-            </button>
-          </form>
         </div>
 
-        <div className="mt-3 rounded-md bg-white p-3">
-          <label className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60" htmlFor={`photo-search-${spread.id}`}>
-            Képcsere
-          </label>
-          <div className="relative mt-2">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-graphite/45" />
-            <input
-              id={`photo-search-${spread.id}`}
-              value={photoQuery}
-              onChange={(event) => setPhotoQuery(event.target.value)}
-              placeholder="Kép keresése fájlnév alapján"
-              className="h-10 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm text-ink outline-none transition focus:border-ink/45"
-            />
-          </div>
+        <details className="mt-3 rounded-md border border-ink/10 bg-white">
+          <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-3 text-sm font-medium text-ink transition hover:bg-paper">
+            <span className="inline-flex items-center gap-2">
+              <ImageIcon size={15} />
+              Képcsere megnyitása
+            </span>
+            <span className="text-xs font-normal text-graphite/60">{photos.length} kép</span>
+          </summary>
+          <div className="border-t border-ink/10 p-3">
+            <label className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60" htmlFor={`photo-search-${spread.id}`}>
+              Keresés
+            </label>
+            <div className="relative mt-2">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-graphite/45" />
+              <input
+                id={`photo-search-${spread.id}`}
+                value={photoQuery}
+                onChange={(event) => setPhotoQuery(event.target.value)}
+                placeholder="Kép keresése fájlnév alapján"
+                className="h-10 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm text-ink outline-none transition focus:border-ink/45"
+              />
+            </div>
 
-          <div className="mt-3 max-h-[520px] space-y-2 overflow-auto pr-1">
-            {filteredPhotos.map((photo) => {
-              const isCurrent = selectedItem?.photo.id === photo.id;
+            <div className="mt-3 grid max-h-80 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {filteredPhotos.map((photo) => {
+                const isCurrent = selectedItem?.photo.id === photo.id;
 
-              return (
-                <button
-                  key={`${spread.id}-slot-${selectedSlotIndex}-${photo.id}`}
-                  type="button"
-                  onClick={() => replaceSelectedSlotPhoto(photo)}
-                  className={`grid w-full grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-md border p-1.5 text-left transition ${
-                    isCurrent ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-graphite hover:border-brass hover:bg-brass/10"
-                  }`}
-                >
-                  <span className="relative block aspect-[4/3] overflow-hidden rounded bg-mist">
-                    <Image
-                      src={photo.thumbnailUrl || photo.imageUrl}
-                      alt={photo.filename}
-                      fill
-                      unoptimized
-                      sizes="72px"
-                      className="object-cover"
-                    />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{photo.filename}</span>
-                    <span className={`mt-0.5 block text-xs ${isCurrent ? "text-white/70" : "text-graphite/60"}`}>
-                      {isCurrent ? "Ebben a slotban van" : `Slot ${selectedSlotIndex + 1}-be tesz`}
+                return (
+                  <button
+                    key={`${spread.id}-slot-${selectedSlotIndex}-${photo.id}`}
+                    type="button"
+                    onClick={() => replaceSelectedSlotPhoto(photo)}
+                    className={`grid w-full grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-md border p-1.5 text-left transition ${
+                      isCurrent ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-graphite hover:border-brass hover:bg-brass/10"
+                    }`}
+                  >
+                    <span className="relative block aspect-[4/3] overflow-hidden rounded bg-mist">
+                      <Image
+                        src={photo.thumbnailUrl || photo.imageUrl}
+                        alt={photo.filename}
+                        fill
+                        unoptimized
+                        sizes="72px"
+                        className="object-cover"
+                      />
                     </span>
-                  </span>
-                </button>
-              );
-            })}
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{photo.filename}</span>
+                      <span className={`mt-0.5 block text-xs ${isCurrent ? "text-white/70" : "text-graphite/60"}`}>
+                        {isCurrent ? "Ebben a slotban van" : `Slot ${selectedSlotIndex + 1}-be tesz`}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {photos.length === 0 ? (
+              <div className="mt-3 flex items-center gap-2 rounded-md bg-paper px-3 py-3 text-sm text-graphite/70">
+                <ImageIcon size={16} className="shrink-0" />
+                Nincs elérhető kép ehhez a favorite listához.
+              </div>
+            ) : null}
+
+            {photos.length > 0 && filteredPhotos.length === 0 ? (
+              <div className="mt-3 flex items-center gap-2 rounded-md bg-paper px-3 py-3 text-sm text-graphite/70">
+                <ImageIcon size={16} className="shrink-0" />
+                Nincs találat erre a keresésre.
+              </div>
+            ) : null}
           </div>
-
-          {photos.length === 0 ? (
-            <div className="mt-3 flex items-center gap-2 rounded-md bg-paper px-3 py-3 text-sm text-graphite/70">
-              <ImageIcon size={16} className="shrink-0" />
-              Nincs elérhető kép ehhez a favorite listához.
-            </div>
-          ) : null}
-
-          {photos.length > 0 && filteredPhotos.length === 0 ? (
-            <div className="mt-3 flex items-center gap-2 rounded-md bg-paper px-3 py-3 text-sm text-graphite/70">
-              <ImageIcon size={16} className="shrink-0" />
-              Nincs találat erre a keresésre.
-            </div>
-          ) : null}
-        </div>
-      </aside>
+        </details>
+      </div>
     </div>
   );
 }
