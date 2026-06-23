@@ -23,6 +23,7 @@ import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
@@ -501,7 +502,7 @@ export default async function GalleryDetailPage({
                         <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Átadás email</p>
                         <p className="mt-1 font-medium text-ink">
                           {gallery.finalDeliveryEmailSentAt
-                            ? `${gallery.finalDeliveryEmailSentAt.toLocaleString("hu-HU")} · ${gallery.finalDeliveryEmailSentTo ?? gallery.clientEmail ?? ""}`
+                            ? `${gallery.finalDeliveryEmailSentAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })} · ${gallery.finalDeliveryEmailSentTo ?? gallery.clientEmail ?? ""}`
                             : gallery.finalDeliveryEmailError
                               ? "Hibás"
                               : "Még nem lett kiküldve"}
@@ -593,7 +594,7 @@ export default async function GalleryDetailPage({
                         <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Válogató email</p>
                         <p className="mt-1 font-medium text-ink">
                           {gallery.proofingInviteSentAt
-                            ? `${gallery.proofingInviteSentAt.toLocaleString("hu-HU")} · ${gallery.proofingInviteSentTo ?? gallery.clientEmail ?? ""}`
+                            ? `${gallery.proofingInviteSentAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })} · ${gallery.proofingInviteSentTo ?? gallery.clientEmail ?? ""}`
                             : "Még nem lett kiküldve"}
                         </p>
                       </div>

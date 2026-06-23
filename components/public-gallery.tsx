@@ -4,6 +4,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, Play, X } from "lucide-react";
 import { Button } from "@/components/button";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   createFavoriteListAction,
   getFavoriteListsAction,
@@ -608,7 +609,8 @@ export function PublicGallery({
   function formatSubmittedAt(value: string) {
     return new Intl.DateTimeFormat("de-AT", {
       dateStyle: "medium",
-      timeStyle: "short"
+      timeStyle: "short",
+      timeZone: APP_TIME_ZONE
     }).format(new Date(value));
   }
 

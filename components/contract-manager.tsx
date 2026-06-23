@@ -2,6 +2,7 @@ import { Download, ExternalLink, FileText, Mail, UploadCloud } from "lucide-reac
 import { Button } from "@/components/button";
 import { WrittenContractEditor } from "@/components/written-contract-editor";
 import { sendContractAction, uploadContractAction } from "@/lib/contract-actions";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 type Contract = {
   id: string;
@@ -46,7 +47,8 @@ function formatDate(date: Date | null) {
 
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

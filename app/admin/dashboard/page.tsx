@@ -27,6 +27,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { notificationWhere } from "@/lib/admin-scope";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import {
   GALLERY_MODE_PROOFING,
@@ -72,7 +73,8 @@ function formatDate(date: Date | null) {
   return date.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 
@@ -675,7 +677,8 @@ export default async function AdminDashboardPage() {
                   <span className="mt-2 block text-xs text-graphite/60">
                     {notification.createdAt.toLocaleString("hu-HU", {
                       dateStyle: "medium",
-                      timeStyle: "short"
+                      timeStyle: "short",
+                      timeZone: APP_TIME_ZONE
                     })}
                   </span>
                 </span>

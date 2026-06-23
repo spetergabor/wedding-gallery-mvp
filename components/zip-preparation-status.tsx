@@ -1,4 +1,5 @@
 import { Archive, AlertCircle, CheckCircle2, Clock3 } from "lucide-react";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
@@ -54,7 +55,8 @@ function formatBytes(bytes: number | bigint) {
 function formatDate(date: Date) {
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

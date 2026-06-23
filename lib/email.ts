@@ -1,3 +1,5 @@
+import { APP_TIME_ZONE } from "@/lib/date-format";
+
 type AdminFavoriteListSubmittedEmail = {
   to?: string;
   galleryTitle: string;
@@ -133,7 +135,7 @@ function favoriteListSubmittedHtml({
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Lista</td><td style="padding: 4px 0;">${escapeHtml(listName)}</td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Email</td><td style="padding: 4px 0;">${escapeHtml(clientEmail)}</td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Képek</td><td style="padding: 4px 0;">${filenames.length}</td></tr>
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Lezárva</td><td style="padding: 4px 0;">${submittedAt.toLocaleString("hu-HU")}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Lezárva</td><td style="padding: 4px 0;">${submittedAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}</td></tr>
       </table>
       <p style="margin: 0 0 16px;">
         <a href="${escapeHtml(galleryAdminUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Admin galéria megnyitása</a>
@@ -329,7 +331,7 @@ function galleryZipReadyHtml({
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galéria</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Képek</td><td style="padding: 4px 0;">${photoCount}</td></tr>
         ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">ZIP méret</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Elkészült</td><td style="padding: 4px 0;">${generatedAt.toLocaleString("hu-HU")}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Elkészült</td><td style="padding: 4px 0;">${generatedAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}</td></tr>
       </table>
       <p style="margin: 0 0 12px;">
         <a href="${escapeHtml(galleryAdminUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Admin galéria megnyitása</a>
@@ -366,7 +368,7 @@ export async function sendAdminGalleryZipReadyEmail(payload: AdminGalleryZipRead
         `Galéria: ${payload.galleryTitle}`,
         `Képek: ${payload.photoCount}`,
         ...(formattedSize ? [`ZIP méret: ${formattedSize}`] : []),
-        `Elkészült: ${payload.generatedAt.toLocaleString("hu-HU")}`,
+        `Elkészült: ${payload.generatedAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}`,
         `Admin: ${payload.galleryAdminUrl}`,
         `Publikus galéria: ${payload.galleryPublicUrl}`
       ].join("\n")
@@ -396,7 +398,7 @@ function guestGalleryDownloadReadyHtml({
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galerie</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Medien</td><td style="padding: 4px 0;">${photoCount}</td></tr>
         ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">ZIP-Größe</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Link gültig bis</td><td style="padding: 4px 0;">${expiresAt.toLocaleString("de-AT")}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Link gültig bis</td><td style="padding: 4px 0;">${expiresAt.toLocaleString("de-AT", { timeZone: APP_TIME_ZONE })}</td></tr>
       </table>
       <p style="margin: 0 0 18px;">
         <a href="${escapeHtml(downloadUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">ZIP herunterladen</a>
@@ -432,7 +434,7 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
         `Galerie: ${payload.galleryTitle}`,
         `Medien: ${payload.photoCount}`,
         ...(formattedSize ? [`ZIP-Größe: ${formattedSize}`] : []),
-        `Link gültig bis: ${payload.expiresAt.toLocaleString("de-AT")}`,
+        `Link gültig bis: ${payload.expiresAt.toLocaleString("de-AT", { timeZone: APP_TIME_ZONE })}`,
         "",
         `Download: ${payload.downloadUrl}`
       ].join("\n")

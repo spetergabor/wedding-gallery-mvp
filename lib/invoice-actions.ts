@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { sendCustomerInvoiceEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { createInvoiceObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
@@ -60,7 +61,8 @@ function formatDueDate(date: Date | null) {
   return date.toLocaleDateString("de-AT", {
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 

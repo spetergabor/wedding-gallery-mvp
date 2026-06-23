@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Copy, Heart } from "lucide-react";
 import { Button } from "@/components/button";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 type FavoriteList = {
   id: string;
@@ -83,7 +84,8 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                     {list.items.length} {proofingMode ? "kiválasztott kép" : "kedvenc kép"} · frissítve:{" "}
                     {list.updatedAt.toLocaleString("hu-HU", {
                       dateStyle: "medium",
-                      timeStyle: "short"
+                      timeStyle: "short",
+                      timeZone: APP_TIME_ZONE
                     })}
                   </p>
                   {list.submittedAt ? (
@@ -91,7 +93,8 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                       lezárva:{" "}
                       {list.submittedAt.toLocaleString("hu-HU", {
                         dateStyle: "medium",
-                        timeStyle: "short"
+                        timeStyle: "short",
+                        timeZone: APP_TIME_ZONE
                       })}
                     </p>
                   ) : null}

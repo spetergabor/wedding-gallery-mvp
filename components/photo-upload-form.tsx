@@ -12,6 +12,7 @@ import {
   refreshAdminSessionAction
 } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -166,7 +167,8 @@ function formatDateTime(value: string) {
 
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 
@@ -596,7 +598,8 @@ export function PhotoUploadForm({
 
     return new Date(value).toLocaleString("hu-HU", {
       dateStyle: "medium",
-      timeStyle: "short"
+      timeStyle: "short",
+      timeZone: APP_TIME_ZONE
     });
   }
 

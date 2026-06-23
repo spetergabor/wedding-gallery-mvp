@@ -1,5 +1,6 @@
 import { Download, ExternalLink, Mail, ReceiptText, UploadCloud } from "lucide-react";
 import { Button } from "@/components/button";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { sendInvoiceAction, updateInvoiceStatusAction, uploadInvoiceAction } from "@/lib/invoice-actions";
 
 type Invoice = {
@@ -49,7 +50,8 @@ function formatDate(date: Date | null) {
 
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 
@@ -61,7 +63,8 @@ function formatDateOnly(date: Date | null) {
   return date.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "short",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 

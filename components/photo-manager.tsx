@@ -11,6 +11,7 @@ import {
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
@@ -318,7 +319,8 @@ export function PhotoManager({
                     Elrejtve:{" "}
                     {photo.clientHiddenAt.toLocaleString("hu-HU", {
                       dateStyle: "medium",
-                      timeStyle: "short"
+                      timeStyle: "short",
+                      timeZone: APP_TIME_ZONE
                     })}
                   </p>
                 ) : null}

@@ -10,6 +10,7 @@ import {
   parseContractFields,
   renderContractTemplateText
 } from "@/lib/contract-fields";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { prisma } from "@/lib/prisma";
 import { createSignedContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
@@ -30,7 +31,8 @@ function parseSignatureDataUrl(value: FormDataEntryValue | null) {
 function formatDate(date: Date) {
   return date.toLocaleString("de-DE", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

@@ -6,6 +6,7 @@ import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { CUSTOMER_WORKFLOW_LANES, getCustomerWorkflowSummary, normalizeCustomerWorkflowLane } from "@/lib/customer-workflow";
 import { prisma } from "@/lib/prisma";
@@ -19,7 +20,8 @@ function formatDate(date: Date | null) {
   return date.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "short",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 

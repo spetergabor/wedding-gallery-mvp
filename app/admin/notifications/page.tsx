@@ -6,6 +6,7 @@ import { markAllNotificationsReadAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 export default async function AdminNotificationsPage() {
   const admin = await requireAdmin();
@@ -55,7 +56,8 @@ export default async function AdminNotificationsPage() {
                   <span className="mt-2 block text-xs text-graphite/60">
                     {notification.createdAt.toLocaleString("hu-HU", {
                       dateStyle: "medium",
-                      timeStyle: "short"
+                      timeStyle: "short",
+                      timeZone: APP_TIME_ZONE
                     })}
                   </span>
                 </span>

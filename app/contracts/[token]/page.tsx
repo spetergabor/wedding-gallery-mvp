@@ -9,6 +9,7 @@ import {
   parseContractTemplateParts,
   type ContractFieldDefinition
 } from "@/lib/contract-fields";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,8 @@ function formatDate(date: Date | null) {
   return date.toLocaleDateString("de-AT", {
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 
@@ -32,7 +34,8 @@ function formatDateTime(date: Date | null) {
 
   return date.toLocaleString("de-AT", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

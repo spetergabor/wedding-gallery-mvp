@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2, Clock3, ImageIcon, RefreshCw } from "lucide-react";
 import { Button } from "@/components/button";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { requeueGalleryMediaProcessingAction } from "@/lib/gallery-actions";
 
 const STALE_JOB_PROCESSING_MS = 30 * 60 * 1000;
@@ -52,7 +53,8 @@ function formatDate(date: Date | null) {
 
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

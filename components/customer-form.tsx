@@ -2,6 +2,7 @@ import { createCustomerAction, updateCustomerAction } from "@/lib/customer-actio
 import { Button, ButtonLink } from "@/components/button";
 import { Calendar, Mail, MapPin, Pencil, Phone, StickyNote, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 
 type CustomerFormValue = {
@@ -33,7 +34,8 @@ function displayDate(date: Date | null | undefined) {
   return date.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 

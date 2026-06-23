@@ -5,6 +5,7 @@ import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { requireSuperAdmin } from "@/lib/auth";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { approvePhotographerAction, rejectPhotographerAction } from "@/lib/photographer-actions";
 import { prisma } from "@/lib/prisma";
 
@@ -22,7 +23,8 @@ function formatDate(date: Date | null) {
   return date.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "short",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 

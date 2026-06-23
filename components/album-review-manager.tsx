@@ -4,6 +4,7 @@ import { AlbumSpreadUploadForm } from "@/components/album-spread-upload-form";
 import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { createAlbumReviewAction, deleteAlbumReviewAction, deleteAlbumReviewSpreadAction } from "@/lib/album-review-actions";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 type AlbumReview = {
   id: string;
@@ -38,7 +39,8 @@ const statusLabels: Record<string, string> = {
 function formatDate(date: Date) {
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

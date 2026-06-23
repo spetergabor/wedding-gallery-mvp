@@ -25,6 +25,7 @@ import {
   customerProjectStatusLabel,
   customerProjectTypeLabel
 } from "@/lib/customer-project-options";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectStatusAction } from "@/lib/customer-actions";
 import {
   GALLERY_MODE_PROOFING,
@@ -108,7 +109,8 @@ function formatDate(date: Date | null | undefined) {
   return date.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 

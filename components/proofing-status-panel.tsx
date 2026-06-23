@@ -1,5 +1,6 @@
 import { CheckCircle2, Clock, Heart, Mail, PackageCheck } from "lucide-react";
 import { Button } from "@/components/button";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { updateGalleryProofingStatusAction } from "@/lib/gallery-actions";
 import {
   PROOFING_STATUSES,
@@ -82,7 +83,8 @@ export function ProofingStatusPanel({ galleryId, status, updatedAt, metrics }: P
               Frissítve:{" "}
               {updatedAt.toLocaleString("hu-HU", {
                 dateStyle: "medium",
-                timeStyle: "short"
+                timeStyle: "short",
+                timeZone: APP_TIME_ZONE
               })}
             </p>
           ) : null}
@@ -126,9 +128,9 @@ export function ProofingStatusPanel({ galleryId, status, updatedAt, metrics }: P
           </div>
           <p className="mt-2 text-sm font-medium text-ink">{metrics.clientEmail ?? "Nincs ügyfél email"}</p>
           <p className="mt-1 text-xs leading-5 text-graphite/70">
-            Válogató: {metrics.proofingInviteSentAt ? metrics.proofingInviteSentAt.toLocaleString("hu-HU") : "még nincs kiküldve"}
+            Válogató: {metrics.proofingInviteSentAt ? metrics.proofingInviteSentAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE }) : "még nincs kiküldve"}
             <br />
-            Kész képek: {metrics.finalDeliveryEmailSentAt ? metrics.finalDeliveryEmailSentAt.toLocaleString("hu-HU") : "még nincs kiküldve"}
+            Kész képek: {metrics.finalDeliveryEmailSentAt ? metrics.finalDeliveryEmailSentAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE }) : "még nincs kiküldve"}
           </p>
         </div>
       </div>

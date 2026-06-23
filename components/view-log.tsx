@@ -1,5 +1,6 @@
 import { Eye, MapPin } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 type ViewEntry = {
   id: string;
@@ -85,7 +86,8 @@ export function ViewLog({ views }: { views: ViewEntry[] }) {
               <time className="text-sm text-graphite/70" dateTime={view.createdAt.toISOString()}>
                 {view.createdAt.toLocaleString("hu-HU", {
                   dateStyle: "medium",
-                  timeStyle: "short"
+                  timeStyle: "short",
+                  timeZone: APP_TIME_ZONE
                 })}
               </time>
             </div>

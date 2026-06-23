@@ -33,6 +33,7 @@ import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { InvoiceManager } from "@/components/invoice-manager";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { CUSTOMER_STATUSES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
@@ -54,7 +55,8 @@ function formatDate(date: Date | null) {
   return date.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "long",
-    day: "numeric"
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
   });
 }
 
@@ -65,7 +67,8 @@ function formatDateTime(date: Date | null) {
 
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

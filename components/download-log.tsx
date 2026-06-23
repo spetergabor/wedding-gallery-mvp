@@ -1,4 +1,5 @@
 import { Archive, Mail } from "lucide-react";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 type DownloadEntry = {
   id: string;
@@ -88,11 +89,13 @@ export function DownloadLog({ downloads, packages }: { downloads: DownloadEntry[
                       {downloadPackage.generatedAt
                         ? downloadPackage.generatedAt.toLocaleString("hu-HU", {
                             dateStyle: "medium",
-                            timeStyle: "short"
+                            timeStyle: "short",
+                            timeZone: APP_TIME_ZONE
                           })
                         : downloadPackage.createdAt.toLocaleString("hu-HU", {
                             dateStyle: "medium",
-                            timeStyle: "short"
+                            timeStyle: "short",
+                            timeZone: APP_TIME_ZONE
                           })}
                     </p>
                   </div>
@@ -123,7 +126,8 @@ export function DownloadLog({ downloads, packages }: { downloads: DownloadEntry[
                 <time className="text-sm text-graphite/70" dateTime={download.createdAt.toISOString()}>
                   {download.createdAt.toLocaleString("hu-HU", {
                     dateStyle: "medium",
-                    timeStyle: "short"
+                    timeStyle: "short",
+                    timeZone: APP_TIME_ZONE
                   })}
                 </time>
               </div>

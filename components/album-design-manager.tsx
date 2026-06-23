@@ -11,6 +11,7 @@ import {
   exportAlbumDesignToReviewAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 const maxAlbumLayoutPhotoCount = Math.max(...ALBUM_LAYOUT_TEMPLATES.map((template) => template.photoCount));
 
@@ -83,7 +84,8 @@ function formatDate(date: Date | null) {
 
   return date.toLocaleString("hu-HU", {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
   });
 }
 

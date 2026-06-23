@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 
 const INTERRUPTED_UPLOAD_AFTER_MS = 20 * 60 * 1000;
 
@@ -103,7 +104,8 @@ export function UploadSessionLog({ sessions }: { sessions: UploadSession[] }) {
                       Indítva:{" "}
                       {session.createdAt.toLocaleString("hu-HU", {
                         dateStyle: "medium",
-                        timeStyle: "short"
+                        timeStyle: "short",
+                        timeZone: APP_TIME_ZONE
                       })}
                     </p>
                   </div>
