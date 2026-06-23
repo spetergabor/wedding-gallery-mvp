@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { adminOwnedWhere } from "@/lib/admin-scope";
-import { ALBUM_SPREAD_BACKGROUND, ALBUM_SPREAD_EXPORT_SLOT_INSET_PX } from "@/lib/album-design-templates";
+import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutExportSlotInsetPx } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
 
@@ -12,6 +12,7 @@ type AdminSession = {
 export type AlbumDesignSpreadExportData = {
   id: string;
   title: string | null;
+  layoutKey: string;
   sortOrder: number;
   design: {
     title: string;
@@ -53,6 +54,7 @@ export async function loadAlbumDesignSpreadForExport({
     select: {
       id: true,
       title: true,
+      layoutKey: true,
       sortOrder: true,
       design: {
         select: {
@@ -84,6 +86,7 @@ export async function loadAlbumDesignSpreadForExport({
 }
 
 export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExportData) {
+  const slotInset = getAlbumLayoutExportSlotInsetPx(spread.layoutKey);
   const composites = await Promise.all(
     spread.items.map(async (item) => {
       const photoR2Key = getR2KeyFromPublicUrl(item.photo.previewUrl) ?? item.photo.r2Key;
@@ -93,8 +96,8 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
       });
       const slotWidth = Math.round((item.width / 100) * EXPORT_WIDTH);
       const slotHeight = Math.round((item.height / 100) * EXPORT_HEIGHT);
-      const width = Math.max(1, slotWidth - ALBUM_SPREAD_EXPORT_SLOT_INSET_PX * 2);
-      const height = Math.max(1, slotHeight - ALBUM_SPREAD_EXPORT_SLOT_INSET_PX * 2);
+      const width = Math.max(1, slotWidth - slotInset * 2);
+      const height = Math.max(1, slotHeight - slotInset * 2);
       const input = await sharp(photoBuffer, { failOn: "none" })
         .rotate()
         .resize(width, height, { fit: "cover", position: "centre" })
@@ -103,8 +106,8 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
 
       return {
         input,
-        left: Math.round((item.x / 100) * EXPORT_WIDTH) + ALBUM_SPREAD_EXPORT_SLOT_INSET_PX,
-        top: Math.round((item.y / 100) * EXPORT_HEIGHT) + ALBUM_SPREAD_EXPORT_SLOT_INSET_PX
+        left: Math.round((item.x / 100) * EXPORT_WIDTH) + slotInset,
+        top: Math.round((item.y / 100) * EXPORT_HEIGHT) + slotInset
       };
     })
   );

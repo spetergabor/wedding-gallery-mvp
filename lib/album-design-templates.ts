@@ -10,6 +10,8 @@ export type AlbumLayoutTemplate = {
   name: string;
   photoCount: number;
   slots: AlbumLayoutSlot[];
+  previewSlotInsetPx?: number;
+  exportSlotInsetPx?: number;
 };
 
 export const ALBUM_SPREAD_BACKGROUND = "#ffffff";
@@ -57,8 +59,10 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     key: "two-wide-panels-with-spine",
     name: "Két nagy kép gerinccel",
     photoCount: 2,
+    previewSlotInsetPx: 0,
+    exportSlotInsetPx: 0,
     slots: [
-      { x: 0, y: 0, width: 36, height: 100 },
+      { x: 0, y: 0, width: 36.5, height: 100 },
       { x: 37, y: 0, width: 63, height: 100 }
     ]
   },
@@ -316,6 +320,14 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
 
 export function getAlbumLayoutTemplate(layoutKey: string) {
   return ALBUM_LAYOUT_TEMPLATES.find((template) => template.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
+}
+
+export function getAlbumLayoutPreviewSlotInsetPx(layoutKey: string) {
+  return getAlbumLayoutTemplate(layoutKey).previewSlotInsetPx ?? ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX;
+}
+
+export function getAlbumLayoutExportSlotInsetPx(layoutKey: string) {
+  return getAlbumLayoutTemplate(layoutKey).exportSlotInsetPx ?? ALBUM_SPREAD_EXPORT_SLOT_INSET_PX;
 }
 
 export function getAlbumLayoutTemplatesByPhotoCount(photoCount: number) {

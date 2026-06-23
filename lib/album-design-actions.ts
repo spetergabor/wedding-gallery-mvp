@@ -390,6 +390,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string, design
         select: {
           id: true,
           title: true,
+          layoutKey: true,
           sortOrder: true,
           design: {
             select: {

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { ImageIcon, MousePointer2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
-import { ALBUM_SPREAD_BACKGROUND, ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX } from "@/lib/album-design-templates";
+import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
   id: string;
@@ -26,6 +26,7 @@ type SpreadItem = {
 type EditableSpread = {
   id: string;
   title: string | null;
+  layoutKey: string;
   sortOrder: number;
   items: SpreadItem[];
 };
@@ -48,7 +49,7 @@ export function AlbumSpreadSlotEditor({
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? draftItems[0] ?? null;
   const draftPhotoIds = draftItems.map((item) => item.photo.id).join("|");
   const hasChanges = draftPhotoIds !== originalPhotoIds;
-  const slotInset = ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX;
+  const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
 
   useEffect(() => {
     setDraftItems(orderedItems);

@@ -13,7 +13,7 @@ import {
   regenerateAlbumDesignSpreadLayoutAction,
   updateAlbumDesignSpreadAction
 } from "@/lib/album-design-actions";
-import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX } from "@/lib/album-design-templates";
+import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 
 const maxAlbumLayoutPhotoCount = Math.max(...ALBUM_LAYOUT_TEMPLATES.map((template) => template.photoCount));
 
@@ -106,7 +106,7 @@ function getTemplate(layoutKey: string) {
 
 function TemplatePreview({ layoutKey }: { layoutKey: string }) {
   const template = getTemplate(layoutKey);
-  const inset = ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX;
+  const inset = getAlbumLayoutPreviewSlotInsetPx(template.key);
 
   return (
     <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10" style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}>
