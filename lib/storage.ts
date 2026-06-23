@@ -135,6 +135,17 @@ export function createGalleryZipObjectKey({
   return `galleries/${gallerySlug}/downloads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${gallerySlug}.zip`;
 }
 
+export function createManualGalleryZipObjectKey({
+  gallerySlug,
+  originalFilename
+}: {
+  gallerySlug: string;
+  originalFilename: string;
+}) {
+  const baseName = normalizeSlug(path.basename(originalFilename, path.extname(originalFilename))) || gallerySlug;
+  return `galleries/${gallerySlug}/downloads/manual/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}.zip`;
+}
+
 export function createBrandAssetObjectKey({
   originalFilename
 }: {

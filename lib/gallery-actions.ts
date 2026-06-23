@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
-import { enqueueGalleryZipJob, kickGalleryZipJob } from "@/lib/jobs";
+import { enqueueGalleryZipJob, kickGalleryZipJob, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
@@ -30,6 +30,7 @@ import {
 } from "@/lib/proofing";
 import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
 import {
+  createManualGalleryZipObjectKey,
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
   createPhotoVariantObjectKey,
@@ -2201,6 +2202,207 @@ export async function queueGalleryZipPackageAction(galleryId: string) {
   revalidatePath(`/admin/galleries/${gallery.id}`);
   revalidatePath(`/g/${galleryWithPhotos.slug}`);
   redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
+}
+
+function isZipFilename(filename: string) {
+  return filename.trim().toLowerCase().endsWith(".zip");
+}
+
+function normalizeZipContentType(contentType: string | null | undefined) {
+  const value = (contentType ?? "").trim();
+  return value || "application/zip";
+}
+
+async function getManualZipGalleryState(galleryId: string) {
+  const galleryWithPhotos = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: {
+      id: true,
+      slug: true,
+      isActive: true,
+      downloadsEnabled: true,
+      galleryMode: true,
+      proofingStatus: true,
+      photos: {
+        where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true
+        }
+      }
+    }
+  });
+
+  if (!galleryWithPhotos || !galleryWithPhotos.isActive) {
+    return { ok: false as const, reason: "not-active" };
+  }
+
+  if (!galleryWithPhotos.downloadsEnabled) {
+    return { ok: false as const, reason: "downloads-disabled" };
+  }
+
+  if (
+    isProofingGallery(galleryWithPhotos.galleryMode) &&
+    galleryWithPhotos.proofingStatus !== PROOFING_STATUS_DELIVERED
+  ) {
+    return { ok: false as const, reason: "proofing-pending" };
+  }
+
+  if (galleryWithPhotos.photos.length === 0) {
+    return { ok: false as const, reason: "no-photos" };
+  }
+
+  return {
+    ok: true as const,
+    gallery: galleryWithPhotos,
+    photoCount: galleryWithPhotos.photos.length
+  };
+}
+
+export async function createManualGalleryZipUploadTargetAction(
+  galleryId: string,
+  file: {
+    filename: string;
+    contentType?: string | null;
+    fileSize: number;
+  }
+) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const filename = (file.filename ?? "").trim();
+
+  if (!filename || !isZipFilename(filename)) {
+    return {
+      ok: false,
+      message: "Csak .zip fájlt tudsz feltölteni."
+    };
+  }
+
+  if (!Number.isFinite(file.fileSize) || file.fileSize <= 0) {
+    return {
+      ok: false,
+      message: "A ZIP fájl üres vagy nem olvasható."
+    };
+  }
+
+  const state = await getManualZipGalleryState(galleryId);
+
+  if (!state.ok) {
+    return {
+      ok: false,
+      message: "Ehhez a galériához most nem tölthető fel ZIP csomag."
+    };
+  }
+
+  const r2Key = createManualGalleryZipObjectKey({
+    gallerySlug: state.gallery.slug,
+    originalFilename: filename
+  });
+  const downloadUrl = getPhotoPublicUrl(r2Key);
+
+  try {
+    return {
+      ok: true,
+      r2Key,
+      downloadUrl,
+      photoCount: state.photoCount,
+      uploadUrl: await createPresignedPhotoUploadUrl({
+        r2Key,
+        contentType: normalizeZipContentType(file.contentType)
+      })
+    };
+  } catch (error) {
+    console.error("Manual ZIP upload target creation failed", {
+      galleryId: gallery.id,
+      error
+    });
+
+    return {
+      ok: false,
+      message: "Nem sikerült előkészíteni a ZIP feltöltést."
+    };
+  }
+}
+
+export async function completeManualGalleryZipUploadAction(
+  galleryId: string,
+  upload: {
+    r2Key: string;
+    downloadUrl: string;
+    fileSize: number;
+  }
+) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const state = await getManualZipGalleryState(galleryId);
+
+  if (!state.ok) {
+    return {
+      ok: false,
+      message: "Ehhez a galériához most nem menthető ZIP csomag."
+    };
+  }
+
+  const manualPrefix = `galleries/${state.gallery.slug}/downloads/manual/`;
+
+  if (!upload.r2Key?.startsWith(manualPrefix) || !upload.downloadUrl) {
+    return {
+      ok: false,
+      message: "Érvénytelen ZIP feltöltési cél."
+    };
+  }
+
+  if (!Number.isFinite(upload.fileSize) || upload.fileSize <= 0) {
+    return {
+      ok: false,
+      message: "A ZIP fájl mérete érvénytelen."
+    };
+  }
+
+  const generatedAt = new Date();
+  const fileSize = BigInt(Math.round(upload.fileSize));
+  const downloadPackage = await prisma.galleryDownloadPackage.create({
+    data: {
+      galleryId,
+      scope: PUBLIC_DOWNLOAD_SCOPE,
+      status: "completed",
+      photoCount: state.photoCount,
+      processedCount: state.photoCount,
+      processedBytes: fileSize,
+      fileSize,
+      partIndex: 0,
+      partCount: 1,
+      photoOffset: 0,
+      photoLimit: state.photoCount,
+      r2Key: upload.r2Key,
+      downloadUrl: upload.downloadUrl,
+      generatedAt
+    },
+    select: {
+      id: true
+    }
+  });
+
+  await prisma.galleryDownloadPackage.updateMany({
+    where: {
+      galleryId,
+      scope: PUBLIC_DOWNLOAD_SCOPE,
+      id: { not: downloadPackage.id },
+      status: { in: ["pending", "processing", "failed"] }
+    },
+    data: {
+      status: "stale",
+      errorMessage: "Manuálisan feltöltött ZIP csomag váltotta le."
+    }
+  });
+
+  await sendGalleryDownloadLinksForPackage(downloadPackage.id);
+
+  revalidatePath(`/admin/galleries/${gallery.id}`);
+  revalidatePath(`/g/${state.gallery.slug}`);
+
+  return {
+    ok: true,
+    packageId: downloadPackage.id
+  };
 }
 
 export async function setCoverPhotoAction(galleryId: string, photoId: string) {

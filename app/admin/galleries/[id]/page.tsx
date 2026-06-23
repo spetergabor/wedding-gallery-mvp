@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { after } from "next/server";
 import { Camera, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, MapPin, Settings, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
@@ -11,6 +10,7 @@ import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
+import { ManualZipUploadForm } from "@/components/manual-zip-upload-form";
 import { MediaProcessingStatus } from "@/components/media-processing-status";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
@@ -26,12 +26,10 @@ import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   generateClientAccessLinkAction,
-  queueGalleryZipPackageAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
-import { kickGalleryZipJob } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -43,13 +41,6 @@ import {
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
 type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
-type DownloadPackage = {
-  id: string;
-  status: string;
-  updatedAt: Date;
-};
-
-const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 
 const galleryTabs: Array<{
   key: GalleryTab;
@@ -93,26 +84,6 @@ function getActiveTab(flags: {
   }
 
   return "photos";
-}
-
-function queueZipPackageKick(galleryId: string, packages: DownloadPackage[]) {
-  const now = Date.now();
-  const packageToKick = packages.find(
-    (downloadPackage) =>
-      downloadPackage.status === "pending" ||
-      (downloadPackage.status === "processing" && now - downloadPackage.updatedAt.getTime() > STALE_ZIP_PROCESSING_MS)
-  );
-
-  if (!packageToKick) {
-    return;
-  }
-
-  after(async () => {
-    await kickGalleryZipJob({
-      galleryId,
-      packageId: packageToKick.id
-    });
-  });
 }
 
 export default async function GalleryDetailPage({
@@ -302,10 +273,6 @@ export default async function GalleryDetailPage({
       updatedAt: session.updatedAt.toISOString()
     }));
 
-  if (activeTab === "downloads") {
-    queueZipPackageKick(gallery.id, gallery.downloadPackages);
-  }
-
   return (
     <AdminShell>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -361,6 +328,7 @@ export default async function GalleryDetailPage({
         {flags.mediaProcessing === "queued" ? <Alert title="Hiányzó előnézetek újra sorba állítva." variant="success" /> : null}
         {flags.mediaProcessing === "none" ? <Alert title="Nincs újraindítható előnézet." variant="info" /> : null}
         {flags.zip === "queued" ? <Alert title="ZIP csomag feldolgozásra beütemezve." variant="success" /> : null}
+        {flags.zip === "manual-uploaded" ? <Alert title="Kész ZIP feltöltve." variant="success">A vendég letöltés most ezt a csomagot használja.</Alert> : null}
         {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}
         {flags.zip === "already-ready" ? <Alert title="A ZIP már kész, újraindításra nem volt szükség." variant="success" /> : null}
         {flags.zip === "downloads-disabled" ? <Alert title="A letöltés ki van kapcsolva ehhez a galériához." variant="error" /> : null}
@@ -656,13 +624,7 @@ export default async function GalleryDetailPage({
 
         {activeTab === "downloads" ? (
           <div className="max-w-3xl space-y-6">
-            <div className="flex items-center gap-3">
-              <form action={queueGalleryZipPackageAction.bind(null, gallery.id)}>
-                <Button type="submit" disabled={!canPrepareZip} className="whitespace-nowrap">
-                  ZIP csomag indítása
-                </Button>
-              </form>
-            </div>
+            <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} />
             <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
           </div>
