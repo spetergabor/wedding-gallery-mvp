@@ -54,15 +54,6 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
-    key: "two-wide-stack",
-    name: "Két panoráma sáv",
-    photoCount: 2,
-    slots: [
-      { x: 0, y: 0, width: 100, height: 50 },
-      { x: 0, y: 50, width: 100, height: 50 }
-    ]
-  },
-  {
     key: "left-hero-right-stack",
     name: "Bal nagy, jobb két kép",
     photoCount: 3,
@@ -80,16 +71,6 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
       { x: 0, y: 0, width: 50, height: 50 },
       { x: 0, y: 50, width: 50, height: 50 },
       { x: 50, y: 0, width: 50, height: 100 }
-    ]
-  },
-  {
-    key: "top-hero-bottom-pair",
-    name: "Felső nagy, alul két kép",
-    photoCount: 3,
-    slots: [
-      { x: 0, y: 0, width: 100, height: 58 },
-      { x: 0, y: 58, width: 50, height: 42 },
-      { x: 50, y: 58, width: 50, height: 42 }
     ]
   },
   {
@@ -224,20 +205,6 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
-    key: "seven-left-run-right-hero",
-    name: "Bal mozaik, jobb nagy kép",
-    photoCount: 7,
-    slots: [
-      { x: 0, y: 12, width: 12, height: 38 },
-      { x: 12, y: 12, width: 15, height: 38 },
-      { x: 27, y: 12, width: 30, height: 38 },
-      { x: 57, y: 12, width: 15, height: 38 },
-      { x: 12, y: 50, width: 14, height: 38 },
-      { x: 26, y: 50, width: 31, height: 38 },
-      { x: 72, y: 12, width: 28, height: 76 }
-    ]
-  },
-  {
     key: "eight-balanced-mosaic",
     name: "Nyolc képes kiegyensúlyozott mozaik",
     photoCount: 8,
@@ -265,22 +232,6 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
       { x: 32, y: 50, width: 15, height: 24 },
       { x: 47, y: 50, width: 14, height: 24 },
       { x: 61, y: 50, width: 15, height: 24 }
-    ]
-  },
-  {
-    key: "nine-left-story-right-grid",
-    name: "Bal történet, jobb négyes blokk",
-    photoCount: 9,
-    slots: [
-      { x: 0, y: 18, width: 10, height: 30 },
-      { x: 10, y: 18, width: 26, height: 30 },
-      { x: 36, y: 18, width: 21, height: 30 },
-      { x: 0, y: 48, width: 14, height: 30 },
-      { x: 14, y: 48, width: 23, height: 30 },
-      { x: 37, y: 48, width: 20, height: 30 },
-      { x: 70, y: 18, width: 15, height: 30 },
-      { x: 85, y: 18, width: 15, height: 30 },
-      { x: 70, y: 48, width: 30, height: 30 }
     ]
   },
   {
