@@ -22,6 +22,14 @@ function formInteger(formData: FormData, key: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function clampCropPosition(value: number) {
+  if (!Number.isFinite(value)) {
+    return 50;
+  }
+
+  return Math.min(100, Math.max(0, value));
+}
+
 function getSelectedPhotoIds(formData: FormData) {
   return [
     ...new Set(
@@ -38,6 +46,16 @@ function getOrderedFormStrings(formData: FormData, key: string) {
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 }
 
+function getOrderedCropPositions(formData: FormData, count: number) {
+  const cropXValues = getOrderedFormStrings(formData, "slotCropX");
+  const cropYValues = getOrderedFormStrings(formData, "slotCropY");
+
+  return Array.from({ length: count }, (_, index) => ({
+    cropX: clampCropPosition(Number.parseFloat(cropXValues[index] ?? "50")),
+    cropY: clampCropPosition(Number.parseFloat(cropYValues[index] ?? "50"))
+  }));
+}
+
 function shufflePhotoIds(photoIds: string[]) {
   const shuffledPhotoIds = [...photoIds];
 
@@ -49,14 +67,16 @@ function shufflePhotoIds(photoIds: string[]) {
   return shuffledPhotoIds;
 }
 
-function createSpreadItems(layout: AlbumLayoutTemplate, photoIds: string[]) {
+function createSpreadItems(layout: AlbumLayoutTemplate, photoIds: string[], cropPositions?: Array<{ cropX: number; cropY: number }>) {
   return layout.slots.map((slot, index) => ({
     photoId: photoIds[index],
     slotIndex: index,
     x: slot.x,
     y: slot.y,
     width: slot.width,
-    height: slot.height
+    height: slot.height,
+    cropX: cropPositions?.[index]?.cropX ?? 50,
+    cropY: cropPositions?.[index]?.cropY ?? 50
   }));
 }
 
@@ -407,6 +427,8 @@ export async function exportAlbumDesignToReviewAction(customerId: string, design
               y: true,
               width: true,
               height: true,
+              cropX: true,
+              cropY: true,
               photo: {
                 select: {
                   filename: true,
@@ -558,7 +580,7 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string, desi
   if (item) {
     await prisma.albumDesignSpreadItem.update({
       where: { id: item.id },
-      data: { photoId }
+      data: { photoId, cropX: 50, cropY: 50 }
     });
   } else {
     await prisma.albumDesignSpreadItem.create({
@@ -569,7 +591,9 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string, desi
         x: slot.x,
         y: slot.y,
         width: slot.width,
-        height: slot.height
+        height: slot.height,
+        cropX: 50,
+        cropY: 50
       }
     });
   }
@@ -602,6 +626,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, d
 
   const layout = getAlbumLayoutTemplate(spread.layoutKey);
   const photoIds = getOrderedFormStrings(formData, "slotPhotoIds");
+  const cropPositions = getOrderedCropPositions(formData, layout.slots.length);
 
   if (photoIds.length !== layout.slots.length) {
     redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
@@ -630,7 +655,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, d
     data: {
       items: {
         deleteMany: {},
-        create: createSpreadItems(layout, photoIds)
+        create: createSpreadItems(layout, photoIds, cropPositions)
       }
     }
   });

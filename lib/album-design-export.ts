@@ -25,6 +25,8 @@ export type AlbumDesignSpreadExportData = {
     y: number;
     width: number;
     height: number;
+    cropX: number;
+    cropY: number;
     photo: {
       filename: string;
       r2Key: string;
@@ -71,6 +73,8 @@ export async function loadAlbumDesignSpreadForExport({
           y: true,
           width: true,
           height: true,
+          cropX: true,
+          cropY: true,
           photo: {
             select: {
               filename: true,
@@ -83,6 +87,52 @@ export async function loadAlbumDesignSpreadForExport({
       }
     }
   });
+}
+
+function clampCropPosition(value: number) {
+  if (!Number.isFinite(value)) {
+    return 50;
+  }
+
+  return Math.min(100, Math.max(0, value));
+}
+
+async function renderCroppedPhotoBuffer({
+  photoBuffer,
+  width,
+  height,
+  cropX,
+  cropY
+}: {
+  photoBuffer: Buffer;
+  width: number;
+  height: number;
+  cropX: number;
+  cropY: number;
+}) {
+  const orientedBuffer = await sharp(photoBuffer, { failOn: "none" }).rotate().toBuffer();
+  const metadata = await sharp(orientedBuffer, { failOn: "none" }).metadata();
+
+  if (!metadata.width || !metadata.height) {
+    return sharp(orientedBuffer, { failOn: "none" })
+      .resize(width, height, { fit: "cover", position: "centre" })
+      .jpeg({ quality: 92, mozjpeg: true })
+      .toBuffer();
+  }
+
+  const scale = Math.max(width / metadata.width, height / metadata.height);
+  const resizedWidth = Math.max(width, Math.ceil(metadata.width * scale));
+  const resizedHeight = Math.max(height, Math.ceil(metadata.height * scale));
+  const maxLeft = Math.max(0, resizedWidth - width);
+  const maxTop = Math.max(0, resizedHeight - height);
+  const left = Math.min(maxLeft, Math.max(0, Math.round(maxLeft * (clampCropPosition(cropX) / 100))));
+  const top = Math.min(maxTop, Math.max(0, Math.round(maxTop * (clampCropPosition(cropY) / 100))));
+
+  return sharp(orientedBuffer, { failOn: "none" })
+    .resize(resizedWidth, resizedHeight, { fit: "fill" })
+    .extract({ left, top, width, height })
+    .jpeg({ quality: 92, mozjpeg: true })
+    .toBuffer();
 }
 
 export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExportData) {
@@ -98,11 +148,13 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
       const slotHeight = Math.round((item.height / 100) * EXPORT_HEIGHT);
       const width = Math.max(1, slotWidth - slotInset * 2);
       const height = Math.max(1, slotHeight - slotInset * 2);
-      const input = await sharp(photoBuffer, { failOn: "none" })
-        .rotate()
-        .resize(width, height, { fit: "cover", position: "centre" })
-        .jpeg({ quality: 92, mozjpeg: true })
-        .toBuffer();
+      const input = await renderCroppedPhotoBuffer({
+        photoBuffer,
+        width,
+        height,
+        cropX: item.cropX,
+        cropY: item.cropY
+      });
 
       return {
         input,

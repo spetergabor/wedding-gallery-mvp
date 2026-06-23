@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { ImageIcon, MousePointer2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
 import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 
@@ -20,6 +20,8 @@ type SpreadItem = {
   y: number;
   width: number;
   height: number;
+  cropX: number;
+  cropY: number;
   photo: FavoritePhoto;
 };
 
@@ -30,6 +32,28 @@ type EditableSpread = {
   sortOrder: number;
   items: SpreadItem[];
 };
+
+type CropDragState = {
+  slotIndex: number;
+  startClientX: number;
+  startClientY: number;
+  startCropX: number;
+  startCropY: number;
+  width: number;
+  height: number;
+};
+
+function clampCropPosition(value: number) {
+  if (!Number.isFinite(value)) {
+    return 50;
+  }
+
+  return Math.min(100, Math.max(0, value));
+}
+
+function formatCropPosition(value: number) {
+  return clampCropPosition(value).toFixed(2);
+}
 
 export function AlbumSpreadSlotEditor({
   customerId,
@@ -43,12 +67,16 @@ export function AlbumSpreadSlotEditor({
   photos: FavoritePhoto[];
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
-  const originalPhotoIds = useMemo(() => orderedItems.map((item) => item.photo.id).join("|"), [orderedItems]);
+  const originalItemSignature = useMemo(
+    () => orderedItems.map((item) => `${item.photo.id}:${formatCropPosition(item.cropX)}:${formatCropPosition(item.cropY)}`).join("|"),
+    [orderedItems]
+  );
   const [draftItems, setDraftItems] = useState(orderedItems);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(orderedItems[0]?.slotIndex ?? 0);
+  const cropDragStateRef = useRef<CropDragState | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? draftItems[0] ?? null;
-  const draftPhotoIds = draftItems.map((item) => item.photo.id).join("|");
-  const hasChanges = draftPhotoIds !== originalPhotoIds;
+  const draftItemSignature = draftItems.map((item) => `${item.photo.id}:${formatCropPosition(item.cropX)}:${formatCropPosition(item.cropY)}`).join("|");
+  const hasChanges = draftItemSignature !== originalItemSignature;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
 
   useEffect(() => {
@@ -62,11 +90,66 @@ export function AlbumSpreadSlotEditor({
         item.slotIndex === selectedSlotIndex
           ? {
               ...item,
-              photo
+              photo,
+              cropX: 50,
+              cropY: 50
             }
           : item
       )
     );
+  }
+
+  function beginCropDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadItem) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setSelectedSlotIndex(item.slotIndex);
+    cropDragStateRef.current = {
+      slotIndex: item.slotIndex,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startCropX: clampCropPosition(item.cropX),
+      startCropY: clampCropPosition(item.cropY),
+      width: bounds.width,
+      height: bounds.height
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function updateCropDrag(event: PointerEvent<HTMLButtonElement>) {
+    const dragState = cropDragStateRef.current;
+
+    if (!dragState) {
+      return;
+    }
+
+    event.preventDefault();
+    const deltaXPercent = ((event.clientX - dragState.startClientX) / Math.max(1, dragState.width)) * 100;
+    const deltaYPercent = ((event.clientY - dragState.startClientY) / Math.max(1, dragState.height)) * 100;
+    const cropX = clampCropPosition(dragState.startCropX - deltaXPercent);
+    const cropY = clampCropPosition(dragState.startCropY - deltaYPercent);
+
+    setDraftItems((items) =>
+      items.map((item) =>
+        item.slotIndex === dragState.slotIndex
+          ? {
+              ...item,
+              cropX,
+              cropY
+            }
+          : item
+      )
+    );
+  }
+
+  function endCropDrag(event: PointerEvent<HTMLButtonElement>) {
+    cropDragStateRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function resetDraft() {
@@ -111,14 +194,19 @@ export function AlbumSpreadSlotEditor({
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedSlotIndex(item.slotIndex)}
+                  onPointerDown={(event) => beginCropDrag(event, item)}
+                  onPointerMove={updateCropDrag}
+                  onPointerUp={endCropDrag}
+                  onPointerCancel={endCropDrag}
                   className={`absolute overflow-hidden border bg-white transition ${
                     isSelected ? "z-10 border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.18)]" : "border-white hover:border-brass"
-                  }`}
+                  } cursor-grab touch-none active:cursor-grabbing`}
                   style={{
                     left: `calc(${item.x}% + ${slotInset}px)`,
                     top: `calc(${item.y}% + ${slotInset}px)`,
                     width: `calc(${item.width}% - ${slotInset * 2}px)`,
-                    height: `calc(${item.height}% - ${slotInset * 2}px)`
+                    height: `calc(${item.height}% - ${slotInset * 2}px)`,
+                    touchAction: "none"
                   }}
                   aria-label={`${item.slotIndex + 1}. slot kiválasztása`}
                 >
@@ -129,6 +217,8 @@ export function AlbumSpreadSlotEditor({
                     unoptimized
                     sizes="(min-width: 1280px) 760px, 100vw"
                     className="object-cover"
+                    draggable={false}
+                    style={{ objectPosition: `${formatCropPosition(item.cropX)}% ${formatCropPosition(item.cropY)}%` }}
                   />
                   <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
                     {item.slotIndex + 1}
@@ -146,7 +236,9 @@ export function AlbumSpreadSlotEditor({
               <p className="mt-1 truncate text-sm font-medium text-ink">{selectedItem?.photo.filename ?? "Nincs kép"}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs text-graphite/60">{hasChanges ? "Nem mentett módosítások." : "Válassz képet az aktív slot cseréjéhez."}</p>
+              <p className="text-xs text-graphite/60">
+                {hasChanges ? "Nem mentett módosítások." : "Húzd a képet a sloton belül, vagy válassz másik képet."}
+              </p>
               <button
                 type="button"
                 onClick={resetDraft}
@@ -157,7 +249,11 @@ export function AlbumSpreadSlotEditor({
               </button>
               <form action={saveAlbumDesignSpreadSlotDraftAction.bind(null, customerId, designId, spread.id)}>
                 {draftItems.map((item) => (
-                  <input key={`slot-draft-${item.slotIndex}`} type="hidden" name="slotPhotoIds" value={item.photo.id} />
+                  <span key={`slot-draft-${item.slotIndex}`}>
+                    <input type="hidden" name="slotPhotoIds" value={item.photo.id} />
+                    <input type="hidden" name="slotCropX" value={formatCropPosition(item.cropX)} />
+                    <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />
+                  </span>
                 ))}
                 <button
                   type="submit"

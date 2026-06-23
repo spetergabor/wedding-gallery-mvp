@@ -189,6 +189,8 @@ model AlbumDesignSpreadItem {
   y         Float
   width     Float
   height    Float
+  cropX     Float    @default(50)
+  cropY     Float    @default(50)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   spread    AlbumDesignSpread @relation(fields: [spreadId], references: [id], onDelete: Cascade)

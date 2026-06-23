@@ -72,6 +72,8 @@ type AlbumDesign = {
       y: number;
       width: number;
       height: number;
+      cropX: number;
+      cropY: number;
       photo: FavoritePhoto;
     }>;
   }>;
