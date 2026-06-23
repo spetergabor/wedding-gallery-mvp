@@ -41,6 +41,10 @@ function packageStatusLabel(status: string) {
     return "Hibás";
   }
 
+  if (status === "stale") {
+    return "Elavult";
+  }
+
   return "Készül";
 }
 
@@ -51,6 +55,10 @@ function packageStatusClass(status: string) {
 
   if (status === "failed") {
     return "bg-red-50 text-red-700";
+  }
+
+  if (status === "stale") {
+    return "bg-graphite/10 text-graphite";
   }
 
   return "bg-brass/15 text-brass";
