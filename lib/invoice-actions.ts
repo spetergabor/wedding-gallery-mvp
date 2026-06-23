@@ -178,7 +178,6 @@ export async function sendInvoiceAction(customerId: string, invoiceId: string) {
     });
 
     revalidatePath(`/admin/clients/${customerId}`);
-    invoiceRedirect(customerId, "invoiceSent=1");
   } catch (error) {
     await prisma.customerInvoice.update({
       where: { id: invoice.id },
@@ -190,6 +189,8 @@ export async function sendInvoiceAction(customerId: string, invoiceId: string) {
     revalidatePath(`/admin/clients/${customerId}`);
     invoiceRedirect(customerId, "invoiceError=email");
   }
+
+  invoiceRedirect(customerId, "invoiceSent=1");
 }
 
 export async function updateInvoiceStatusAction(customerId: string, invoiceId: string, formData: FormData) {
