@@ -31,6 +31,7 @@ import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { CUSTOMER_STATUSES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
@@ -78,6 +79,22 @@ type TimelineEvent = {
   title: string;
   detail: string;
   href?: string;
+};
+
+type CustomerProjectOverview = {
+  id: string;
+  title: string;
+  projectType: string;
+  status: string;
+  eventDate: Date | null;
+  venue: string | null;
+  createdAt: Date;
+  _count: {
+    galleries: number;
+    contracts: number;
+    albumReviews: number;
+    albumDesigns: number;
+  };
 };
 
 type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "communication" | "details";
@@ -365,6 +382,45 @@ function createCommunicationEvents(customer: CustomerWorkflowInput) {
   });
 
   return events.sort((a, b) => b.date.getTime() - a.date.getTime());
+}
+
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function sortProjectsForOverview(projects: CustomerProjectOverview[], today: Date) {
+  return [...projects].sort((a, b) => {
+    const aTime = a.eventDate?.getTime();
+    const bTime = b.eventDate?.getTime();
+    const aUpcoming = typeof aTime === "number" && aTime >= today.getTime();
+    const bUpcoming = typeof bTime === "number" && bTime >= today.getTime();
+
+    if (aUpcoming !== bUpcoming) {
+      return aUpcoming ? -1 : 1;
+    }
+
+    if (typeof aTime === "number" && typeof bTime === "number") {
+      return aUpcoming ? aTime - bTime : bTime - aTime;
+    }
+
+    if (typeof aTime === "number") {
+      return -1;
+    }
+
+    if (typeof bTime === "number") {
+      return 1;
+    }
+
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+}
+
+function getNextProject(projects: CustomerProjectOverview[], today: Date) {
+  return projects
+    .filter((project) => project.eventDate && project.eventDate.getTime() >= today.getTime())
+    .sort((a, b) => (a.eventDate?.getTime() ?? 0) - (b.eventDate?.getTime() ?? 0))[0] ?? null;
 }
 
 function taskStyles(state: CustomerTask["state"]) {
@@ -663,6 +719,9 @@ export default async function AdminClientDetailPage({
   const timelineEvents = createCustomerTimeline(customer);
   const communicationEvents = createCommunicationEvents(customer);
   const proofingGalleries = customer.galleries.filter((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING);
+  const today = startOfToday();
+  const projectsByDate = sortProjectsForOverview(customer.projects, today);
+  const nextProject = getNextProject(customer.projects, today);
 
   return (
     <AdminShell>
@@ -792,55 +851,137 @@ export default async function AdminClientDetailPage({
 
       {activeTab === "overview" ? (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-            <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
-              <div>
-                <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                  <CheckCircle2 size={15} />
-                  Teendők
+          <div className="space-y-6">
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
+                <div>
+                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                    <CheckCircle2 size={15} />
+                    Teendők
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">Leadás előtti checklist</h2>
+                  <p className="mt-1 text-sm leading-6 text-graphite/70">
+                    A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.
+                  </p>
                 </div>
-                <h2 className="mt-2 text-xl font-semibold text-ink">Leadás előtti checklist</h2>
-                <p className="mt-1 text-sm leading-6 text-graphite/70">
-                  A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.
-                </p>
+                <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+                  {nextAction.laneLabel}
+                </span>
               </div>
-              <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                {nextAction.laneLabel}
-              </span>
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {customerTasks.map((task) => {
-                const styles = taskStyles(task.state);
-                const TaskIcon = styles.icon;
-                const content = (
-                  <>
-                    <div className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${styles.className}`}>
-                      <TaskIcon size={16} />
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {customerTasks.map((task) => {
+                  const styles = taskStyles(task.state);
+                  const TaskIcon = styles.icon;
+                  const content = (
+                    <>
+                      <div className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${styles.className}`}>
+                        <TaskIcon size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-ink">{task.title}</p>
+                          <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                            {styles.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm leading-5 text-graphite/70">{task.detail}</p>
+                      </div>
+                    </>
+                  );
+
+                  return task.href ? (
+                    <Link key={`${task.title}-${task.detail}`} href={task.href} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3 transition hover:border-ink/20 hover:bg-ink/[0.03]">
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={`${task.title}-${task.detail}`} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3">
+                      {content}
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium text-ink">{task.title}</p>
-                        <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
-                          {styles.label}
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
+                <div>
+                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                    <FolderKanban size={15} />
+                    Projekt naptár
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">Következő projektek</h2>
+                  <p className="mt-1 text-sm leading-6 text-graphite/70">
+                    Ügyfélhez tartozó fotózások és munkák dátum szerint rendezve.
+                  </p>
+                </div>
+                <ButtonLink href={`/admin/clients/${customer.id}?tab=projects`} variant="secondary" className="h-10">
+                  Projektek kezelése
+                </ButtonLink>
+              </div>
+
+              {projectsByDate.length === 0 ? (
+                <div className="mt-4 rounded-md bg-paper px-4 py-4">
+                  <p className="text-sm font-medium text-ink">Még nincs projekt létrehozva</p>
+                  <p className="mt-1 text-sm text-graphite/70">Hozz létre projektet, hogy az áttekintésben lásd a következő fotózást vagy album munkát.</p>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {nextProject ? (
+                    <Link
+                      href={`/admin/clients/${customer.id}?tab=projects`}
+                      className="block rounded-md border border-brass/30 bg-brass/10 p-4 transition hover:bg-brass/15"
+                    >
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brass">Következő projekt</p>
+                          <h3 className="mt-2 text-lg font-semibold text-ink">{nextProject.title}</h3>
+                          <p className="mt-1 text-sm text-graphite/75">
+                            {customerProjectTypeLabel(nextProject.projectType)} · {formatDate(nextProject.eventDate)}
+                            {nextProject.venue ? ` · ${nextProject.venue}` : ""}
+                          </p>
+                        </div>
+                        <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-brass">
+                          {customerProjectStatusLabel(nextProject.status)}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm leading-5 text-graphite/70">{task.detail}</p>
-                    </div>
-                  </>
-                );
+                    </Link>
+                  ) : null}
 
-                return task.href ? (
-                  <Link key={`${task.title}-${task.detail}`} href={task.href} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3 transition hover:border-ink/20 hover:bg-ink/[0.03]">
-                    {content}
-                  </Link>
-                ) : (
-                  <div key={`${task.title}-${task.detail}`} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3">
-                    {content}
+                  <div className="divide-y divide-ink/10 rounded-md border border-ink/10">
+                    {projectsByDate.slice(0, 5).map((project) => (
+                      <Link
+                        key={project.id}
+                        href={`/admin/clients/${customer.id}?tab=projects`}
+                        className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-ink">{project.title}</p>
+                            {project.id === nextProject?.id ? (
+                              <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
+                                Következő
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-sm text-graphite/70">
+                            {customerProjectTypeLabel(project.projectType)} · {project.venue || "nincs helyszín"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                          <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                            {formatDate(project.eventDate)}
+                          </span>
+                          <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                            {project._count.galleries} galéria
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          </section>
+                </div>
+              )}
+            </section>
+          </div>
 
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <div className="border-b border-ink/10 pb-4">
