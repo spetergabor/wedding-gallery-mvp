@@ -15,7 +15,6 @@ import {
   Mail,
   MessageSquare,
   Plus,
-  Settings,
   Trash2
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
@@ -28,6 +27,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { CustomerProjectManager } from "@/components/customer-project-manager";
+import { CustomerTabController } from "@/components/customer-tab-controller";
 import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
@@ -103,16 +103,16 @@ type AlbumMode = "editor" | "upload";
 const customerTabs: Array<{
   key: CustomerTab;
   label: string;
-  icon: typeof Camera;
+  icon: "CheckCircle2" | "FolderKanban" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "MessageSquare" | "Settings";
 }> = [
-  { key: "overview", label: "Áttekintés", icon: CheckCircle2 },
-  { key: "projects", label: "Projektek", icon: FolderKanban },
-  { key: "galleries", label: "Galériák", icon: Camera },
-  { key: "proofing", label: "Válogatás", icon: Heart },
-  { key: "album", label: "Album", icon: ImagePlus },
-  { key: "contracts", label: "Szerződések", icon: FileText },
-  { key: "communication", label: "Kommunikáció", icon: MessageSquare },
-  { key: "details", label: "Adatok", icon: Settings }
+  { key: "overview", label: "Áttekintés", icon: "CheckCircle2" },
+  { key: "projects", label: "Projektek", icon: "FolderKanban" },
+  { key: "galleries", label: "Galériák", icon: "Camera" },
+  { key: "proofing", label: "Válogatás", icon: "Heart" },
+  { key: "album", label: "Album", icon: "ImagePlus" },
+  { key: "contracts", label: "Szerződések", icon: "FileText" },
+  { key: "communication", label: "Kommunikáció", icon: "MessageSquare" },
+  { key: "details", label: "Adatok", icon: "Settings" }
 ];
 
 type CustomerWorkflowInput = {
@@ -596,116 +596,105 @@ export default async function AdminClientDetailPage({
     notFound();
   }
 
-  const albumReviews =
-    activeTab === "album"
-      ? await prisma.albumReview.findMany({
-          where: { customerId: customer.id },
-          orderBy: { createdAt: "desc" },
-          include: {
-            spreads: {
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-              include: {
-                comments: {
-                  orderBy: { createdAt: "asc" }
-                }
+  const [albumReviews, albumFavoriteLists, albumDesigns, unassignedAlbumReviewCount, unassignedAlbumDesignCount] =
+    await Promise.all([
+      prisma.albumReview.findMany({
+        where: { customerId: customer.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          spreads: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            include: {
+              comments: {
+                orderBy: { createdAt: "asc" }
               }
             }
           }
-        })
-      : [];
-  const albumFavoriteLists =
-    activeTab === "album"
-      ? await prisma.galleryFavoriteList.findMany({
-          where: {
-            gallery: {
-              customerId: customer.id
+        }
+      }),
+      prisma.galleryFavoriteList.findMany({
+        where: {
+          gallery: {
+            customerId: customer.id
+          }
+        },
+        orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
+        include: {
+          gallery: {
+            select: {
+              title: true
             }
           },
-          orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
-          include: {
-            gallery: {
-              select: {
-                title: true
-              }
-            },
-            _count: {
-              select: { items: true }
-            },
-            items: {
-              orderBy: { createdAt: "asc" },
-              take: 120,
-              select: {
-                photo: {
-                  select: {
-                    id: true,
-                    filename: true,
-                    imageUrl: true,
-                    thumbnailUrl: true
-                  }
+          _count: {
+            select: { items: true }
+          },
+          items: {
+            orderBy: { createdAt: "asc" },
+            take: 120,
+            select: {
+              photo: {
+                select: {
+                  id: true,
+                  filename: true,
+                  imageUrl: true,
+                  thumbnailUrl: true
                 }
               }
             }
           }
-        })
-      : [];
-  const albumDesigns =
-    activeTab === "album"
-      ? await prisma.albumDesign.findMany({
-          where: { customerId: customer.id },
-          orderBy: { createdAt: "desc" },
-          include: {
-            favoriteList: {
-              include: {
-                gallery: {
-                  select: { title: true }
-                },
-                _count: {
-                  select: { items: true }
-                },
-                items: {
-                  orderBy: { createdAt: "asc" },
-                  take: 120,
-                  select: {
-                    photo: {
-                      select: {
-                        id: true,
-                        filename: true,
-                        imageUrl: true,
-                        thumbnailUrl: true
-                      }
+        }
+      }),
+      prisma.albumDesign.findMany({
+        where: { customerId: customer.id },
+        orderBy: { createdAt: "desc" },
+        include: {
+          favoriteList: {
+            include: {
+              gallery: {
+                select: { title: true }
+              },
+              _count: {
+                select: { items: true }
+              },
+              items: {
+                orderBy: { createdAt: "asc" },
+                take: 120,
+                select: {
+                  photo: {
+                    select: {
+                      id: true,
+                      filename: true,
+                      imageUrl: true,
+                      thumbnailUrl: true
                     }
                   }
                 }
               }
-            },
-            spreads: {
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-              include: {
-                items: {
-                  orderBy: { slotIndex: "asc" },
-                  include: {
-                    photo: {
-                      select: {
-                        id: true,
-                        filename: true,
-                        imageUrl: true,
-                        thumbnailUrl: true
-                      }
+            }
+          },
+          spreads: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            include: {
+              items: {
+                orderBy: { slotIndex: "asc" },
+                include: {
+                  photo: {
+                    select: {
+                      id: true,
+                      filename: true,
+                      imageUrl: true,
+                      thumbnailUrl: true
                     }
                   }
                 }
               }
             }
           }
-        })
-      : [];
-  const [unassignedAlbumReviewCount, unassignedAlbumDesignCount] =
-    activeTab === "projects"
-      ? await Promise.all([
-          prisma.albumReview.count({ where: { customerId: customer.id, projectId: null } }),
-          prisma.albumDesign.count({ where: { customerId: customer.id, projectId: null } })
-        ])
-      : [0, 0];
+        }
+      }),
+      prisma.albumReview.count({ where: { customerId: customer.id, projectId: null } }),
+      prisma.albumDesign.count({ where: { customerId: customer.id, projectId: null } })
+    ]);
   const unassignedProjectCounts = {
     galleries: customer.galleries.filter((gallery) => !gallery.projectId).length,
     contracts: customer.contracts.filter((contract) => !contract.projectId).length,
@@ -827,29 +816,9 @@ export default async function AdminClientDetailPage({
         iconKey={nextAction.iconKey}
       />
 
-      <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
-        <nav className="grid gap-2 md:grid-cols-2 xl:grid-cols-8" aria-label="Ügyfél munkaterületek">
-          {customerTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
+      <CustomerTabController tabs={customerTabs} initialTab={activeTab} />
 
-            return (
-              <Link
-                key={tab.key}
-                href={`/admin/clients/${customer.id}?tab=${tab.key}`}
-                className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
-                  isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
-                }`}
-              >
-                <Icon size={16} />
-                {tab.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      {activeTab === "overview" ? (
+      <div data-customer-tab-panel="overview" hidden={activeTab !== "overview"}>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-6">
             <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
@@ -914,9 +883,13 @@ export default async function AdminClientDetailPage({
                     Ügyfélhez tartozó fotózások és munkák dátum szerint rendezve.
                   </p>
                 </div>
-                <ButtonLink href={`/admin/clients/${customer.id}?tab=projects`} variant="secondary" className="h-10">
+                <Link
+                  href={`/admin/clients/${customer.id}?tab=projects`}
+                  data-customer-tab-target="projects"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
+                >
                   Projektek kezelése
-                </ButtonLink>
+                </Link>
               </div>
 
               {projectsByDate.length === 0 ? (
@@ -929,6 +902,7 @@ export default async function AdminClientDetailPage({
                   {nextProject ? (
                     <Link
                       href={`/admin/clients/${customer.id}?tab=projects`}
+                      data-customer-tab-target="projects"
                       className="block rounded-md border border-brass/30 bg-brass/10 p-4 transition hover:bg-brass/15"
                     >
                       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
@@ -952,6 +926,7 @@ export default async function AdminClientDetailPage({
                       <Link
                         key={project.id}
                         href={`/admin/clients/${customer.id}?tab=projects`}
+                        data-customer-tab-target="projects"
                         className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                       >
                         <div className="min-w-0">
@@ -1019,9 +994,9 @@ export default async function AdminClientDetailPage({
             </div>
           </section>
         </div>
-      ) : null}
+      </div>
 
-      {activeTab === "projects" ? (
+      <div data-customer-tab-panel="projects" hidden={activeTab !== "projects"}>
         <CustomerProjectManager
           customerId={customer.id}
           projects={customer.projects}
@@ -1029,9 +1004,9 @@ export default async function AdminClientDetailPage({
           defaultEventDate={customer.weddingDate}
           defaultVenue={customer.venue}
         />
-      ) : null}
+      </div>
 
-      {activeTab === "galleries" ? (
+      <div data-customer-tab-panel="galleries" hidden={activeTab !== "galleries"}>
         <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
             <div>
@@ -1089,9 +1064,9 @@ export default async function AdminClientDetailPage({
             </div>
           )}
         </section>
-      ) : null}
+      </div>
 
-      {activeTab === "proofing" ? (
+      <div data-customer-tab-panel="proofing" hidden={activeTab !== "proofing"}>
         <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <Heart size={15} />
@@ -1133,9 +1108,9 @@ export default async function AdminClientDetailPage({
             </div>
           )}
         </section>
-      ) : null}
+      </div>
 
-      {activeTab === "album" ? (
+      <div data-customer-tab-panel="album" hidden={activeTab !== "album"}>
         <AlbumWorkflowTabs
           initialMode={albumMode}
           editorCount={albumDesigns.length}
@@ -1149,11 +1124,13 @@ export default async function AdminClientDetailPage({
           }
           uploadContent={<AlbumReviewManager customerId={customer.id} reviews={albumReviews} />}
         />
-      ) : null}
+      </div>
 
-      {activeTab === "contracts" ? <ContractManager customerId={customer.id} contracts={customer.contracts} /> : null}
+      <div data-customer-tab-panel="contracts" hidden={activeTab !== "contracts"}>
+        <ContractManager customerId={customer.id} contracts={customer.contracts} />
+      </div>
 
-      {activeTab === "communication" ? (
+      <div data-customer-tab-panel="communication" hidden={activeTab !== "communication"}>
         <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <MessageSquare size={15} />
@@ -1195,9 +1172,9 @@ export default async function AdminClientDetailPage({
             </div>
           )}
         </section>
-      ) : null}
+      </div>
 
-      {activeTab === "details" ? (
+      <div data-customer-tab-panel="details" hidden={activeTab !== "details"}>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div>{isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} />}</div>
           <aside className="space-y-6">
@@ -1246,7 +1223,7 @@ export default async function AdminClientDetailPage({
             </section>
           </aside>
         </div>
-      ) : null}
+      </div>
     </AdminShell>
   );
 }
