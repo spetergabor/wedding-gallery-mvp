@@ -70,6 +70,8 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     key: "two-left-page-right-square",
     name: "Bal teljes oldal, jobb négyzet",
     photoCount: 2,
+    previewSlotInsetPx: 0,
+    exportSlotInsetPx: 0,
     slots: [
       { x: 0, y: 0, width: 50, height: 100 },
       { x: 58, y: 16, width: 34, height: 68 }

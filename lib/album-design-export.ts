@@ -36,8 +36,9 @@ export type AlbumDesignSpreadExportData = {
   }>;
 };
 
-const EXPORT_WIDTH = 3600;
-const EXPORT_HEIGHT = 1800;
+export const ALBUM_DESIGN_EXPORT_WIDTH = 7200;
+export const ALBUM_DESIGN_EXPORT_HEIGHT = 3600;
+const ALBUM_DESIGN_EXPORT_JPEG_QUALITY = 95;
 
 export async function loadAlbumDesignSpreadForExport({
   admin,
@@ -116,7 +117,7 @@ async function renderCroppedPhotoBuffer({
   if (!metadata.width || !metadata.height) {
     return sharp(orientedBuffer, { failOn: "none" })
       .resize(width, height, { fit: "cover", position: "centre" })
-      .jpeg({ quality: 92, mozjpeg: true })
+      .jpeg({ quality: ALBUM_DESIGN_EXPORT_JPEG_QUALITY, mozjpeg: true })
       .toBuffer();
   }
 
@@ -131,7 +132,7 @@ async function renderCroppedPhotoBuffer({
   return sharp(orientedBuffer, { failOn: "none" })
     .resize(resizedWidth, resizedHeight, { fit: "fill" })
     .extract({ left, top, width, height })
-    .jpeg({ quality: 92, mozjpeg: true })
+    .jpeg({ quality: ALBUM_DESIGN_EXPORT_JPEG_QUALITY, mozjpeg: true })
     .toBuffer();
 }
 
@@ -139,13 +140,13 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
   const slotInset = getAlbumLayoutExportSlotInsetPx(spread.layoutKey);
   const composites = await Promise.all(
     spread.items.map(async (item) => {
-      const photoR2Key = getR2KeyFromPublicUrl(item.photo.previewUrl) ?? item.photo.r2Key;
+      const photoR2Key = item.photo.r2Key || getR2KeyFromPublicUrl(item.photo.imageUrl) || getR2KeyFromPublicUrl(item.photo.previewUrl);
       const photoBuffer = await loadPhotoObjectBuffer({
         r2Key: photoR2Key,
-        publicUrl: item.photo.previewUrl || item.photo.imageUrl
+        publicUrl: item.photo.imageUrl || item.photo.previewUrl
       });
-      const slotWidth = Math.round((item.width / 100) * EXPORT_WIDTH);
-      const slotHeight = Math.round((item.height / 100) * EXPORT_HEIGHT);
+      const slotWidth = Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH);
+      const slotHeight = Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT);
       const width = Math.max(1, slotWidth - slotInset * 2);
       const height = Math.max(1, slotHeight - slotInset * 2);
       const input = await renderCroppedPhotoBuffer({
@@ -158,22 +159,22 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
 
       return {
         input,
-        left: Math.round((item.x / 100) * EXPORT_WIDTH) + slotInset,
-        top: Math.round((item.y / 100) * EXPORT_HEIGHT) + slotInset
+        left: Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH) + slotInset,
+        top: Math.round((item.y / 100) * ALBUM_DESIGN_EXPORT_HEIGHT) + slotInset
       };
     })
   );
 
   return sharp({
     create: {
-      width: EXPORT_WIDTH,
-      height: EXPORT_HEIGHT,
+      width: ALBUM_DESIGN_EXPORT_WIDTH,
+      height: ALBUM_DESIGN_EXPORT_HEIGHT,
       channels: 3,
       background: ALBUM_SPREAD_BACKGROUND
     }
   })
     .composite(composites)
-    .jpeg({ quality: 92, mozjpeg: true })
+    .jpeg({ quality: ALBUM_DESIGN_EXPORT_JPEG_QUALITY, mozjpeg: true })
     .toBuffer();
 }
 

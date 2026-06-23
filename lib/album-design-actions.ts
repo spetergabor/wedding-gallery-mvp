@@ -4,7 +4,13 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { customerAccessWhere } from "@/lib/admin-scope";
-import { albumDesignSpreadExportFilename, renderAlbumDesignSpreadJpeg, type AlbumDesignSpreadExportData } from "@/lib/album-design-export";
+import {
+  ALBUM_DESIGN_EXPORT_HEIGHT,
+  ALBUM_DESIGN_EXPORT_WIDTH,
+  albumDesignSpreadExportFilename,
+  renderAlbumDesignSpreadJpeg,
+  type AlbumDesignSpreadExportData
+} from "@/lib/album-design-export";
 import { requireAdmin } from "@/lib/auth";
 import { getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
@@ -494,8 +500,8 @@ export async function exportAlbumDesignToReviewAction(customerId: string, design
         r2Key,
         imageUrl: getPhotoPublicUrl(r2Key),
         fileSize: jpegBuffer.length,
-        imageWidth: 3600,
-        imageHeight: 1800,
+        imageWidth: ALBUM_DESIGN_EXPORT_WIDTH,
+        imageHeight: ALBUM_DESIGN_EXPORT_HEIGHT,
         sortOrder: index + 1
       });
     }

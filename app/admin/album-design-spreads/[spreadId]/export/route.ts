@@ -3,6 +3,7 @@ import { albumDesignSpreadExportFilename, loadAlbumDesignSpreadForExport, render
 import { requireAdmin } from "@/lib/auth";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ spreadId: string }> }) {
   const admin = await requireAdmin();
