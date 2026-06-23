@@ -1,13 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Grid3X3, RefreshCcw, Shuffle, Trash2 } from "lucide-react";
+import { Download, Grid3X3, RefreshCcw, Save, Shuffle, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
   deleteAlbumDesignSpreadAction,
   regenerateAlbumDesignSpreadLayoutAction,
+  saveAlbumDesignSpreadDraftsAction,
   updateAlbumDesignSpreadAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
@@ -41,6 +43,41 @@ type AlbumSpread = {
 
 function getTemplate(layoutKey: string) {
   return ALBUM_LAYOUT_TEMPLATES.find((item) => item.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
+}
+
+function formatCropPosition(value: number) {
+  if (!Number.isFinite(value)) {
+    return "50.00";
+  }
+
+  return Math.min(100, Math.max(0, value)).toFixed(2);
+}
+
+function getOrderedItems(spread: AlbumSpread) {
+  return [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex);
+}
+
+function getItemSignature(items: SpreadItem[]) {
+  return items.map((item) => `${item.photo.id}:${formatCropPosition(item.cropX)}:${formatCropPosition(item.cropY)}`).join("|");
+}
+
+function createDraftMap(spreads: AlbumSpread[]) {
+  return Object.fromEntries(spreads.map((spread) => [spread.id, getOrderedItems(spread)]));
+}
+
+function SpreadDraftInputs({ spreadId, items }: { spreadId: string; items: SpreadItem[] }) {
+  return (
+    <>
+      <input type="hidden" name="draftSpreadIds" value={spreadId} />
+      {items.map((item) => (
+        <span key={`all-draft-${spreadId}-${item.slotIndex}`}>
+          <input type="hidden" name={`spread-${spreadId}-slotPhotoIds`} value={item.photo.id} />
+          <input type="hidden" name={`spread-${spreadId}-slotCropX`} value={formatCropPosition(item.cropX)} />
+          <input type="hidden" name={`spread-${spreadId}-slotCropY`} value={formatCropPosition(item.cropY)} />
+        </span>
+      ))}
+    </>
+  );
 }
 
 function TemplatePreview({ layoutKey }: { layoutKey: string }) {
@@ -97,14 +134,65 @@ export function AlbumDesignWorkbench({
   spreads: AlbumSpread[];
   sourcePhotos: FavoritePhoto[];
 }) {
+  const [draftItemsBySpread, setDraftItemsBySpread] = useState<Record<string, SpreadItem[]>>(() => createDraftMap(spreads));
+  const originalSignaturesBySpread = useMemo(
+    () => Object.fromEntries(spreads.map((spread) => [spread.id, getItemSignature(getOrderedItems(spread))])),
+    [spreads]
+  );
+  const changedSpreadIds = useMemo(
+    () =>
+      spreads
+        .filter((spread) => getItemSignature(draftItemsBySpread[spread.id] ?? getOrderedItems(spread)) !== originalSignaturesBySpread[spread.id])
+        .map((spread) => spread.id),
+    [draftItemsBySpread, originalSignaturesBySpread, spreads]
+  );
+  const usedPhotoIds = useMemo(
+    () => [
+      ...new Set(
+        Object.values(draftItemsBySpread)
+          .flat()
+          .map((item) => item.photo.id)
+      )
+    ],
+    [draftItemsBySpread]
+  );
+
+  useEffect(() => {
+    setDraftItemsBySpread(createDraftMap(spreads));
+  }, [spreads]);
+
   if (spreads.length === 0) {
     return null;
   }
 
   return (
     <div className="mt-5 space-y-5">
+      {changedSpreadIds.length > 0 ? (
+        <div className="sticky top-3 z-20 rounded-lg border border-brass/30 bg-brass/10 p-3 shadow-soft">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                {changedSpreadIds.length} oldalpáron van nem mentett módosítás
+              </p>
+              <p className="mt-0.5 text-xs text-graphite/70">A módosítások addig csak itt látszanak, amíg nem mented őket.</p>
+            </div>
+            <form action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
+              {changedSpreadIds.map((spreadId) => (
+                <SpreadDraftInputs key={spreadId} spreadId={spreadId} items={draftItemsBySpread[spreadId] ?? []} />
+              ))}
+              <Button type="submit" className="h-10 px-3">
+                <Save size={15} />
+                Összes mentése
+              </Button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
       {spreads.map((spread) => {
         const template = getTemplate(spread.layoutKey);
+        const draftItems = draftItemsBySpread[spread.id] ?? getOrderedItems(spread);
+        const hasChanges = changedSpreadIds.includes(spread.id);
 
         return (
           <div key={spread.id} className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
@@ -114,6 +202,11 @@ export function AlbumDesignWorkbench({
                 <p className="mt-0.5 text-xs text-graphite/60">
                   {template.name} · {spread.items.length} kép
                 </p>
+                {hasChanges ? (
+                  <span className="mt-2 inline-flex rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                    Nem mentett módosítás
+                  </span>
+                ) : null}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -143,7 +236,21 @@ export function AlbumDesignWorkbench({
               </div>
             </div>
 
-            <AlbumSpreadSlotEditor customerId={customerId} designId={designId} spread={spread} photos={sourcePhotos} />
+            <AlbumSpreadSlotEditor
+              customerId={customerId}
+              designId={designId}
+              spread={spread}
+              photos={sourcePhotos}
+              draftItems={draftItems}
+              onDraftItemsChange={(updater) =>
+                setDraftItemsBySpread((current) => ({
+                  ...current,
+                  [spread.id]: updater(current[spread.id] ?? getOrderedItems(spread))
+                }))
+              }
+              hasChanges={hasChanges}
+              usedPhotoIds={usedPhotoIds}
+            />
 
             <details className="mt-4 rounded-md border border-ink/10 bg-paper">
               <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">

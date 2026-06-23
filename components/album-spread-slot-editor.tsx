@@ -59,43 +59,48 @@ export function AlbumSpreadSlotEditor({
   customerId,
   designId,
   spread,
-  photos
+  photos,
+  draftItems,
+  onDraftItemsChange,
+  hasChanges,
+  usedPhotoIds
 }: {
   customerId: string;
   designId: string;
   spread: EditableSpread;
   photos: FavoritePhoto[];
+  draftItems: SpreadItem[];
+  onDraftItemsChange: (updater: (items: SpreadItem[]) => SpreadItem[]) => void;
+  hasChanges: boolean;
+  usedPhotoIds: string[];
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
-  const originalItemSignature = useMemo(
-    () => orderedItems.map((item) => `${item.photo.id}:${formatCropPosition(item.cropX)}:${formatCropPosition(item.cropY)}`).join("|"),
-    [orderedItems]
-  );
-  const [draftItems, setDraftItems] = useState(orderedItems);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(orderedItems[0]?.slotIndex ?? 0);
   const [photoQuery, setPhotoQuery] = useState("");
+  const [showUnusedOnly, setShowUnusedOnly] = useState(false);
   const cropDragStateRef = useRef<CropDragState | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? draftItems[0] ?? null;
-  const draftItemSignature = draftItems.map((item) => `${item.photo.id}:${formatCropPosition(item.cropX)}:${formatCropPosition(item.cropY)}`).join("|");
-  const hasChanges = draftItemSignature !== originalItemSignature;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
+  const usedPhotoIdSet = useMemo(() => new Set(usedPhotoIds), [usedPhotoIds]);
   const filteredPhotos = useMemo(() => {
     const normalizedQuery = photoQuery.trim().toLowerCase();
+    const searchedPhotos = normalizedQuery ? photos.filter((photo) => photo.filename.toLowerCase().includes(normalizedQuery)) : photos;
 
-    if (!normalizedQuery) {
-      return photos;
+    if (!showUnusedOnly) {
+      return searchedPhotos;
     }
 
-    return photos.filter((photo) => photo.filename.toLowerCase().includes(normalizedQuery));
-  }, [photoQuery, photos]);
+    return searchedPhotos.filter((photo) => !usedPhotoIdSet.has(photo.id) || photo.id === selectedItem?.photo.id);
+  }, [photoQuery, photos, selectedItem?.photo.id, showUnusedOnly, usedPhotoIdSet]);
 
   useEffect(() => {
-    setDraftItems(orderedItems);
-    setSelectedSlotIndex(orderedItems[0]?.slotIndex ?? 0);
-  }, [orderedItems]);
+    if (draftItems.length > 0 && !draftItems.some((item) => item.slotIndex === selectedSlotIndex)) {
+      setSelectedSlotIndex(draftItems[0].slotIndex);
+    }
+  }, [draftItems, selectedSlotIndex]);
 
   function replaceSelectedSlotPhoto(photo: FavoritePhoto) {
-    setDraftItems((items) =>
+    onDraftItemsChange((items) =>
       items.map((item) =>
         item.slotIndex === selectedSlotIndex
           ? {
@@ -141,7 +146,7 @@ export function AlbumSpreadSlotEditor({
     const cropX = clampCropPosition(dragState.startCropX - deltaXPercent);
     const cropY = clampCropPosition(dragState.startCropY - deltaYPercent);
 
-    setDraftItems((items) =>
+    onDraftItemsChange((items) =>
       items.map((item) =>
         item.slotIndex === dragState.slotIndex
           ? {
@@ -163,12 +168,12 @@ export function AlbumSpreadSlotEditor({
   }
 
   function resetDraft() {
-    setDraftItems(orderedItems);
+    onDraftItemsChange(() => orderedItems);
     setSelectedSlotIndex(orderedItems[0]?.slotIndex ?? 0);
   }
 
   function centerSelectedSlotCrop() {
-    setDraftItems((items) =>
+    onDraftItemsChange((items) =>
       items.map((item) =>
         item.slotIndex === selectedSlotIndex
           ? {
@@ -306,26 +311,42 @@ export function AlbumSpreadSlotEditor({
               <ImageIcon size={15} />
               Képcsere megnyitása
             </span>
-            <span className="text-xs font-normal text-graphite/60">{photos.length} kép</span>
+            <span className="text-xs font-normal text-graphite/60">
+              {filteredPhotos.length}/{photos.length} kép
+            </span>
           </summary>
           <div className="border-t border-ink/10 p-3">
-            <label className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60" htmlFor={`photo-search-${spread.id}`}>
-              Keresés
-            </label>
-            <div className="relative mt-2">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-graphite/45" />
-              <input
-                id={`photo-search-${spread.id}`}
-                value={photoQuery}
-                onChange={(event) => setPhotoQuery(event.target.value)}
-                placeholder="Kép keresése fájlnév alapján"
-                className="h-10 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm text-ink outline-none transition focus:border-ink/45"
-              />
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <label className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60" htmlFor={`photo-search-${spread.id}`}>
+                  Keresés
+                </label>
+                <div className="relative mt-2">
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-graphite/45" />
+                  <input
+                    id={`photo-search-${spread.id}`}
+                    value={photoQuery}
+                    onChange={(event) => setPhotoQuery(event.target.value)}
+                    placeholder="Kép keresése fájlnév alapján"
+                    className="h-10 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm text-ink outline-none transition focus:border-ink/45"
+                  />
+                </div>
+              </div>
+              <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-ink/15 bg-paper px-3 text-sm font-medium text-ink transition hover:border-ink/30">
+                <input
+                  type="checkbox"
+                  checked={showUnusedOnly}
+                  onChange={(event) => setShowUnusedOnly(event.target.checked)}
+                  className="size-4 accent-ink"
+                />
+                Csak nem használt képek
+              </label>
             </div>
 
             <div className="mt-3 grid max-h-80 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {filteredPhotos.map((photo) => {
                 const isCurrent = selectedItem?.photo.id === photo.id;
+                const isUsed = usedPhotoIdSet.has(photo.id);
 
                 return (
                   <button
@@ -350,6 +371,17 @@ export function AlbumSpreadSlotEditor({
                       <span className="block truncate text-sm font-medium">{photo.filename}</span>
                       <span className={`mt-0.5 block text-xs ${isCurrent ? "text-white/70" : "text-graphite/60"}`}>
                         {isCurrent ? "Ebben a slotban van" : `Slot ${selectedSlotIndex + 1}-be tesz`}
+                      </span>
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          isCurrent
+                            ? "bg-white/15 text-white"
+                            : isUsed
+                              ? "bg-brass/10 text-brass"
+                              : "bg-emerald-50 text-emerald-700"
+                        }`}
+                      >
+                        {isCurrent ? "Aktuális" : isUsed ? "Már használva" : "Szabad"}
                       </span>
                     </span>
                   </button>

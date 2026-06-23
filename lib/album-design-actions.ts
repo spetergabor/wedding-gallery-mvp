@@ -46,9 +46,9 @@ function getOrderedFormStrings(formData: FormData, key: string) {
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 }
 
-function getOrderedCropPositions(formData: FormData, count: number) {
-  const cropXValues = getOrderedFormStrings(formData, "slotCropX");
-  const cropYValues = getOrderedFormStrings(formData, "slotCropY");
+function getOrderedCropPositions(formData: FormData, count: number, keys = { cropX: "slotCropX", cropY: "slotCropY" }) {
+  const cropXValues = getOrderedFormStrings(formData, keys.cropX);
+  const cropYValues = getOrderedFormStrings(formData, keys.cropY);
 
   return Array.from({ length: count }, (_, index) => ({
     cropX: clampCropPosition(Number.parseFloat(cropXValues[index] ?? "50")),
@@ -659,6 +659,98 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, d
       }
     }
   });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
+}
+
+export async function saveAlbumDesignSpreadDraftsAction(customerId: string, designId: string, formData: FormData) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+  }
+
+  const draftSpreadIds = [
+    ...new Set(
+      getOrderedFormStrings(formData, "draftSpreadIds")
+    )
+  ];
+
+  if (draftSpreadIds.length === 0) {
+    redirect(`/admin/clients/${customerId}?tab=album`);
+  }
+
+  const spreads = await prisma.albumDesignSpread.findMany({
+    where: {
+      id: { in: draftSpreadIds },
+      designId: design.id
+    },
+    select: {
+      id: true,
+      layoutKey: true
+    }
+  });
+
+  if (spreads.length !== draftSpreadIds.length) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+  }
+
+  const spreadDrafts = spreads.map((spread) => {
+    const layout = getAlbumLayoutTemplate(spread.layoutKey);
+    const photoIds = getOrderedFormStrings(formData, `spread-${spread.id}-slotPhotoIds`);
+    const cropPositions = getOrderedCropPositions(formData, layout.slots.length, {
+      cropX: `spread-${spread.id}-slotCropX`,
+      cropY: `spread-${spread.id}-slotCropY`
+    });
+
+    if (photoIds.length !== layout.slots.length) {
+      redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+    }
+
+    return {
+      spread,
+      layout,
+      photoIds,
+      cropPositions
+    };
+  });
+
+  const uniquePhotoIds = [
+    ...new Set(
+      spreadDrafts.flatMap((draft) => draft.photoIds)
+    )
+  ];
+  const validPhotos = await prisma.photo.findMany({
+    where: {
+      id: { in: uniquePhotoIds },
+      favoriteItems: {
+        some: {
+          listId: design.favoriteListId
+        }
+      }
+    },
+    select: { id: true }
+  });
+  const validPhotoIds = new Set(validPhotos.map((photo) => photo.id));
+
+  if (uniquePhotoIds.some((photoId) => !validPhotoIds.has(photoId))) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+  }
+
+  await prisma.$transaction(
+    spreadDrafts.map((draft) =>
+      prisma.albumDesignSpread.update({
+        where: { id: draft.spread.id },
+        data: {
+          items: {
+            deleteMany: {},
+            create: createSpreadItems(draft.layout, draft.photoIds, draft.cropPositions)
+          }
+        }
+      })
+    )
+  );
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
