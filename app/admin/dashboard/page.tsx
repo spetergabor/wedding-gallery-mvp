@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Camera, Film } from "lucide-react";
+import { Bell, CalendarClock, Camera, Film, FolderKanban } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { StatCard } from "@/components/stat-card";
@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { notificationWhere } from "@/lib/admin-scope";
+import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 
 function formatStorageSize(bytes: number) {
   if (bytes <= 0) {
@@ -22,11 +23,31 @@ function formatStorageSize(bytes: number) {
   return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
 }
 
+function formatDate(date: Date | null) {
+  if (!date) {
+    return "Nincs dátum";
+  }
+
+  return date.toLocaleDateString("hu-HU", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+}
+
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 export default async function AdminDashboardPage() {
   const admin = await requireAdmin();
   const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
   const photoWhere = admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } };
+  const projectWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
   const adminNotificationWhere = notificationWhere(admin);
+  const today = startOfToday();
 
   const [
     galleryCount,
@@ -35,6 +56,7 @@ export default async function AdminDashboardPage() {
     photoStorage,
     unreadNotifications,
     latestNotifications,
+    upcomingProjects,
     latestGalleries,
     viewLocations
   ] = await Promise.all([
@@ -47,6 +69,32 @@ export default async function AdminDashboardPage() {
       where: adminNotificationWhere,
       orderBy: { createdAt: "desc" },
       take: 4
+    }),
+    prisma.customerProject.findMany({
+      where: {
+        ...projectWhere,
+        eventDate: { gte: today },
+        status: { not: "archived" }
+      },
+      orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
+      take: 6,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        _count: {
+          select: {
+            galleries: true,
+            contracts: true,
+            albumReviews: true,
+            albumDesigns: true
+          }
+        }
+      }
     }),
     prisma.gallery.findMany({
       where: galleryWhere,
@@ -90,6 +138,66 @@ export default async function AdminDashboardPage() {
         <StatCard label="R2 tárhely" value={formatStorageSize(totalStorageBytes)} detail="Feltöltött médiák összmérete" />
         <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
       </div>
+
+      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
+        <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
+          <div>
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+              <FolderKanban size={15} />
+              Projektek
+            </div>
+            <h2 className="mt-2 text-lg font-semibold text-ink">Következő projektek</h2>
+          </div>
+          <ButtonLink href="/admin/clients" variant="secondary" className="h-10">
+            Ügyfelek megnyitása
+          </ButtonLink>
+        </div>
+
+        {upcomingProjects.length === 0 ? (
+          <div className="px-5 py-8 text-sm text-graphite/70">
+            Nincs dátummal ellátott közelgő projekt. Az ügyfél adatlapján létrehozott projektek itt jelennek meg időrendben.
+          </div>
+        ) : (
+          <div className="grid gap-3 p-5 lg:grid-cols-2 2xl:grid-cols-3">
+            {upcomingProjects.map((project) => (
+              <Link
+                key={project.id}
+                href={`/admin/clients/${project.customer.id}?tab=projects`}
+                className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-ink/20 hover:bg-ink/[0.03]"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-ink">{project.title}</p>
+                    <p className="mt-1 truncate text-sm text-graphite/70">{project.customer.coupleName}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                    {customerProjectStatusLabel(project.status)}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-2 text-sm text-graphite/75 sm:grid-cols-2">
+                  <span className="inline-flex items-center gap-1.5">
+                    <CalendarClock size={14} />
+                    {formatDate(project.eventDate)}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Camera size={14} />
+                    {project._count.galleries} galéria
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
+                    {customerProjectTypeLabel(project.projectType)}
+                  </span>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
+                    {project.customer.primaryEmail}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
