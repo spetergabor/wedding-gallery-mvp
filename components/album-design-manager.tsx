@@ -1,6 +1,6 @@
 import Image from "next/image";
-import { Download, Grid3X3, LayoutTemplate, Plus, RefreshCcw, Send, Shuffle, Trash2 } from "lucide-react";
-import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
+import { Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
+import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
@@ -8,10 +8,7 @@ import {
   createAutoAlbumDesignSpreadAction,
   createAlbumDesignSpreadAction,
   deleteAlbumDesignAction,
-  deleteAlbumDesignSpreadAction,
-  exportAlbumDesignToReviewAction,
-  regenerateAlbumDesignSpreadLayoutAction,
-  updateAlbumDesignSpreadAction
+  exportAlbumDesignToReviewAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 
@@ -307,8 +304,8 @@ export function AlbumDesignManager({
                       </p>
                     ) : null}
                     {design.spreads.length > 0 ? (
-                      <p className="mt-2 text-sm font-medium text-ink">
-                        Vizuális szerkesztő aktív: kattints egy képslotra, majd válassz új képet.
+                      <p className="mt-2 text-sm font-medium text-ink/80">
+                        Munkapad aktív: egy oldalpárt szerkesztesz, alul tudsz váltani a többi oldalpárra.
                       </p>
                     ) : null}
                   </div>
@@ -339,105 +336,17 @@ export function AlbumDesignManager({
                   </div>
                 </div>
 
-                {design.favoriteList ? (
+                {design.favoriteList && design.spreads.length === 0 ? (
                   <div className="mt-5">
                     <AlbumSpreadCreateForm customerId={customerId} designId={design.id} sourcePhotos={sourcePhotos} />
                   </div>
                 ) : null}
 
                 {design.spreads.length > 0 ? (
-                  <div className="mt-5 space-y-5">
-                    {design.spreads.map((spread) => (
-                      <div key={spread.id} className="rounded-lg border border-ink/10 bg-white p-4">
-                        <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-3 sm:flex-row sm:items-start">
-                          <div>
-                            <p className="text-lg font-semibold text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
-                            <p className="mt-0.5 text-xs text-graphite/60">
-                              {getTemplate(spread.layoutKey).name} · {spread.items.length} kép
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <a
-                              href={`/admin/album-design-spreads/${spread.id}/export`}
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-                            >
-                              <Download size={15} />
-                              JPG export
-                            </a>
-                            <form action={regenerateAlbumDesignSpreadLayoutAction.bind(null, customerId, design.id, spread.id)}>
-                              <Button type="submit" variant="secondary" className="h-9 px-3" disabled={spread.items.length === 0}>
-                                <Shuffle size={15} />
-                                Újragenerálás
-                              </Button>
-                            </form>
-                            <form action={deleteAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)}>
-                              <Button type="submit" variant="danger" className="h-9 px-3">
-                                <Trash2 size={15} />
-                                Törlés
-                              </Button>
-                            </form>
-                          </div>
-                        </div>
-                        <AlbumSpreadSlotEditor customerId={customerId} designId={design.id} spread={spread} photos={sourcePhotos} />
-                        <details className="mt-4 rounded-md border border-ink/10 bg-paper">
-                          <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
-                            <RefreshCcw size={15} />
-                            Layout és képkészlet cseréje
-                          </summary>
-                          <form action={updateAlbumDesignSpreadAction.bind(null, customerId, design.id, spread.id)} className="border-t border-ink/10 p-3">
-                            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                              <div>
-                                <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/70">Layout</p>
-                                <div className="mt-2">
-                                  <AlbumLayoutRadioGrid defaultLayoutKey={spread.layoutKey} />
-                                </div>
-                                <Button type="submit" className="mt-3 w-full">
-                                  <RefreshCcw size={15} />
-                                  Mentés
-                                </Button>
-                              </div>
-                              <div>
-                                <p className="text-xs text-graphite/60">
-                                  Válaszd ki az új layoutnak megfelelő pontos képszámot. A képek a kijelölés sorrendjében kerülnek a slotokba.
-                                </p>
-                                <div className="mt-2 grid max-h-80 gap-2 overflow-auto pr-1 sm:grid-cols-3 2xl:grid-cols-4">
-                                  {sourcePhotos.map((photo) => {
-                                    const isSelected = spread.items.some((item) => item.photo.id === photo.id);
-
-                                    return (
-                                      <label key={`${spread.id}-${photo.id}`} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
-                                        <input
-                                          name="photoIds"
-                                          value={photo.id}
-                                          type="checkbox"
-                                          defaultChecked={isSelected}
-                                          className="peer absolute left-2 top-2 z-10 size-4 accent-ink"
-                                        />
-                                        <span className="relative block aspect-[4/3]">
-                                          <Image
-                                            src={photo.thumbnailUrl || photo.imageUrl}
-                                            alt={photo.filename}
-                                            fill
-                                            unoptimized
-                                            sizes="140px"
-                                            className="object-cover transition group-hover:scale-[1.02]"
-                                          />
-                                        </span>
-                                        <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
-                                          {photo.filename}
-                                        </span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </form>
-                        </details>
-                      </div>
-                    ))}
+                  <div>
+                    <AlbumDesignWorkbench customerId={customerId} designId={design.id} spreads={design.spreads} sourcePhotos={sourcePhotos} />
                     {design.favoriteList ? (
-                      <details className="rounded-lg border border-dashed border-ink/20 bg-white">
+                      <details className="mt-4 rounded-lg border border-dashed border-ink/20 bg-white">
                         <summary className="flex cursor-pointer items-center justify-center gap-2 px-4 py-4 text-sm font-medium text-ink transition hover:bg-paper">
                           <Plus size={16} />
                           További oldalpár létrehozása
