@@ -410,7 +410,10 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
 
   return {
     ok: true,
-    message: packageStatus === "completed" ? "Der Download-Link wird per E-Mail gesendet." : "Die ZIP-Dateien werden vorbereitet. Du bekommst die Links per E-Mail.",
+    message:
+      packageStatus === "completed"
+        ? "Die Download-Links werden in einer E-Mail gesendet."
+        : "Die ZIP-Teile werden vorbereitet. Du bekommst eine E-Mail mit allen Download-Links.",
     downloadUrl: null,
     filename: galleryZipFileName(gallery.title),
     cached,
@@ -484,7 +487,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
     if (completedPackages.length === packages.length && packages.length > 0) {
       return {
         ok: true,
-        message: "Der Download-Link wurde per E-Mail gesendet.",
+        message: "Die Download-Links wurden in einer E-Mail gesendet.",
         status: "completed",
         downloadUrl: null,
         filename: galleryZipFileName(downloadPackage.gallery.title),
@@ -497,7 +500,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
 
     return {
       ok: true,
-      message: "Download-Paket wird vorbereitet.",
+      message: "Die ZIP-Teile werden vorbereitet. Du bekommst eine E-Mail mit allen Download-Links.",
       status: hasProcessingPackage ? "processing" : hasPendingPackage ? "pending" : "failed",
       downloadUrl: null,
       filename: galleryZipFileName(downloadPackage.gallery.title),
@@ -508,7 +511,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
   if (downloadPackage.status === "completed" && downloadPackage.downloadUrl) {
     return {
       ok: true,
-      message: "Der Download-Link wurde per E-Mail gesendet.",
+      message: "Die Download-Links wurden in einer E-Mail gesendet.",
       status: "completed",
       downloadUrl: null,
       filename: galleryZipFileName(downloadPackage.gallery.title),
@@ -540,7 +543,7 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
 
   return {
     ok: true,
-    message: "Download-Paket wird vorbereitet.",
+    message: "Die ZIP-Teile werden vorbereitet. Du bekommst eine E-Mail mit allen Download-Links.",
     status: downloadPackage.status,
     downloadUrl: null,
     filename: galleryZipFileName(downloadPackage.gallery.title),

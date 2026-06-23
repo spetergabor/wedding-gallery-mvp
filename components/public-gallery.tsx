@@ -293,14 +293,18 @@ export function PublicGallery({
       setZipPackageStatus(result.status as DownloadPackageStatus);
 
       if (result.status === "completed") {
-        setZipProgress(result.message || "Der Download-Link wurde per E-Mail gesendet.");
+        setZipProgress(result.message || "Die Download-Links wurden in einer E-Mail gesendet.");
         setIsZipping(false);
         setZipPackageId(null);
         setZipPackageStatus("completed");
         return;
       }
 
-      setZipProgress(result.status === "processing" ? "ZIP-Datei wird erstellt. Du bekommst den Link per E-Mail." : "ZIP-Datei wartet auf Verarbeitung. Du bekommst den Link per E-Mail.");
+      setZipProgress(
+        result.status === "processing"
+          ? "Die ZIP-Teile werden erstellt. Du bekommst eine E-Mail mit allen Links."
+          : "Die ZIP-Teile warten auf Verarbeitung. Du bekommst eine E-Mail mit allen Links."
+      );
     }
 
     const interval = window.setInterval(checkPackage, 3000);
@@ -331,7 +335,7 @@ export function PublicGallery({
       }
 
       if (result.status === "completed") {
-        setZipProgress(result.message || "Der Download-Link wird per E-Mail gesendet.");
+        setZipProgress(result.message || "Die Download-Links werden in einer E-Mail gesendet.");
         setIsZipping(false);
         setZipPackageStatus("completed");
         return;
@@ -343,7 +347,11 @@ export function PublicGallery({
 
       setZipPackageId(result.packageId);
       setZipPackageStatus(result.status as DownloadPackageStatus);
-      setZipProgress(result.status === "processing" ? "ZIP-Datei wird erstellt. Du bekommst den Link per E-Mail." : "ZIP-Datei wartet auf Verarbeitung. Du bekommst den Link per E-Mail.");
+      setZipProgress(
+        result.status === "processing"
+          ? "Die ZIP-Teile werden erstellt. Du bekommst eine E-Mail mit allen Links."
+          : "Die ZIP-Teile warten auf Verarbeitung. Du bekommst eine E-Mail mit allen Links."
+      );
     } catch (error) {
       setEmailError(error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.");
       setIsZipping(false);
@@ -816,7 +824,7 @@ export function PublicGallery({
           {downloadsEnabled ? (
             <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
               <Download size={16} />
-              {isZipping ? "ZIP wird erstellt" : "ZIP per E-Mail"}
+              {isZipping ? "ZIP wird vorbereitet" : "ZIP per E-Mail"}
             </Button>
           ) : null}
         </div>
@@ -832,7 +840,7 @@ export function PublicGallery({
                 </div>
                 <h2 className="mt-4 text-xl font-semibold text-ink">Album herunterladen</h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  Gib deine E-Mail-Adresse ein. Wir senden dir den Download-Link, sobald die ZIP-Datei bereit ist.
+                  Gib deine E-Mail-Adresse ein. Bei großen Galerien senden wir dir eine E-Mail mit allen ZIP-Teilen.
                 </p>
               </div>
               <button
@@ -857,6 +865,10 @@ export function PublicGallery({
               />
             </label>
 
+            <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm text-graphite/75">
+              Große Galerien können aus mehreren ZIP-Teilen bestehen. Du erhältst trotzdem nur eine E-Mail mit allen Download-Links.
+            </div>
+
             {emailError ? (
               <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {emailError}
@@ -879,7 +891,7 @@ export function PublicGallery({
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="submit" disabled={isZipping} className="sm:flex-1">
                 <Download size={16} />
-                {isZipping ? "ZIP wird erstellt" : "Link anfordern"}
+                {isZipping ? "ZIP-Links werden vorbereitet" : "Download-Links anfordern"}
               </Button>
               <Button type="button" variant="secondary" onClick={closeDownloadDialog}>
                 Abbrechen

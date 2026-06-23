@@ -763,6 +763,7 @@ export async function sendGalleryDownloadLinksForPackage(packageId: string) {
     where: { id: packageId },
     select: {
       id: true,
+      groupId: true,
       status: true,
       photoCount: true,
       fileSize: true,
@@ -781,7 +782,34 @@ export async function sendGalleryDownloadLinksForPackage(packageId: string) {
     }
   });
 
-  if (!downloadPackage || downloadPackage.status !== "completed" || downloadPackage.downloads.length === 0) {
+  if (!downloadPackage) {
+    return;
+  }
+
+  if (downloadPackage.groupId) {
+    const packages = await prisma.galleryDownloadPackage.findMany({
+      where: { groupId: downloadPackage.groupId },
+      orderBy: { partIndex: "asc" },
+      select: {
+        id: true,
+        status: true,
+        downloadUrl: true,
+        partCount: true
+      }
+    });
+    const expectedPartCount = Math.max(...packages.map((downloadPart) => downloadPart.partCount), packages.length, 1);
+    const isComplete =
+      packages.length === expectedPartCount &&
+      packages.every((downloadPart) => downloadPart.status === "completed" && downloadPart.downloadUrl);
+
+    if (isComplete) {
+      await sendGalleryDownloadLinksForPackages(packages.map((downloadPart) => downloadPart.id));
+    }
+
+    return;
+  }
+
+  if (downloadPackage.status !== "completed" || downloadPackage.downloads.length === 0) {
     return;
   }
 

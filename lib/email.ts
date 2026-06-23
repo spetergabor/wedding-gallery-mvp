@@ -405,7 +405,7 @@ function guestGalleryDownloadReadyHtml({
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">Dein Galerie-Download ist bereit</h1>
-      <p style="margin: 0 0 18px;">${links.length > 1 ? "Die ZIP-Dateien" : "Die ZIP-Datei"} für <strong>${escapeHtml(galleryTitle)}</strong> ${links.length > 1 ? "wurden" : "wurde"} erstellt.</p>
+      <p style="margin: 0 0 18px;">${links.length > 1 ? "Alle ZIP-Teile" : "Die ZIP-Datei"} für <strong>${escapeHtml(galleryTitle)}</strong> ${links.length > 1 ? "sind" : "ist"} fertig. ${links.length > 1 ? "Du findest alle Download-Links gesammelt in dieser E-Mail." : ""}</p>
       <table style="border-collapse: collapse; margin-bottom: 20px;">
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galerie</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Medien</td><td style="padding: 4px 0;">${photoCount}</td></tr>
@@ -449,15 +449,16 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
     body: JSON.stringify({
       from,
       to: payload.to,
-      subject: `Dein Galerie-Download ist bereit: ${payload.galleryTitle}`,
+      subject: `${links.length > 1 ? "Deine Galerie-Downloads sind" : "Dein Galerie-Download ist"} bereit: ${payload.galleryTitle}`,
       html: guestGalleryDownloadReadyHtml(payload),
       text: [
-        "Dein Galerie-Download ist bereit",
+        links.length > 1 ? "Deine Galerie-Downloads sind bereit" : "Dein Galerie-Download ist bereit",
         "",
         `Galerie: ${payload.galleryTitle}`,
         `Medien: ${payload.photoCount}`,
         ...(formattedSize ? [`ZIP-Größe: ${formattedSize}`] : []),
         `Link gültig bis: ${payload.expiresAt.toLocaleString("de-AT", { timeZone: APP_TIME_ZONE })}`,
+        ...(links.length > 1 ? ["", "Alle ZIP-Teile sind in dieser E-Mail gesammelt."] : []),
         "",
         ...links.map((link) => `${link.label}: ${link.url}`)
       ].join("\n")
