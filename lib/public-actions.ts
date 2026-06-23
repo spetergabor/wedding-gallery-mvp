@@ -5,11 +5,12 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
-import { sendGalleryDownloadLinkForRequest } from "@/lib/jobs";
+import { enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -48,6 +49,60 @@ function galleryZipFileName(title: string, partIndex?: number, partCount?: numbe
   }
 
   return `${baseName}.zip`;
+}
+
+function readPositiveMegabytes(value: string | undefined, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return fallback * 1024 * 1024;
+  }
+
+  return parsed * 1024 * 1024;
+}
+
+const ZIP_PART_TARGET_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_PART_TARGET_MB, 2048, 256);
+
+function createZipPartRanges(photos: Array<{ fileSize: number | null }>) {
+  const ranges: Array<{ offset: number; limit: number }> = [];
+  let offset = 0;
+  let currentBytes = 0;
+  let currentCount = 0;
+
+  for (const photo of photos) {
+    const size = photo.fileSize && photo.fileSize > 0 ? photo.fileSize : 25 * 1024 * 1024;
+
+    if (currentCount > 0 && currentBytes + size > ZIP_PART_TARGET_BYTES) {
+      ranges.push({ offset, limit: currentCount });
+      offset += currentCount;
+      currentBytes = 0;
+      currentCount = 0;
+    }
+
+    currentBytes += size;
+    currentCount += 1;
+  }
+
+  if (currentCount > 0) {
+    ranges.push({ offset, limit: currentCount });
+  }
+
+  return ranges.length > 0 ? ranges : [{ offset: 0, limit: photos.length }];
+}
+
+function isCompletePackageSet(packages: Array<{ status: string; downloadUrl: string | null; partIndex: number; partCount: number }>) {
+  if (packages.length === 0) {
+    return false;
+  }
+
+  const expectedPartCount = Math.max(...packages.map((downloadPackage) => downloadPackage.partCount), packages.length, 1);
+  const partIndexes = new Set(
+    packages
+      .filter((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl)
+      .map((downloadPackage) => downloadPackage.partIndex)
+  );
+
+  return packages.length === expectedPartCount && Array.from({ length: expectedPartCount }, (_, index) => partIndexes.has(index)).every(Boolean);
 }
 
 export async function canViewGallery(slug: string, password: string | null) {
@@ -148,9 +203,9 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
         where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         select: {
-          filename: true,
-          imageUrl: true,
-          createdAt: true
+          id: true,
+          createdAt: true,
+          fileSize: true
         }
       }
     }
@@ -216,7 +271,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     return latest;
   }, null);
 
-  const completedPackage = await prisma.galleryDownloadPackage.findFirst({
+  const completedPackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId,
       scope: PUBLIC_DOWNLOAD_SCOPE,
@@ -226,48 +281,141 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       r2Key: { not: null },
       generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
     },
-    orderBy: [{ generatedAt: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { generatedAt: "desc" }],
     select: {
       id: true,
-      status: true
+      status: true,
+      downloadUrl: true,
+      groupId: true,
+      partIndex: true,
+      partCount: true
     }
   });
+  const completedGroups = new Map<string, typeof completedPackages>();
 
-  if (!completedPackage) {
-    return {
-      ok: false,
-      message: "Der ZIP-Download ist noch nicht vorbereitet.",
-      downloadUrl: null,
-      filename: galleryZipFileName(gallery.title),
-      cached: false,
-      packageId: null,
-      status: "failed",
-      packages: []
-    };
+  for (const downloadPackage of completedPackages) {
+    const key = downloadPackage.groupId ?? downloadPackage.id;
+    completedGroups.set(key, [...(completedGroups.get(key) ?? []), downloadPackage]);
   }
 
-  const download = await prisma.galleryDownload.create({
-    data: {
+  let activePackages = Array.from(completedGroups.values()).find(isCompletePackageSet) ?? null;
+  let packageStatus = "completed";
+  let cached = Boolean(activePackages);
+
+  if (!activePackages) {
+    const activePendingPackages = await prisma.galleryDownloadPackage.findMany({
+      where: {
+        galleryId,
+        scope: PUBLIC_DOWNLOAD_SCOPE,
+        status: { in: ["pending", "processing"] },
+        photoCount: gallery.photos.length
+      },
+      orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        status: true,
+        downloadUrl: true,
+        groupId: true,
+        partIndex: true,
+        partCount: true
+      }
+    });
+    const pendingGroups = new Map<string, typeof activePendingPackages>();
+
+    for (const downloadPackage of activePendingPackages) {
+      const key = downloadPackage.groupId ?? downloadPackage.id;
+      pendingGroups.set(key, [...(pendingGroups.get(key) ?? []), downloadPackage]);
+    }
+
+    activePackages = Array.from(pendingGroups.values())[0] ?? null;
+    packageStatus = activePackages?.some((downloadPackage) => downloadPackage.status === "processing") ? "processing" : "pending";
+
+    if (activePackages) {
+      const pendingPayloads = await Promise.all(
+        activePackages
+          .filter((downloadPackage) => downloadPackage.status === "pending")
+          .map(async (downloadPackage) => ({
+            galleryId,
+            packageId: downloadPackage.id,
+            jobId: (await enqueueGalleryZipJob({ galleryId, packageId: downloadPackage.id })).id
+          }))
+      );
+
+      after(async () => {
+        await kickGalleryZipJobs(pendingPayloads);
+      });
+    }
+  }
+
+  if (!activePackages) {
+    const ranges = createZipPartRanges(gallery.photos);
+    const partCount = ranges.length;
+    const groupId = partCount > 1 ? randomUUID() : null;
+    const createdPackages = await prisma.$transaction(
+      ranges.map((range, partIndex) =>
+        prisma.galleryDownloadPackage.create({
+          data: {
+            galleryId,
+            scope: PUBLIC_DOWNLOAD_SCOPE,
+            status: "pending",
+            photoCount: gallery.photos.length,
+            partIndex,
+            partCount,
+            photoOffset: range.offset,
+            photoLimit: range.limit,
+            groupId
+          },
+          select: {
+            id: true,
+            status: true,
+            downloadUrl: true,
+            groupId: true,
+            partIndex: true,
+            partCount: true
+          }
+        })
+      )
+    );
+    const payloads = await Promise.all(
+      createdPackages.map(async (downloadPackage) => ({
+        galleryId,
+        packageId: downloadPackage.id,
+        jobId: (await enqueueGalleryZipJob({ galleryId, packageId: downloadPackage.id })).id
+      }))
+    );
+
+    after(async () => {
+      await kickGalleryZipJobs(payloads);
+    });
+
+    activePackages = createdPackages;
+    packageStatus = "pending";
+    cached = false;
+  }
+
+  await prisma.galleryDownload.createMany({
+    data: activePackages.map((downloadPackage) => ({
       galleryId,
-      packageId: completedPackage.id,
+      packageId: downloadPackage.id,
       email: normalizedEmail,
       status: "waiting"
-    },
-    select: { id: true }
+    }))
   });
 
-  after(async () => {
-    await sendGalleryDownloadLinkForRequest(download.id);
-  });
+  if (packageStatus === "completed") {
+    after(async () => {
+      await sendGalleryDownloadLinksForPackages(activePackages.map((downloadPackage) => downloadPackage.id));
+    });
+  }
 
   return {
     ok: true,
-    message: "Der Download-Link wird per E-Mail gesendet.",
+    message: packageStatus === "completed" ? "Der Download-Link wird per E-Mail gesendet." : "Die ZIP-Dateien werden vorbereitet. Du bekommst die Links per E-Mail.",
     downloadUrl: null,
     filename: galleryZipFileName(gallery.title),
-    cached: true,
-    packageId: completedPackage.id,
-    status: completedPackage.status,
+    cached,
+    packageId: activePackages[0]?.id ?? null,
+    status: packageStatus,
     packages: []
   };
 }
@@ -344,10 +492,13 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
       };
     }
 
+    const hasProcessingPackage = packages.some((downloadPart) => downloadPart.status === "processing");
+    const hasPendingPackage = packages.some((downloadPart) => downloadPart.status === "pending");
+
     return {
-      ok: false,
-      message: "Der ZIP-Download ist noch nicht vorbereitet.",
-      status: "failed",
+      ok: true,
+      message: "Download-Paket wird vorbereitet.",
+      status: hasProcessingPackage ? "processing" : hasPendingPackage ? "pending" : "failed",
       downloadUrl: null,
       filename: galleryZipFileName(downloadPackage.gallery.title),
       packages: []
@@ -388,9 +539,9 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
   }
 
   return {
-    ok: false,
-    message: "Der ZIP-Download ist noch nicht vorbereitet.",
-    status: "failed",
+    ok: true,
+    message: "Download-Paket wird vorbereitet.",
+    status: downloadPackage.status,
     downloadUrl: null,
     filename: galleryZipFileName(downloadPackage.gallery.title),
     packages: []

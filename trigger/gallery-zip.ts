@@ -8,15 +8,18 @@ type GalleryZipPayload = {
 };
 
 const maxDuration = Number.parseInt(process.env.TRIGGER_ZIP_MAX_DURATION_SECONDS ?? "7200", 10);
+const concurrencyLimit = Number.parseInt(process.env.TRIGGER_ZIP_CONCURRENCY ?? "4", 10);
+const machinePresets = ["micro", "small-1x", "small-2x", "medium-1x", "medium-2x", "large-1x", "large-2x"] as const;
+const machine = machinePresets.find((preset) => preset === process.env.TRIGGER_ZIP_MACHINE) ?? "small-2x";
 
 export const galleryZipTask = task({
   id: "gallery-zip",
-  description: "Build one streaming ZIP archive for a gallery and upload it to R2.",
+  description: "Build one streaming ZIP archive part for a gallery and upload it to R2.",
   queue: {
     name: "gallery-zip",
-    concurrencyLimit: 1
+    concurrencyLimit: Number.isFinite(concurrencyLimit) ? concurrencyLimit : 4
   },
-  machine: "small-1x",
+  machine,
   maxDuration: Number.isFinite(maxDuration) ? maxDuration : 7200,
   retry: {
     maxAttempts: 2,

@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
 import { PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
-
-function galleryZipFileName(title: string) {
-  return `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery"}.zip`;
-}
+import { galleryZipFileName } from "@/lib/jobs";
 
 function plainTextResponse(message: string, status: number) {
   return new NextResponse(message, {
@@ -35,6 +32,8 @@ export async function GET(
     select: {
       status: true,
       r2Key: true,
+      partIndex: true,
+      partCount: true,
       accessTokenExpiresAt: true,
       gallery: {
         select: {
@@ -68,7 +67,7 @@ export async function GET(
 
   const signedUrl = await createPresignedPhotoDownloadUrl({
     r2Key: downloadPackage.r2Key,
-    filename: galleryZipFileName(downloadPackage.gallery.title)
+    filename: galleryZipFileName(downloadPackage.gallery.title, downloadPackage.partIndex, downloadPackage.partCount)
   });
 
   return NextResponse.redirect(signedUrl);

@@ -52,7 +52,12 @@ type AdminGalleryZipReadyEmail = {
 type GuestGalleryDownloadReadyEmail = {
   to: string;
   galleryTitle: string;
-  downloadUrl: string;
+  downloadUrl?: string;
+  downloadLinks?: Array<{
+    label: string;
+    url: string;
+    fileSizeBytes?: bigint | number | null;
+  }>;
   expiresAt: Date;
   photoCount: number;
   fileSizeBytes?: bigint | number | null;
@@ -384,26 +389,38 @@ export async function sendAdminGalleryZipReadyEmail(payload: AdminGalleryZipRead
 function guestGalleryDownloadReadyHtml({
   galleryTitle,
   downloadUrl,
+  downloadLinks,
   expiresAt,
   photoCount,
   fileSizeBytes
 }: GuestGalleryDownloadReadyEmail) {
   const formattedSize = formatBytes(fileSizeBytes);
+  const links =
+    downloadLinks && downloadLinks.length > 0
+      ? downloadLinks
+      : downloadUrl
+        ? [{ label: "ZIP herunterladen", url: downloadUrl, fileSizeBytes }]
+        : [];
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">Dein Galerie-Download ist bereit</h1>
-      <p style="margin: 0 0 18px;">Die ZIP-Datei für <strong>${escapeHtml(galleryTitle)}</strong> wurde erstellt.</p>
+      <p style="margin: 0 0 18px;">${links.length > 1 ? "Die ZIP-Dateien" : "Die ZIP-Datei"} für <strong>${escapeHtml(galleryTitle)}</strong> ${links.length > 1 ? "wurden" : "wurde"} erstellt.</p>
       <table style="border-collapse: collapse; margin-bottom: 20px;">
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galerie</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Medien</td><td style="padding: 4px 0;">${photoCount}</td></tr>
         ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">ZIP-Größe</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Link gültig bis</td><td style="padding: 4px 0;">${expiresAt.toLocaleString("de-AT", { timeZone: APP_TIME_ZONE })}</td></tr>
       </table>
-      <p style="margin: 0 0 18px;">
-        <a href="${escapeHtml(downloadUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">ZIP herunterladen</a>
-      </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(downloadUrl)}</p>
+      <div style="margin: 0 0 18px;">
+        ${links
+          .map((link) => {
+            const linkSize = formatBytes(link.fileSizeBytes);
+            return `<p style="margin: 0 0 10px;"><a href="${escapeHtml(link.url)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(link.label)}</a>${linkSize ? ` <span style="color: #777; font-size: 13px;">${escapeHtml(linkSize)}</span>` : ""}</p>`;
+          })
+          .join("")}
+      </div>
+      <p style="margin: 0; color: #777; font-size: 13px;">Falls ein Button nicht funktioniert, kopiere den jeweiligen Link in den Browser:<br>${links.map((link) => escapeHtml(link.url)).join("<br>")}</p>
     </div>
   `;
 }
@@ -411,6 +428,12 @@ function guestGalleryDownloadReadyHtml({
 export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDownloadReadyEmail) {
   const { apiKey, from } = emailConfig();
   const formattedSize = formatBytes(payload.fileSizeBytes);
+  const links =
+    payload.downloadLinks && payload.downloadLinks.length > 0
+      ? payload.downloadLinks
+      : payload.downloadUrl
+        ? [{ label: "Download", url: payload.downloadUrl, fileSizeBytes: payload.fileSizeBytes }]
+        : [];
 
   if (!apiKey) {
     console.warn("Guest ZIP download email skipped. Missing RESEND_API_KEY.");
@@ -436,7 +459,7 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
         ...(formattedSize ? [`ZIP-Größe: ${formattedSize}`] : []),
         `Link gültig bis: ${payload.expiresAt.toLocaleString("de-AT", { timeZone: APP_TIME_ZONE })}`,
         "",
-        `Download: ${payload.downloadUrl}`
+        ...links.map((link) => `${link.label}: ${link.url}`)
       ].join("\n")
     })
   });

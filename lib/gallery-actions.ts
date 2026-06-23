@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
-import { enqueueGalleryZipJob, kickGalleryZipJob, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
+import { enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
@@ -95,6 +95,45 @@ function createClientAccessToken() {
 
 const STALE_MEDIA_PROCESSING_MS = 2 * 60 * 60 * 1000;
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
+
+function readPositiveMegabytes(value: string | undefined, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return fallback * 1024 * 1024;
+  }
+
+  return parsed * 1024 * 1024;
+}
+
+const ZIP_PART_TARGET_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_PART_TARGET_MB, 2048, 256);
+
+function createZipPartRanges(photos: Array<{ fileSize: number | null }>) {
+  const ranges: Array<{ offset: number; limit: number }> = [];
+  let offset = 0;
+  let currentBytes = 0;
+  let currentCount = 0;
+
+  for (const photo of photos) {
+    const size = photo.fileSize && photo.fileSize > 0 ? photo.fileSize : 25 * 1024 * 1024;
+
+    if (currentCount > 0 && currentBytes + size > ZIP_PART_TARGET_BYTES) {
+      ranges.push({ offset, limit: currentCount });
+      offset += currentCount;
+      currentBytes = 0;
+      currentCount = 0;
+    }
+
+    currentBytes += size;
+    currentCount += 1;
+  }
+
+  if (currentCount > 0) {
+    ranges.push({ offset, limit: currentCount });
+  }
+
+  return ranges.length > 0 ? ranges : [{ offset: 0, limit: photos.length }];
+}
 
 function hasLightweightPhotoVariant(photo: { imageUrl: string; thumbnailUrl: string; previewUrl: string; mediaType: string }) {
   return (
@@ -2086,7 +2125,8 @@ export async function queueGalleryZipPackageAction(galleryId: string) {
         where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         select: {
-          createdAt: true
+          createdAt: true,
+          fileSize: true
         }
       }
     }
@@ -2121,8 +2161,7 @@ export async function queueGalleryZipPackageAction(galleryId: string) {
     return latest;
   }, null);
 
-  const partCount = 1;
-  const freshCompletedPackage = await prisma.galleryDownloadPackage.findFirst({
+  const freshCompletedPackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId,
       scope: PUBLIC_DOWNLOAD_SCOPE,
@@ -2132,39 +2171,74 @@ export async function queueGalleryZipPackageAction(galleryId: string) {
       r2Key: { not: null },
       generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
     },
-    orderBy: [{ generatedAt: "desc" }, { createdAt: "desc" }],
-    select: { id: true }
+    orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { generatedAt: "desc" }],
+    select: {
+      id: true,
+      groupId: true,
+      status: true,
+      downloadUrl: true,
+      partIndex: true,
+      partCount: true
+    }
+  });
+  const completedGroups = new Map<string, typeof freshCompletedPackages>();
+
+  for (const downloadPackage of freshCompletedPackages) {
+    const key = downloadPackage.groupId ?? downloadPackage.id;
+    completedGroups.set(key, [...(completedGroups.get(key) ?? []), downloadPackage]);
+  }
+
+  const hasFreshCompletedGroup = Array.from(completedGroups.values()).some((packages) => {
+    const expectedPartCount = Math.max(...packages.map((downloadPackage) => downloadPackage.partCount), packages.length, 1);
+    const completedPartIndexes = new Set(
+      packages
+        .filter((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl)
+        .map((downloadPackage) => downloadPackage.partIndex)
+    );
+
+    return packages.length === expectedPartCount && Array.from({ length: expectedPartCount }, (_, index) => completedPartIndexes.has(index)).every(Boolean);
   });
 
-  if (freshCompletedPackage) {
+  if (hasFreshCompletedGroup) {
     revalidatePath(`/admin/galleries/${gallery.id}`);
     redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=already-ready`);
   }
 
-  const existingPackage = await prisma.galleryDownloadPackage.findFirst({
+  const existingPackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId,
       scope: PUBLIC_DOWNLOAD_SCOPE,
       status: { in: ["pending", "processing"] },
-      photoCount,
-      partCount
+      photoCount
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { createdAt: "desc" }],
     select: {
       id: true,
       status: true,
-      updatedAt: true
+      updatedAt: true,
+      groupId: true
     }
   });
 
-  if (existingPackage) {
-    const shouldRequeue =
-      existingPackage.status === "pending" ||
-      (existingPackage.status === "processing" && now - existingPackage.updatedAt.getTime() > STALE_ZIP_PROCESSING_MS);
+  if (existingPackages.length > 0) {
+    const latestGroupKey = existingPackages[0].groupId ?? existingPackages[0].id;
+    const latestGroupPackages = existingPackages.filter((downloadPackage) => (downloadPackage.groupId ?? downloadPackage.id) === latestGroupKey);
+    const packagesToKick = latestGroupPackages.filter(
+      (downloadPackage) =>
+        downloadPackage.status === "pending" ||
+        (downloadPackage.status === "processing" && now - downloadPackage.updatedAt.getTime() > STALE_ZIP_PROCESSING_MS)
+    );
 
-    if (shouldRequeue) {
+    if (packagesToKick.length > 0) {
+      const payloads = await Promise.all(
+        packagesToKick.map(async (downloadPackage) => ({
+          galleryId,
+          packageId: downloadPackage.id,
+          jobId: (await enqueueGalleryZipJob({ galleryId, packageId: downloadPackage.id })).id
+        }))
+      );
       after(async () => {
-        await kickGalleryZipJob({ galleryId, packageId: existingPackage.id });
+        await kickGalleryZipJobs(payloads);
       });
 
       revalidatePath(`/admin/galleries/${gallery.id}`);
@@ -2175,28 +2249,39 @@ export async function queueGalleryZipPackageAction(galleryId: string) {
     redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=already-running`);
   }
 
-  const downloadPackage = await prisma.galleryDownloadPackage.create({
-    data: {
-      galleryId,
-      scope: PUBLIC_DOWNLOAD_SCOPE,
-      status: "pending",
-      photoCount,
-      partIndex: 0,
-      partCount
-    }
-  });
-
-  const zipJob = await enqueueGalleryZipJob({
-    galleryId,
-    packageId: downloadPackage.id
-  });
-
-  after(async () => {
-    await kickGalleryZipJob({
+  const ranges = createZipPartRanges(galleryWithPhotos.photos);
+  const partCount = ranges.length;
+  const groupId = partCount > 1 ? randomUUID() : null;
+  const downloadPackages = await prisma.$transaction(
+    ranges.map((range, partIndex) =>
+      prisma.galleryDownloadPackage.create({
+        data: {
+          galleryId,
+          scope: PUBLIC_DOWNLOAD_SCOPE,
+          status: "pending",
+          photoCount,
+          partIndex,
+          partCount,
+          photoOffset: range.offset,
+          photoLimit: range.limit,
+          groupId
+        }
+      })
+    )
+  );
+  const payloads = await Promise.all(
+    downloadPackages.map(async (downloadPackage) => ({
       galleryId,
       packageId: downloadPackage.id,
-      jobId: zipJob.id
-    });
+      jobId: (await enqueueGalleryZipJob({
+        galleryId,
+        packageId: downloadPackage.id
+      })).id
+    }))
+  );
+
+  after(async () => {
+    await kickGalleryZipJobs(payloads);
   });
 
   revalidatePath(`/admin/galleries/${gallery.id}`);

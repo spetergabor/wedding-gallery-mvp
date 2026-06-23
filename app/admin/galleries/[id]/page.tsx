@@ -26,6 +26,7 @@ import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   generateClientAccessLinkAction,
+  queueGalleryZipPackageAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
   updateGalleryProofingStatusAction
@@ -624,6 +625,20 @@ export default async function GalleryDetailPage({
 
         {activeTab === "downloads" ? (
           <div className="max-w-3xl space-y-6">
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div>
+                  <h2 className="text-lg font-semibold text-ink">Automata ZIP részek</h2>
+                  <p className="mt-1 text-sm text-graphite/70">Nagy galériáknál a rendszer több kisebb ZIP csomagot készít.</p>
+                </div>
+                <form action={queueGalleryZipPackageAction.bind(null, gallery.id)}>
+                  <Button type="submit" disabled={!canPrepareZip} className={`whitespace-nowrap ${!canPrepareZip ? "opacity-60" : ""}`}>
+                    <Download size={16} />
+                    ZIP részek előkészítése
+                  </Button>
+                </form>
+              </div>
+            </section>
             <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} />
             <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />

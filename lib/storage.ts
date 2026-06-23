@@ -46,7 +46,7 @@ function readPositiveInteger(value: string | undefined, fallback: number, minimu
 }
 
 const MULTIPART_UPLOAD_PART_SIZE = readPositiveMegabytes(process.env.R2_MULTIPART_UPLOAD_PART_SIZE_MB, 64, 5);
-const R2_OBJECT_READ_CHUNK_SIZE = readPositiveMegabytes(process.env.R2_OBJECT_READ_CHUNK_SIZE_MB, 16, 1);
+const R2_OBJECT_READ_CHUNK_SIZE = readPositiveMegabytes(process.env.R2_OBJECT_READ_CHUNK_SIZE_MB, 64, 1);
 const R2_OBJECT_READ_RETRIES = readPositiveInteger(process.env.R2_OBJECT_READ_RETRIES, 4, 1);
 
 function r2Endpoint() {

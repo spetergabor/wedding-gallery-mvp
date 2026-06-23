@@ -22,6 +22,31 @@ type ZipGenerationPayload = {
   jobId?: string;
 };
 
+type CompletedDownloadPackage = {
+  id: string;
+  partIndex: number;
+  partCount: number;
+  photoCount: number;
+  fileSize: bigint;
+  gallery: {
+    title: string;
+  };
+  downloads: Array<{
+    id: string;
+    email: string;
+  }>;
+};
+
+export function galleryZipFileName(title: string, partIndex?: number, partCount?: number) {
+  const baseName = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "") || "gallery";
+
+  if (partCount && partCount > 1 && partIndex !== undefined) {
+    return `${baseName}-teil-${String(partIndex + 1).padStart(2, "0")}-von-${String(partCount).padStart(2, "0")}.zip`;
+  }
+
+  return `${baseName}.zip`;
+}
+
 function photoZipFileName(filename: string, index: number) {
   const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
   return (filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
@@ -132,7 +157,6 @@ async function triggerExternalZipWorker(payload: ZipGenerationPayload) {
     await tasks.trigger("gallery-zip", payload, {
       idempotencyKey: payload.packageId,
       queue: "gallery-zip",
-      concurrencyKey: "gallery-zip",
       tags: [`gallery:${payload.galleryId}`, `package:${payload.packageId}`]
     });
 
@@ -167,6 +191,16 @@ export async function kickGalleryZipJob(payload: ZipGenerationPayload) {
     driver: "vercel",
     ...(await processPendingJobs({ limit: 1 }))
   };
+}
+
+export async function kickGalleryZipJobs(payloads: ZipGenerationPayload[]) {
+  const results = [];
+
+  for (const payload of payloads) {
+    results.push(await kickGalleryZipJob(payload));
+  }
+
+  return results;
 }
 
 async function markBackgroundJobProcessing(payload: ZipGenerationPayload) {
@@ -218,6 +252,42 @@ async function markBackgroundJobCompleted(jobId?: string) {
       }
     })
     .catch(() => undefined);
+}
+
+async function completeGroupIfReady(packageId: string) {
+  const currentPackage = await prisma.galleryDownloadPackage.findUnique({
+    where: { id: packageId },
+    select: {
+      groupId: true
+    }
+  });
+
+  if (!currentPackage?.groupId) {
+    await sendGalleryDownloadLinksForPackage(packageId);
+    return true;
+  }
+
+  const packages = await prisma.galleryDownloadPackage.findMany({
+    where: { groupId: currentPackage.groupId },
+    orderBy: { partIndex: "asc" },
+    select: {
+      id: true,
+      status: true,
+      downloadUrl: true,
+      partCount: true
+    }
+  });
+  const expectedPartCount = Math.max(...packages.map((downloadPackage) => downloadPackage.partCount), packages.length, 1);
+  const isComplete =
+    packages.length === expectedPartCount &&
+    packages.every((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl);
+
+  if (isComplete) {
+    await sendGalleryDownloadLinksForPackages(packages.map((downloadPackage) => downloadPackage.id));
+    return true;
+  }
+
+  return false;
 }
 
 async function markBackgroundJobFailed(payload: ZipGenerationPayload, error: unknown, maxAttempts = 3, attempts = 0) {
@@ -473,18 +543,20 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       }
     });
 
-    await sendGalleryDownloadLinksForPackage(downloadPackage.id);
+    const downloadSetReady = await completeGroupIfReady(downloadPackage.id);
 
-    await notifyGalleryZipReady({
-      galleryId: gallery.id,
-      adminId: gallery.adminId,
-      recipient: gallery.admin?.siteSettings?.contactEmail || gallery.admin?.email,
-      galleryTitle: gallery.title,
-      gallerySlug: gallery.slug,
-      photoCount: totalPhotoCount,
-      fileSizeBytes: bytesWritten,
-      generatedAt
-    });
+    if (downloadSetReady) {
+      await notifyGalleryZipReady({
+        galleryId: gallery.id,
+        adminId: gallery.adminId,
+        recipient: gallery.admin?.siteSettings?.contactEmail || gallery.admin?.email,
+        galleryTitle: gallery.title,
+        gallerySlug: gallery.slug,
+        photoCount: totalPhotoCount,
+        fileSizeBytes: bytesWritten,
+        generatedAt
+      });
+    }
 
     safeRevalidatePath(`/admin/galleries/${gallery.id}`);
   } catch (error) {
@@ -562,6 +634,127 @@ export async function sendGalleryDownloadLinkForRequest(downloadId: string) {
         downloadLinkEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email sending failed."
       }
     });
+  }
+}
+
+export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) {
+  const uniquePackageIds = [...new Set(packageIds)];
+
+  if (uniquePackageIds.length === 0) {
+    return;
+  }
+
+  const packages = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      id: { in: uniquePackageIds },
+      status: "completed"
+    },
+    orderBy: { partIndex: "asc" },
+    select: {
+      id: true,
+      partIndex: true,
+      partCount: true,
+      photoCount: true,
+      fileSize: true,
+      gallery: {
+        select: {
+          title: true
+        }
+      },
+      downloads: {
+        where: { status: { in: ["waiting", "email_failed"] } },
+        select: {
+          id: true,
+          email: true
+        }
+      }
+    }
+  });
+
+  if (packages.length === 0) {
+    return;
+  }
+
+  const packagesById = new Map(packages.map((downloadPackage) => [downloadPackage.id, downloadPackage]));
+  const sortedPackages = uniquePackageIds
+    .map((packageId) => packagesById.get(packageId))
+    .filter((downloadPackage): downloadPackage is CompletedDownloadPackage => Boolean(downloadPackage))
+    .sort((a, b) => a.partIndex - b.partIndex);
+  const downloadsByEmail = new Map<string, string[]>();
+
+  for (const downloadPackage of sortedPackages) {
+    for (const download of downloadPackage.downloads) {
+      downloadsByEmail.set(download.email, [...(downloadsByEmail.get(download.email) ?? []), download.id]);
+    }
+  }
+
+  if (downloadsByEmail.size === 0) {
+    return;
+  }
+
+  const packageLinks = await Promise.all(
+    sortedPackages.map(async (downloadPackage) => {
+      const { token, expiresAt } = await ensureDownloadPackageAccessToken(downloadPackage.id);
+
+      return {
+        package: downloadPackage,
+        expiresAt,
+        url: galleryDownloadUrl(token)
+      };
+    })
+  );
+  const earliestExpiresAt = packageLinks.reduce(
+    (earliest, link) => (link.expiresAt < earliest ? link.expiresAt : earliest),
+    packageLinks[0].expiresAt
+  );
+  const galleryTitle = sortedPackages[0].gallery.title;
+  const totalFileSize = sortedPackages.reduce((sum, downloadPackage) => sum + BigInt(downloadPackage.fileSize), BigInt(0));
+  const totalPhotoCount = sortedPackages[0].photoCount;
+  const downloadLinks = packageLinks.map((link) => ({
+    label:
+      link.package.partCount > 1
+        ? `ZIP Teil ${link.package.partIndex + 1}/${link.package.partCount}`
+        : "ZIP herunterladen",
+    url: link.url,
+    fileSizeBytes: link.package.fileSize
+  }));
+
+  for (const [email, downloadIds] of downloadsByEmail) {
+    const sentAt = new Date();
+
+    try {
+      const sent = await sendGuestGalleryDownloadReadyEmail({
+        to: email,
+        galleryTitle,
+        downloadUrl: downloadLinks[0]?.url,
+        downloadLinks,
+        expiresAt: earliestExpiresAt,
+        photoCount: totalPhotoCount,
+        fileSizeBytes: totalFileSize
+      });
+
+      await prisma.galleryDownload.updateMany({
+        where: { id: { in: downloadIds } },
+        data: sent
+          ? {
+              status: "emailed",
+              downloadLinkSentAt: sentAt,
+              downloadLinkEmailError: null
+            }
+          : {
+              status: "email_failed",
+              downloadLinkEmailError: "Missing email configuration."
+            }
+      });
+    } catch (error) {
+      await prisma.galleryDownload.updateMany({
+        where: { id: { in: downloadIds } },
+        data: {
+          status: "email_failed",
+          downloadLinkEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email sending failed."
+        }
+      });
+    }
   }
 }
 
