@@ -9,6 +9,7 @@ import {
   Clock3,
   ExternalLink,
   FileText,
+  FolderKanban,
   Heart,
   ImagePlus,
   Mail,
@@ -26,6 +27,7 @@ import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
+import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
@@ -78,7 +80,7 @@ type TimelineEvent = {
   href?: string;
 };
 
-type CustomerTab = "overview" | "galleries" | "proofing" | "album" | "contracts" | "communication" | "details";
+type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "communication" | "details";
 type AlbumMode = "editor" | "upload";
 
 const customerTabs: Array<{
@@ -87,6 +89,7 @@ const customerTabs: Array<{
   icon: typeof Camera;
 }> = [
   { key: "overview", label: "Áttekintés", icon: CheckCircle2 },
+  { key: "projects", label: "Projektek", icon: FolderKanban },
   { key: "galleries", label: "Galériák", icon: Camera },
   { key: "proofing", label: "Válogatás", icon: Heart },
   { key: "album", label: "Album", icon: ImagePlus },
@@ -430,6 +433,10 @@ export default async function AdminClientDetailPage({
     contractSent?: string;
     contractError?: string;
     edit?: string;
+    projectCreated?: string;
+    projectDeleted?: string;
+    projectError?: string;
+    projectStatusUpdated?: string;
     statusUpdated?: string;
     tab?: string;
     albumCreated?: string;
@@ -462,6 +469,12 @@ export default async function AdminClientDetailPage({
       galleries: {
         orderBy: { createdAt: "desc" },
         include: {
+          project: {
+            select: {
+              id: true,
+              title: true
+            }
+          },
           favoriteLists: {
             where: { submittedAt: { not: null } },
             orderBy: { submittedAt: "desc" },
@@ -495,6 +508,28 @@ export default async function AdminClientDetailPage({
           },
           _count: {
             select: { photos: true }
+          }
+        }
+      },
+      projects: {
+        orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }],
+        include: {
+          galleries: {
+            orderBy: { createdAt: "desc" },
+            take: 6,
+            include: {
+              _count: {
+                select: { photos: true }
+              }
+            }
+          },
+          _count: {
+            select: {
+              galleries: true,
+              contracts: true,
+              albumReviews: true,
+              albumDesigns: true
+            }
           }
         }
       }
@@ -608,6 +643,19 @@ export default async function AdminClientDetailPage({
           }
         })
       : [];
+  const [unassignedAlbumReviewCount, unassignedAlbumDesignCount] =
+    activeTab === "projects"
+      ? await Promise.all([
+          prisma.albumReview.count({ where: { customerId: customer.id, projectId: null } }),
+          prisma.albumDesign.count({ where: { customerId: customer.id, projectId: null } })
+        ])
+      : [0, 0];
+  const unassignedProjectCounts = {
+    galleries: customer.galleries.filter((gallery) => !gallery.projectId).length,
+    contracts: customer.contracts.filter((contract) => !contract.projectId).length,
+    albumReviews: unassignedAlbumReviewCount,
+    albumDesigns: unassignedAlbumDesignCount
+  };
   const isEditing = flags.edit === "1";
   const typeLabel = customerTypeLabel(customer.customerType);
   const nextAction = getCustomerWorkflowSummary(customer);
@@ -654,6 +702,10 @@ export default async function AdminClientDetailPage({
       <div className="mb-5 space-y-3">
         {flags.created ? <Alert title="Ügyfél létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Ügyfél mentve." variant="success" /> : null}
+        {flags.projectCreated ? <Alert title="Projekt létrehozva." variant="success" /> : null}
+        {flags.projectDeleted ? <Alert title="Projekt törölve." variant="success" /> : null}
+        {flags.projectStatusUpdated ? <Alert title="Projekt státusz mentve." variant="success" /> : null}
+        {flags.projectError === "missing" ? <Alert title="A projekt nem található vagy hiányzik a neve." variant="error" /> : null}
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
@@ -717,7 +769,7 @@ export default async function AdminClientDetailPage({
       />
 
       <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
-        <nav className="grid gap-2 md:grid-cols-2 xl:grid-cols-7" aria-label="Ügyfél munkaterületek">
+        <nav className="grid gap-2 md:grid-cols-2 xl:grid-cols-8" aria-label="Ügyfél munkaterületek">
           {customerTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.key;
@@ -828,6 +880,16 @@ export default async function AdminClientDetailPage({
         </div>
       ) : null}
 
+      {activeTab === "projects" ? (
+        <CustomerProjectManager
+          customerId={customer.id}
+          projects={customer.projects}
+          unassignedCounts={unassignedProjectCounts}
+          defaultEventDate={customer.weddingDate}
+          defaultVenue={customer.venue}
+        />
+      ) : null}
+
       {activeTab === "galleries" ? (
         <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -865,6 +927,11 @@ export default async function AdminClientDetailPage({
                       <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
                         {gallery.galleryMode === GALLERY_MODE_PROOFING ? "Nyers válogatás" : "Teljes galéria"}
                       </span>
+                      {gallery.project ? (
+                        <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          {gallery.project.title}
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
                   </Link>

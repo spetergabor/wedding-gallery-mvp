@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 export default async function NewGalleryPage({
   searchParams
 }: {
-  searchParams: Promise<{ customerId?: string; error?: string }>;
+  searchParams: Promise<{ customerId?: string; projectId?: string; error?: string }>;
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
@@ -26,7 +26,28 @@ export default async function NewGalleryPage({
       weddingDate: true
     }
   });
-  const selectedCustomerId = customers.some((customer) => customer.id === flags.customerId) ? flags.customerId : null;
+  const projects = await prisma.customerProject.findMany({
+    where: {
+      customer: adminOwnedWhere(admin)
+    },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      customerId: true,
+      title: true,
+      projectType: true,
+      eventDate: true,
+      venue: true,
+      customer: {
+        select: {
+          coupleName: true
+        }
+      }
+    }
+  });
+  const selectedProject = projects.find((project) => project.id === flags.projectId) ?? null;
+  const selectedCustomerId = selectedProject?.customerId ?? (customers.some((customer) => customer.id === flags.customerId) ? flags.customerId : null);
+  const selectedProjectId = selectedProject?.id ?? null;
 
   return (
     <AdminShell>
@@ -47,6 +68,11 @@ export default async function NewGalleryPage({
             A galéria csak létező ügyfélhez kapcsolva hozható létre.
           </Alert>
         ) : null}
+        {flags.error === "project" ? (
+          <Alert title="Válassz az ügyfélhez tartozó projektet." variant="error">
+            A projekt és az ügyfél nem passzol egymáshoz.
+          </Alert>
+        ) : null}
       </div>
       {customers.length === 0 ? (
         <EmptyState
@@ -61,7 +87,7 @@ export default async function NewGalleryPage({
           }
         />
       ) : (
-        <GalleryForm customers={customers} selectedCustomerId={selectedCustomerId} />
+        <GalleryForm customers={customers} projects={projects} selectedCustomerId={selectedCustomerId} selectedProjectId={selectedProjectId} />
       )}
     </AdminShell>
   );

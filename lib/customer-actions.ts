@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoObject } from "@/lib/storage";
@@ -120,6 +121,90 @@ export async function updateCustomerStatusAction(customerId: string, formData: F
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?statusUpdated=1`);
+}
+
+export async function createCustomerProjectAction(customerId: string, formData: FormData) {
+  const admin = await requireAdmin();
+
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  const title = formString(formData, "title");
+
+  if (!title) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  await prisma.customerProject.create({
+    data: {
+      customerId: customer.id,
+      title,
+      projectType: normalizeCustomerProjectType(formString(formData, "projectType")),
+      status: normalizeCustomerProjectStatus(formString(formData, "status")),
+      eventDate: formDate(formData, "eventDate"),
+      venue: formOptionalString(formData, "venue"),
+      notes: formOptionalString(formData, "notes")
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/clients");
+  redirect(`/admin/clients/${customerId}?tab=projects&projectCreated=1`);
+}
+
+export async function updateCustomerProjectStatusAction(customerId: string, projectId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const status = normalizeCustomerProjectStatus(formString(formData, "status"));
+
+  const project = await prisma.customerProject.findFirst({
+    where: {
+      id: projectId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!project) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  await prisma.customerProject.update({
+    where: { id: project.id },
+    data: { status }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=projects&projectStatusUpdated=1`);
+}
+
+export async function deleteCustomerProjectAction(customerId: string, projectId: string) {
+  const admin = await requireAdmin();
+
+  const project = await prisma.customerProject.findFirst({
+    where: {
+      id: projectId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!project) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  await prisma.customerProject.delete({
+    where: { id: project.id }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/galleries");
+  redirect(`/admin/clients/${customerId}?tab=projects&projectDeleted=1`);
 }
 
 export async function deleteCustomerAction(customerId: string) {

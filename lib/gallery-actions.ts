@@ -727,6 +727,7 @@ export async function createGalleryAction(formData: FormData) {
   const admin = await requireAdmin();
 
   const customerId = formString(formData, "customerId");
+  const projectId = formString(formData, "projectId");
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
   const password = formString(formData, "password");
@@ -756,7 +757,25 @@ export async function createGalleryAction(formData: FormData) {
     redirect("/admin/galleries/new?error=customer");
   }
 
-  const eventDate = submittedEventDate ?? customer.weddingDate;
+  const project = projectId
+    ? await prisma.customerProject.findFirst({
+        where: {
+          id: projectId,
+          customerId: customer.id,
+          ...(admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } })
+        },
+        select: {
+          id: true,
+          eventDate: true
+        }
+      })
+    : null;
+
+  if (projectId && !project) {
+    redirect("/admin/galleries/new?error=project");
+  }
+
+  const eventDate = submittedEventDate ?? project?.eventDate ?? customer.weddingDate;
   let gallery;
 
   try {
@@ -766,6 +785,7 @@ export async function createGalleryAction(formData: FormData) {
         slug,
         adminId: admin.id,
         customerId: customer.id,
+        projectId: project?.id ?? null,
         password: password || null,
         eventDate,
         isActive,
@@ -795,6 +815,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const { admin } = await requireGalleryAccess(id);
 
   const customerId = formString(formData, "customerId");
+  const projectId = formString(formData, "projectId");
   const title = formString(formData, "title");
   const rawSlug = formString(formData, "slug");
   const password = formString(formData, "password");
@@ -825,6 +846,23 @@ export async function updateGalleryAction(id: string, formData: FormData) {
     redirect(`/admin/galleries/${id}?error=customer`);
   }
 
+  const selectedProject = projectId
+    ? await prisma.customerProject.findFirst({
+        where: {
+          id: projectId,
+          customerId: selectedCustomer?.id ?? "",
+          ...(admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } })
+        },
+        select: {
+          id: true
+        }
+      })
+    : null;
+
+  if (projectId && !selectedProject) {
+    redirect(`/admin/galleries/${id}?error=project`);
+  }
+
   let previousSlug = slug;
   let previousCustomerId: string | null = null;
 
@@ -844,6 +882,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         title,
         slug,
         customerId: selectedCustomer?.id ?? null,
+        projectId: selectedProject?.id ?? null,
         password: password || null,
         eventDate,
         isActive,

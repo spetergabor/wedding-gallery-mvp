@@ -2,6 +2,7 @@ import { CalendarDays, Check, Download, Eye, Images, LockKeyhole, UserRound } fr
 import type { ReactNode } from "react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
+import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { SlugFields } from "@/components/slug-fields";
 import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
@@ -14,10 +15,23 @@ type CustomerOption = {
   weddingDate: Date | null;
 };
 
+type ProjectOption = {
+  id: string;
+  customerId: string;
+  title: string;
+  projectType: string;
+  eventDate: Date | null;
+  venue: string | null;
+  customer: {
+    coupleName: string;
+  };
+};
+
 type GalleryFormProps = {
   gallery?: {
     id: string;
     customerId: string | null;
+    projectId: string | null;
     title: string;
     slug: string;
     password: string | null;
@@ -28,7 +42,9 @@ type GalleryFormProps = {
     clientEmail: string | null;
   };
   customers?: CustomerOption[];
+  projects?: ProjectOption[];
   selectedCustomerId?: string | null;
+  selectedProjectId?: string | null;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -86,13 +102,21 @@ function ToggleField({
   );
 }
 
-export function GalleryForm({ gallery, customers = [], selectedCustomerId = null }: GalleryFormProps) {
+export function GalleryForm({
+  gallery,
+  customers = [],
+  projects = [],
+  selectedCustomerId = null,
+  selectedProjectId = null
+}: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
     : createGalleryAction;
   const defaultCustomerId = gallery?.customerId ?? selectedCustomerId ?? customers[0]?.id ?? "";
+  const defaultProjectId = gallery?.projectId ?? selectedProjectId ?? "";
   const selectedCustomer = customers.find((customer) => customer.id === defaultCustomerId) ?? null;
-  const defaultEventDate = gallery?.eventDate ?? selectedCustomer?.weddingDate ?? null;
+  const selectedProject = projects.find((project) => project.id === defaultProjectId) ?? null;
+  const defaultEventDate = gallery?.eventDate ?? selectedProject?.eventDate ?? selectedCustomer?.weddingDate ?? null;
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -143,6 +167,34 @@ export function GalleryForm({ gallery, customers = [], selectedCustomerId = null
               ) : gallery?.clientEmail ? (
                 <span className="block rounded-md bg-paper px-3 py-2 text-xs leading-5 text-graphite">
                   Régi galéria email: <span className="font-medium text-ink">{gallery.clientEmail}</span>
+                </span>
+              ) : null}
+            </label>
+
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                <Images size={15} />
+                Projekt / fotózás
+              </span>
+              <select
+                name="projectId"
+                defaultValue={defaultProjectId}
+                className={fieldClass}
+              >
+                <option value="">Nincs külön projekthez rendelve</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.customer.coupleName} · {project.title} · {customerProjectTypeLabel(project.projectType)}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs leading-5 text-graphite/70">
+                Több fotózásnál itt válaszd ki, melyik munkacsomag alá kerüljön a galéria.
+              </span>
+              {selectedProject ? (
+                <span className="block rounded-md bg-paper px-3 py-2 text-xs leading-5 text-graphite">
+                  Projekt: <span className="font-medium text-ink">{selectedProject.title}</span>
+                  {selectedProject.venue ? ` · ${selectedProject.venue}` : ""}
                 </span>
               ) : null}
             </label>

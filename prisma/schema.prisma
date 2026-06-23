@@ -82,6 +82,7 @@ model Customer {
   admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   contracts      Contract[]
   galleries      Gallery[]
+  projects       CustomerProject[]
   albumReviews   AlbumReview[]
   albumDesigns   AlbumDesign[]
 
@@ -92,9 +93,33 @@ model Customer {
   @@index([primaryEmail])
 }
 
+model CustomerProject {
+  id           String   @id @default(cuid())
+  customerId   String
+  title        String
+  projectType  String   @default("general")
+  status       String   @default("planned")
+  eventDate    DateTime?
+  venue        String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contracts    Contract[]
+  galleries    Gallery[]
+  albumReviews AlbumReview[]
+  albumDesigns AlbumDesign[]
+
+  @@index([customerId])
+  @@index([projectType])
+  @@index([status])
+  @@index([eventDate])
+}
+
 model AlbumReview {
   id          String   @id @default(cuid())
   customerId  String
+  projectId   String?
   title       String   @default("Album ellenőrző")
   status      String   @default("draft")
   accessToken String   @unique
@@ -102,9 +127,11 @@ model AlbumReview {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project     CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   spreads     AlbumReviewSpread[]
 
   @@index([customerId])
+  @@index([projectId])
   @@index([status])
   @@index([createdAt])
   @@index([accessToken])
@@ -150,16 +177,19 @@ model AlbumReviewComment {
 model AlbumDesign {
   id             String   @id @default(cuid())
   customerId     String
+  projectId      String?
   favoriteListId String?
   title          String   @default("Albumterv")
   status         String   @default("draft")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project        CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   favoriteList   GalleryFavoriteList? @relation(fields: [favoriteListId], references: [id], onDelete: SetNull)
   spreads        AlbumDesignSpread[]
 
   @@index([customerId])
+  @@index([projectId])
   @@index([favoriteListId])
   @@index([status])
   @@index([createdAt])
@@ -204,6 +234,7 @@ model AlbumDesignSpreadItem {
 model Contract {
   id          String   @id @default(cuid())
   customerId  String
+  projectId   String?
   title       String
   status      String   @default("draft")
   sourceType  String   @default("pdf")
@@ -224,8 +255,10 @@ model Contract {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project     CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
+  @@index([projectId])
   @@index([status])
   @@index([sourceType])
   @@index([createdAt])
@@ -236,6 +269,7 @@ model Gallery {
   id           String   @id @default(cuid())
   adminId      String?
   customerId   String?
+  projectId    String?
   title        String
   slug         String   @unique
   password     String?
@@ -265,9 +299,11 @@ model Gallery {
   mediaProcessingJobs MediaProcessingJob[]
   admin        Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
   customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  project      CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([adminId])
   @@index([customerId])
+  @@index([projectId])
   @@index([galleryMode])
   @@index([proofingStatus])
 }

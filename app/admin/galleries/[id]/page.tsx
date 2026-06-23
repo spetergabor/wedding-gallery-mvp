@@ -192,6 +192,14 @@ export default async function GalleryDetailPage({
           primaryEmail: true
         }
       },
+      project: {
+        select: {
+          id: true,
+          customerId: true,
+          title: true,
+          projectType: true
+        }
+      },
       uploadSessions: {
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -235,6 +243,25 @@ export default async function GalleryDetailPage({
       coupleName: true,
       primaryEmail: true,
       weddingDate: true
+    }
+  });
+  const projects = await prisma.customerProject.findMany({
+    where: {
+      customer: adminOwnedWhere(admin)
+    },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      customerId: true,
+      title: true,
+      projectType: true,
+      eventDate: true,
+      venue: true,
+      customer: {
+        select: {
+          coupleName: true
+        }
+      }
     }
   });
 
@@ -296,6 +323,15 @@ export default async function GalleryDetailPage({
                 Nincs ügyfélhez rendelve
               </span>
             )}
+            {gallery.project ? (
+              <Link
+                href={`/admin/clients/${gallery.project.customerId}?tab=projects`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass hover:bg-brass/15"
+              >
+                <Camera size={13} />
+                {gallery.project.title}
+              </Link>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -356,6 +392,7 @@ export default async function GalleryDetailPage({
         {flags.error === "missing" ? <Alert title="Hiányzó kötelező mező." variant="error" /> : null}
         {flags.error === "email" ? <Alert title="Érvénytelen email cím." variant="error" /> : null}
         {flags.error === "customer" ? <Alert title="Válassz érvényes ügyfelet." variant="error" /> : null}
+        {flags.error === "project" ? <Alert title="Válassz az ügyfélhez tartozó projektet." variant="error" /> : null}
         {flags.photoError === "missing" ? <Alert title="Nem választottál ki fotót." variant="error" /> : null}
         {flags.photoError === "storage" ? (
           <Alert title="A feltöltés nem sikerült." variant="error">
@@ -611,7 +648,7 @@ export default async function GalleryDetailPage({
 
         {activeTab === "settings" ? (
           <div className="space-y-8">
-            <GalleryForm gallery={gallery} customers={customers} selectedCustomerId={gallery.customerId} />
+            <GalleryForm gallery={gallery} customers={customers} projects={projects} selectedCustomerId={gallery.customerId} selectedProjectId={gallery.projectId} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
           </div>
         ) : null}
