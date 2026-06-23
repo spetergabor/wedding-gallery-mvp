@@ -257,14 +257,14 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     name: "Nyolc képes középső klaszter",
     photoCount: 8,
     slots: [
-      { x: 0, y: 16, width: 16, height: 48 },
-      { x: 16, y: 16, width: 16, height: 48 },
-      { x: 32, y: 16, width: 29, height: 24 },
-      { x: 61, y: 16, width: 15, height: 24 },
-      { x: 76, y: 16, width: 24, height: 48 },
-      { x: 32, y: 40, width: 15, height: 24 },
-      { x: 47, y: 40, width: 14, height: 24 },
-      { x: 61, y: 40, width: 15, height: 24 }
+      { x: 0, y: 26, width: 16, height: 48 },
+      { x: 16, y: 26, width: 16, height: 48 },
+      { x: 32, y: 26, width: 29, height: 24 },
+      { x: 61, y: 26, width: 15, height: 24 },
+      { x: 76, y: 26, width: 24, height: 48 },
+      { x: 32, y: 50, width: 15, height: 24 },
+      { x: 47, y: 50, width: 14, height: 24 },
+      { x: 61, y: 50, width: 15, height: 24 }
     ]
   },
   {
