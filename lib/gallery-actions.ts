@@ -6,8 +6,9 @@ import { after } from "next/server";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages";
+import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
+import { enqueueGalleryZipJob, kickGalleryZipJob } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
@@ -92,6 +93,7 @@ function createClientAccessToken() {
 }
 
 const STALE_MEDIA_PROCESSING_MS = 2 * 60 * 60 * 1000;
+const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 
 function hasLightweightPhotoVariant(photo: { imageUrl: string; thumbnailUrl: string; previewUrl: string; mediaType: string }) {
   return (
@@ -2065,6 +2067,140 @@ export async function requeueGalleryMediaProcessingAction(galleryId: string) {
   revalidatePath(`/g/${gallery.slug}`);
   scheduleGalleryMediaProcessing(galleryId, { force: true });
   redirect(`/admin/galleries/${galleryId}?tab=photos&mediaProcessing=queued`);
+}
+
+export async function queueGalleryZipPackageAction(galleryId: string) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const now = Date.now();
+
+  const galleryWithPhotos = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: {
+      slug: true,
+      isActive: true,
+      downloadsEnabled: true,
+      galleryMode: true,
+      proofingStatus: true,
+      photos: {
+        where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: {
+          createdAt: true
+        }
+      }
+    }
+  });
+
+  if (!galleryWithPhotos || !galleryWithPhotos.isActive) {
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=not-active`);
+  }
+
+  if (!galleryWithPhotos.downloadsEnabled) {
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=downloads-disabled`);
+  }
+
+  if (
+    isProofingGallery(galleryWithPhotos.galleryMode) &&
+    galleryWithPhotos.proofingStatus !== PROOFING_STATUS_DELIVERED
+  ) {
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=proofing-pending`);
+  }
+
+  const photoCount = galleryWithPhotos.photos.length;
+
+  if (photoCount === 0) {
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=no-photos`);
+  }
+
+  const latestPhotoCreatedAt = galleryWithPhotos.photos.reduce<Date | null>((latest, photo) => {
+    if (!latest || photo.createdAt > latest) {
+      return photo.createdAt;
+    }
+
+    return latest;
+  }, null);
+
+  const partCount = 1;
+  const freshCompletedPackage = await prisma.galleryDownloadPackage.findFirst({
+    where: {
+      galleryId,
+      scope: PUBLIC_DOWNLOAD_SCOPE,
+      status: "completed",
+      photoCount,
+      downloadUrl: { not: null },
+      r2Key: { not: null },
+      generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
+    },
+    orderBy: [{ generatedAt: "desc" }, { createdAt: "desc" }],
+    select: { id: true }
+  });
+
+  if (freshCompletedPackage) {
+    revalidatePath(`/admin/galleries/${gallery.id}`);
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=already-ready`);
+  }
+
+  const existingPackage = await prisma.galleryDownloadPackage.findFirst({
+    where: {
+      galleryId,
+      scope: PUBLIC_DOWNLOAD_SCOPE,
+      status: { in: ["pending", "processing"] },
+      photoCount,
+      partCount
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      updatedAt: true
+    }
+  });
+
+  if (existingPackage) {
+    const shouldRequeue =
+      existingPackage.status === "pending" ||
+      (existingPackage.status === "processing" && now - existingPackage.updatedAt.getTime() > STALE_ZIP_PROCESSING_MS);
+
+    if (shouldRequeue) {
+      after(async () => {
+        await kickGalleryZipJob({ galleryId, packageId: existingPackage.id });
+      });
+
+      revalidatePath(`/admin/galleries/${gallery.id}`);
+      redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
+    }
+
+    revalidatePath(`/admin/galleries/${gallery.id}`);
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=already-running`);
+  }
+
+  const downloadPackage = await prisma.galleryDownloadPackage.create({
+    data: {
+      galleryId,
+      scope: PUBLIC_DOWNLOAD_SCOPE,
+      status: "pending",
+      photoCount,
+      partIndex: 0,
+      partCount
+    }
+  });
+
+  const zipJob = await enqueueGalleryZipJob({
+    galleryId,
+    packageId: downloadPackage.id
+  });
+
+  after(async () => {
+    await kickGalleryZipJob({
+      galleryId,
+      packageId: downloadPackage.id,
+      jobId: zipJob.id
+    });
+  });
+
+  revalidatePath(`/admin/galleries/${gallery.id}`);
+  revalidatePath(`/g/${galleryWithPhotos.slug}`);
+  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
 }
 
 export async function setCoverPhotoAction(galleryId: string, photoId: string) {

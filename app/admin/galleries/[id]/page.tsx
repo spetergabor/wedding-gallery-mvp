@@ -26,6 +26,7 @@ import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   generateClientAccessLinkAction,
+  queueGalleryZipPackageAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
   updateGalleryProofingStatusAction
@@ -68,6 +69,7 @@ function getActiveTab(flags: {
   clientLink?: string;
   clientRestored?: string;
   deliveryEmail?: string;
+  zip?: string;
   error?: string;
   mediaProcessing?: string;
   proofingInvite?: string;
@@ -123,6 +125,7 @@ export default async function GalleryDetailPage({
     archived?: string;
     coverSet?: string;
     deliveryEmail?: string;
+    zip?: string;
     duplicateCleanup?: string;
     clientLink?: string;
     clientRestored?: string;
@@ -281,6 +284,10 @@ export default async function GalleryDetailPage({
     new Set(gallery.favoriteLists.flatMap((list) => list.items.map((item) => item.photo.id)))
   );
   const submittedListCount = gallery.favoriteLists.filter((list) => list.submittedAt).length;
+  const canPrepareZip =
+    gallery.downloadsEnabled &&
+    gallery.photos.length > 0 &&
+    (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({
@@ -353,6 +360,13 @@ export default async function GalleryDetailPage({
         {flags.duplicateCleanup === "none" ? <Alert title="Nem találtam törölhető duplikátumot." variant="info" /> : null}
         {flags.mediaProcessing === "queued" ? <Alert title="Hiányzó előnézetek újra sorba állítva." variant="success" /> : null}
         {flags.mediaProcessing === "none" ? <Alert title="Nincs újraindítható előnézet." variant="info" /> : null}
+        {flags.zip === "queued" ? <Alert title="ZIP csomag feldolgozásra beütemezve." variant="success" /> : null}
+        {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}
+        {flags.zip === "already-ready" ? <Alert title="A ZIP már kész, újraindításra nem volt szükség." variant="success" /> : null}
+        {flags.zip === "downloads-disabled" ? <Alert title="A letöltés ki van kapcsolva ehhez a galériához." variant="error" /> : null}
+        {flags.zip === "no-photos" ? <Alert title="Nincs letölthető fotó a galériában." variant="error" /> : null}
+        {flags.zip === "not-active" ? <Alert title="Ez a galéria nem aktív." variant="error" /> : null}
+        {flags.zip === "proofing-pending" ? <Alert title="A galéria még nem került átadásra." variant="error" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
         {flags.clientLink ? <Alert title="Ügyfél kezelő link elkészítve." variant="success" /> : null}
         {flags.proofingInvite === "sent" ? <Alert title="Válogató link elküldve emailben." variant="success" /> : null}
@@ -642,6 +656,13 @@ export default async function GalleryDetailPage({
 
         {activeTab === "downloads" ? (
           <div className="max-w-3xl space-y-6">
+            <div className="flex items-center gap-3">
+              <form action={queueGalleryZipPackageAction.bind(null, gallery.id)}>
+                <Button type="submit" disabled={!canPrepareZip} className="whitespace-nowrap">
+                  ZIP csomag indítása
+                </Button>
+              </form>
+            </div>
             <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
           </div>
