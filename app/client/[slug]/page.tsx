@@ -63,7 +63,7 @@ export default async function ClientGalleryReviewPage({
             <div>
               <h1 className="text-4xl font-semibold text-ink">{gallery.title}</h1>
               <p className="mt-3 max-w-2xl text-graphite/70">
-                Hier könnt ihr Fotos ausblenden, die nicht in der öffentlichen Galerie gezeigt werden sollen.
+                Hier legt ihr fest, welche Fotos Familie und Gäste in der öffentlichen Galerie sehen und herunterladen können. Änderungen werden sofort gespeichert.
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-md bg-paper px-4 py-3 text-sm text-graphite">

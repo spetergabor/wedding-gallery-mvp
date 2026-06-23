@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Check, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon } from "lucide-react";
+import { Check, CheckCircle2, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon, RefreshCw } from "lucide-react";
 import { Button } from "@/components/button";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { toggleClientPhotoVisibilityAction } from "@/lib/client-gallery-actions";
@@ -16,6 +16,11 @@ type ClientPhoto = {
   mediaType: string;
   processingStatus: string;
   isClientHidden: boolean;
+};
+
+type SaveNotice = {
+  hidden: boolean;
+  zipRefreshing: boolean;
 };
 
 function getClientPreviewUrl(photo: ClientPhoto) {
@@ -48,8 +53,11 @@ export function ClientGalleryReview({
   );
   const [pendingPhotoId, setPendingPhotoId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [saveNotice, setSaveNotice] = useState<SaveNotice | null>(null);
   const [copied, setCopied] = useState(false);
   const publicHref = `/g/${publicSlug}`;
+  const hiddenCount = hiddenPhotoIds.size;
+  const visibleCount = photos.length - hiddenCount;
 
   async function copyPublicLink() {
     const publicUrl = new URL(publicHref, window.location.origin).toString();
@@ -92,6 +100,11 @@ export function ClientGalleryReview({
 
       return next;
     });
+    setSaveNotice({
+      hidden: nextHidden,
+      zipRefreshing: Boolean(result.zipRefreshing)
+    });
+    window.setTimeout(() => setSaveNotice(null), 4500);
     setPendingPhotoId(null);
   }
 
@@ -102,32 +115,64 @@ export function ClientGalleryReview({
       ) : null}
 
       <div className="mb-5 rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
           <div>
-            <p className="text-sm font-medium text-ink">{hiddenPhotoIds.size} Fotos in der öffentlichen Galerie ausgeblendet</p>
-            <p className="mt-1 text-sm text-graphite/70">
-              Ausgeblendete Fotos bleiben hier sichtbar, erscheinen aber nicht in der normalen öffentlichen Galerie.
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Öffentliche Gästegalerie</p>
+            <h2 className="mt-2 text-2xl font-semibold text-ink">
+              {visibleCount} sichtbar · {hiddenCount} ausgeblendet
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
+              Jede Änderung wird sofort gespeichert. Die öffentliche Galerie und das Download-Paket werden automatisch aktualisiert.
             </p>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button type="button" variant="secondary" onClick={copyPublicLink}>
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? "Öffentlicher Link kopiert" : "Öffentlichen Link kopieren"}
-            </Button>
-            <a
-              href={publicHref}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
-            >
-              <ExternalLink size={16} />
-              Öffentliche Galerie teilen
-            </a>
+          <div className="grid min-w-[220px] grid-cols-2 gap-2 text-center">
+            <div className="rounded-md bg-paper px-3 py-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Sichtbar</p>
+              <p className="mt-1 text-xl font-semibold text-ink">{visibleCount}</p>
+            </div>
+            <div className="rounded-md bg-paper px-3 py-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Ausgeblendet</p>
+              <p className="mt-1 text-xl font-semibold text-ink">{hiddenCount}</p>
+            </div>
           </div>
+        </div>
+
+        {saveNotice ? (
+          <div className="mt-4 rounded-md border border-sage/25 bg-sage/10 px-4 py-3 text-sm text-ink">
+            <div className="flex gap-3">
+              <CheckCircle2 className="mt-0.5 shrink-0 text-sage" size={17} />
+              <div>
+                <p className="font-medium">
+                  Gespeichert: Das Foto ist jetzt {saveNotice.hidden ? "nicht mehr für Gäste sichtbar" : "wieder für Gäste sichtbar"}.
+                </p>
+                <p className="mt-1 text-graphite/70">
+                  Die öffentliche Galerie ist aktualisiert.
+                  {saveNotice.zipRefreshing ? " Das Download-Paket wird im Hintergrund neu vorbereitet." : " Das aktuelle Download-Paket bleibt passend."}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex flex-col justify-end gap-3 sm:flex-row">
+          <Button type="button" variant="secondary" onClick={copyPublicLink}>
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            {copied ? "Öffentlicher Link kopiert" : "Öffentlichen Link kopieren"}
+          </Button>
+          <a
+            href={publicHref}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+          >
+            <ExternalLink size={16} />
+            Öffentliche Galerie öffnen
+          </a>
         </div>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {photos.map((photo) => {
           const isHidden = hiddenPhotoIds.has(photo.id);
+          const isPending = pendingPhotoId === photo.id;
 
           return (
             <article key={photo.id} className={`overflow-hidden rounded-lg border bg-white shadow-soft ${isHidden ? "border-brass/40" : "border-ink/10"}`}>
@@ -163,21 +208,31 @@ export function ClientGalleryReview({
                 {isHidden ? (
                   <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">
                     <EyeOff size={13} />
-                    Ausgeblendet
+                    Nicht für Gäste sichtbar
                   </span>
-                ) : null}
+                ) : (
+                  <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink shadow-soft">
+                    <Eye size={13} />
+                    Für Gäste sichtbar
+                  </span>
+                )}
               </div>
               <div className="space-y-3 p-3">
                 <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
+                <p className="text-xs leading-5 text-graphite/65">
+                  {isHidden
+                    ? "Dieses Foto bleibt hier sichtbar, erscheint aber nicht in der öffentlichen Galerie oder im Gäste-Download."
+                    : "Dieses Foto erscheint in der öffentlichen Galerie und im Gäste-Download."}
+                </p>
                 <Button
                   type="button"
                   variant={isHidden ? "secondary" : "danger"}
                   className="w-full"
-                  disabled={pendingPhotoId === photo.id}
+                  disabled={isPending}
                   onClick={() => void togglePhoto(photo.id)}
                 >
-                  {isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
-                  {isHidden ? "Wieder in der öffentlichen Galerie anzeigen" : "Aus der öffentlichen Galerie ausblenden"}
+                  {isPending ? <RefreshCw className="animate-spin" size={16} /> : isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+                  {isPending ? "Wird gespeichert" : isHidden ? "Für Gäste wieder anzeigen" : "Für Gäste ausblenden"}
                 </Button>
               </div>
             </article>
@@ -188,7 +243,7 @@ export function ClientGalleryReview({
       <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 text-center shadow-soft">
         <p className="text-lg font-semibold text-ink">Seid ihr mit dem Ausblenden fertig?</p>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-graphite/70">
-          In der öffentlichen Galerie erscheinen jetzt nur noch die Fotos, die ihr nicht ausgeblendet habt. Diesen Link könnt ihr an Familie und Gäste weitergeben.
+          Ihr müsst nichts extra speichern. In der öffentlichen Galerie erscheinen nur die Fotos, die als sichtbar markiert sind; den Link könnt ihr an Familie und Gäste weitergeben.
         </p>
         <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
           <Button type="button" variant="secondary" onClick={copyPublicLink}>

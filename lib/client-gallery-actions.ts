@@ -74,6 +74,8 @@ export async function toggleClientPhotoVisibilityAction({
 
   return {
     ok: true,
-    hidden
+    hidden,
+    zipStatus: zipResult.ok ? zipResult.status : null,
+    zipRefreshing: zipResult.ok && !zipResult.cached
   };
 }
