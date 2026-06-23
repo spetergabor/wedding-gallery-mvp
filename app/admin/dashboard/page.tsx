@@ -15,7 +15,8 @@ import {
   ImagePlus,
   ListChecks,
   Mail,
-  MessageSquare
+  MessageSquare,
+  ReceiptText
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
@@ -136,6 +137,7 @@ export default async function AdminDashboardPage() {
   const today = startOfToday();
   const staleZipCutoff = new Date(Date.now() - 15 * 60 * 1000);
   const contractWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
+  const invoiceWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
   const albumCommentWhere = admin.role === "super_admin" ? {} : { spread: { review: { customer: { adminId: admin.id } } } };
   const downloadPackageWhere = admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } };
 
@@ -151,6 +153,7 @@ export default async function AdminDashboardPage() {
     submittedProofingGalleries,
     finishedProofingGalleries,
     waitingContracts,
+    openInvoices,
     openAlbumComments,
     failedProcessingPhotos,
     problemZipPackages,
@@ -187,6 +190,7 @@ export default async function AdminDashboardPage() {
           select: {
             galleries: true,
             contracts: true,
+            invoices: true,
             albumReviews: true,
             albumDesigns: true
           }
@@ -274,6 +278,28 @@ export default async function AdminDashboardPage() {
             id: true,
             coupleName: true,
             primaryEmail: true
+          }
+        }
+      }
+    }),
+    prisma.customerInvoice.findMany({
+      where: {
+        ...invoiceWhere,
+        status: { not: "paid" }
+      },
+      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+      take: 8,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        project: {
+          select: {
+            title: true
           }
         }
       }
@@ -441,11 +467,30 @@ export default async function AdminDashboardPage() {
       icon: FileText,
       createdAt: contract.sentAt ?? contract.createdAt
     })),
+    ...openInvoices.map((invoice): DashboardTask => {
+      const isOverdue = Boolean(invoice.dueDate && invoice.dueDate.getTime() < today.getTime());
+      const isUnsent = !invoice.sentAt;
+      const title = isUnsent ? "Számla kiküldése" : isOverdue ? "Lejárt nyitott számla" : "Nyitott számla követése";
+      const label = isUnsent ? "Küldésre vár" : isOverdue ? "Lejárt" : "Nyitott";
+      const projectText = invoice.project ? ` · ${invoice.project.title}` : "";
+      const dueText = invoice.dueDate ? ` · határidő: ${formatDate(invoice.dueDate)}` : "";
+
+      return {
+        key: `invoice-${invoice.id}`,
+        title,
+        detail: `${invoice.customer.coupleName}${projectText}: ${invoice.title}${dueText}`,
+        href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+        label,
+        priority: isUnsent || isOverdue ? "high" : "medium",
+        icon: ReceiptText,
+        createdAt: invoice.sentAt ?? invoice.createdAt
+      };
+    }),
     ...openAlbumComments.map((comment): DashboardTask => ({
       key: `album-comment-${comment.id}`,
       title: "Album megjegyzés megválaszolása",
       detail: `${comment.spread.review.customer.coupleName}: ${comment.text}`,
-      href: `/admin/clients/${comment.spread.review.customer.id}?tab=albums`,
+      href: `/admin/clients/${comment.spread.review.customer.id}?tab=album`,
       label: "Album ellenőrző",
       priority: "medium",
       icon: MessageSquare,

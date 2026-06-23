@@ -81,6 +81,7 @@ model Customer {
   updatedAt      DateTime @updatedAt
   admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   contracts      Contract[]
+  invoices       CustomerInvoice[]
   galleries      Gallery[]
   projects       CustomerProject[]
   albumReviews   AlbumReview[]
@@ -106,6 +107,7 @@ model CustomerProject {
   updatedAt    DateTime @updatedAt
   customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   contracts    Contract[]
+  invoices     CustomerInvoice[]
   galleries    Gallery[]
   albumReviews AlbumReview[]
   albumDesigns AlbumDesign[]
@@ -263,6 +265,38 @@ model Contract {
   @@index([sourceType])
   @@index([createdAt])
   @@index([accessToken])
+}
+
+model CustomerInvoice {
+  id               String   @id @default(cuid())
+  customerId       String
+  projectId        String?
+  title            String
+  status           String   @default("open")
+  originalFilename String
+  r2Key            String
+  fileUrl          String
+  fileSize         Int      @default(0)
+  amountCents      Int?
+  currency         String   @default("EUR")
+  dueDate          DateTime?
+  notes            String?
+  sentAt           DateTime?
+  sentTo           String?
+  emailError       String?
+  paidAt           DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project          CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([projectId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([sentAt])
+  @@index([paidAt])
+  @@index([createdAt])
 }
 
 model Gallery {

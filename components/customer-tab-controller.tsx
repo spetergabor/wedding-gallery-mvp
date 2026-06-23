@@ -9,11 +9,12 @@ import {
   Heart,
   ImagePlus,
   MessageSquare,
+  ReceiptText,
   Settings
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "communication" | "details";
+type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "details";
 
 type CustomerTabItem = {
   key: CustomerTab;
@@ -28,6 +29,7 @@ const icons = {
   Heart,
   ImagePlus,
   FileText,
+  ReceiptText,
   MessageSquare,
   Settings
 } satisfies Record<string, LucideIcon>;
@@ -98,7 +100,7 @@ export function CustomerTabController({
 
   return (
     <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
-      <nav className="grid gap-2 md:grid-cols-2 xl:grid-cols-8" aria-label="Ügyfél munkaterületek">
+      <nav className="grid gap-2 md:grid-cols-3 xl:grid-cols-9" aria-label="Ügyfél munkaterületek">
         {tabs.map((tab) => {
           const Icon = icons[tab.icon];
           const isActive = activeTab === tab.key;

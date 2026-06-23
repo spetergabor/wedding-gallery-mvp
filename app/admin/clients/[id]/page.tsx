@@ -15,6 +15,7 @@ import {
   Mail,
   MessageSquare,
   Plus,
+  ReceiptText,
   Trash2
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
@@ -29,6 +30,7 @@ import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
 import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { CustomerTabController } from "@/components/customer-tab-controller";
 import { DismissibleNextAction } from "@/components/dismissible-next-action";
+import { InvoiceManager } from "@/components/invoice-manager";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
@@ -92,18 +94,19 @@ type CustomerProjectOverview = {
   _count: {
     galleries: number;
     contracts: number;
+    invoices: number;
     albumReviews: number;
     albumDesigns: number;
   };
 };
 
-type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "communication" | "details";
+type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "details";
 type AlbumMode = "editor" | "upload";
 
 const customerTabs: Array<{
   key: CustomerTab;
   label: string;
-  icon: "CheckCircle2" | "FolderKanban" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "MessageSquare" | "Settings";
+  icon: "CheckCircle2" | "FolderKanban" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Settings";
 }> = [
   { key: "overview", label: "Áttekintés", icon: "CheckCircle2" },
   { key: "projects", label: "Projektek", icon: "FolderKanban" },
@@ -111,6 +114,7 @@ const customerTabs: Array<{
   { key: "proofing", label: "Válogatás", icon: "Heart" },
   { key: "album", label: "Album", icon: "ImagePlus" },
   { key: "contracts", label: "Szerződések", icon: "FileText" },
+  { key: "invoices", label: "Számlák", icon: "ReceiptText" },
   { key: "communication", label: "Kommunikáció", icon: "MessageSquare" },
   { key: "details", label: "Adatok", icon: "Settings" }
 ];
@@ -126,6 +130,17 @@ type CustomerWorkflowInput = {
     sentAt: Date | null;
     openedAt: Date | null;
     signedAt: Date | null;
+    createdAt: Date;
+  }>;
+  invoices: Array<{
+    id: string;
+    title: string;
+    status: string;
+    amountCents: number | null;
+    currency: string;
+    dueDate: Date | null;
+    sentAt: Date | null;
+    paidAt: Date | null;
     createdAt: Date;
   }>;
   galleries: Array<{
@@ -165,6 +180,7 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
     (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && ["not_opened", "in_progress", "submitted", "processing"].includes(gallery.proofingStatus)
   );
   const contract = customer.contracts[0] ?? null;
+  const openInvoice = customer.invoices.find((invoice) => invoice.status !== "paid") ?? null;
   const tasks: CustomerTask[] = [
     {
       title: "Ügyfél email",
@@ -235,6 +251,31 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
     });
   }
 
+  if (openInvoice) {
+    tasks.push({
+      title: "Számla",
+      detail: openInvoice.sentAt
+        ? `Nyitott számla: ${openInvoice.title}`
+        : `Feltöltve, de még nincs kiküldve: ${openInvoice.title}`,
+      state: openInvoice.sentAt ? "waiting" : "action",
+      href: `/admin/clients/${customer.id}?tab=invoices`
+    });
+  } else if (customer.invoices.length > 0) {
+    tasks.push({
+      title: "Számla",
+      detail: "Minden rögzített számla fizetett.",
+      state: "done",
+      href: `/admin/clients/${customer.id}?tab=invoices`
+    });
+  } else {
+    tasks.push({
+      title: "Számla",
+      detail: "Még nincs számla feltöltve ehhez az ügyfélhez.",
+      state: "info",
+      href: `/admin/clients/${customer.id}?tab=invoices`
+    });
+  }
+
   tasks.push({
     title: "Aktuális fókusz",
     detail: nextAction.title,
@@ -283,6 +324,33 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
         date: contract.signedAt,
         title: "Szerződés aláírva",
         detail: contract.title
+      });
+    }
+  });
+
+  customer.invoices.forEach((invoice) => {
+    events.push({
+      date: invoice.createdAt,
+      title: "Számla feltöltve",
+      detail: invoice.title,
+      href: `/admin/clients/${customer.id}?tab=invoices`
+    });
+
+    if (invoice.sentAt) {
+      events.push({
+        date: invoice.sentAt,
+        title: "Számla elküldve",
+        detail: invoice.title,
+        href: `/admin/clients/${customer.id}?tab=invoices`
+      });
+    }
+
+    if (invoice.paidAt) {
+      events.push({
+        date: invoice.paidAt,
+        title: "Számla fizetett",
+        detail: invoice.title,
+        href: `/admin/clients/${customer.id}?tab=invoices`
       });
     }
   });
@@ -357,6 +425,17 @@ function createCommunicationEvents(customer: CustomerWorkflowInput) {
         date: contract.sentAt,
         title: "Szerződés email",
         detail: contract.title
+      });
+    }
+  });
+
+  customer.invoices.forEach((invoice) => {
+    if (invoice.sentAt) {
+      events.push({
+        date: invoice.sentAt,
+        title: "Számla email",
+        detail: invoice.title,
+        href: `/admin/clients/${customer.id}?tab=invoices`
       });
     }
   });
@@ -455,9 +534,22 @@ function taskStyles(state: CustomerTask["state"]) {
   };
 }
 
-function getActiveTab(flags: { edit?: string; tab?: string; contractUploaded?: string; contractWritten?: string; contractSent?: string }): CustomerTab {
+function getActiveTab(flags: {
+  edit?: string;
+  tab?: string;
+  contractUploaded?: string;
+  contractWritten?: string;
+  contractSent?: string;
+  invoiceUploaded?: string;
+  invoiceSent?: string;
+  invoiceStatusUpdated?: string;
+}): CustomerTab {
   if (flags.edit === "1") {
     return "details";
+  }
+
+  if (flags.invoiceUploaded || flags.invoiceSent || flags.invoiceStatusUpdated) {
+    return "invoices";
   }
 
   if (flags.contractUploaded || flags.contractWritten || flags.contractSent) {
@@ -488,6 +580,10 @@ export default async function AdminClientDetailPage({
     contractWritten?: string;
     contractSent?: string;
     contractError?: string;
+    invoiceUploaded?: string;
+    invoiceSent?: string;
+    invoiceStatusUpdated?: string;
+    invoiceError?: string;
     edit?: string;
     projectCreated?: string;
     projectDeleted?: string;
@@ -521,6 +617,17 @@ export default async function AdminClientDetailPage({
     include: {
       contracts: {
         orderBy: { createdAt: "desc" }
+      },
+      invoices: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          project: {
+            select: {
+              id: true,
+              title: true
+            }
+          }
+        }
       },
       galleries: {
         orderBy: { createdAt: "desc" },
@@ -583,6 +690,7 @@ export default async function AdminClientDetailPage({
             select: {
               galleries: true,
               contracts: true,
+              invoices: true,
               albumReviews: true,
               albumDesigns: true
             }
@@ -698,6 +806,7 @@ export default async function AdminClientDetailPage({
   const unassignedProjectCounts = {
     galleries: customer.galleries.filter((gallery) => !gallery.projectId).length,
     contracts: customer.contracts.filter((contract) => !contract.projectId).length,
+    invoices: customer.invoices.filter((invoice) => !invoice.projectId).length,
     albumReviews: unassignedAlbumReviewCount,
     albumDesigns: unassignedAlbumDesignCount
   };
@@ -757,6 +866,9 @@ export default async function AdminClientDetailPage({
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
+        {flags.invoiceUploaded ? <Alert title="Számla feltöltve." variant="success" /> : null}
+        {flags.invoiceSent ? <Alert title="Számla elküldve emailben." variant="success" /> : null}
+        {flags.invoiceStatusUpdated ? <Alert title="Számla státusz frissítve." variant="success" /> : null}
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
         {flags.albumDeleted ? <Alert title="Album ellenőrző törölve." variant="success" /> : null}
@@ -803,6 +915,26 @@ export default async function AdminClientDetailPage({
         {flags.contractError === "not-found" ? (
           <Alert title="A szerződés nem található." variant="error">
             Frissítsd az oldalt, és próbáld újra.
+          </Alert>
+        ) : null}
+        {flags.invoiceError === "missing" ? (
+          <Alert title="Hiányzó számla adat." variant="error">
+            Adj meg címet és válassz ki egy PDF fájlt.
+          </Alert>
+        ) : null}
+        {flags.invoiceError === "type" ? (
+          <Alert title="Csak PDF tölthető fel." variant="error">
+            A számla első verzióban PDF fájl lehet.
+          </Alert>
+        ) : null}
+        {flags.invoiceError === "not-found" ? (
+          <Alert title="A számla nem található." variant="error">
+            Frissítsd az oldalt, és próbáld újra.
+          </Alert>
+        ) : null}
+        {flags.invoiceError === "email" ? (
+          <Alert title="A számla email küldése nem sikerült." variant="error">
+            Ellenőrizd a Resend beállítást és az ügyfél email címét, majd próbáld újra.
           </Alert>
         ) : null}
       </div>
@@ -1128,6 +1260,18 @@ export default async function AdminClientDetailPage({
 
       <div data-customer-tab-panel="contracts" hidden={activeTab !== "contracts"}>
         <ContractManager customerId={customer.id} contracts={customer.contracts} />
+      </div>
+
+      <div data-customer-tab-panel="invoices" hidden={activeTab !== "invoices"}>
+        <InvoiceManager
+          customerId={customer.id}
+          invoices={customer.invoices}
+          projects={customer.projects.map((project) => ({
+            id: project.id,
+            title: project.title,
+            eventDate: project.eventDate
+          }))}
+        />
       </div>
 
       <div data-customer-tab-panel="communication" hidden={activeTab !== "communication"}>

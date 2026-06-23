@@ -161,6 +161,20 @@ export function createContractObjectKey({
   return `contracts/${customerId}/${uniqueName}`;
 }
 
+export function createInvoiceObjectKey({
+  customerId,
+  originalFilename
+}: {
+  customerId: string;
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".pdf";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "invoice";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `invoices/${customerId}/${uniqueName}`;
+}
+
 export function createAlbumReviewSpreadObjectKey({
   customerId,
   reviewId,

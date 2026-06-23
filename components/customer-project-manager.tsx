@@ -61,6 +61,7 @@ type CustomerProject = {
   _count: {
     galleries: number;
     contracts: number;
+    invoices: number;
     albumReviews: number;
     albumDesigns: number;
   };
@@ -69,6 +70,7 @@ type CustomerProject = {
 type UnassignedCounts = {
   galleries: number;
   contracts: number;
+  invoices: number;
   albumReviews: number;
   albumDesigns: number;
 };
@@ -364,7 +366,11 @@ export function CustomerProjectManager({
   defaultVenue: string | null;
 }) {
   const unassignedTotal =
-    unassignedCounts.galleries + unassignedCounts.contracts + unassignedCounts.albumReviews + unassignedCounts.albumDesigns;
+    unassignedCounts.galleries +
+    unassignedCounts.contracts +
+    unassignedCounts.invoices +
+    unassignedCounts.albumReviews +
+    unassignedCounts.albumDesigns;
   const focusProject = getFocusProject(projects);
   const focusStep = focusProject ? getProjectNextStep(customerId, focusProject) : null;
   const FocusStepIcon = focusStep?.icon ?? ListChecks;
@@ -626,6 +632,7 @@ export function CustomerProjectManager({
               <div className="mt-4 flex flex-wrap gap-2">
                 <CountPill icon={Camera} label="galéria" count={project._count.galleries} />
                 <CountPill icon={FileText} label="szerződés" count={project._count.contracts} />
+                <CountPill icon={FileText} label="számla" count={project._count.invoices} />
                 <CountPill icon={ImagePlus} label="album ellenőrző" count={project._count.albumReviews} />
                 <CountPill icon={Archive} label="albumterv" count={project._count.albumDesigns} />
               </div>
@@ -696,6 +703,7 @@ export function CustomerProjectManager({
           <div className="mt-4 flex flex-wrap gap-2">
             <CountPill icon={Camera} label="galéria" count={unassignedCounts.galleries} />
             <CountPill icon={FileText} label="szerződés" count={unassignedCounts.contracts} />
+            <CountPill icon={FileText} label="számla" count={unassignedCounts.invoices} />
             <CountPill icon={ImagePlus} label="album ellenőrző" count={unassignedCounts.albumReviews} />
             <CountPill icon={Archive} label="albumterv" count={unassignedCounts.albumDesigns} />
           </div>

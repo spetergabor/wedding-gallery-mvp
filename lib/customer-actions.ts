@@ -219,6 +219,11 @@ export async function deleteCustomerAction(customerId: string) {
           r2Key: true,
           signedR2Key: true
         }
+      },
+      invoices: {
+        select: {
+          r2Key: true
+        }
       }
     }
   });
@@ -230,12 +235,13 @@ export async function deleteCustomerAction(customerId: string) {
   const contractObjectKeys = customer.contracts.flatMap((contract) =>
     [contract.r2Key, contract.signedR2Key].filter((key): key is string => Boolean(key))
   );
+  const invoiceObjectKeys = customer.invoices.map((invoice) => invoice.r2Key).filter(Boolean);
 
   await prisma.customer.delete({
     where: { id: customer.id }
   });
 
-  await Promise.all(contractObjectKeys.map((key) => deletePhotoObject(key)));
+  await Promise.all([...contractObjectKeys, ...invoiceObjectKeys].map((key) => deletePhotoObject(key)));
 
   revalidatePath("/admin/clients");
   revalidatePath("/admin/galleries");

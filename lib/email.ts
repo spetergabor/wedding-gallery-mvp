@@ -15,6 +15,15 @@ type ContractSignatureRequestEmail = {
   contractUrl: string;
 };
 
+type CustomerInvoiceEmail = {
+  to: string[];
+  coupleName: string;
+  invoiceTitle: string;
+  invoiceUrl: string;
+  amountLabel?: string | null;
+  dueDateLabel?: string | null;
+};
+
 type ClientProofingInviteEmail = {
   to: string;
   galleryTitle: string;
@@ -493,6 +502,76 @@ export async function sendContractSignatureRequestEmail(payload: ContractSignatu
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     throw new Error(`Contract email failed: ${response.status} ${errorText}`);
+  }
+}
+
+function customerInvoiceHtml({
+  coupleName,
+  invoiceTitle,
+  invoiceUrl,
+  amountLabel,
+  dueDateLabel
+}: CustomerInvoiceEmail) {
+  const metaLines = [
+    amountLabel ? `<p style="margin: 0 0 8px;"><strong>Betrag:</strong> ${escapeHtml(amountLabel)}</p>` : "",
+    dueDateLabel ? `<p style="margin: 0 0 18px;"><strong>Fällig bis:</strong> ${escapeHtml(dueDateLabel)}</p>` : ""
+  ].join("");
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Rechnung</h1>
+      <p style="margin: 0 0 18px;">Hallo ${escapeHtml(coupleName)},</p>
+      <p style="margin: 0 0 18px;">Die Rechnung <strong>${escapeHtml(invoiceTitle)}</strong> ist bereit.</p>
+      ${metaLines}
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(invoiceUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Rechnung öffnen</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiert diesen Link in den Browser:<br>${escapeHtml(invoiceUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendCustomerInvoiceEmail(payload: CustomerInvoiceEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Invoice email skipped. Missing RESEND_API_KEY.");
+    return;
+  }
+
+  const recipients = [...new Set(payload.to.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const textLines = [
+    `Hallo ${payload.coupleName},`,
+    "",
+    `Die Rechnung ${payload.invoiceTitle} ist bereit.`,
+    payload.amountLabel ? `Betrag: ${payload.amountLabel}` : "",
+    payload.dueDateLabel ? `Fällig bis: ${payload.dueDateLabel}` : "",
+    `Rechnung öffnen: ${payload.invoiceUrl}`
+  ].filter(Boolean);
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: recipients,
+      subject: `Rechnung: ${payload.invoiceTitle}`,
+      html: customerInvoiceHtml(payload),
+      text: textLines.join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Invoice email failed: ${response.status} ${errorText}`);
   }
 }
 
