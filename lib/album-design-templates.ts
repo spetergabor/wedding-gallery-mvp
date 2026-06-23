@@ -300,6 +300,24 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "nine-full-bleed-editorial-grid",
+    name: "Kilenc képes szélig futó mozaik",
+    photoCount: 9,
+    previewSlotInsetPx: 0,
+    exportSlotInsetPx: 0,
+    slots: [
+      { x: 0, y: 0, width: 35, height: 66 },
+      { x: 35.6, y: 0, width: 15.7, height: 32.7 },
+      { x: 51.9, y: 0, width: 14.9, height: 32.7 },
+      { x: 35.6, y: 33.3, width: 31.2, height: 32.7 },
+      { x: 67.4, y: 0, width: 32.6, height: 66 },
+      { x: 0, y: 67.2, width: 17.5, height: 32.8 },
+      { x: 18.1, y: 67.2, width: 16.9, height: 32.8 },
+      { x: 35.6, y: 67.2, width: 31.2, height: 32.8 },
+      { x: 67.4, y: 67.2, width: 32.6, height: 32.8 }
+    ]
+  },
+  {
     key: "ten-dense-story-grid",
     name: "Tíz képes sűrű történet",
     photoCount: 10,
