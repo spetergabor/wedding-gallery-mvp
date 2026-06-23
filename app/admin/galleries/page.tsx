@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Camera, ExternalLink, Film, Plus } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
@@ -31,7 +32,8 @@ export default async function AdminGalleriesPage({
       },
       photos: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { id: true, imageUrl: true, thumbnailUrl: true, filename: true, mediaType: true }
+        select: { id: true, imageUrl: true, thumbnailUrl: true, filename: true, mediaType: true },
+        take: 4
       }
     }
   });
@@ -72,7 +74,7 @@ export default async function AdminGalleriesPage({
         <div className="divide-y divide-ink/10">
           {galleries.map((gallery) => (
             <div key={gallery.id} className="grid gap-4 px-5 py-5 md:grid-cols-[1fr_auto] md:items-center">
-              <a href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[96px_1fr] sm:items-center">
+              <Link href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[96px_1fr] sm:items-center">
                 <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md bg-paper sm:w-24">
                   {(() => {
                     const cover =
@@ -103,7 +105,7 @@ export default async function AdminGalleriesPage({
                       : "Nincs ügyfélhez rendelve"}
                   </p>
                 </div>
-              </a>
+              </Link>
               <div className="flex items-center gap-3">
                 <span className={`rounded-full px-3 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
                   {gallery.isActive ? "Aktív" : "Archivált"}

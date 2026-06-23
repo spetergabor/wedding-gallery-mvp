@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Bell, Camera, LayoutDashboard, LogOut, Plus, Settings, ShieldCheck, Users } from "lucide-react";
+import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
 import { logoutAction } from "@/lib/gallery-actions";
 import { getAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +29,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-paper">
+      <AdminRoutePrefetcher />
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-ink/10 bg-white/70 px-5 py-6 backdrop-blur lg:block">
         <Link href="/admin/dashboard" className="flex items-center gap-3">
           <div className="relative flex size-10 items-center justify-center overflow-hidden rounded-md bg-ink text-white">
