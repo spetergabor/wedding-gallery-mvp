@@ -1,6 +1,23 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, CalendarClock, Camera, Film, FolderKanban } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Bell,
+  CalendarClock,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  Film,
+  FolderKanban,
+  Heart,
+  ImagePlus,
+  ListChecks,
+  Mail,
+  MessageSquare
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { StatCard } from "@/components/stat-card";
@@ -10,6 +27,29 @@ import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { notificationWhere } from "@/lib/admin-scope";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
+import {
+  GALLERY_MODE_PROOFING,
+  PHOTO_DELIVERY_STAGE_FINAL,
+  PROOFING_STATUS_DELIVERED,
+  PROOFING_STATUS_IN_PROGRESS,
+  PROOFING_STATUS_NOT_OPENED,
+  PROOFING_STATUS_PROCESSING,
+  PROOFING_STATUS_SUBMITTED,
+  proofingStatusLabel
+} from "@/lib/proofing";
+
+type DashboardTaskPriority = "high" | "medium" | "low";
+
+type DashboardTask = {
+  key: string;
+  title: string;
+  detail: string;
+  href: string;
+  label: string;
+  priority: DashboardTaskPriority;
+  icon: LucideIcon;
+  createdAt: Date;
+};
 
 function formatStorageSize(bytes: number) {
   if (bytes <= 0) {
@@ -41,6 +81,48 @@ function startOfToday() {
   return date;
 }
 
+function taskPriorityClass(priority: DashboardTaskPriority) {
+  if (priority === "high") {
+    return "bg-red-50 text-red-700 ring-red-200";
+  }
+
+  if (priority === "medium") {
+    return "bg-brass/10 text-brass ring-brass/25";
+  }
+
+  return "bg-ink/[0.05] text-graphite ring-ink/10";
+}
+
+function taskIconClass(priority: DashboardTaskPriority) {
+  if (priority === "high") {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (priority === "medium") {
+    return "bg-brass/10 text-brass";
+  }
+
+  return "bg-paper text-graphite";
+}
+
+function sortDashboardTasks(tasks: DashboardTask[]) {
+  const priorityWeight: Record<DashboardTaskPriority, number> = {
+    high: 0,
+    medium: 1,
+    low: 2
+  };
+
+  return tasks.sort((left, right) => {
+    const priorityDelta = priorityWeight[left.priority] - priorityWeight[right.priority];
+
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+
+    return right.createdAt.getTime() - left.createdAt.getTime();
+  });
+}
+
 export default async function AdminDashboardPage() {
   const admin = await requireAdmin();
   const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
@@ -48,6 +130,10 @@ export default async function AdminDashboardPage() {
   const projectWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
   const adminNotificationWhere = notificationWhere(admin);
   const today = startOfToday();
+  const staleZipCutoff = new Date(Date.now() - 15 * 60 * 1000);
+  const contractWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
+  const albumCommentWhere = admin.role === "super_admin" ? {} : { spread: { review: { customer: { adminId: admin.id } } } };
+  const downloadPackageWhere = admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } };
 
   const [
     galleryCount,
@@ -57,6 +143,13 @@ export default async function AdminDashboardPage() {
     unreadNotifications,
     latestNotifications,
     upcomingProjects,
+    proofingInviteGalleries,
+    submittedProofingGalleries,
+    finishedProofingGalleries,
+    waitingContracts,
+    openAlbumComments,
+    failedProcessingPhotos,
+    problemZipPackages,
     latestGalleries,
     viewLocations
   ] = await Promise.all([
@@ -97,6 +190,153 @@ export default async function AdminDashboardPage() {
       }
     }),
     prisma.gallery.findMany({
+      where: {
+        ...galleryWhere,
+        galleryMode: GALLERY_MODE_PROOFING,
+        proofingStatus: { in: [PROOFING_STATUS_NOT_OPENED, PROOFING_STATUS_IN_PROGRESS] },
+        proofingInviteSentAt: null,
+        photos: { some: {} }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        _count: {
+          select: {
+            photos: true
+          }
+        }
+      }
+    }),
+    prisma.gallery.findMany({
+      where: {
+        ...galleryWhere,
+        galleryMode: GALLERY_MODE_PROOFING,
+        proofingStatus: { in: [PROOFING_STATUS_SUBMITTED, PROOFING_STATUS_PROCESSING] }
+      },
+      orderBy: [{ proofingStatusUpdatedAt: "desc" }, { updatedAt: "desc" }],
+      take: 6,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        photos: {
+          where: { deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+          select: { id: true },
+          take: 1
+        }
+      }
+    }),
+    prisma.gallery.findMany({
+      where: {
+        ...galleryWhere,
+        galleryMode: GALLERY_MODE_PROOFING,
+        proofingStatus: PROOFING_STATUS_DELIVERED,
+        finalDeliveryEmailSentAt: null
+      },
+      orderBy: [{ proofingStatusUpdatedAt: "desc" }, { updatedAt: "desc" }],
+      take: 6,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        }
+      }
+    }),
+    prisma.contract.findMany({
+      where: {
+        ...contractWhere,
+        sentAt: { not: null },
+        signedAt: null
+      },
+      orderBy: [{ sentAt: "asc" }, { createdAt: "desc" }],
+      take: 6,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        }
+      }
+    }),
+    prisma.albumReviewComment.findMany({
+      where: {
+        ...albumCommentWhere,
+        status: "open"
+      },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: {
+        spread: {
+          select: {
+            title: true,
+            review: {
+              select: {
+                id: true,
+                title: true,
+                customer: {
+                  select: {
+                    id: true,
+                    coupleName: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }),
+    prisma.photo.findMany({
+      where: {
+        ...photoWhere,
+        OR: [{ processingStatus: "failed" }, { processingError: { not: null } }]
+      },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: {
+        gallery: {
+          select: {
+            id: true,
+            title: true
+          }
+        }
+      }
+    }),
+    prisma.galleryDownloadPackage.findMany({
+      where: {
+        ...downloadPackageWhere,
+        OR: [
+          { status: { in: ["failed", "stale"] } },
+          { status: "processing", updatedAt: { lt: staleZipCutoff } }
+        ]
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 6,
+      include: {
+        gallery: {
+          select: {
+            id: true,
+            title: true
+          }
+        }
+      }
+    }),
+    prisma.gallery.findMany({
       where: galleryWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
@@ -120,6 +360,95 @@ export default async function AdminDashboardPage() {
   ]);
   const locationPoints = createViewLocationPoints(viewLocations);
   const totalStorageBytes = photoStorage._sum.fileSize ?? 0;
+  const dashboardTasks = sortDashboardTasks([
+    ...submittedProofingGalleries.map((gallery): DashboardTask => {
+      const hasFinalPhotos = gallery.photos.length > 0;
+      const customerName = gallery.customer?.coupleName ?? gallery.title;
+
+      return {
+        key: `proofing-${gallery.id}`,
+        title: hasFinalPhotos ? "Kész képek átadása" : "Kész képek feltöltése",
+        detail: hasFinalPhotos
+          ? `${customerName}: van kész anyag, az átadás email vár kiküldésre.`
+          : `${customerName}: ${proofingStatusLabel(gallery.proofingStatus).toLowerCase()}, a kidolgozott képek még hiányoznak.`,
+        href: `/admin/galleries/${gallery.id}?tab=client`,
+        label: hasFinalPhotos ? "Átadásra vár" : "Feldolgozás",
+        priority: "high",
+        icon: hasFinalPhotos ? CheckCircle2 : ImagePlus,
+        createdAt: gallery.proofingStatusUpdatedAt ?? gallery.updatedAt
+      };
+    }),
+    ...finishedProofingGalleries.map((gallery): DashboardTask => {
+      const customerName = gallery.customer?.coupleName ?? gallery.title;
+
+      return {
+        key: `finished-proofing-${gallery.id}`,
+        title: "Átadás email kiküldése",
+        detail: `${customerName}: a kész képek átadva státuszban vannak, de az email még nincs kiküldve.`,
+        href: `/admin/galleries/${gallery.id}?tab=client`,
+        label: "Email hiányzik",
+        priority: "high",
+        icon: Mail,
+        createdAt: gallery.proofingStatusUpdatedAt ?? gallery.updatedAt
+      };
+    }),
+    ...proofingInviteGalleries.map((gallery): DashboardTask => {
+      const customerName = gallery.customer?.coupleName ?? gallery.title;
+      const emailText = gallery.customer?.primaryEmail ?? gallery.clientEmail ?? "nincs ügyfél email";
+
+      return {
+        key: `invite-${gallery.id}`,
+        title: "Válogató link kiküldése",
+        detail: `${customerName}: ${gallery._count.photos} kép feltöltve, címzett: ${emailText}.`,
+        href: `/admin/galleries/${gallery.id}?tab=client`,
+        label: "Küldésre vár",
+        priority: "medium",
+        icon: Heart,
+        createdAt: gallery.createdAt
+      };
+    }),
+    ...waitingContracts.map((contract): DashboardTask => ({
+      key: `contract-${contract.id}`,
+      title: "Szerződés aláírásra vár",
+      detail: `${contract.customer.coupleName}: ${contract.title}`,
+      href: `/admin/clients/${contract.customer.id}?tab=contracts`,
+      label: "Ügyfélre vár",
+      priority: "medium",
+      icon: FileText,
+      createdAt: contract.sentAt ?? contract.createdAt
+    })),
+    ...openAlbumComments.map((comment): DashboardTask => ({
+      key: `album-comment-${comment.id}`,
+      title: "Album megjegyzés megválaszolása",
+      detail: `${comment.spread.review.customer.coupleName}: ${comment.text}`,
+      href: `/admin/clients/${comment.spread.review.customer.id}?tab=albums`,
+      label: "Album ellenőrző",
+      priority: "medium",
+      icon: MessageSquare,
+      createdAt: comment.createdAt
+    })),
+    ...failedProcessingPhotos.map((photo): DashboardTask => ({
+      key: `processing-${photo.id}`,
+      title: "Előnézet feldolgozás javítása",
+      detail: `${photo.gallery.title}: ${photo.filename}`,
+      href: `/admin/galleries/${photo.gallery.id}?tab=photos`,
+      label: "Hibás előnézet",
+      priority: "high",
+      icon: AlertCircle,
+      createdAt: photo.createdAt
+    })),
+    ...problemZipPackages.map((downloadPackage): DashboardTask => ({
+      key: `zip-${downloadPackage.id}`,
+      title: "ZIP előkészítés javítása",
+      detail: `${downloadPackage.gallery.title}: ${downloadPackage.errorMessage ?? "a letöltési csomag beragadt vagy hibás."}`,
+      href: `/admin/galleries/${downloadPackage.gallery.id}?tab=downloads`,
+      label: downloadPackage.status === "processing" ? "Beragadt" : "Hibás ZIP",
+      priority: "high",
+      icon: AlertCircle,
+      createdAt: downloadPackage.updatedAt
+    }))
+  ]).slice(0, 8);
+  const urgentTaskCount = dashboardTasks.filter((task) => task.priority === "high").length;
 
   return (
     <AdminShell>
@@ -138,6 +467,60 @@ export default async function AdminDashboardPage() {
         <StatCard label="R2 tárhely" value={formatStorageSize(totalStorageBytes)} detail="Feltöltött médiák összmérete" />
         <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
       </div>
+
+      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
+        <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
+          <div>
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+              <ListChecks size={15} />
+              Mai fókusz
+            </div>
+            <h2 className="mt-2 text-lg font-semibold text-ink">Teendőközpont</h2>
+            <p className="mt-1 text-sm text-graphite/70">
+              A legfontosabb ügyfél-, galéria- és háttérfolyamatok egy gyors listában.
+            </p>
+          </div>
+          <span className="inline-flex w-fit items-center gap-2 rounded-full bg-paper px-3 py-1.5 text-sm font-medium text-graphite">
+            <Clock3 size={15} />
+            {urgentTaskCount} sürgős
+          </span>
+        </div>
+
+        {dashboardTasks.length === 0 ? (
+          <div className="flex flex-col gap-2 px-5 py-8 text-sm text-graphite/70 sm:flex-row sm:items-center">
+            <CheckCircle2 size={18} className="text-brass" />
+            Nincs sürgős admin teendő. A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg.
+          </div>
+        ) : (
+          <div className="divide-y divide-ink/10">
+            {dashboardTasks.map((task) => {
+              const Icon = task.icon;
+
+              return (
+                <Link
+                  key={task.key}
+                  href={task.href}
+                  className="group flex items-start gap-4 px-5 py-4 transition hover:bg-ink/[0.03]"
+                >
+                  <span className={`mt-1 flex size-10 shrink-0 items-center justify-center rounded-md ${taskIconClass(task.priority)}`}>
+                    <Icon size={18} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-ink">{task.title}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${taskPriorityClass(task.priority)}`}>
+                        {task.label}
+                      </span>
+                    </span>
+                    <span className="mt-1 line-clamp-2 block text-sm text-graphite/70">{task.detail}</span>
+                  </span>
+                  <ArrowRight size={18} className="mt-2 shrink-0 text-graphite/35 transition group-hover:translate-x-0.5 group-hover:text-ink" />
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
         <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
