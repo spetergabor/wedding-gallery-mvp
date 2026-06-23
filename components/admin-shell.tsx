@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, Camera, LayoutDashboard, LogOut, Plus, Settings, ShieldCheck, Users } from "lucide-react";
+import { Bell, Camera, ChevronDown, LayoutDashboard, LogOut, Menu, Plus, Settings, ShieldCheck, Users } from "lucide-react";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
 import { logoutAction } from "@/lib/gallery-actions";
 import { getAdminSession } from "@/lib/auth";
@@ -101,20 +101,65 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <Link href="/admin/dashboard" className="text-sm font-semibold">
               {brandName}
             </Link>
-            <div className="flex items-center gap-2">
-              <Link href="/admin/notifications" className="relative rounded-md border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink">
-                Értesítések
+            <details className="group relative">
+              <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink shadow-soft marker:hidden">
+                <Menu size={17} />
+                Menü
                 {unreadNotifications > 0 ? (
-                  <span className="absolute -right-1 -top-1 size-4 rounded-full bg-brass text-[10px] leading-4 text-white">{unreadNotifications}</span>
+                  <span className="grid size-5 place-items-center rounded-full bg-brass text-[11px] font-semibold text-white">{unreadNotifications}</span>
                 ) : null}
-              </Link>
-              <Link href="/admin/settings" className="rounded-md border border-ink/10 bg-white px-3 py-2 text-xs font-medium text-ink">
-                Beáll.
-              </Link>
-              <Link href="/admin/clients/new" className="rounded-md bg-ink px-3 py-2 text-xs font-medium text-white">
-                Új
-              </Link>
-            </div>
+                <ChevronDown size={15} className="transition group-open:rotate-180" />
+              </summary>
+              <div className="absolute right-0 mt-2 w-[min(86vw,320px)] overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
+                <nav className="p-2" aria-label="Mobil admin menü">
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/dashboard">
+                    <LayoutDashboard size={17} />
+                    Dashboard
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/clients">
+                    <Users size={17} />
+                    Ügyfelek
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
+                    <Camera size={17} />
+                    Galériák
+                  </Link>
+                  {admin?.role === "super_admin" ? (
+                    <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
+                      <Users size={17} />
+                      Fotósok
+                    </Link>
+                  ) : null}
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/clients/new">
+                    <Plus size={17} />
+                    Új ügyfél
+                  </Link>
+                  <Link className="flex items-center justify-between gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/notifications">
+                    <span className="flex items-center gap-3">
+                      <Bell size={17} />
+                      Értesítések
+                    </span>
+                    {unreadNotifications > 0 ? (
+                      <span className="rounded-full bg-brass px-2 py-0.5 text-xs font-medium text-white">{unreadNotifications}</span>
+                    ) : null}
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/security">
+                    <ShieldCheck size={17} />
+                    Biztonság
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/settings">
+                    <Settings size={17} />
+                    Beállítások
+                  </Link>
+                </nav>
+                <form action={logoutAction} className="border-t border-ink/10 p-2">
+                  <button className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5">
+                    <LogOut size={17} />
+                    Kilépés
+                  </button>
+                </form>
+              </div>
+            </details>
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl px-5 py-8 lg:px-10">{children}</main>
