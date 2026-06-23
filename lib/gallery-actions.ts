@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
-import { enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
+import { enqueueGalleryZipJob, kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
@@ -756,10 +756,20 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
   revalidatePath(`/g/${gallery.slug}`);
 
   if (status === PROOFING_STATUS_DELIVERED && isProofingGallery(gallery.galleryMode)) {
+    await invalidatePublicGalleryDownloadPackages(galleryId);
+    const zipResult = await preparePublicGalleryZipPackages(galleryId);
+    const zipStatus = zipResult.ok ? (zipResult.cached ? "already-ready" : "queued") : zipResult.reason;
+
+    if (zipResult.ok && zipResult.payloads.length > 0) {
+      after(async () => {
+        await kickGalleryZipJobs(zipResult.payloads);
+      });
+    }
+
     const emailResult = await sendFinalDeliveryEmailForGallery(galleryId);
     const deliveryEmail = emailResult.ok ? "sent" : emailResult.reason === "missing-email" ? "missing-email" : "failed";
 
-    redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1&deliveryEmail=${deliveryEmail}`);
+    redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1&deliveryEmail=${deliveryEmail}&zip=${zipStatus}`);
   }
 
   redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1`);

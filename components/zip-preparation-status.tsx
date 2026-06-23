@@ -29,6 +29,7 @@ type ZipGroupSummary = {
   pendingCount: number;
   processingCount: number;
   staleProcessingCount: number;
+  staleCount: number;
   failedCount: number;
   processedCount: number;
   processedBytes: bigint;
@@ -72,7 +73,8 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
     (downloadPackage) => downloadPackage.status === "processing" && now - downloadPackage.updatedAt.getTime() <= STALE_PROCESSING_MS
   ).length;
   const pendingCount = packages.filter((downloadPackage) => downloadPackage.status === "pending").length;
-  const failedCount = packages.filter((downloadPackage) => downloadPackage.status === "failed" || downloadPackage.status === "stale").length + staleProcessingCount;
+  const staleCount = packages.filter((downloadPackage) => downloadPackage.status === "stale").length;
+  const failedCount = packages.filter((downloadPackage) => downloadPackage.status === "failed").length + staleProcessingCount;
   const processedCount = packages.reduce((sum, downloadPackage) => sum + downloadPackage.processedCount, 0);
   const partIndexes = new Set(downloadablePackages.map((downloadPackage) => downloadPackage.partIndex));
   const hasEveryPart = Array.from({ length: expectedPartCount }, (_, index) => partIndexes.has(index)).every(Boolean);
@@ -91,6 +93,7 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
     pendingCount,
     processingCount,
     staleProcessingCount,
+    staleCount,
     failedCount,
     processedCount,
     processedBytes: packages.reduce((sum, downloadPackage) => sum + BigInt(downloadPackage.processedBytes), BigInt(0)),
@@ -126,7 +129,8 @@ function getPrimaryGroup(packages: DownloadPackage[]) {
   return {
     primaryGroup: summaries[0] ?? null,
     groupCount: summaries.length,
-    oldFailedCount: summaries.slice(1).reduce((sum, group) => sum + group.failedCount, 0)
+    oldFailedCount: summaries.slice(1).reduce((sum, group) => sum + group.failedCount + group.staleCount, 0),
+    totalStaleCount: summaries.reduce((sum, group) => sum + group.staleCount, 0)
   };
 }
 
@@ -149,6 +153,15 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
     };
   }
 
+  if (group.staleCount > 0 && !group.hasActiveWork) {
+    return {
+      label: "Új ZIP szükséges",
+      description: "A publikus képlista változott, ezért a vendégeknek új ZIP részeket kell készíteni.",
+      className: "bg-brass/15 text-brass",
+      icon: AlertCircle
+    };
+  }
+
   if (group.failedCount > 0 && !group.hasActiveWork) {
     return {
       label: "Hibás",
@@ -167,7 +180,7 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
 }
 
 export function ZipPreparationStatus({ packages, photoCount }: { packages: DownloadPackage[]; photoCount: number }) {
-  const { primaryGroup, groupCount, oldFailedCount } = getPrimaryGroup(packages);
+  const { primaryGroup, groupCount, oldFailedCount, totalStaleCount } = getPrimaryGroup(packages);
   const meta = statusMeta(primaryGroup, photoCount);
   const Icon = meta.icon;
   const expectedPartCount = primaryGroup?.expectedPartCount ?? Math.max(photoCount > 0 ? 1 : 0, 0);
@@ -179,7 +192,8 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
       : expectedPartCount > 0
         ? Math.round((completedCount / expectedPartCount) * 100)
         : 0;
-  const failedPackages = primaryGroup?.packages.filter((downloadPackage) => downloadPackage.status === "failed" || downloadPackage.errorMessage).slice(0, 3) ?? [];
+  const failedPackages =
+    primaryGroup?.packages.filter((downloadPackage) => downloadPackage.status !== "stale" && (downloadPackage.status === "failed" || downloadPackage.errorMessage)).slice(0, 3) ?? [];
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
@@ -227,11 +241,23 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
           <span>{progress}% kész</span>
           {primaryGroup ? (
             <span>
-              {displayedProcessedCount}/{photoCount} média · {primaryGroup.pendingCount} várakozik · {primaryGroup.processingCount} fut · {primaryGroup.failedCount} hibás
+              {displayedProcessedCount}/{photoCount} média · {primaryGroup.pendingCount} várakozik · {primaryGroup.processingCount} fut ·{" "}
+              {primaryGroup.staleCount} elavult · {primaryGroup.failedCount} hibás
             </span>
           ) : null}
         </div>
       </div>
+
+      {totalStaleCount > 0 ? (
+        <div className="mt-4 rounded-md border border-brass/25 bg-brass/10 p-3">
+          <p className="text-sm font-semibold text-ink">A publikus képlista változott</p>
+          <div className="mt-2 space-y-1 text-sm text-graphite/75">
+            <p>Új ZIP részek szükségesek.</p>
+            <p>Régi linkek már nem ideálisak, mert nem biztos, hogy a vendégeknek szánt aktuális listát tartalmazzák.</p>
+            {primaryGroup?.hasActiveWork ? <p>Az új ZIP részek előkészítése már folyamatban van.</p> : null}
+          </div>
+        </div>
+      ) : null}
 
       {primaryGroup?.staleProcessingCount ? (
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">

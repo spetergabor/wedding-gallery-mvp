@@ -260,6 +260,7 @@ export default async function GalleryDetailPage({
     gallery.downloadsEnabled &&
     gallery.photos.length > 0 &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
+  const hasStaleZipPackages = gallery.downloadPackages.some((downloadPackage) => downloadPackage.status === "stale");
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({
@@ -634,7 +635,7 @@ export default async function GalleryDetailPage({
                 <form action={queueGalleryZipPackageAction.bind(null, gallery.id)}>
                   <Button type="submit" disabled={!canPrepareZip} className={`whitespace-nowrap ${!canPrepareZip ? "opacity-60" : ""}`}>
                     <Download size={16} />
-                    ZIP részek előkészítése
+                    {hasStaleZipPackages ? "Újragenerálás" : "ZIP részek előkészítése"}
                   </Button>
                 </form>
               </div>
