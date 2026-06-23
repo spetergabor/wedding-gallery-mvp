@@ -54,6 +54,24 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "two-wide-panels-with-spine",
+    name: "Két nagy kép gerinccel",
+    photoCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 36, height: 100 },
+      { x: 37, y: 0, width: 63, height: 100 }
+    ]
+  },
+  {
+    key: "two-left-page-right-square",
+    name: "Bal teljes oldal, jobb négyzet",
+    photoCount: 2,
+    slots: [
+      { x: 0, y: 0, width: 50, height: 100 },
+      { x: 58, y: 16, width: 34, height: 68 }
+    ]
+  },
+  {
     key: "left-hero-right-stack",
     name: "Bal nagy, jobb két kép",
     photoCount: 3,
@@ -165,6 +183,18 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "five-side-heroes-center-cluster",
+    name: "Két nagy oldal, középső hármas",
+    photoCount: 5,
+    slots: [
+      { x: 0, y: 17, width: 33, height: 66 },
+      { x: 67, y: 17, width: 33, height: 66 },
+      { x: 34, y: 17, width: 32, height: 33 },
+      { x: 34, y: 50, width: 16, height: 33 },
+      { x: 50, y: 50, width: 16, height: 33 }
+    ]
+  },
+  {
     key: "six-even-grid",
     name: "Hat képes rács",
     photoCount: 6,
@@ -232,6 +262,21 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
       { x: 32, y: 50, width: 15, height: 24 },
       { x: 47, y: 50, width: 14, height: 24 },
       { x: 61, y: 50, width: 15, height: 24 }
+    ]
+  },
+  {
+    key: "eight-centered-story-strip",
+    name: "Nyolc képes középső történetsáv",
+    photoCount: 8,
+    slots: [
+      { x: 0, y: 22, width: 12, height: 56 },
+      { x: 13, y: 22, width: 25, height: 28 },
+      { x: 39, y: 22, width: 12, height: 28 },
+      { x: 52, y: 22, width: 25, height: 28 },
+      { x: 78, y: 22, width: 10, height: 28 },
+      { x: 89, y: 22, width: 11, height: 28 },
+      { x: 13, y: 50, width: 38, height: 28 },
+      { x: 52, y: 50, width: 48, height: 28 }
     ]
   },
   {
