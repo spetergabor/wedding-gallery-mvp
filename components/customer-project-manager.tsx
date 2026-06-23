@@ -1,5 +1,22 @@
 import Link from "next/link";
-import { Archive, Calendar, Camera, FileText, FolderKanban, ImagePlus, MapPin, Plus, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArrowRight,
+  Calendar,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  FolderKanban,
+  Heart,
+  ImagePlus,
+  ListChecks,
+  MapPin,
+  Plus,
+  Sparkles,
+  Trash2
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button, ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
@@ -9,13 +26,24 @@ import {
   customerProjectTypeLabel
 } from "@/lib/customer-project-options";
 import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectStatusAction } from "@/lib/customer-actions";
-import { GALLERY_MODE_PROOFING } from "@/lib/proofing";
+import {
+  GALLERY_MODE_PROOFING,
+  PROOFING_STATUS_DELIVERED,
+  PROOFING_STATUS_IN_PROGRESS,
+  PROOFING_STATUS_NOT_OPENED,
+  PROOFING_STATUS_PROCESSING,
+  PROOFING_STATUS_SUBMITTED,
+  proofingStatusLabel
+} from "@/lib/proofing";
 
 type ProjectGallery = {
   id: string;
   title: string;
   slug: string;
   galleryMode: string;
+  proofingStatus: string;
+  proofingInviteSentAt: Date | null;
+  finalDeliveryEmailSentAt: Date | null;
   _count: {
     photos: number;
   };
@@ -44,6 +72,23 @@ type UnassignedCounts = {
   albumReviews: number;
   albumDesigns: number;
 };
+
+type ProjectStep = {
+  title: string;
+  detail: string;
+  href: string;
+  cta: string;
+  state: "action" | "done" | "info" | "waiting";
+  icon: LucideIcon;
+};
+
+const PROJECT_PHASES = [
+  { key: "planned", label: "Tervezés" },
+  { key: "shoot", label: "Fotózás" },
+  { key: "proofing", label: "Válogatás" },
+  { key: "editing", label: "Kidolgozás" },
+  { key: "delivered", label: "Átadás" }
+] as const;
 
 function dateInputValue(date: Date | null | undefined) {
   if (!date) {
@@ -81,13 +126,228 @@ function statusClass(status: string) {
   return "bg-ink/5 text-graphite";
 }
 
-function CountPill({ icon: Icon, label, count }: { icon: typeof Camera; label: string; count: number }) {
+function CountPill({ icon: Icon, label, count }: { icon: LucideIcon; label: string; count: number }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
       <Icon size={13} />
       {count} {label}
     </span>
   );
+}
+
+function stepStyle(state: ProjectStep["state"]) {
+  if (state === "done") {
+    return {
+      className: "bg-sage/10 text-sage",
+      label: "Rendben"
+    };
+  }
+
+  if (state === "waiting") {
+    return {
+      className: "bg-brass/10 text-brass",
+      label: "Várakozik"
+    };
+  }
+
+  if (state === "action") {
+    return {
+      className: "bg-ink text-white",
+      label: "Teendő"
+    };
+  }
+
+  return {
+    className: "bg-ink/5 text-graphite",
+    label: "Figyelni"
+  };
+}
+
+function projectPhaseIndex(project: CustomerProject) {
+  if (project.status === "delivered") {
+    return 4;
+  }
+
+  if (project.status === "editing") {
+    return 3;
+  }
+
+  if (project.status === "proofing") {
+    return 2;
+  }
+
+  if (project.status === "in_progress") {
+    return 1;
+  }
+
+  const proofingGallery = project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING);
+
+  if (proofingGallery?.proofingStatus === PROOFING_STATUS_DELIVERED || proofingGallery?.finalDeliveryEmailSentAt) {
+    return 4;
+  }
+
+  if (proofingGallery?.proofingStatus === PROOFING_STATUS_PROCESSING || proofingGallery?.proofingStatus === PROOFING_STATUS_SUBMITTED) {
+    return 3;
+  }
+
+  if (proofingGallery) {
+    return 2;
+  }
+
+  if (project.galleries.length > 0) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function ProjectPhaseRail({ project }: { project: CustomerProject }) {
+  const currentPhase = projectPhaseIndex(project);
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-5">
+      {PROJECT_PHASES.map((phase, index) => {
+        const isDone = index < currentPhase;
+        const isCurrent = index === currentPhase;
+
+        return (
+          <div key={phase.key} className="min-w-0">
+            <div className={`h-1.5 rounded-full ${isDone || isCurrent ? "bg-brass" : "bg-ink/10"}`} />
+            <p className={`mt-2 truncate text-xs font-medium ${isCurrent ? "text-ink" : isDone ? "text-brass" : "text-graphite/55"}`}>
+              {phase.label}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function getPrimaryGallery(project: CustomerProject) {
+  return project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING) ?? project.galleries[0] ?? null;
+}
+
+function getProjectNextStep(customerId: string, project: CustomerProject): ProjectStep {
+  const proofingGallery = project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING) ?? null;
+  const primaryGallery = getPrimaryGallery(project);
+
+  if (project.status === "archived") {
+    return {
+      title: "Projekt archiválva",
+      detail: "Ez a munka lezárt archívumban van, csak visszakeresésre érdemes használni.",
+      href: `/admin/clients/${customerId}?tab=projects`,
+      cta: "Projekt megnyitása",
+      state: "info",
+      icon: Archive
+    };
+  }
+
+  if (project.status === "delivered") {
+    return {
+      title: "Projekt átadva",
+      detail: "A projekt státusza kész, de manuálisan bármikor visszaállítható, ha még van ügyfélmódosítás.",
+      href: primaryGallery ? `/admin/galleries/${primaryGallery.id}` : `/admin/clients/${customerId}?tab=projects`,
+      cta: primaryGallery ? "Anyag megnyitása" : "Projekt megnyitása",
+      state: "done",
+      icon: CheckCircle2
+    };
+  }
+
+  if (!primaryGallery) {
+    return {
+      title: "Első galéria létrehozása",
+      detail: "Még nincs ehhez a projekthez kapcsolt galéria vagy feltöltött anyag.",
+      href: `/admin/galleries/new?customerId=${customerId}&projectId=${project.id}`,
+      cta: "Galéria indítása",
+      state: "action",
+      icon: Camera
+    };
+  }
+
+  if (proofingGallery) {
+    if (!proofingGallery.proofingInviteSentAt) {
+      return {
+        title: "Válogató link kiküldése",
+        detail: "A nyers galéria megvan, de az ügyfél még nem kapta meg a válogató linket.",
+        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        cta: "Kiküldés kezelése",
+        state: "action",
+        icon: Heart
+      };
+    }
+
+    if (proofingGallery.proofingStatus === PROOFING_STATUS_NOT_OPENED || proofingGallery.proofingStatus === PROOFING_STATUS_IN_PROGRESS) {
+      return {
+        title: "Ügyfél válogatásra vár",
+        detail: proofingStatusLabel(proofingGallery.proofingStatus),
+        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        cta: "Válogatás megnyitása",
+        state: "waiting",
+        icon: Clock3
+      };
+    }
+
+    if (proofingGallery.proofingStatus === PROOFING_STATUS_SUBMITTED) {
+      return {
+        title: "Képek kidolgozása",
+        detail: "Az ügyfél leadta a válogatást, most a kiválasztott képek feldolgozása következik.",
+        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        cta: "Leadott válogatás",
+        state: "action",
+        icon: ListChecks
+      };
+    }
+
+    if (proofingGallery.proofingStatus === PROOFING_STATUS_PROCESSING) {
+      return {
+        title: "Kidolgozás alatt",
+        detail: "A válogatás feldolgozás alatt van. Ha elkészültél, a kész képek átadása következik.",
+        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        cta: "Kész képek kezelése",
+        state: "waiting",
+        icon: Sparkles
+      };
+    }
+
+    return {
+      title: "Kész képek átadva",
+      detail: "A végleges anyag át lett adva az ügyfélnek. A projekt lezárását továbbra is kézzel döntöd el.",
+      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      cta: "Átadás megnyitása",
+      state: "done",
+      icon: CheckCircle2
+    };
+  }
+
+  if (primaryGallery._count.photos === 0) {
+    return {
+      title: "Képek feltöltése",
+      detail: "A galéria létrejött, de még nincs benne média.",
+      href: `/admin/galleries/${primaryGallery.id}?tab=photos`,
+      cta: "Feltöltés megnyitása",
+      state: "action",
+      icon: ImagePlus
+    };
+  }
+
+  return {
+    title: "Galéria használatban",
+    detail: "Van feltöltött anyag. A projekt lezárását vagy következő státuszát kézzel érdemes állítani.",
+    href: `/admin/galleries/${primaryGallery.id}`,
+    cta: "Galéria kezelése",
+    state: project.status === "editing" ? "action" : "info",
+    icon: ArrowRight
+  };
+}
+
+function getProjectSortTime(project: CustomerProject) {
+  return project.eventDate?.getTime() ?? Number.MAX_SAFE_INTEGER - project.id.length;
+}
+
+function getFocusProject(projects: CustomerProject[]) {
+  const activeProjects = projects.filter((project) => !["delivered", "archived"].includes(project.status));
+
+  return [...(activeProjects.length > 0 ? activeProjects : projects)].sort((a, b) => getProjectSortTime(a) - getProjectSortTime(b))[0] ?? null;
 }
 
 export function CustomerProjectManager({
@@ -105,6 +365,13 @@ export function CustomerProjectManager({
 }) {
   const unassignedTotal =
     unassignedCounts.galleries + unassignedCounts.contracts + unassignedCounts.albumReviews + unassignedCounts.albumDesigns;
+  const focusProject = getFocusProject(projects);
+  const focusStep = focusProject ? getProjectNextStep(customerId, focusProject) : null;
+  const FocusStepIcon = focusStep?.icon ?? ListChecks;
+  const focusStepStyle = focusStep ? stepStyle(focusStep.state) : stepStyle("info");
+  const openProjectCount = projects.filter((project) => !["delivered", "archived"].includes(project.status)).length;
+  const deliveredProjectCount = projects.filter((project) => project.status === "delivered").length;
+  const datedProjectCount = projects.filter((project) => project.eventDate).length;
 
   return (
     <section className="space-y-6">
@@ -200,6 +467,77 @@ export function CustomerProjectManager({
         </form>
       </div>
 
+      {focusProject && focusStep ? (
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start">
+            <div>
+              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                <ListChecks size={15} />
+                Projekt cockpit
+              </div>
+              <h2 className="mt-2 text-xl font-semibold text-ink">Aktív munka gyorsnézet</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
+                Innen látszik, melyik projekt van fókuszban, hol tart, és mi a következő értelmes lépés.
+              </p>
+            </div>
+            <ButtonLink href={focusStep.href} className="h-10">
+              <FocusStepIcon size={16} />
+              {focusStep.cta}
+            </ButtonLink>
+          </div>
+
+          <div className="grid divide-y divide-ink/10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:divide-x lg:divide-y-0">
+            <div className="py-5 lg:pr-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">Aktív fókusz</span>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass(focusProject.status)}`}>
+                  {customerProjectStatusLabel(focusProject.status)}
+                </span>
+              </div>
+              <h3 className="mt-3 text-2xl font-semibold text-ink">{focusProject.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-graphite/70">
+                {customerProjectTypeLabel(focusProject.projectType)} · {formatDate(focusProject.eventDate)}
+                {focusProject.venue ? ` · ${focusProject.venue}` : ""}
+              </p>
+              <div className="mt-5">
+                <ProjectPhaseRail project={focusProject} />
+              </div>
+            </div>
+
+            <div className="py-5 lg:pl-5">
+              <div className="flex items-start gap-3">
+                <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${focusStepStyle.className}`}>
+                  <FocusStepIcon size={17} />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold text-ink">{focusStep.title}</h3>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${focusStepStyle.className}`}>
+                      {focusStepStyle.label}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-graphite/70">{focusStep.detail}</p>
+                </div>
+              </div>
+              <div className="mt-5 grid grid-cols-3 divide-x divide-ink/10 rounded-md bg-paper">
+                <div className="px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Nyitott</p>
+                  <p className="mt-1 text-lg font-semibold text-ink">{openProjectCount}</p>
+                </div>
+                <div className="px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Átadva</p>
+                  <p className="mt-1 text-lg font-semibold text-ink">{deliveredProjectCount}</p>
+                </div>
+                <div className="px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Dátumos</p>
+                  <p className="mt-1 text-lg font-semibold text-ink">{datedProjectCount}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {projects.length === 0 ? (
         <div className="rounded-lg border border-dashed border-ink/15 bg-white p-6 text-sm text-graphite/70">
           Még nincs külön projekt ennél az ügyfélnél. Hozd létre az elsőt, utána az új galériákat már ehhez tudod kötni.
@@ -208,6 +546,13 @@ export function CustomerProjectManager({
         <div className="space-y-4">
           {projects.map((project) => (
             <article key={project.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              {(() => {
+                const nextStep = getProjectNextStep(customerId, project);
+                const StepIcon = nextStep.icon;
+                const nextStepStyle = stepStyle(nextStep.state);
+
+                return (
+                  <>
               <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-4 lg:flex-row lg:items-start">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -245,6 +590,36 @@ export function CustomerProjectManager({
                       Törlés
                     </ConfirmSubmitButton>
                   </form>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.6fr)]">
+                <div className="rounded-md bg-paper p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${nextStepStyle.className}`}>
+                      <StepIcon size={17} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-ink">Következő lépés: {nextStep.title}</p>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${nextStepStyle.className}`}>
+                          {nextStepStyle.label}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">{nextStep.detail}</p>
+                      <ButtonLink href={nextStep.href} variant="secondary" className="mt-3 h-10">
+                        <ArrowRight size={16} />
+                        {nextStep.cta}
+                      </ButtonLink>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-md bg-paper p-4">
+                  <p className="text-sm font-semibold text-ink">Munkafolyamat</p>
+                  <div className="mt-4">
+                    <ProjectPhaseRail project={project} />
+                  </div>
                 </div>
               </div>
 
@@ -300,6 +675,9 @@ export function CustomerProjectManager({
                   Ehhez a projekthez még nincs galéria kapcsolva.
                 </div>
               )}
+                  </>
+                );
+              })()}
             </article>
           ))}
         </div>
