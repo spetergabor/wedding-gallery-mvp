@@ -123,6 +123,10 @@ function sortDashboardTasks(tasks: DashboardTask[]) {
   });
 }
 
+function isSupersededDownloadPackageMessage(message: string | null | undefined) {
+  return message?.toLowerCase().includes("superseded by") ?? false;
+}
+
 export default async function AdminDashboardPage() {
   const admin = await requireAdmin();
   const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
@@ -321,12 +325,19 @@ export default async function AdminDashboardPage() {
       where: {
         ...downloadPackageWhere,
         OR: [
-          { status: { in: ["failed", "stale"] } },
+          {
+            status: "failed",
+            NOT: {
+              errorMessage: {
+                startsWith: "Superseded by"
+              }
+            }
+          },
           { status: "processing", updatedAt: { lt: staleZipCutoff } }
         ]
       },
       orderBy: { updatedAt: "desc" },
-      take: 6,
+      take: 12,
       include: {
         gallery: {
           select: {
@@ -360,6 +371,19 @@ export default async function AdminDashboardPage() {
   ]);
   const locationPoints = createViewLocationPoints(viewLocations);
   const totalStorageBytes = photoStorage._sum.fileSize ?? 0;
+  const seenZipGalleryIds = new Set<string>();
+  const actionableZipPackages = problemZipPackages.filter((downloadPackage) => {
+    if (isSupersededDownloadPackageMessage(downloadPackage.errorMessage)) {
+      return false;
+    }
+
+    if (seenZipGalleryIds.has(downloadPackage.galleryId)) {
+      return false;
+    }
+
+    seenZipGalleryIds.add(downloadPackage.galleryId);
+    return true;
+  });
   const dashboardTasks = sortDashboardTasks([
     ...submittedProofingGalleries.map((gallery): DashboardTask => {
       const hasFinalPhotos = gallery.photos.length > 0;
@@ -437,7 +461,7 @@ export default async function AdminDashboardPage() {
       icon: AlertCircle,
       createdAt: photo.createdAt
     })),
-    ...problemZipPackages.map((downloadPackage): DashboardTask => ({
+    ...actionableZipPackages.map((downloadPackage): DashboardTask => ({
       key: `zip-${downloadPackage.id}`,
       title: "ZIP előkészítés javítása",
       detail: `${downloadPackage.gallery.title}: ${downloadPackage.errorMessage ?? "a letöltési csomag beragadt vagy hibás."}`,
