@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { sendCustomerInvoiceEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { createInvoiceObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
@@ -148,7 +149,8 @@ export async function sendInvoiceAction(customerId: string, invoiceId: string) {
         select: {
           coupleName: true,
           primaryEmail: true,
-          secondaryEmail: true
+          secondaryEmail: true,
+          preferredLanguage: true
         }
       }
     }
@@ -167,7 +169,8 @@ export async function sendInvoiceAction(customerId: string, invoiceId: string) {
       invoiceTitle: invoice.title,
       invoiceUrl: invoice.fileUrl,
       amountLabel: formatAmount(invoice.amountCents, invoice.currency),
-      dueDateLabel: formatDueDate(invoice.dueDate)
+      dueDateLabel: formatDueDate(invoice.dueDate),
+      language: normalizeCustomerLanguage(invoice.customer.preferredLanguage)
     });
 
     await prisma.customerInvoice.update({

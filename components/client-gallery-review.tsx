@@ -6,6 +6,7 @@ import { Check, CheckCircle2, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon, 
 import { Button } from "@/components/button";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { saveClientPhotoVisibilityChangesAction } from "@/lib/client-gallery-actions";
+import type { CustomerLanguage } from "@/lib/customer-language";
 
 type ClientPhoto = {
   id: string;
@@ -40,13 +41,15 @@ export function ClientGalleryReview({
   publicSlug,
   title,
   token,
-  photos
+  photos,
+  language
 }: {
   galleryId: string;
   publicSlug: string;
   title: string;
   token: string;
   photos: ClientPhoto[];
+  language?: CustomerLanguage;
 }) {
   const [hiddenPhotoIds, setHiddenPhotoIds] = useState<Set<string>>(
     () => new Set(photos.filter((photo) => photo.isClientHidden).map((photo) => photo.id))
@@ -58,7 +61,7 @@ export function ClientGalleryReview({
   const [error, setError] = useState("");
   const [saveNotice, setSaveNotice] = useState<SaveNotice | null>(null);
   const [copied, setCopied] = useState(false);
-  const publicHref = `/g/${publicSlug}`;
+  const publicHref = language ? `/g/${publicSlug}?lang=${language}` : `/g/${publicSlug}`;
   const hiddenCount = hiddenPhotoIds.size;
   const visibleCount = photos.length - hiddenCount;
   const reviewedPhotoIds = useMemo(() => photos.map((photo) => photo.id), [photos]);

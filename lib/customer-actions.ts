@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoObject } from "@/lib/storage";
 
@@ -33,6 +34,7 @@ function formDate(formData: FormData, key: string) {
 function customerPayload(formData: FormData) {
   const coupleName = formString(formData, "coupleName");
   const primaryEmail = formString(formData, "primaryEmail").toLowerCase();
+  const preferredLanguageValue = formData.get("preferredLanguage");
 
   if (!coupleName || !primaryEmail) {
     return null;
@@ -46,6 +48,7 @@ function customerPayload(formData: FormData) {
     phone: formOptionalString(formData, "phone"),
     weddingDate: formDate(formData, "weddingDate"),
     venue: formOptionalString(formData, "venue"),
+    preferredLanguage: normalizeCustomerLanguage(typeof preferredLanguageValue === "string" ? preferredLanguageValue : null),
     status: normalizeCustomerStatus(formString(formData, "status")),
     notes: formOptionalString(formData, "notes")
   };

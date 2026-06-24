@@ -1,4 +1,5 @@
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 
 type AdminFavoriteListSubmittedEmail = {
   to?: string;
@@ -15,6 +16,7 @@ type ContractSignatureRequestEmail = {
   coupleName: string;
   contractTitle: string;
   contractUrl: string;
+  language?: CustomerLanguage;
 };
 
 type CustomerInvoiceEmail = {
@@ -24,12 +26,14 @@ type CustomerInvoiceEmail = {
   invoiceUrl: string;
   amountLabel?: string | null;
   dueDateLabel?: string | null;
+  language?: CustomerLanguage;
 };
 
 type ClientProofingInviteEmail = {
   to: string;
   galleryTitle: string;
   proofingGalleryUrl: string;
+  language?: CustomerLanguage;
 };
 
 type ClientFinalDeliveryEmail = {
@@ -37,6 +41,7 @@ type ClientFinalDeliveryEmail = {
   galleryTitle: string;
   galleryUrl: string;
   downloadsEnabled: boolean;
+  language?: CustomerLanguage;
 };
 
 type AdminGalleryZipReadyEmail = {
@@ -61,7 +66,175 @@ type GuestGalleryDownloadReadyEmail = {
   expiresAt: Date;
   photoCount: number;
   fileSizeBytes?: bigint | number | null;
+  language?: CustomerLanguage;
 };
+
+const CUSTOMER_EMAIL_COPY = {
+  de: {
+    proofingInvite: {
+      subject: "Deine Bildauswahl ist bereit",
+      heading: "Deine Bildauswahl ist bereit",
+      intro: "Hallo,",
+      body: "die Galerie ist zur Auswahl vorbereitet. Über den folgenden Link kannst du deine Favoriten markieren und die Auswahl anschließend abschicken.",
+      cta: "Bildauswahl öffnen",
+      fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
+    },
+    finalDelivery: {
+      subject: "Deine fertigen Bilder sind bereit",
+      heading: "Deine fertigen Bilder sind bereit",
+      intro: "Hallo,",
+      body: "die fertig bearbeiteten Bilder der Galerie sind jetzt für dich bereit.",
+      linksEnabledBody: "Über den folgenden Link kannst du die Bilder ansehen und herunterladen.",
+      linksDisabledBody: "Über den folgenden Link kannst du die Bilder ansehen.",
+      fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
+    },
+    contract: {
+      subjectPrefix: "Vertrag ansehen",
+      heading: "Vertrag ansehen",
+      intro: "Hallo",
+      body: "Das Dokument ist bereit. Über die folgende Schaltfläche könnt ihr es öffnen.",
+      cta: "Vertrag öffnen",
+      fallback: "Falls der Button nicht funktioniert, kopiert diesen Link in den Browser:"
+    },
+    invoice: {
+      subjectPrefix: "Rechnung",
+      heading: "Rechnung",
+      intro: "Hallo",
+      body: "Die Rechnung ist bereit.",
+      cta: "Rechnung öffnen",
+      fallback: "Falls der Button nicht funktioniert, kopiert diesen Link in den Browser:",
+      amountLabel: "Betrag:",
+      dueLabel: "Fällig bis:"
+    },
+    guestDownload: {
+      subjectSingle: "Dein Galerie-Download ist bereit",
+      subjectMulti: "Deine Galerie-Downloads sind bereit",
+      subjectSinglePrefix: "Dein Galerie-Download ist",
+      heading: "Dein Galerie-Download ist bereit",
+      headingMulti: "Deine Galerie-Downloads sind bereit",
+      bodySingle: "Die ZIP-Datei für",
+      bodyMulti: "Alle ZIP-Teile für",
+      bodySuffixSingle: "ist fertig.",
+      bodySuffixMulti: "sind fertig. Du findest alle Download-Links gesammelt in dieser E-Mail.",
+      bodyIntro: "Du kannst die Bilder jetzt ansehen und herunterladen.",
+      mediaLabel: "Medien",
+      sizeLabel: "ZIP-Größe",
+      expiresAtLabel: "Link gültig bis",
+      downloadLabel: "ZIP herunterladen",
+      fallback: "Falls ein Button nicht funktioniert, kopiere den jeweiligen Link in den Browser:"
+    },
+    adminZipReady: {
+      heading: "Galéria ZIP elkészült",
+      body: "A galéria letölthető ZIP fájlja elkészült, így küldés előtt minden készen áll.",
+      photoLabel: "Képek",
+      generatedAtLabel: "Elkészült",
+      sizeLabel: "ZIP méret",
+      linkLabel: "Admin galéria megnyitása",
+      galleryLabel: "Galéria",
+      publicLinkLabel: "Publikus galéria"
+    },
+    favoriteListSubmitted: {
+      heading: "Kedvenc lista lezárva",
+      intro: "Egy ügyfél lezárta a válogatását.",
+      galleryLabel: "Galéria",
+      listLabel: "Lista",
+      emailLabel: "Email",
+      countLabel: "Képek",
+      closedAtLabel: "Lezárva",
+      cta: "Admin galéria megnyitása",
+      filenamesLabel: "Fájlnevek Lightroomhoz"
+    },
+    admin: "Galéria ZIP elkészült"
+  },
+  hu: {
+    proofingInvite: {
+      subject: "Kész a képeid kiválasztása",
+      heading: "Kész a képek kiválasztása",
+      intro: "Kedves vendég,",
+      body: "Ez a galéria fel van készítve a kiválasztáshoz. A linkkel jelöld ki a kedvenceidet, majd küldd el a választásodat.",
+      cta: "Képek kiválasztása",
+      fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
+    },
+    finalDelivery: {
+      subject: "A végleges képek készre vannak",
+      heading: "A végleges képek készre vannak",
+      intro: "Kedves vendég,",
+      body: "A galéria végleges képei már elérhetők számodra.",
+      linksEnabledBody: "Az alábbi linken megtekintheted és letöltheted őket.",
+      linksDisabledBody: "Az alábbi linken megtekintheted a képeket.",
+      fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
+    },
+    contract: {
+      subjectPrefix: "Szerződés megtekintése",
+      heading: "Szerződés megtekintése",
+      intro: "Szia",
+      body: "A dokumentum elkészült. A gombbal nyisd meg.",
+      cta: "Szerződés megnyitása",
+      fallback: "Ha nem működik a gomb, másold be ezt a linket:"
+    },
+    invoice: {
+      subjectPrefix: "Számla",
+      heading: "Számla",
+      intro: "Szia",
+      body: "A számla elkészült.",
+      cta: "Számla megnyitása",
+      fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:",
+      amountLabel: "Összeg:",
+      dueLabel: "Esedékesség:"
+    },
+    guestDownload: {
+      subjectSingle: "A galériád letöltése kész",
+      subjectMulti: "A galériád letöltési linkjei készültek",
+      subjectSinglePrefix: "A galériád letöltése kész",
+      heading: "A galériád letöltése kész",
+      headingMulti: "A galéria letöltési linkjei készültek",
+      bodySingle: "A ZIP csomag készült a",
+      bodyMulti: "A ZIP darabok a",
+      bodySuffixSingle: "hoz.",
+      bodySuffixMulti: "hoz, és a teljes lista egy emailben található.",
+      bodyIntro: "A képeket le tudod tölteni innen:",
+      mediaLabel: "Média",
+      sizeLabel: "ZIP méret",
+      expiresAtLabel: "Link érvényessége",
+      downloadLabel: "ZIP letöltése",
+      fallback: "Ha a gomb nem működik, másold be ezt a linket a böngészőbe:"
+    },
+    adminZipReady: {
+      heading: "A galéria ZIP elkészült",
+      body: "A galéria letölthető ZIP fájlja elkészült.",
+      photoLabel: "Képek",
+      generatedAtLabel: "Elkészült",
+      sizeLabel: "ZIP méret",
+      linkLabel: "Admin galéria megnyitása",
+      galleryLabel: "Galéria",
+      publicLinkLabel: "Publikus galéria"
+    },
+    favoriteListSubmitted: {
+      heading: "Kedvenc lista lezárva",
+      intro: "A vendég lezárta a választását.",
+      galleryLabel: "Galéria",
+      listLabel: "Lista",
+      emailLabel: "Email",
+      countLabel: "Képek",
+      closedAtLabel: "Lezárva",
+      cta: "Admin galéria megnyitása",
+      filenamesLabel: "Fájlnevek Lightroomhoz"
+    },
+    admin: "Galéria ZIP elkészült"
+  }
+};
+
+function asEmailLanguage(language?: CustomerLanguage) {
+  return language === "hu" ? "hu" : "de";
+}
+
+function copyForLanguage(language?: CustomerLanguage) {
+  return CUSTOMER_EMAIL_COPY[asEmailLanguage(language)];
+}
+
+function dateLocale(language?: CustomerLanguage) {
+  return dateLocaleForCustomer(asEmailLanguage(language));
+}
 
 export function appBaseUrl() {
   const rawUrl = (
@@ -196,8 +369,14 @@ export function adminGalleryUrl(galleryId: string) {
   return `${appBaseUrl()}/admin/galleries/${galleryId}`;
 }
 
-export function publicGalleryUrl(slug: string) {
-  return `${appBaseUrl()}/g/${slug}`;
+export function publicGalleryUrl(slug: string, language?: CustomerLanguage) {
+  const publicUrl = new URL(`/g/${slug}`, appBaseUrl());
+
+  if (language) {
+    publicUrl.searchParams.set("lang", language);
+  }
+
+  return publicUrl.toString();
 }
 
 export function galleryDownloadUrl(token: string) {
@@ -206,17 +385,20 @@ export function galleryDownloadUrl(token: string) {
 
 function clientProofingInviteHtml({
   galleryTitle,
-  proofingGalleryUrl
+  proofingGalleryUrl,
+  language
 }: ClientProofingInviteEmail) {
+  const copy = copyForLanguage(language);
+
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Deine Bildauswahl ist bereit</h1>
-      <p style="margin: 0 0 18px;">Hallo,</p>
-      <p style="margin: 0 0 18px;">die Galerie <strong>${escapeHtml(galleryTitle)}</strong> ist zur Auswahl vorbereitet. Über den folgenden Link kannst du deine Favoriten markieren und die Auswahl anschließend abschicken.</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.proofingInvite.heading}</h1>
+      <p style="margin: 0 0 18px;">${copy.proofingInvite.intro}</p>
+      <p style="margin: 0 0 18px;">${copy.proofingInvite.body} <strong>${escapeHtml(galleryTitle)}</strong></p>
       <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(proofingGalleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Bildauswahl öffnen</a>
+        <a href="${escapeHtml(proofingGalleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${copy.proofingInvite.cta}</a>
       </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(proofingGalleryUrl)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${copy.proofingInvite.fallback}<br>${escapeHtml(proofingGalleryUrl)}</p>
     </div>
   `;
 }
@@ -238,15 +420,13 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
     body: JSON.stringify({
       from,
       to: payload.to,
-      subject: `Deine Bildauswahl ist bereit: ${payload.galleryTitle}`,
+      subject: `${copyForLanguage(payload.language).proofingInvite.subject}: ${payload.galleryTitle}`,
       html: clientProofingInviteHtml(payload),
       text: [
-        "Deine Bildauswahl ist bereit",
+        copyForLanguage(payload.language).proofingInvite.subject,
         "",
-        `Galerie: ${payload.galleryTitle}`,
-        "Öffne den folgenden Link, markiere deine Favoriten und schicke die Auswahl anschließend ab.",
-        "",
-        `Bildauswahl öffnen: ${payload.proofingGalleryUrl}`
+        `${copyForLanguage(payload.language).proofingInvite.body} ${payload.galleryTitle}`,
+        `${copyForLanguage(payload.language).proofingInvite.cta}: ${payload.proofingGalleryUrl}`
       ].join("\n")
     })
   });
@@ -262,18 +442,23 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
 function clientFinalDeliveryHtml({
   galleryTitle,
   galleryUrl,
-  downloadsEnabled
+  downloadsEnabled,
+  language
 }: ClientFinalDeliveryEmail) {
+  const copy = copyForLanguage(language);
+  const body = copy.finalDelivery.body;
+  const cta = copy.finalDelivery.linksEnabledBody;
+  const ctaLabel = downloadsEnabled ? cta : copy.finalDelivery.linksDisabledBody;
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Deine fertigen Bilder sind bereit</h1>
-      <p style="margin: 0 0 18px;">Hallo,</p>
-      <p style="margin: 0 0 18px;">die fertig bearbeiteten Bilder der Galerie <strong>${escapeHtml(galleryTitle)}</strong> sind jetzt für dich bereit.</p>
-      <p style="margin: 0 0 18px;">${downloadsEnabled ? "Über den folgenden Link kannst du die Bilder ansehen und herunterladen." : "Über den folgenden Link kannst du die Bilder ansehen."}</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.finalDelivery.heading}</h1>
+      <p style="margin: 0 0 18px;">${copy.finalDelivery.intro}</p>
+      <p style="margin: 0 0 18px;">${body} <strong>${escapeHtml(galleryTitle)}</strong>.</p>
+      <p style="margin: 0 0 18px;">${downloadsEnabled ? copy.finalDelivery.linksEnabledBody : copy.finalDelivery.linksDisabledBody}</p>
       <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(galleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Galerie öffnen</a>
+        <a href="${escapeHtml(galleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${ctaLabel}</a>
       </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:<br>${escapeHtml(galleryUrl)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${copy.finalDelivery.fallback}<br>${escapeHtml(galleryUrl)}</p>
     </div>
   `;
 }
@@ -295,15 +480,15 @@ export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryE
     body: JSON.stringify({
       from,
       to: payload.to,
-      subject: `Deine fertigen Bilder sind bereit: ${payload.galleryTitle}`,
+      subject: `${copyForLanguage(payload.language).finalDelivery.subject}: ${payload.galleryTitle}`,
       html: clientFinalDeliveryHtml(payload),
       text: [
-        "Deine fertigen Bilder sind bereit",
+        copyForLanguage(payload.language).finalDelivery.subject,
         "",
         `Galerie: ${payload.galleryTitle}`,
         payload.downloadsEnabled
-          ? "Du kannst die Bilder jetzt ansehen und herunterladen."
-          : "Du kannst die Bilder jetzt ansehen.",
+          ? copyForLanguage(payload.language).finalDelivery.linksEnabledBody
+          : copyForLanguage(payload.language).finalDelivery.linksDisabledBody,
         "",
         `Galerie öffnen: ${payload.galleryUrl}`
       ].join("\n")
@@ -392,25 +577,28 @@ function guestGalleryDownloadReadyHtml({
   downloadLinks,
   expiresAt,
   photoCount,
-  fileSizeBytes
+  fileSizeBytes,
+  language
 }: GuestGalleryDownloadReadyEmail) {
   const formattedSize = formatBytes(fileSizeBytes);
+  const copy = copyForLanguage(language);
   const links =
     downloadLinks && downloadLinks.length > 0
       ? downloadLinks
       : downloadUrl
-        ? [{ label: "ZIP herunterladen", url: downloadUrl, fileSizeBytes }]
+        ? [{ label: copy.guestDownload.downloadLabel, url: downloadUrl, fileSizeBytes }]
         : [];
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Dein Galerie-Download ist bereit</h1>
-      <p style="margin: 0 0 18px;">${links.length > 1 ? "Alle ZIP-Teile" : "Die ZIP-Datei"} für <strong>${escapeHtml(galleryTitle)}</strong> ${links.length > 1 ? "sind" : "ist"} fertig. ${links.length > 1 ? "Du findest alle Download-Links gesammelt in dieser E-Mail." : ""}</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${links.length > 1 ? copy.guestDownload.headingMulti : copy.guestDownload.heading}</h1>
+      <p style="margin: 0 0 18px;">${links.length > 1 ? copy.guestDownload.bodyMulti : copy.guestDownload.bodySingle} <strong>${escapeHtml(galleryTitle)}</strong> ${links.length > 1 ? copy.guestDownload.bodySuffixMulti : copy.guestDownload.bodySuffixSingle}</p>
       <table style="border-collapse: collapse; margin-bottom: 20px;">
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galerie</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Medien</td><td style="padding: 4px 0;">${photoCount}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${copy.guestDownload.mediaLabel}</td><td style="padding: 4px 0;">${photoCount}</td></tr>
         ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">ZIP-Größe</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Link gültig bis</td><td style="padding: 4px 0;">${expiresAt.toLocaleString("de-AT", { timeZone: APP_TIME_ZONE })}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${copy.guestDownload.sizeLabel}</td><td style="padding: 4px 0;">${copy.guestDownload.expiresAtLabel}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${copy.guestDownload.expiresAtLabel}</td><td style="padding: 4px 0;">${expiresAt.toLocaleString(dateLocale(language), { timeZone: APP_TIME_ZONE })}</td></tr>
       </table>
       <div style="margin: 0 0 18px;">
         ${links
@@ -420,19 +608,20 @@ function guestGalleryDownloadReadyHtml({
           })
           .join("")}
       </div>
-      <p style="margin: 0; color: #777; font-size: 13px;">Falls ein Button nicht funktioniert, kopiere den jeweiligen Link in den Browser:<br>${links.map((link) => escapeHtml(link.url)).join("<br>")}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${copy.guestDownload.fallback}<br>${links.map((link) => escapeHtml(link.url)).join("<br>")}</p>
     </div>
   `;
 }
 
 export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDownloadReadyEmail) {
+  const copy = copyForLanguage(payload.language);
   const { apiKey, from } = emailConfig();
   const formattedSize = formatBytes(payload.fileSizeBytes);
   const links =
     payload.downloadLinks && payload.downloadLinks.length > 0
       ? payload.downloadLinks
       : payload.downloadUrl
-        ? [{ label: "Download", url: payload.downloadUrl, fileSizeBytes: payload.fileSizeBytes }]
+        ? [{ label: copy.guestDownload.downloadLabel, url: payload.downloadUrl, fileSizeBytes: payload.fileSizeBytes }]
         : [];
 
   if (!apiKey) {
@@ -449,16 +638,16 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
     body: JSON.stringify({
       from,
       to: payload.to,
-      subject: `${links.length > 1 ? "Deine Galerie-Downloads sind" : "Dein Galerie-Download ist"} bereit: ${payload.galleryTitle}`,
+      subject: `${links.length > 1 ? copy.guestDownload.subjectMulti : copy.guestDownload.subjectSingle}: ${payload.galleryTitle}`,
       html: guestGalleryDownloadReadyHtml(payload),
       text: [
-        links.length > 1 ? "Deine Galerie-Downloads sind bereit" : "Dein Galerie-Download ist bereit",
+        links.length > 1 ? copy.guestDownload.headingMulti : copy.guestDownload.heading,
         "",
         `Galerie: ${payload.galleryTitle}`,
-        `Medien: ${payload.photoCount}`,
-        ...(formattedSize ? [`ZIP-Größe: ${formattedSize}`] : []),
-        `Link gültig bis: ${payload.expiresAt.toLocaleString("de-AT", { timeZone: APP_TIME_ZONE })}`,
-        ...(links.length > 1 ? ["", "Alle ZIP-Teile sind in dieser E-Mail gesammelt."] : []),
+        `${copy.guestDownload.mediaLabel}: ${payload.photoCount}`,
+        ...(formattedSize ? [`${copy.guestDownload.sizeLabel}: ${formattedSize}`] : []),
+        `${copy.guestDownload.expiresAtLabel}: ${payload.expiresAt.toLocaleString(dateLocale(payload.language), { timeZone: APP_TIME_ZONE })}`,
+        ...(links.length > 1 ? ["", copy.guestDownload.bodySuffixMulti] : []),
         "",
         ...links.map((link) => `${link.label}: ${link.url}`)
       ].join("\n")
@@ -476,22 +665,25 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
 function contractSignatureRequestHtml({
   coupleName,
   contractTitle,
-  contractUrl
+  contractUrl,
+  language
 }: ContractSignatureRequestEmail) {
+  const copy = copyForLanguage(language);
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Vertrag ansehen</h1>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.contract.heading}</h1>
       <p style="margin: 0 0 18px;">Hallo ${escapeHtml(coupleName)},</p>
-      <p style="margin: 0 0 18px;">Das Dokument <strong>${escapeHtml(contractTitle)}</strong> ist bereit. Über die folgende Schaltfläche könnt ihr es öffnen.</p>
+      <p style="margin: 0 0 18px;">${copy.contract.body} <strong>${escapeHtml(contractTitle)}</strong>.</p>
       <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(contractUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Vertrag öffnen</a>
+        <a href="${escapeHtml(contractUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${copy.contract.cta}</a>
       </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiert diesen Link in den Browser:<br>${escapeHtml(contractUrl)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${copy.contract.fallback}<br>${escapeHtml(contractUrl)}</p>
     </div>
   `;
 }
 
 export async function sendContractSignatureRequestEmail(payload: ContractSignatureRequestEmail) {
+  const copy = copyForLanguage(payload.language);
   const { apiKey, from } = emailConfig();
 
   if (!apiKey) {
@@ -514,13 +706,13 @@ export async function sendContractSignatureRequestEmail(payload: ContractSignatu
     body: JSON.stringify({
       from,
       to: recipients,
-      subject: `Vertrag ansehen: ${payload.contractTitle}`,
+      subject: `${copy.contract.subjectPrefix}: ${payload.contractTitle}`,
       html: contractSignatureRequestHtml(payload),
       text: [
-        `Hallo ${payload.coupleName},`,
+        `Hallo ${payload.coupleName}, ${copy.contract.intro}`,
         "",
-        `Das Dokument ${payload.contractTitle} ist bereit.`,
-        `Vertrag öffnen: ${payload.contractUrl}`
+        `${copy.contract.body} ${payload.contractTitle}`,
+        `${copy.contract.cta}: ${payload.contractUrl}`
       ].join("\n")
     })
   });
@@ -536,28 +728,31 @@ function customerInvoiceHtml({
   invoiceTitle,
   invoiceUrl,
   amountLabel,
-  dueDateLabel
+  dueDateLabel,
+  language
 }: CustomerInvoiceEmail) {
+  const copy = copyForLanguage(language);
   const metaLines = [
-    amountLabel ? `<p style="margin: 0 0 8px;"><strong>Betrag:</strong> ${escapeHtml(amountLabel)}</p>` : "",
-    dueDateLabel ? `<p style="margin: 0 0 18px;"><strong>Fällig bis:</strong> ${escapeHtml(dueDateLabel)}</p>` : ""
+    amountLabel ? `<p style="margin: 0 0 8px;"><strong>${copy.invoice.amountLabel}:</strong> ${escapeHtml(amountLabel)}</p>` : "",
+    dueDateLabel ? `<p style="margin: 0 0 18px;"><strong>${copy.invoice.dueLabel}:</strong> ${escapeHtml(dueDateLabel)}</p>` : ""
   ].join("");
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Rechnung</h1>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.invoice.heading}</h1>
       <p style="margin: 0 0 18px;">Hallo ${escapeHtml(coupleName)},</p>
-      <p style="margin: 0 0 18px;">Die Rechnung <strong>${escapeHtml(invoiceTitle)}</strong> ist bereit.</p>
+      <p style="margin: 0 0 18px;">${copy.invoice.body} <strong>${escapeHtml(invoiceTitle)}</strong>.</p>
       ${metaLines}
       <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(invoiceUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Rechnung öffnen</a>
+        <a href="${escapeHtml(invoiceUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${copy.invoice.cta}</a>
       </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Falls der Button nicht funktioniert, kopiert diesen Link in den Browser:<br>${escapeHtml(invoiceUrl)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${copy.invoice.fallback}<br>${escapeHtml(invoiceUrl)}</p>
     </div>
   `;
 }
 
 export async function sendCustomerInvoiceEmail(payload: CustomerInvoiceEmail) {
+  const copy = copyForLanguage(payload.language);
   const { apiKey, from } = emailConfig();
 
   if (!apiKey) {
@@ -589,7 +784,7 @@ export async function sendCustomerInvoiceEmail(payload: CustomerInvoiceEmail) {
     body: JSON.stringify({
       from,
       to: recipients,
-      subject: `Rechnung: ${payload.invoiceTitle}`,
+      subject: `${copy.invoice.subjectPrefix}: ${payload.invoiceTitle}`,
       html: customerInvoiceHtml(payload),
       text: textLines.join("\n")
     })

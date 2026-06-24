@@ -75,6 +75,7 @@ model Customer {
   phone          String?
   weddingDate    DateTime?
   venue          String?
+  preferredLanguage String @default("de")
   status         String   @default("lead")
   notes          String?
   createdAt      DateTime @default(now())

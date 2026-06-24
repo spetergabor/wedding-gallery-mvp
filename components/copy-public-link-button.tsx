@@ -3,21 +3,27 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/button";
+import type { CustomerLanguage } from "@/lib/customer-language";
 
 export function CopyPublicLinkButton({
   slug,
+  lang,
   label = "Publikus link másolása"
 }: {
   slug: string;
+  lang?: CustomerLanguage;
   label?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
-    const publicUrl = new URL(`/g/${slug}`, window.location.origin).toString();
+    const publicUrl = new URL(`/g/${slug}`, window.location.origin);
+    if (lang) {
+      publicUrl.searchParams.set("lang", lang);
+    }
 
     try {
-      await window.navigator.clipboard.writeText(publicUrl);
+      await window.navigator.clipboard.writeText(publicUrl.toString());
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {

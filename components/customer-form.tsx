@@ -4,6 +4,7 @@ import { Calendar, Mail, MapPin, Pencil, Phone, StickyNote, UserRound } from "lu
 import type { ReactNode } from "react";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
+import { CUSTOMER_LANGUAGES, customerLanguageLabel, normalizeCustomerLanguage } from "@/lib/customer-language";
 
 type CustomerFormValue = {
   id: string;
@@ -16,6 +17,7 @@ type CustomerFormValue = {
   venue: string | null;
   status: string;
   notes: string | null;
+  preferredLanguage: string;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -91,6 +93,7 @@ export function CustomerProfileCard({ customer }: { customer: CustomerFormValue 
         <DetailItem icon={Mail} label="Másodlagos email" value={detailValue(customer.secondaryEmail)} />
         <DetailItem icon={Phone} label="Telefon" value={detailValue(customer.phone)} />
         <DetailItem icon={MapPin} label="Helyszín" value={detailValue(customer.venue)} />
+        <DetailItem icon={Mail} label="Elsődleges nyelv" value={customerLanguageLabel(customer.preferredLanguage)} />
       </div>
 
       <div className="mt-3 rounded-md border border-ink/10 bg-paper px-4 py-3">
@@ -123,6 +126,21 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
         </div>
       ) : null}
       <div className="grid gap-5 md:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-graphite">Nyeró nyelv</span>
+          <select
+            name="preferredLanguage"
+            defaultValue={normalizeCustomerLanguage(customer?.preferredLanguage)}
+            className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+          >
+            {CUSTOMER_LANGUAGES.map((language) => (
+              <option key={language.value} value={language.value}>
+                {language.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <label className="space-y-2">
           <span className="text-sm font-medium text-graphite">Ügyféltípus</span>
           <select

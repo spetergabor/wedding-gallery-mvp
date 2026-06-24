@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { prisma } from "@/lib/prisma";
 import { createContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
 
@@ -133,7 +134,8 @@ export async function sendContractAction(customerId: string, contractId: string)
         select: {
           coupleName: true,
           primaryEmail: true,
-          secondaryEmail: true
+          secondaryEmail: true,
+          preferredLanguage: true
         }
       }
     }
@@ -159,7 +161,8 @@ export async function sendContractAction(customerId: string, contractId: string)
     to: [contract.customer.primaryEmail, contract.customer.secondaryEmail].filter((email): email is string => Boolean(email)),
     coupleName: contract.customer.coupleName,
     contractTitle: contract.title,
-    contractUrl
+    contractUrl,
+    language: normalizeCustomerLanguage(contract.customer.preferredLanguage)
   });
 
   await prisma.contract.update({

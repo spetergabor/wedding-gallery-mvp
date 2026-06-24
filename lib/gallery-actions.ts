@@ -29,6 +29,7 @@ import {
   normalizePhotoDeliveryStage
 } from "@/lib/proofing";
 import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
   createManualGalleryZipObjectKey,
   createPresignedPhotoUploadUrl,
@@ -188,7 +189,12 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
       galleryMode: true,
       clientEmail: true,
       proofingInviteSentAt: true,
-      proofingInviteSentTo: true
+      proofingInviteSentTo: true,
+      customer: {
+        select: {
+          preferredLanguage: true
+        }
+      }
     }
   });
 
@@ -210,7 +216,8 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
     const sent = await sendClientProofingInviteEmail({
       to: recipient,
       galleryTitle: gallery.title,
-      proofingGalleryUrl: publicGalleryUrl(gallery.slug)
+      proofingGalleryUrl: publicGalleryUrl(gallery.slug, normalizeCustomerLanguage(gallery.customer?.preferredLanguage)),
+      language: normalizeCustomerLanguage(gallery.customer?.preferredLanguage)
     });
 
     if (!sent) {
@@ -254,7 +261,12 @@ async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = fal
       clientEmail: true,
       downloadsEnabled: true,
       finalDeliveryEmailSentAt: true,
-      finalDeliveryEmailSentTo: true
+      finalDeliveryEmailSentTo: true,
+      customer: {
+        select: {
+          preferredLanguage: true
+        }
+      }
     }
   });
 
@@ -280,8 +292,9 @@ async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = fal
     const sent = await sendClientFinalDeliveryEmail({
       to: recipient,
       galleryTitle: gallery.title,
-      galleryUrl: publicGalleryUrl(gallery.slug),
-      downloadsEnabled: gallery.downloadsEnabled
+      galleryUrl: publicGalleryUrl(gallery.slug, normalizeCustomerLanguage(gallery.customer?.preferredLanguage)),
+      downloadsEnabled: gallery.downloadsEnabled,
+      language: normalizeCustomerLanguage(gallery.customer?.preferredLanguage)
     });
 
     if (!sent) {

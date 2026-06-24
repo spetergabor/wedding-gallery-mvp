@@ -8,15 +8,16 @@ import {
   PROOFING_STATUS_NOT_OPENED,
   isProofingGallery
 } from "@/lib/proofing";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 
 export default async function ClientGalleryReviewPage({
   params,
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string; lang?: string }>;
 }) {
-  const [{ slug }, { token }] = await Promise.all([params, searchParams]);
+  const [{ slug }, { token, lang }] = await Promise.all([params, searchParams]);
 
   if (!token) {
     notFound();
@@ -28,6 +29,9 @@ export default async function ClientGalleryReviewPage({
       clientAccessToken: token
     },
     include: {
+      customer: {
+        select: { preferredLanguage: true }
+      },
       photos: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
       }
@@ -50,6 +54,7 @@ export default async function ClientGalleryReviewPage({
   const visiblePhotos = isProofingGallery(gallery.galleryMode)
     ? gallery.photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW)
     : gallery.photos;
+  const language = normalizeCustomerLanguage(lang ?? gallery.customer?.preferredLanguage);
 
   return (
     <main className="min-h-screen bg-paper">
@@ -80,6 +85,7 @@ export default async function ClientGalleryReviewPage({
           publicSlug={gallery.slug}
           title={gallery.title}
           token={token}
+          language={language}
           photos={visiblePhotos}
         />
       </section>

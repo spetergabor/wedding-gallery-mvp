@@ -14,6 +14,7 @@ import {
 } from "@/lib/email";
 import { createGalleryZipObjectKey, createPhotoReadStream, deletePhotoObject, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
 import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 
 export const ZIP_GENERATION_JOB = "zip_generation";
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
@@ -33,6 +34,9 @@ type CompletedDownloadPackage = {
   fileSize: bigint;
   gallery: {
     title: string;
+    customer: {
+      preferredLanguage: string | null;
+    } | null;
   };
   downloads: Array<{
     id: string;
@@ -861,7 +865,12 @@ export async function sendGalleryDownloadLinkForRequest(downloadId: string) {
           fileSize: true,
           gallery: {
             select: {
-              title: true
+              title: true,
+              customer: {
+                select: {
+                  preferredLanguage: true
+                }
+              }
             }
           }
         }
@@ -877,14 +886,15 @@ export async function sendGalleryDownloadLinkForRequest(downloadId: string) {
   const sentAt = new Date();
 
   try {
-    const sent = await sendGuestGalleryDownloadReadyEmail({
-      to: download.email,
-      galleryTitle: download.package.gallery.title,
-      downloadUrl: galleryDownloadUrl(token),
-      expiresAt,
-      photoCount: download.package.photoCount,
-      fileSizeBytes: download.package.fileSize
-    });
+      const sent = await sendGuestGalleryDownloadReadyEmail({
+        to: download.email,
+        galleryTitle: download.package.gallery.title,
+        downloadUrl: galleryDownloadUrl(token),
+        expiresAt,
+        photoCount: download.package.photoCount,
+        fileSizeBytes: download.package.fileSize,
+        language: normalizeCustomerLanguage(download.package.gallery.customer?.preferredLanguage)
+      });
 
     await prisma.galleryDownload.update({
       where: { id: download.id },
@@ -931,7 +941,12 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) 
       fileSize: true,
       gallery: {
         select: {
-          title: true
+          title: true,
+          customer: {
+            select: {
+              preferredLanguage: true
+            }
+          }
         }
       },
       downloads: {
@@ -951,8 +966,13 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) 
   const packagesById = new Map(packages.map((downloadPackage) => [downloadPackage.id, downloadPackage]));
   const sortedPackages = uniquePackageIds
     .map((packageId) => packagesById.get(packageId))
-    .filter((downloadPackage): downloadPackage is CompletedDownloadPackage => Boolean(downloadPackage))
+    .flatMap((downloadPackage): CompletedDownloadPackage[] => (downloadPackage ? [downloadPackage] : []))
     .sort((a, b) => a.partIndex - b.partIndex);
+
+  if (sortedPackages.length === 0) {
+    return;
+  }
+
   const downloadsByEmail = new Map<string, string[]>();
 
   for (const downloadPackage of sortedPackages) {
@@ -1003,7 +1023,8 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) 
         downloadLinks,
         expiresAt: earliestExpiresAt,
         photoCount: totalPhotoCount,
-        fileSizeBytes: totalFileSize
+        fileSizeBytes: totalFileSize,
+        language: normalizeCustomerLanguage(sortedPackages[0].gallery.customer?.preferredLanguage)
       });
 
       await prisma.galleryDownload.updateMany({
@@ -1042,7 +1063,12 @@ export async function sendGalleryDownloadLinksForPackage(packageId: string) {
       fileSize: true,
       gallery: {
         select: {
-          title: true
+          title: true,
+          customer: {
+            select: {
+              preferredLanguage: true
+            }
+          }
         }
       },
       downloads: {
@@ -1104,7 +1130,8 @@ export async function sendGalleryDownloadLinksForPackage(packageId: string) {
         downloadUrl,
         expiresAt,
         photoCount: downloadPackage.photoCount,
-        fileSizeBytes: downloadPackage.fileSize
+        fileSizeBytes: downloadPackage.fileSize,
+        language: normalizeCustomerLanguage(downloadPackage.gallery.customer?.preferredLanguage)
       });
 
       await prisma.galleryDownload.updateMany({

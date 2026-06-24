@@ -24,6 +24,7 @@ import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
   generateClientAccessLinkAction,
   queueGalleryZipPackageAction,
@@ -222,7 +223,8 @@ export default async function GalleryDetailPage({
           id: true,
           customerType: true,
           coupleName: true,
-          primaryEmail: true
+          primaryEmail: true,
+          preferredLanguage: true
         }
       },
       project: {
@@ -266,6 +268,8 @@ export default async function GalleryDetailPage({
   if (!gallery) {
     notFound();
   }
+
+  const galleryLanguage = normalizeCustomerLanguage(gallery.customer?.preferredLanguage);
 
   const customers = await prisma.customer.findMany({
     where: adminOwnedWhere(admin),
@@ -435,8 +439,8 @@ export default async function GalleryDetailPage({
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <CopyPublicLinkButton slug={gallery.slug} />
-          <ButtonLink href={`/g/${gallery.slug}`} variant="secondary">
+          <CopyPublicLinkButton slug={gallery.slug} lang={galleryLanguage} />
+          <ButtonLink href={`/g/${gallery.slug}${galleryLanguage ? `?lang=${galleryLanguage}` : ""}`} variant="secondary">
             <ExternalLink size={16} />
             Publikus nézet
           </ButtonLink>
@@ -729,9 +733,17 @@ export default async function GalleryDetailPage({
                     </form>
                   ) : null}
                   {proofingGallery ? (
-                    <CopyPublicLinkButton slug={gallery.slug} label="Válogató link másolása" />
+                    <CopyPublicLinkButton
+                      slug={gallery.slug}
+                      lang={galleryLanguage}
+                      label="Válogató link másolása"
+                    />
                   ) : gallery.clientAccessToken ? (
-                    <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+                    <CopyClientLinkButton
+                      slug={gallery.slug}
+                      token={gallery.clientAccessToken}
+                      lang={galleryLanguage}
+                    />
                   ) : (
                     <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
                       <Button type="submit" variant="secondary">

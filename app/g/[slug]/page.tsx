@@ -13,13 +13,14 @@ import {
 } from "@/lib/proofing";
 import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { Button } from "@/components/button";
+import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 
-function formatEventDate(date: Date | null) {
+function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
     return "Private Galerie";
   }
 
-  return new Intl.DateTimeFormat("de-AT", {
+  return new Intl.DateTimeFormat(dateLocaleForCustomer(language), {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -32,13 +33,18 @@ export default async function PublicGalleryPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; lang?: string }>;
 }) {
   const { slug } = await params;
   const flags = await searchParams;
   const gallery = await prisma.gallery.findUnique({
     where: { slug },
-    include: { photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } }
+    include: {
+      photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      customer: {
+        select: { preferredLanguage: true }
+      }
+    }
   });
 
   if (!gallery || !gallery.isActive) {
@@ -70,7 +76,9 @@ export default async function PublicGalleryPage({
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
-  const heroMeta = proofingSelection ? "Bildauswahl" : formatEventDate(gallery.eventDate);
+  const language = normalizeCustomerLanguage(flags.lang ?? gallery.customer?.preferredLanguage);
+  const heroMeta = proofingSelection ? "Bildauswahl" : formatEventDate(gallery.eventDate, language);
+  const publicGalleryPath = language ? `/g/${gallery.slug}?lang=${language}` : `/g/${gallery.slug}`;
 
   if (!canView) {
     return (
@@ -89,6 +97,7 @@ export default async function PublicGalleryPage({
           ) : null}
 
           <form action={unlockGalleryAction.bind(null, slug)} className="mt-6 space-y-4">
+            <input type="hidden" name="lang" value={language} />
             <input
               name="password"
               type="password"
@@ -154,7 +163,7 @@ export default async function PublicGalleryPage({
               {visiblePhotos.length} Medien
             </p>
             <div className="mt-7 flex justify-center">
-              <SocialShareButtons path={`/g/${gallery.slug}`} title={gallery.title} variant="card" />
+              <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" />
             </div>
           </div>
         </div>
