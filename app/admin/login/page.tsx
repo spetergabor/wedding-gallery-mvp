@@ -9,7 +9,7 @@ import { hasAnyAdmin } from "@/lib/auth";
 export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ approval?: string; email?: string; error?: string; registered?: string; twoFactor?: string }>;
+  searchParams: Promise<{ approval?: string; error?: string; registered?: string; twoFactor?: string }>;
 }) {
   const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
   const needsTwoFactor = params.twoFactor === "1";
@@ -34,7 +34,7 @@ export default async function AdminLoginPage({
         <div className="mb-5 space-y-3">
           {params.error ? (
             <Alert title="Hibás belépési adatok." variant="error">
-              {needsTwoFactor ? "Ellenőrizd a jelszót és az authenticator appban látható friss 6 jegyű kódot." : "Ellenőrizd az email címet és a jelszót."}
+              {needsTwoFactor ? "Ellenőrizd az authenticator appban látható friss 6 jegyű kódot. Ha lejárt a belépési ablak, kezdd újra." : "Ellenőrizd az email címet és a jelszót."}
             </Alert>
           ) : null}
           {needsTwoFactor && !params.error ? (
@@ -54,29 +54,8 @@ export default async function AdminLoginPage({
           ) : null}
         </div>
 
-        <form action={loginAction} className="space-y-4">
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Email</span>
-            <input
-              name="email"
-              type="email"
-              required
-              defaultValue={params.email ?? ""}
-              className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
-            />
-          </label>
-
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Jelszó</span>
-            <input
-              name="password"
-              type="password"
-              required
-              className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
-            />
-          </label>
-
-          {needsTwoFactor ? (
+        {needsTwoFactor ? (
+          <form action={loginAction} className="space-y-4">
             <label className="block space-y-2">
               <span className="text-sm font-medium text-graphite">Kétfaktoros kód</span>
               <input
@@ -89,10 +68,37 @@ export default async function AdminLoginPage({
                 className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
               />
             </label>
-          ) : null}
 
-          <Button type="submit" className="w-full">Belépés</Button>
-        </form>
+            <Button type="submit" className="w-full">Belépés</Button>
+            <Link href="/admin/login" className="block text-center text-sm font-medium text-graphite/70 hover:text-ink">
+              Belépés újrakezdése
+            </Link>
+          </form>
+        ) : (
+          <form action={loginAction} className="space-y-4">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Email</span>
+              <input
+                name="email"
+                type="email"
+                required
+                className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+              />
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Jelszó</span>
+              <input
+                name="password"
+                type="password"
+                required
+                className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+              />
+            </label>
+
+            <Button type="submit" className="w-full">Belépés</Button>
+          </form>
+        )}
 
         <p className="mt-6 text-center text-sm text-graphite/70">
           Admin hozzáférés adatbázisból, hash-elt jelszóval működik.{" "}

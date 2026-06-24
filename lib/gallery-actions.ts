@@ -10,7 +10,7 @@ import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { enqueueGalleryZipJob, kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
-import { hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
+import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
@@ -525,19 +525,29 @@ export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
   const twoFactorCode = formString(formData, "twoFactorCode");
-  const result = await signInAdmin(email, password, twoFactorCode);
-  const loginEmailQuery = email ? `&email=${encodeURIComponent(email)}` : "";
+
+  if (twoFactorCode && !email && !password) {
+    const result = await completePendingTwoFactorSignIn(twoFactorCode);
+
+    if (result === "success") {
+      redirect("/admin/dashboard");
+    }
+
+    redirect("/admin/login?twoFactor=1&error=1");
+  }
+
+  const result = await signInAdmin(email, password);
 
   if (result === "pending") {
     redirect("/admin/login?approval=pending");
   }
 
   if (result === "two_factor_required") {
-    redirect(`/admin/login?twoFactor=1${loginEmailQuery}`);
+    redirect("/admin/login?twoFactor=1");
   }
 
   if (result !== "success") {
-    redirect(`/admin/login?error=1${twoFactorCode ? `&twoFactor=1${loginEmailQuery}` : ""}`);
+    redirect("/admin/login?error=1");
   }
 
   redirect("/admin/dashboard");
