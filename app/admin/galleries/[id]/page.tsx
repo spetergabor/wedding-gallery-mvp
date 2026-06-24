@@ -49,7 +49,7 @@ const galleryTabs: Array<{
   icon: typeof Camera;
 }> = [
   { key: "photos", label: "Fotók", icon: Camera },
-  { key: "client", label: "Ügyfél válogatás", icon: Heart },
+  { key: "client", label: "Ügyfél kezelés", icon: Heart },
   { key: "views", label: "Megtekintések", icon: MapPin },
   { key: "downloads", label: "Letöltések", icon: Download },
   { key: "settings", label: "Beállítások", icon: Settings }
@@ -539,7 +539,7 @@ export default async function GalleryDetailPage({
             {galleryTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
-              const label = tab.key === "client" ? (proofingGallery ? "Válogatás" : "Átadás") : tab.label;
+              const label = tab.key === "client" ? (proofingGallery ? "Válogatás" : "Ügyfél kezelés") : tab.label;
 
               return (
                 <Link
