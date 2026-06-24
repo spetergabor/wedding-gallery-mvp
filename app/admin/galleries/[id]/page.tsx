@@ -49,7 +49,7 @@ const galleryTabs: Array<{
   icon: typeof Camera;
 }> = [
   { key: "photos", label: "Fotók", icon: Camera },
-  { key: "client", label: "Ügyfél kezelés", icon: Heart },
+  { key: "client", label: "Kedvenc listák", icon: Heart },
   { key: "views", label: "Megtekintések", icon: MapPin },
   { key: "downloads", label: "Letöltések", icon: Download },
   { key: "settings", label: "Beállítások", icon: Settings }
@@ -437,6 +437,18 @@ export default async function GalleryDetailPage({
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <CopyPublicLinkButton slug={gallery.slug} />
+          {!proofingGallery ? (
+            gallery.clientAccessToken ? (
+              <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+            ) : (
+              <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                <Button type="submit" variant="secondary">
+                  <KeyRound size={16} />
+                  Privát kezelő link generálása
+                </Button>
+              </form>
+            )
+          ) : null}
           <ButtonLink href={`/g/${gallery.slug}`} variant="secondary">
             <ExternalLink size={16} />
             Publikus nézet
@@ -462,7 +474,7 @@ export default async function GalleryDetailPage({
         {flags.zip === "not-active" ? <Alert title="Ez a galéria nem aktív." variant="error" /> : null}
         {flags.zip === "proofing-pending" ? <Alert title="A galéria még nem került átadásra." variant="error" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
-        {flags.clientLink ? <Alert title="Ügyfél kezelő link elkészítve." variant="success" /> : null}
+        {flags.clientLink ? <Alert title="Privát kezelő link elkészítve." variant="success" /> : null}
         {flags.proofingInvite === "sent" ? <Alert title="Válogató link elküldve emailben." variant="success" /> : null}
         {flags.proofingInvite === "missing-email" ? (
           <Alert title="Hiányzik az ügyfél email címe." variant="error">
@@ -539,7 +551,7 @@ export default async function GalleryDetailPage({
             {galleryTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.key;
-              const label = tab.key === "client" ? (proofingGallery ? "Válogatás" : "Ügyfél kezelés") : tab.label;
+              const label = tab.key === "client" ? (proofingGallery ? "Válogatás" : "Kedvenc listák") : tab.label;
 
               return (
                 <Link
@@ -565,6 +577,34 @@ export default async function GalleryDetailPage({
               defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
               resumableSessions={resumableUploadSessions}
             />
+            {!proofingGallery ? (
+              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                      <KeyRound size={15} />
+                      Privát kezelő link
+                    </div>
+                    <h2 className="mt-2 text-xl font-semibold text-ink">Képek elrejtése az ügyfélnek</h2>
+                    <p className="mt-1 text-sm text-graphite/70">
+                      Ezen a linken az ügyfél végig tudja nézni a kész galériát, és elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {gallery.clientAccessToken ? (
+                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+                    ) : (
+                      <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                        <Button type="submit" variant="secondary">
+                          <KeyRound size={16} />
+                          Privát kezelő link generálása
+                        </Button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              </section>
+            ) : null}
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
@@ -688,22 +728,18 @@ export default async function GalleryDetailPage({
                 description="Ide töltsd fel a kidolgozott képeket, amelyeket az ügyfél kiválasztott. Ezek külön kész képként kerülnek a galériába."
               />
             ) : null}
-            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                <div>
-                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                    <KeyRound size={15} />
-                    {proofingGallery ? "Válogató link" : "Ügyfél kezelő"}
-                  </div>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">
-                    {proofingGallery ? "Normál galéria link válogatáshoz" : "Privát kezelő link az ügyfélnek"}
-                  </h2>
-                  <p className="mt-1 text-sm text-graphite/70">
-                    {proofingGallery
-                      ? "Nyers válogatásnál ezt a galéria linket kapja meg az ügyfél. Itt tud kedvenceket jelölni és leadni, melyik képeket szeretné megvenni."
-                      : "Ezen a linken az ügyfél elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni."}
-                  </p>
-                  {proofingGallery ? (
+            {proofingGallery ? (
+              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                      <KeyRound size={15} />
+                      Válogató link
+                    </div>
+                    <h2 className="mt-2 text-xl font-semibold text-ink">Normál galéria link válogatáshoz</h2>
+                    <p className="mt-1 text-sm text-graphite/70">
+                      Nyers válogatásnál ezt a galéria linket kapja meg az ügyfél. Itt tud kedvenceket jelölni és leadni, melyik képeket szeretné megvenni.
+                    </p>
                     <div className="mt-4 grid gap-3 text-sm text-graphite md:grid-cols-2">
                       <div className="rounded-md bg-paper px-3 py-2">
                         <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfél email</p>
@@ -718,38 +754,22 @@ export default async function GalleryDetailPage({
                         </p>
                       </div>
                     </div>
-                  ) : null}
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  {proofingGallery ? (
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row">
                     <form action={sendProofingInviteAction.bind(null, gallery.id)}>
                       <Button type="submit" variant="secondary" disabled={!gallery.clientEmail} className={!gallery.clientEmail ? "opacity-60" : ""}>
                         <Mail size={16} />
                         Válogató link küldése
                       </Button>
                     </form>
-                  ) : null}
-                  {proofingGallery ? (
                     <CopyPublicLinkButton
                       slug={gallery.slug}
                       label="Válogató link másolása"
                     />
-                  ) : gallery.clientAccessToken ? (
-                    <CopyClientLinkButton
-                      slug={gallery.slug}
-                      token={gallery.clientAccessToken}
-                    />
-                  ) : (
-                    <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                      <Button type="submit" variant="secondary">
-                        <KeyRound size={16} />
-                        Ügyfél link generálása
-                      </Button>
-                    </form>
-                  )}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            ) : null}
             <FavoriteListsLog lists={gallery.favoriteLists} mode={proofingGallery ? "proofing" : "favorites"} />
           </div>
         ) : null}

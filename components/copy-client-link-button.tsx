@@ -6,10 +6,12 @@ import { Button } from "@/components/button";
 
 export function CopyClientLinkButton({
   slug,
-  token
+  token,
+  label = "Privát kezelő link másolása"
 }: {
   slug: string;
   token: string;
+  label?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -29,7 +31,7 @@ export function CopyClientLinkButton({
   return (
     <Button type="button" variant="secondary" onClick={handleCopy}>
       {copied ? <Check size={16} /> : <Copy size={16} />}
-      {copied ? "Másolva" : "Ügyfél kezelő link másolása"}
+      {copied ? "Másolva" : label}
     </Button>
   );
 }
