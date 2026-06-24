@@ -254,6 +254,13 @@ model Contract {
   signedAt    DateTime?
   signedR2Key String?
   signedFileUrl String?
+  documentHash String?
+  signedPdfHash String?
+  signatureIpAddress String?
+  signatureUserAgent String?
+  acceptedTermsAt DateTime?
+  acceptedPrivacyAt DateTime?
+  auditTrail Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)

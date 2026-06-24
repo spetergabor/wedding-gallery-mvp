@@ -18,6 +18,12 @@ type Contract = {
   openedAt: Date | null;
   signedAt: Date | null;
   signedFileUrl: string | null;
+  documentHash: string | null;
+  signedPdfHash: string | null;
+  signatureIpAddress: string | null;
+  signatureUserAgent: string | null;
+  acceptedTermsAt: Date | null;
+  acceptedPrivacyAt: Date | null;
   createdAt: Date;
 };
 
@@ -50,6 +56,10 @@ function formatDate(date: Date | null) {
     timeStyle: "short",
     timeZone: APP_TIME_ZONE
   });
+}
+
+function shortHash(value: string | null) {
+  return value ? `${value.slice(0, 12)}...${value.slice(-8)}` : "nincs";
 }
 
 export function ContractManager({
@@ -169,6 +179,15 @@ export function ContractManager({
                 <p>Elküldve: {formatDate(contract.sentAt) ?? "még nincs"}</p>
                 <p>Megnyitva: {formatDate(contract.openedAt) ?? "még nincs"}</p>
                 <p>Aláírva: {formatDate(contract.signedAt) ?? "még nincs"}</p>
+                {contract.signedAt ? (
+                  <>
+                    <p>Szerződés hash: {shortHash(contract.documentHash)}</p>
+                    <p>Aláírt PDF hash: {shortHash(contract.signedPdfHash)}</p>
+                    <p>IP: {contract.signatureIpAddress ?? "nincs adat"}</p>
+                    <p>Böngésző: {contract.signatureUserAgent ? contract.signatureUserAgent.slice(0, 120) : "nincs adat"}</p>
+                    <p>Elfogadások: {formatDate(contract.acceptedTermsAt) ?? "nincs"} · {formatDate(contract.acceptedPrivacyAt) ?? "nincs"}</p>
+                  </>
+                ) : null}
                 {contract.accessTokenExpiresAt ? (
                   <p>Link lejár: {formatDate(contract.accessTokenExpiresAt)}</p>
                 ) : null}

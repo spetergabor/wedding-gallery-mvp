@@ -253,6 +253,11 @@ export default async function ContractPublicPage({
                   Der Link ist abgelaufen. Bitte fordert einen neuen Vertragslink an.
                 </div>
               ) : null}
+              {flags.signError === "consent" ? (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Bitte bestätigt die Vertragsannahme und den Hinweis zur Speicherung der technischen Nachweise.
+                </div>
+              ) : null}
               {flags.signError === "server" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   Beim Speichern der Unterschrift ist ein Fehler aufgetreten. Bitte versucht es erneut oder kontaktiert den Fotografen.

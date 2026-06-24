@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
@@ -17,6 +17,10 @@ function formString(formData: FormData, key: string) {
 
 function createContractAccessToken() {
   return randomBytes(32).toString("base64url");
+}
+
+function sha256Hex(value: Buffer | string) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 export async function uploadContractAction(customerId: string, formData: FormData) {
@@ -65,6 +69,7 @@ export async function uploadContractAction(customerId: string, formData: FormDat
       r2Key,
       fileUrl: getPhotoPublicUrl(r2Key),
       fileSize: file.size,
+      documentHash: sha256Hex(bytes),
       status: "draft"
     }
   });
@@ -105,6 +110,7 @@ export async function createWrittenContractAction(customerId: string, formData: 
       fileSize: 0,
       bodyText,
       clientFields,
+      documentHash: sha256Hex(JSON.stringify({ title, bodyText, clientFields })),
       status: "draft"
     }
   });

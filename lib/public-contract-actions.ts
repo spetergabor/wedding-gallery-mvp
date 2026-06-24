@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { createHash } from "node:crypto";
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from "pdf-lib";
 import {
   contractFieldDisplayLabel,
@@ -13,6 +15,21 @@ import {
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { prisma } from "@/lib/prisma";
 import { createSignedContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
+
+type ContractAuditEvidence = {
+  contractId: string;
+  contractTitle: string;
+  customerName: string;
+  signedAtIso: string;
+  documentHash: string;
+  signedPdfHash?: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  acceptedTermsAtIso: string;
+  acceptedPrivacyAtIso: string;
+  signatureMethod: "drawn_signature";
+  tokenHash: string;
+};
 
 function parseSignatureDataUrl(value: FormDataEntryValue | null) {
   if (typeof value !== "string") {
@@ -34,6 +51,37 @@ function formatDate(date: Date) {
     timeStyle: "short",
     timeZone: APP_TIME_ZONE
   });
+}
+
+function sha256Hex(value: Buffer | string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function firstForwardedIp(value: string | null) {
+  return value?.split(",")[0]?.trim() || null;
+}
+
+async function readSignatureRequestMetadata() {
+  const headerStore = await headers();
+
+  return {
+    ipAddress: firstForwardedIp(headerStore.get("x-forwarded-for")) ?? headerStore.get("x-real-ip"),
+    userAgent: headerStore.get("user-agent")
+  };
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right));
+
+    return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalJson(entryValue)}`).join(",")}}`;
+  }
+
+  return JSON.stringify(value ?? null);
 }
 
 function pdfText(value: string) {
@@ -120,6 +168,71 @@ function drawWrappedText({
   return cursorY;
 }
 
+async function drawAuditPage(pdf: PDFDocument, evidence: ContractAuditEvidence) {
+  const page = pdf.addPage([595.28, 841.89]);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const { width, height } = page.getSize();
+  const rows = [
+    ["Vertrag", evidence.contractTitle],
+    ["Kunde", evidence.customerName],
+    ["Unterzeichnet am", formatDate(new Date(evidence.signedAtIso))],
+    ["Signaturmethode", "Gezeichnete elektronische Unterschrift"],
+    ["Dokument SHA-256", evidence.documentHash],
+    ["Signiertes PDF SHA-256", evidence.signedPdfHash ?? "wird nach Erstellung gespeichert"],
+    ["Token SHA-256", evidence.tokenHash],
+    ["IP-Adresse", evidence.ipAddress ?? "nicht verfügbar"],
+    ["User-Agent", evidence.userAgent ?? "nicht verfügbar"],
+    ["Vertragsannahme", formatDate(new Date(evidence.acceptedTermsAtIso))],
+    ["Datenschutz-Hinweis", formatDate(new Date(evidence.acceptedPrivacyAtIso))]
+  ];
+  let y = height - 72;
+
+  page.drawText("Audit Trail", {
+    x: 56,
+    y,
+    size: 22,
+    font: boldFont,
+    color: rgb(0.09, 0.09, 0.09)
+  });
+  y -= 28;
+  y = drawWrappedText({
+    page,
+    text: "Dieses Blatt dokumentiert die elektronische Annahme des Vertrags. Es dient als technischer Nachweis der Version, der Unterschrift und der Annahmeerklärungen.",
+    x: 56,
+    y,
+    maxWidth: width - 112,
+    font,
+    size: 10,
+    lineHeight: 14,
+    color: rgb(0.35, 0.35, 0.35)
+  });
+  y -= 22;
+
+  for (const [label, value] of rows) {
+    page.drawText(pdfText(label), {
+      x: 56,
+      y,
+      size: 9,
+      font: boldFont,
+      color: rgb(0.35, 0.35, 0.35)
+    });
+    y -= 14;
+    y = drawWrappedText({
+      page,
+      text: value,
+      x: 56,
+      y,
+      maxWidth: width - 112,
+      font,
+      size: 9,
+      lineHeight: 12,
+      color: rgb(0.12, 0.12, 0.12)
+    });
+    y -= 10;
+  }
+}
+
 async function fetchSignaturePngBytes(signatureUrl: string | null | undefined) {
   if (!signatureUrl) {
     return null;
@@ -144,7 +257,8 @@ async function createSignedUploadedPdf({
   signatureBytes,
   coupleName,
   contractTitle,
-  signedAt
+  signedAt,
+  evidence
 }: {
   sourcePdfUrl: string;
   photographerSignatureBytes: Buffer | null;
@@ -152,6 +266,7 @@ async function createSignedUploadedPdf({
   coupleName: string;
   contractTitle: string;
   signedAt: Date;
+  evidence: ContractAuditEvidence;
 }) {
   const sourceResponse = await fetch(sourcePdfUrl, { cache: "no-store" });
 
@@ -267,6 +382,8 @@ async function createSignedUploadedPdf({
     color: rgb(0.45, 0.45, 0.45)
   });
 
+  await drawAuditPage(pdf, evidence);
+
   return Buffer.from(await pdf.save());
 }
 
@@ -277,7 +394,8 @@ async function createSignedWrittenPdf({
   signatureBytes,
   coupleName,
   contractTitle,
-  signedAt
+  signedAt,
+  evidence
 }: {
   bodyText: string;
   answers: Array<{ label: string; value: string }>;
@@ -286,6 +404,7 @@ async function createSignedWrittenPdf({
   coupleName: string;
   contractTitle: string;
   signedAt: Date;
+  evidence: ContractAuditEvidence;
 }) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -457,6 +576,8 @@ async function createSignedWrittenPdf({
     });
   }
 
+  await drawAuditPage(pdf, evidence);
+
   return Buffer.from(await pdf.save());
 }
 
@@ -472,9 +593,15 @@ function readClientFieldAnswers(formData: FormData, fields: ReturnType<typeof pa
 
 export async function signContractAction(token: string, formData: FormData) {
   const signatureBytes = parseSignatureDataUrl(formData.get("signatureData"));
+  const acceptedTerms = formData.get("acceptedTerms") === "on";
+  const acceptedPrivacy = formData.get("acceptedPrivacy") === "on";
 
   if (!signatureBytes || signatureBytes.length < 500) {
     redirect(`/contracts/${token}?signError=missing`);
+  }
+
+  if (!acceptedTerms || !acceptedPrivacy) {
+    redirect(`/contracts/${token}?signError=consent`);
   }
 
   const contract = await prisma.contract.findUnique({
@@ -498,8 +625,11 @@ export async function signContractAction(token: string, formData: FormData) {
   }
 
   const signedAt = new Date();
+  const acceptedTermsAt = signedAt;
+  const acceptedPrivacyAt = signedAt;
 
   try {
+    const requestMetadata = await readSignatureRequestMetadata();
     const settings = await prisma.siteSettings.findFirst({
       where: contract.customer.adminId
         ? { adminId: contract.customer.adminId }
@@ -511,6 +641,31 @@ export async function signContractAction(token: string, formData: FormData) {
     const completedFields = contract.sourceType === "written" ? readClientFieldAnswers(formData, clientFields) : {};
     const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
     const renderedBodyText = renderContractTemplateText(contract.bodyText ?? "", completedFields);
+    const documentHash =
+      contract.sourceType === "written"
+        ? sha256Hex(canonicalJson({ title: contract.title, renderedBodyText, completedFields }))
+        : contract.documentHash ??
+          sha256Hex(
+            canonicalJson({
+              contractId: contract.id,
+              title: contract.title,
+              sourceType: contract.sourceType,
+              fileUrl: contract.fileUrl
+            })
+          );
+    const evidence: ContractAuditEvidence = {
+      contractId: contract.id,
+      contractTitle: contract.title,
+      customerName: contract.customer.coupleName,
+      signedAtIso: signedAt.toISOString(),
+      documentHash,
+      ipAddress: requestMetadata.ipAddress,
+      userAgent: requestMetadata.userAgent,
+      acceptedTermsAtIso: acceptedTermsAt.toISOString(),
+      acceptedPrivacyAtIso: acceptedPrivacyAt.toISOString(),
+      signatureMethod: "drawn_signature",
+      tokenHash: sha256Hex(token)
+    };
     const signedPdfBytes =
       contract.sourceType === "written"
         ? await createSignedWrittenPdf({
@@ -525,7 +680,8 @@ export async function signContractAction(token: string, formData: FormData) {
             signatureBytes,
             coupleName: contract.customer.coupleName,
             contractTitle: contract.title,
-            signedAt
+            signedAt,
+            evidence
           })
         : await createSignedUploadedPdf({
             sourcePdfUrl: contract.fileUrl,
@@ -533,8 +689,15 @@ export async function signContractAction(token: string, formData: FormData) {
             signatureBytes,
             coupleName: contract.customer.coupleName,
             contractTitle: contract.title,
-            signedAt
+            signedAt,
+            evidence
           });
+    const signedPdfHash = sha256Hex(signedPdfBytes);
+    const auditTrail = {
+      ...evidence,
+      signedPdfHash,
+      evidenceHash: sha256Hex(canonicalJson({ ...evidence, signedPdfHash }))
+    };
     const signedR2Key = createSignedContractObjectKey({
       customerId: contract.customerId,
       contractId: contract.id
@@ -553,7 +716,14 @@ export async function signContractAction(token: string, formData: FormData) {
         signedAt,
         signedR2Key,
         signedFileUrl: getPhotoPublicUrl(signedR2Key),
-        completedFields
+        completedFields,
+        documentHash,
+        signedPdfHash,
+        signatureIpAddress: requestMetadata.ipAddress,
+        signatureUserAgent: requestMetadata.userAgent,
+        acceptedTermsAt,
+        acceptedPrivacyAt,
+        auditTrail
       }
     });
   } catch (error) {

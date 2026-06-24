@@ -14,13 +14,13 @@ function getPoint(canvas: HTMLCanvasElement, event: React.PointerEvent<HTMLCanva
   };
 }
 
-function SubmitButton({ hasSignature }: { hasSignature: boolean }) {
+function SubmitButton({ hasSignature, hasAccepted }: { hasSignature: boolean; hasAccepted: boolean }) {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
-      disabled={!hasSignature || pending}
+      disabled={!hasSignature || !hasAccepted || pending}
       className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
     >
       <Check size={16} />
@@ -43,6 +43,8 @@ export function ContractSignaturePad({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureInputRef = useRef<HTMLInputElement | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
 
   function prepareCanvas(canvas: HTMLCanvasElement) {
     const rect = canvas.getBoundingClientRect();
@@ -130,7 +132,7 @@ export function ContractSignaturePad({
     const canvas = canvasRef.current;
     const dataUrl = canvas?.toDataURL("image/png") ?? "";
 
-    if (!hasSignature || !dataUrl || !signatureInputRef.current) {
+    if (!hasSignature || !acceptedTerms || !acceptedPrivacy || !dataUrl || !signatureInputRef.current) {
       event.preventDefault();
       return;
     }
@@ -150,6 +152,30 @@ export function ContractSignaturePad({
     <form id={formId} action={signContractAction.bind(null, token)} onSubmit={handleSubmit} className="mt-5 space-y-4">
       <input ref={signatureInputRef} type="hidden" name="signatureData" />
       {children}
+      <div className="space-y-3 rounded-md border border-ink/10 bg-white p-4 text-sm leading-6 text-graphite/75">
+        <label className="flex gap-3">
+          <input
+            name="acceptedTerms"
+            type="checkbox"
+            required
+            checked={acceptedTerms}
+            onChange={(event) => setAcceptedTerms(event.currentTarget.checked)}
+            className="mt-1 size-4 rounded border-ink/20"
+          />
+          <span>Ich habe den Vertrag vollständig gelesen, verstanden und akzeptiere ihn mit meiner elektronischen Unterschrift.</span>
+        </label>
+        <label className="flex gap-3">
+          <input
+            name="acceptedPrivacy"
+            type="checkbox"
+            required
+            checked={acceptedPrivacy}
+            onChange={(event) => setAcceptedPrivacy(event.currentTarget.checked)}
+            className="mt-1 size-4 rounded border-ink/20"
+          />
+          <span>Ich stimme zu, dass technische Nachweise zur Unterzeichnung gespeichert werden, darunter Zeitstempel, Dokument-Hash, IP-Adresse und Browser-Informationen.</span>
+        </label>
+      </div>
       <div className="overflow-hidden rounded-md border border-ink/15 bg-white">
         <canvas
           ref={canvasRef}
@@ -175,7 +201,7 @@ export function ContractSignaturePad({
           <RotateCcw size={16} />
           Neu beginnen
         </button>
-        <SubmitButton hasSignature={hasSignature} />
+        <SubmitButton hasSignature={hasSignature} hasAccepted={acceptedTerms && acceptedPrivacy} />
       </div>
     </form>
   );
