@@ -25,8 +25,8 @@ export default async function AdminNotificationsPage() {
     <AdminShell>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Admin</p>
-          <h1 className="mt-2 text-4xl font-semibold text-ink">Értesítések</h1>
+          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Admin</p>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">Értesítések</h1>
           <p className="mt-3 text-graphite/70">Kedvenc listák és későbbi ügyfél aktivitások admin jelzései.</p>
         </div>
         {unreadCount > 0 ? (
@@ -39,7 +39,7 @@ export default async function AdminNotificationsPage() {
         ) : null}
       </div>
 
-      <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
+      <section className="rounded-md border border-ink/10 bg-white">
         <div className="divide-y divide-ink/10">
           {notifications.map((notification) => {
             const content = (

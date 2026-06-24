@@ -42,7 +42,7 @@ export default async function AdminGalleriesPage({
     <AdminShell>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Galériák</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Galériák</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Galériakezelés</h1>
           <p className="mt-3 max-w-2xl text-sm text-graphite/70">
             A galériák mostantól ügyfelekhez kapcsolódnak. Új munka előtt érdemes az ügyfél adatlapjáról indítani.

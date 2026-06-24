@@ -14,7 +14,7 @@ export default async function AdminRegisterPage({
 
   return (
     <main className="grid min-h-screen place-items-center bg-paper px-5">
-      <section className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-7 shadow-soft">
+      <section className="w-full max-w-md rounded-md border border-ink/10 bg-white p-7">
         <div className="mb-8 flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-md bg-ink text-white">
             <Camera size={20} />

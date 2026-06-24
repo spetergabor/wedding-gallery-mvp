@@ -133,14 +133,14 @@ export default async function AdminSettingsPage({
   return (
     <AdminShell>
       <div className="mb-8">
-        <p className="text-sm uppercase tracking-[0.24em] text-brass">Admin</p>
-        <h1 className="mt-2 text-4xl font-semibold text-ink">Általános beállítások</h1>
+        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Admin</p>
+        <h1 className="mt-2 text-3xl font-semibold text-ink">Általános beállítások</h1>
         <p className="mt-3 max-w-2xl text-graphite/70">
           Márkaadatok, logó, elérhetőségek és a platform külső szolgáltatói egy helyen.
         </p>
       </div>
 
-      <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
+      <div className="mb-6 rounded-md border border-ink/10 bg-white p-2">
         <nav className={`grid gap-2 ${admin.role === "super_admin" ? "sm:grid-cols-2" : "sm:grid-cols-1"}`} aria-label="Beállítások fülek">
           <Link
             href="/admin/settings?tab=brand"
@@ -183,7 +183,7 @@ export default async function AdminSettingsPage({
 
       {activeTab === "providers" ? (
         <div className="space-y-6">
-          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <section className="rounded-md border border-ink/10 bg-white p-5">
             <div className="flex items-start gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
                 <Activity size={18} />
@@ -202,7 +202,7 @@ export default async function AdminSettingsPage({
               const Icon = provider.icon;
 
               return (
-                <section key={provider.name} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <section key={provider.name} className="rounded-md border border-ink/10 bg-white p-5">
                   <div className="flex items-start gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
                       <Icon size={18} />

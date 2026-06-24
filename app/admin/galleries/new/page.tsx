@@ -82,8 +82,8 @@ export default async function NewGalleryPage({
   return (
     <AdminShell>
       <div className="mb-8">
-        <p className="text-sm uppercase tracking-[0.24em] text-brass">Új galéria</p>
-        <h1 className="mt-2 text-4xl font-semibold text-ink">Galéria létrehozása</h1>
+        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Új galéria</p>
+        <h1 className="mt-2 text-3xl font-semibold text-ink">Galéria létrehozása</h1>
         <p className="mt-3 max-w-2xl text-sm text-graphite/70">
           Először válaszd ki, milyen munkafolyamatot indítasz. Így a feltöltés, ügyfél link és átadás útvonala is egyértelmű lesz.
         </p>
@@ -108,7 +108,7 @@ export default async function NewGalleryPage({
         <section className="grid gap-4 lg:grid-cols-2">
           <Link
             href={modeHref(GALLERY_MODE_FULL, flags)}
-            className="group rounded-lg border border-ink/10 bg-white p-6 shadow-soft transition hover:border-ink/25 hover:bg-ink/[0.02]"
+            className="group rounded-md border border-ink/10 bg-white p-6 transition hover:border-ink/25 hover:bg-ink/[0.02]"
           >
             <div className="flex size-12 items-center justify-center rounded-md bg-ink text-white">
               <Camera size={22} />
@@ -129,7 +129,7 @@ export default async function NewGalleryPage({
 
           <Link
             href={modeHref(GALLERY_MODE_PROOFING, flags)}
-            className="group rounded-lg border border-ink/10 bg-white p-6 shadow-soft transition hover:border-ink/25 hover:bg-ink/[0.02]"
+            className="group rounded-md border border-ink/10 bg-white p-6 transition hover:border-ink/25 hover:bg-ink/[0.02]"
           >
             <div className="flex size-12 items-center justify-center rounded-md bg-brass text-white">
               <ImagePlus size={22} />
@@ -150,10 +150,10 @@ export default async function NewGalleryPage({
         </section>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col justify-between gap-3 rounded-lg border border-ink/10 bg-white p-4 shadow-soft sm:flex-row sm:items-center">
+          <div className="flex flex-col justify-between gap-3 rounded-md border border-ink/10 bg-white p-4 sm:flex-row sm:items-center">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Kiválasztott útvonal</p>
-              <p className="mt-1 text-lg font-semibold text-ink">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/65">Kiválasztott útvonal</p>
+              <p className="mt-1 text-base font-semibold text-ink">
                 {selectedMode === GALLERY_MODE_PROOFING ? "Nyers képek válogatásra" : "Kész galéria átadásra"}
               </p>
             </div>

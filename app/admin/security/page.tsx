@@ -48,8 +48,8 @@ export default async function AdminSecurityPage({
   return (
     <AdminShell>
       <div className="mb-8">
-        <p className="text-sm uppercase tracking-[0.24em] text-brass">Admin</p>
-        <h1 className="mt-2 text-4xl font-semibold text-ink">Biztonság</h1>
+        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Admin</p>
+        <h1 className="mt-2 text-3xl font-semibold text-ink">Biztonság</h1>
         <p className="mt-3 max-w-2xl text-graphite/70">
           Kétfaktoros hitelesítés az admin belépéshez. Bekapcsolás után a jelszó mellett egy 6 jegyű authenticator kód is kell.
         </p>
@@ -63,7 +63,7 @@ export default async function AdminSecurityPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+        <section className="rounded-md border border-ink/10 bg-white p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold text-ink">Kétfaktoros hitelesítés</h2>
@@ -130,7 +130,7 @@ export default async function AdminSecurityPage({
           )}
         </section>
 
-        <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+        <section className="rounded-md border border-ink/10 bg-white p-6">
           <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
             <KeyRound size={20} />
           </div>

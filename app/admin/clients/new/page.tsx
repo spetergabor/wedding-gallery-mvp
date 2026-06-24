@@ -14,8 +14,8 @@ export default async function NewCustomerPage({
   return (
     <AdminShell>
       <div className="mb-8">
-        <p className="text-sm uppercase tracking-[0.24em] text-brass">Új ügyfél</p>
-        <h1 className="mt-2 text-4xl font-semibold text-ink">Ügyfél felvitele</h1>
+        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Új ügyfél</p>
+        <h1 className="mt-2 text-3xl font-semibold text-ink">Ügyfél felvitele</h1>
         <p className="mt-3 max-w-2xl text-sm text-graphite/70">
           Válaszd ki, milyen típusú munkáról van szó: esküvő, párfotózás, egyéni ügyfél, család, esemény vagy cég.
         </p>
