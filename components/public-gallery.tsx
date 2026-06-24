@@ -13,6 +13,142 @@ import {
   submitFavoriteListAction,
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
+import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
+
+const GALLERY_COPY = {
+  de: {
+    selection: "Bildauswahl",
+    favoritesList: "Favoritenliste",
+    newListPlaceholder: "Neue Liste, z. B. Album",
+    createList: "Liste erstellen",
+    selected: "ausgewählt",
+    favorites: "Favoriten",
+    noActiveSelection: "Keine aktive Auswahl",
+    noActiveList: "Keine aktive Liste",
+    sent: "Abgeschickt",
+    completed: "Abgeschlossen",
+    selectionReady: "Wenn deine Auswahl fertig ist, schicke sie ab.",
+    listReady: "Wenn deine Auswahl fertig ist, schließe die Liste ab.",
+    saving: "Wird gespeichert...",
+    updateSelection: "Auswahl aktualisieren",
+    sendSelection: "Auswahl abschicken",
+    finishSelection: "Auswahl abschließen",
+    zipPreparing: "ZIP wird vorbereitet",
+    zipEmail: "ZIP per E-Mail",
+    downloadAlbum: "Album herunterladen",
+    downloadIntro: "Gib deine E-Mail-Adresse ein. Bei großen Galerien senden wir dir eine E-Mail mit allen ZIP-Teilen.",
+    close: "Schließen",
+    email: "E-Mail-Adresse",
+    zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen. Du erhältst trotzdem nur eine E-Mail mit allen Download-Links.",
+    zipLinksPreparing: "ZIP-Links werden vorbereitet",
+    requestDownloadLinks: "Download-Links anfordern",
+    cancel: "Abbrechen",
+    reviewSelection: "Auswahl prüfen",
+    reviewSelectionText: (count: number) => `Du hast ${count} ${count === 1 ? "Foto" : "Fotos"} ausgewählt. Bitte prüfe die Auswahl, bevor du sie abschickst.`,
+    moreSelected: (count: number) => `+${count} weitere ausgewählte Fotos`,
+    filenames: "Dateinamen",
+    backToSelection: "Zurück zur Auswahl",
+    sending: "Wird abgeschickt...",
+    saveSelection: "Bildauswahl speichern",
+    saveFavorites: "Favoriten speichern",
+    saveSelectionIntro: "Gib deine E-Mail-Adresse ein, damit wir deine Auswahl zuordnen können.",
+    saveFavoritesIntro: "Gib deine E-Mail-Adresse ein. Deine ausgewählten Lieblingsfotos werden damit gespeichert.",
+    saveSelectionButton: "Auswahl speichern",
+    saveFavoriteButton: "Favorit speichern",
+    choose: "Auswählen",
+    favorite: "Favorit",
+    chooseAria: "auswählen",
+    favoriteAria: "zu den Favoriten hinzufügen",
+    loading: "Lädt...",
+    download: "Herunterladen",
+    previousPhoto: "Vorheriges Foto",
+    nextPhoto: "Nächstes Foto",
+    saveError: "Die Auswahl konnte nicht gespeichert werden.",
+    downloadLinksSent: "Die Download-Links wurden in einer E-Mail gesendet.",
+    zipProcessing: "Die ZIP-Teile werden erstellt. Du bekommst eine E-Mail mit allen Links.",
+    zipWaiting: "Die ZIP-Teile warten auf Verarbeitung. Du bekommst eine E-Mail mit allen Links.",
+    downloadPreparing: "Download-Paket wird vorbereitet...",
+    zipPrepareFailed: "Die ZIP-Datei konnte nicht vorbereitet werden.",
+    zipCreateFailed: "Die ZIP-Datei konnte nicht erstellt werden.",
+    photoDownloadFailed: "Das Foto konnte nicht heruntergeladen werden.",
+    selectionNotFound: "Die Auswahl konnte nicht gefunden werden.",
+    favoriteListNotFound: "Die Favoritenliste konnte nicht gefunden werden.",
+    defaultSelectionName: "Auswahl",
+    defaultFavoritesName: "Favoriten",
+    favoriteSaveError: "Der Favorit konnte nicht gespeichert werden.",
+    emailRequired: "Bitte gib deine E-Mail-Adresse ein.",
+    listNameRequired: "Bitte gib einen Namen für die Liste ein.",
+    listCreateError: "Die Liste konnte nicht erstellt werden.",
+    selectionSaved: "Die Auswahl wurde gespeichert.",
+    openPhoto: "Foto öffnen"
+  },
+  hu: {
+    selection: "Képválogatás",
+    favoritesList: "Kedvencek listája",
+    newListPlaceholder: "Új lista, pl. Album",
+    createList: "Lista létrehozása",
+    selected: "kiválasztva",
+    favorites: "kedvenc",
+    noActiveSelection: "Nincs aktív válogatás",
+    noActiveList: "Nincs aktív lista",
+    sent: "Elküldve",
+    completed: "Lezárva",
+    selectionReady: "Ha kész a válogatás, küldd el.",
+    listReady: "Ha kész a válogatás, zárd le a listát.",
+    saving: "Mentés...",
+    updateSelection: "Válogatás frissítése",
+    sendSelection: "Válogatás elküldése",
+    finishSelection: "Válogatás lezárása",
+    zipPreparing: "ZIP előkészítése",
+    zipEmail: "ZIP e-mailben",
+    downloadAlbum: "Album letöltése",
+    downloadIntro: "Add meg az e-mail címed. Nagy galériáknál egy e-mailben küldjük el az összes ZIP-rész linkjét.",
+    close: "Bezárás",
+    email: "E-mail cím",
+    zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak. Ettől függetlenül csak egy e-mailt kapsz az összes letöltési linkkel.",
+    zipLinksPreparing: "ZIP-linkek előkészítése",
+    requestDownloadLinks: "Letöltési linkek kérése",
+    cancel: "Mégse",
+    reviewSelection: "Válogatás ellenőrzése",
+    reviewSelectionText: (count: number) => `${count} fotót választottál ki. Küldés előtt ellenőrizd a válogatást.`,
+    moreSelected: (count: number) => `+${count} további kiválasztott fotó`,
+    filenames: "Fájlnevek",
+    backToSelection: "Vissza a válogatáshoz",
+    sending: "Küldés...",
+    saveSelection: "Képválogatás mentése",
+    saveFavorites: "Kedvencek mentése",
+    saveSelectionIntro: "Add meg az e-mail címed, hogy hozzá tudjuk rendelni a válogatásodat.",
+    saveFavoritesIntro: "Add meg az e-mail címed. Így tudjuk menteni a kiválasztott kedvenc fotóidat.",
+    saveSelectionButton: "Válogatás mentése",
+    saveFavoriteButton: "Kedvenc mentése",
+    choose: "Kiválasztás",
+    favorite: "Kedvenc",
+    chooseAria: "kiválasztása",
+    favoriteAria: "hozzáadása a kedvencekhez",
+    loading: "Betöltés...",
+    download: "Letöltés",
+    previousPhoto: "Előző fotó",
+    nextPhoto: "Következő fotó",
+    saveError: "A válogatást nem sikerült menteni.",
+    downloadLinksSent: "A letöltési linkeket elküldtük e-mailben.",
+    zipProcessing: "A ZIP-részek készülnek. Egy e-mailben megkapod az összes linket.",
+    zipWaiting: "A ZIP-részek feldolgozásra várnak. Egy e-mailben megkapod az összes linket.",
+    downloadPreparing: "Letöltési csomag előkészítése...",
+    zipPrepareFailed: "A ZIP fájlt nem sikerült előkészíteni.",
+    zipCreateFailed: "A ZIP fájlt nem sikerült létrehozni.",
+    photoDownloadFailed: "A fotót nem sikerült letölteni.",
+    selectionNotFound: "A válogatást nem sikerült megtalálni.",
+    favoriteListNotFound: "A kedvenclistát nem sikerült megtalálni.",
+    defaultSelectionName: "Válogatás",
+    defaultFavoritesName: "Kedvencek",
+    favoriteSaveError: "A kedvencet nem sikerült menteni.",
+    emailRequired: "Add meg az e-mail címed.",
+    listNameRequired: "Adj nevet a listának.",
+    listCreateError: "A listát nem sikerült létrehozni.",
+    selectionSaved: "A válogatást mentettük.",
+    openPhoto: "Fotó megnyitása"
+  }
+} as const;
 
 type PublicPhoto = {
   id: string;
@@ -78,7 +214,8 @@ export function PublicGallery({
   photos,
   downloadsEnabled,
   favoritesEnabled = true,
-  favoriteMode = "favorites"
+  favoriteMode = "favorites",
+  language = "de"
 }: {
   galleryId: string;
   title: string;
@@ -86,6 +223,7 @@ export function PublicGallery({
   downloadsEnabled: boolean;
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
+  language?: CustomerLanguage;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -111,6 +249,7 @@ export function PublicGallery({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isSelectionSummaryOpen, setIsSelectionSummaryOpen] = useState(false);
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
+  const copy = GALLERY_COPY[language];
   const proofingSelection = favoritesEnabled && favoriteMode === "proofing";
   const activeFavoriteList = favoriteLists.find((list) => list.id === activeFavoriteListId) ?? favoriteLists[0] ?? null;
   const favoriteIds = useMemo(
@@ -293,7 +432,7 @@ export function PublicGallery({
       setZipPackageStatus(result.status as DownloadPackageStatus);
 
       if (result.status === "completed") {
-        setZipProgress(result.message || "Die Download-Links wurden in einer E-Mail gesendet.");
+        setZipProgress(result.message || copy.downloadLinksSent);
         setIsZipping(false);
         setZipPackageId(null);
         setZipPackageStatus("completed");
@@ -302,8 +441,8 @@ export function PublicGallery({
 
       setZipProgress(
         result.status === "processing"
-          ? "Die ZIP-Teile werden erstellt. Du bekommst eine E-Mail mit allen Links."
-          : "Die ZIP-Teile warten auf Verarbeitung. Du bekommst eine E-Mail mit allen Links."
+          ? copy.zipProcessing
+          : copy.zipWaiting
       );
     }
 
@@ -314,7 +453,7 @@ export function PublicGallery({
       isMounted = false;
       window.clearInterval(interval);
     };
-  }, [isEmailOpen, isZipping, title, zipPackageId]);
+  }, [copy.downloadLinksSent, copy.zipProcessing, copy.zipWaiting, isEmailOpen, isZipping, title, zipPackageId]);
 
   async function createZipDownload() {
     if (isZipping || !downloadsEnabled) {
@@ -325,7 +464,7 @@ export function PublicGallery({
     setEmailError("");
     setZipPackageId(null);
     setZipPackageStatus(null);
-    setZipProgress("Download-Paket wird vorbereitet...");
+    setZipProgress(copy.downloadPreparing);
 
     try {
       const result = await requestGalleryDownloadPackageAction(galleryId, email);
@@ -335,25 +474,25 @@ export function PublicGallery({
       }
 
       if (result.status === "completed") {
-        setZipProgress(result.message || "Die Download-Links werden in einer E-Mail gesendet.");
+        setZipProgress(result.message || copy.downloadLinksSent);
         setIsZipping(false);
         setZipPackageStatus("completed");
         return;
       }
 
       if (!result.packageId) {
-        throw new Error("Die ZIP-Datei konnte nicht vorbereitet werden.");
+        throw new Error(copy.zipPrepareFailed);
       }
 
       setZipPackageId(result.packageId);
       setZipPackageStatus(result.status as DownloadPackageStatus);
       setZipProgress(
         result.status === "processing"
-          ? "Die ZIP-Teile werden erstellt. Du bekommst eine E-Mail mit allen Links."
-          : "Die ZIP-Teile warten auf Verarbeitung. Du bekommst eine E-Mail mit allen Links."
+          ? copy.zipProcessing
+          : copy.zipWaiting
       );
     } catch (error) {
-      setEmailError(error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.");
+      setEmailError(error instanceof Error ? error.message : copy.zipCreateFailed);
       setIsZipping(false);
       setZipProgress("");
     }
@@ -377,7 +516,7 @@ export function PublicGallery({
       const response = await fetch(photo.imageUrl, { cache: "no-store" });
 
       if (!response.ok) {
-        throw new Error("Das Foto konnte nicht heruntergeladen werden.");
+        throw new Error(copy.photoDownloadFailed);
       }
 
       const blob = await response.blob();
@@ -448,11 +587,11 @@ export function PublicGallery({
       }
 
       if (!result.listId) {
-        throw new Error(proofingSelection ? "Die Auswahl konnte nicht gefunden werden." : "Die Favoritenliste konnte nicht gefunden werden.");
+        throw new Error(proofingSelection ? copy.selectionNotFound : copy.favoriteListNotFound);
       }
 
       const resultListId = result.listId;
-      const resultListName = result.listName ?? (proofingSelection ? "Auswahl" : "Favoriten");
+      const resultListName = result.listName ?? (proofingSelection ? copy.defaultSelectionName : copy.defaultFavoritesName);
 
       setFavoriteLists((current) =>
         current.some((list) => list.id === resultListId)
@@ -484,7 +623,7 @@ export function PublicGallery({
       setActiveFavoriteListId(resultListId);
     } catch (error) {
       setFavoriteLists(previousLists);
-      setFavoriteError(error instanceof Error ? error.message : proofingSelection ? "Die Auswahl konnte nicht gespeichert werden." : "Der Favorit konnte nicht gespeichert werden.");
+      setFavoriteError(error instanceof Error ? error.message : proofingSelection ? copy.saveError : copy.favoriteSaveError);
     } finally {
       setPendingFavoriteId(null);
     }
@@ -500,7 +639,7 @@ export function PublicGallery({
     const normalizedEmail = favoriteEmailDraft.trim().toLowerCase();
 
     if (!normalizedEmail) {
-      setFavoriteError("Bitte gib deine E-Mail-Adresse ein.");
+      setFavoriteError(copy.emailRequired);
       return;
     }
 
@@ -512,7 +651,7 @@ export function PublicGallery({
     let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail);
 
     if (listsResult.ok && listsResult.lists.length === 0) {
-      const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? "Auswahl" : "Favoriten");
+      const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? copy.defaultSelectionName : copy.defaultFavoritesName);
 
       if (created.ok && created.list) {
         listsResult = {
@@ -552,7 +691,7 @@ export function PublicGallery({
     }
 
     if (!listName) {
-      setFavoriteError("Bitte gib einen Namen für die Liste ein.");
+      setFavoriteError(copy.listNameRequired);
       return;
     }
 
@@ -560,7 +699,7 @@ export function PublicGallery({
     const result = await createFavoriteListAction(galleryId, normalizedEmail, listName);
 
     if (!result.ok || !result.list) {
-      setFavoriteError(result.message ?? "Die Liste konnte nicht erstellt werden.");
+      setFavoriteError(result.message ?? copy.listCreateError);
       return;
     }
 
@@ -594,10 +733,10 @@ export function PublicGallery({
           list.id === activeFavoriteList.id ? { ...list, submittedAt: result.submittedAt } : list
         )
       );
-      setFavoriteSuccess(result.message ?? "Die Auswahl wurde gespeichert.");
+      setFavoriteSuccess(result.message ?? copy.selectionSaved);
       setIsSelectionSummaryOpen(false);
     } catch (error) {
-      setFavoriteError(error instanceof Error ? error.message : "Die Auswahl konnte nicht gespeichert werden.");
+      setFavoriteError(error instanceof Error ? error.message : copy.saveError);
     } finally {
       setIsSubmittingFavoriteList(false);
     }
@@ -615,7 +754,7 @@ export function PublicGallery({
   }
 
   function formatSubmittedAt(value: string) {
-    return new Intl.DateTimeFormat("de-AT", {
+    return new Intl.DateTimeFormat(dateLocaleForCustomer(language), {
       dateStyle: "medium",
       timeStyle: "short",
       timeZone: APP_TIME_ZONE
@@ -645,7 +784,7 @@ export function PublicGallery({
           <div className="col-span-full mb-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <span className="text-sm font-medium text-graphite">{proofingSelection ? "Bildauswahl" : "Favoritenliste"}</span>
+                <span className="text-sm font-medium text-graphite">{proofingSelection ? copy.selection : copy.favoritesList}</span>
                 <select
                   value={activeFavoriteList?.id ?? ""}
                   onChange={(event) => {
@@ -669,11 +808,11 @@ export function PublicGallery({
                     <input
                       value={newFavoriteListName}
                       onChange={(event) => setNewFavoriteListName(event.target.value)}
-                      placeholder="Neue Liste, z. B. Album"
+                      placeholder={copy.newListPlaceholder}
                       className="h-10 min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50 sm:w-64"
                     />
                     <Button type="button" variant="secondary" onClick={() => void createNewFavoriteList()}>
-                      Liste erstellen
+                      {copy.createList}
                     </Button>
                   </>
                 )}
@@ -683,17 +822,17 @@ export function PublicGallery({
               <div>
                 <p className="text-sm font-medium text-ink">
                   {activeFavoriteList
-                    ? `${activeFavoriteList.name}: ${favoriteCount} ${proofingSelection ? "ausgewählt" : "Favoriten"}`
+                    ? `${activeFavoriteList.name}: ${favoriteCount} ${proofingSelection ? copy.selected : copy.favorites}`
                     : proofingSelection
-                      ? "Keine aktive Auswahl"
-                      : "Keine aktive Liste"}
+                      ? copy.noActiveSelection
+                      : copy.noActiveList}
                 </p>
                 <p className="mt-1 text-sm text-graphite/70">
                   {activeFavoriteList?.submittedAt
-                    ? `${proofingSelection ? "Abgeschickt" : "Abgeschlossen"} am ${formatSubmittedAt(activeFavoriteList.submittedAt)}`
+                    ? `${proofingSelection ? copy.sent : copy.completed}: ${formatSubmittedAt(activeFavoriteList.submittedAt)}`
                     : proofingSelection
-                      ? "Wenn deine Auswahl fertig ist, schicke sie ab."
-                      : "Wenn deine Auswahl fertig ist, schließe die Liste ab."}
+                      ? copy.selectionReady
+                      : copy.listReady}
                 </p>
               </div>
               <Button
@@ -704,12 +843,12 @@ export function PublicGallery({
               >
                 <Heart size={16} />
                 {isSubmittingFavoriteList
-                  ? "Wird gespeichert..."
+                  ? copy.saving
                   : activeFavoriteList?.submittedAt
-                    ? "Auswahl aktualisieren"
+                    ? copy.updateSelection
                     : proofingSelection
-                      ? "Auswahl abschicken"
-                      : "Auswahl abschließen"}
+                      ? copy.sendSelection
+                      : copy.finishSelection}
               </Button>
             </div>
             {favoriteSuccess ? (
@@ -734,8 +873,8 @@ export function PublicGallery({
                 <span className="relative block w-full">
                   <button
                     type="button"
-                    title="Foto öffnen"
-                    aria-label={`${photo.filename} öffnen`}
+                    title={copy.openPhoto}
+                    aria-label={`${copy.openPhoto}: ${photo.filename}`}
                     onClick={() => setSelectedIndex(index)}
                     className="relative z-0 block w-full text-left"
                   >
@@ -818,13 +957,13 @@ export function PublicGallery({
               } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
             >
               <Heart size={16} />
-              {favoriteCount} {proofingSelection ? "ausgewählt" : "Favoriten"}
+              {favoriteCount} {proofingSelection ? copy.selected : copy.favorites}
             </button>
           ) : null}
           {downloadsEnabled ? (
             <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
               <Download size={16} />
-              {isZipping ? "ZIP wird vorbereitet" : "ZIP per E-Mail"}
+              {isZipping ? copy.zipPreparing : copy.zipEmail}
             </Button>
           ) : null}
         </div>
@@ -838,14 +977,14 @@ export function PublicGallery({
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
                   <Mail size={20} />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-ink">Album herunterladen</h2>
+                <h2 className="mt-4 text-xl font-semibold text-ink">{copy.downloadAlbum}</h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  Gib deine E-Mail-Adresse ein. Bei großen Galerien senden wir dir eine E-Mail mit allen ZIP-Teilen.
+                  {copy.downloadIntro}
                 </p>
               </div>
               <button
                 type="button"
-                title="Schließen"
+                title={copy.close}
                 onClick={closeDownloadDialog}
                 className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
               >
@@ -854,7 +993,7 @@ export function PublicGallery({
             </div>
 
             <label className="mt-5 block space-y-2">
-              <span className="text-sm font-medium text-graphite">E-Mail-Adresse</span>
+              <span className="text-sm font-medium text-graphite">{copy.email}</span>
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -866,7 +1005,7 @@ export function PublicGallery({
             </label>
 
             <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm text-graphite/75">
-              Große Galerien können aus mehreren ZIP-Teilen bestehen. Du erhältst trotzdem nur eine E-Mail mit allen Download-Links.
+              {copy.zipPartsInfo}
             </div>
 
             {emailError ? (
@@ -891,10 +1030,10 @@ export function PublicGallery({
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="submit" disabled={isZipping} className="sm:flex-1">
                 <Download size={16} />
-                {isZipping ? "ZIP-Links werden vorbereitet" : "Download-Links anfordern"}
+                {isZipping ? copy.zipLinksPreparing : copy.requestDownloadLinks}
               </Button>
               <Button type="button" variant="secondary" onClick={closeDownloadDialog}>
-                Abbrechen
+                {copy.cancel}
               </Button>
             </div>
           </form>
@@ -909,15 +1048,14 @@ export function PublicGallery({
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
                   <Heart size={20} />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-ink">Auswahl prüfen</h2>
+                <h2 className="mt-4 text-xl font-semibold text-ink">{copy.reviewSelection}</h2>
                 <p className="mt-2 text-sm leading-6 text-graphite/70">
-                  Du hast {favoriteCount} {favoriteCount === 1 ? "Foto" : "Fotos"} ausgewählt. Bitte prüfe die Auswahl,
-                  bevor du sie abschickst.
+                  {copy.reviewSelectionText(favoriteCount)}
                 </p>
               </div>
               <button
                 type="button"
-                title="Schließen"
+                title={copy.close}
                 onClick={() => setIsSelectionSummaryOpen(false)}
                 className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
               >
@@ -949,12 +1087,12 @@ export function PublicGallery({
 
               {selectedFavoritePhotos.length > 18 ? (
                 <p className="mt-3 text-sm text-graphite/70">
-                  +{selectedFavoritePhotos.length - 18} weitere ausgewählte Fotos
+                  {copy.moreSelected(selectedFavoritePhotos.length - 18)}
                 </p>
               ) : null}
 
               <div className="mt-4 rounded-md bg-paper p-3">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">Dateinamen</p>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">{copy.filenames}</p>
                 <div className="mt-2 max-h-44 overflow-auto rounded-md bg-white px-3 py-2">
                   <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-5 text-graphite">
                     {selectedFavoritePhotos.map((photo) => photo.filename).join("\n")}
@@ -971,11 +1109,11 @@ export function PublicGallery({
 
             <div className="flex flex-col gap-3 border-t border-ink/10 p-5 sm:flex-row sm:justify-end">
               <Button type="button" variant="secondary" onClick={() => setIsSelectionSummaryOpen(false)}>
-                Zurück zur Auswahl
+                {copy.backToSelection}
               </Button>
               <Button type="button" onClick={() => void submitActiveFavoriteList()} disabled={isSubmittingFavoriteList}>
                 <Heart size={16} />
-                {isSubmittingFavoriteList ? "Wird abgeschickt..." : "Auswahl abschicken"}
+                {isSubmittingFavoriteList ? copy.sending : copy.sendSelection}
               </Button>
             </div>
           </section>
@@ -991,17 +1129,17 @@ export function PublicGallery({
                   <Heart size={20} />
                 </div>
                 <h2 className="mt-4 text-xl font-semibold text-ink">
-                  {proofingSelection ? "Bildauswahl speichern" : "Favoriten speichern"}
+                  {proofingSelection ? copy.saveSelection : copy.saveFavorites}
                 </h2>
                 <p className="mt-2 text-sm text-graphite/70">
                   {proofingSelection
-                    ? "Gib deine E-Mail-Adresse ein, damit wir deine Auswahl zuordnen können."
-                    : "Gib deine E-Mail-Adresse ein. Deine ausgewählten Lieblingsfotos werden damit gespeichert."}
+                    ? copy.saveSelectionIntro
+                    : copy.saveFavoritesIntro}
                 </p>
               </div>
               <button
                 type="button"
-                title="Schließen"
+                title={copy.close}
                 onClick={() => setFavoritePromptPhotoId(null)}
                 className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
               >
@@ -1010,7 +1148,7 @@ export function PublicGallery({
             </div>
 
             <label className="mt-5 block space-y-2">
-              <span className="text-sm font-medium text-graphite">E-Mail-Adresse</span>
+              <span className="text-sm font-medium text-graphite">{copy.email}</span>
               <input
                 value={favoriteEmailDraft}
                 onChange={(event) => setFavoriteEmailDraft(event.target.value)}
@@ -1030,10 +1168,10 @@ export function PublicGallery({
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button type="submit" className="sm:flex-1">
                 <Heart size={16} />
-                {proofingSelection ? "Auswahl speichern" : "Favorit speichern"}
+                {proofingSelection ? copy.saveSelectionButton : copy.saveFavoriteButton}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setFavoritePromptPhotoId(null)}>
-                Abbrechen
+                {copy.cancel}
               </Button>
             </div>
           </form>
@@ -1047,13 +1185,13 @@ export function PublicGallery({
             <div className="flex items-center gap-2">
               {favoritesEnabled ? (
                 <button
-                  title={proofingSelection ? "Auswählen" : "Favorit"}
-                  aria-label={`${selectedPhoto.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
+                  title={proofingSelection ? copy.choose : copy.favorite}
+                  aria-label={`${selectedPhoto.filename} ${proofingSelection ? copy.chooseAria : copy.favoriteAria}`}
                   onClick={() => void toggleFavorite(selectedPhoto.id)}
                   className={`flex h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition duration-150 active:scale-95 ${favoriteIds.has(selectedPhoto.id) ? "bg-brass text-white" : "bg-white/10 text-white hover:bg-white/20"}`}
                 >
                   <Heart size={16} fill={favoriteIds.has(selectedPhoto.id) ? "currentColor" : "none"} />
-                  {proofingSelection ? "Auswählen" : "Favorit"}
+                  {proofingSelection ? copy.choose : copy.favorite}
                 </button>
               ) : null}
               {downloadsEnabled ? (
@@ -1064,11 +1202,11 @@ export function PublicGallery({
                   className="flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink disabled:opacity-60"
                 >
                   <Download size={16} />
-                  {downloadingPhotoId === selectedPhoto.id ? "Lädt..." : "Herunterladen"}
+                  {downloadingPhotoId === selectedPhoto.id ? copy.loading : copy.download}
                 </button>
               ) : null}
               <button
-                title="Schließen"
+                title={copy.close}
                 onClick={() => setSelectedIndex(null)}
                 className="flex size-10 items-center justify-center rounded-md bg-white/10 hover:bg-white/20"
               >
@@ -1081,7 +1219,7 @@ export function PublicGallery({
             <>
               <button
                 type="button"
-                title="Vorheriges Foto"
+                title={copy.previousPhoto}
                 onClick={showPreviousPhoto}
                 className="absolute left-3 top-1/2 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-md bg-white/15 text-white backdrop-blur transition hover:bg-white/25 md:left-4 md:size-12"
               >
@@ -1089,7 +1227,7 @@ export function PublicGallery({
               </button>
               <button
                 type="button"
-                title="Nächstes Foto"
+                title={copy.nextPhoto}
                 onClick={showNextPhoto}
                 className="absolute right-3 top-1/2 z-10 flex size-11 -translate-y-1/2 items-center justify-center rounded-md bg-white/15 text-white backdrop-blur transition hover:bg-white/25 md:right-4 md:size-12"
               >

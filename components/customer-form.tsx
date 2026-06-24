@@ -127,7 +127,7 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
       ) : null}
       <div className="grid gap-5 md:grid-cols-2">
         <label className="space-y-2">
-          <span className="text-sm font-medium text-graphite">Nyeró nyelv</span>
+          <span className="text-sm font-medium text-graphite">Elsődleges nyelv</span>
           <select
             name="preferredLanguage"
             defaultValue={normalizeCustomerLanguage(customer?.preferredLanguage)}

@@ -17,7 +17,7 @@ import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
-    return "Private Galerie";
+    return language === "hu" ? "Privát galéria" : "Private Galerie";
   }
 
   return new Intl.DateTimeFormat(dateLocaleForCustomer(language), {
@@ -76,9 +76,9 @@ export default async function PublicGalleryPage({
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
-  const language = normalizeCustomerLanguage(flags.lang ?? gallery.customer?.preferredLanguage);
-  const heroMeta = proofingSelection ? "Bildauswahl" : formatEventDate(gallery.eventDate, language);
-  const publicGalleryPath = language ? `/g/${gallery.slug}?lang=${language}` : `/g/${gallery.slug}`;
+  const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage ?? flags.lang);
+  const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
+  const publicGalleryPath = `/g/${gallery.slug}`;
 
   if (!canView) {
     return (
@@ -88,11 +88,11 @@ export default async function PublicGalleryPage({
             <Lock size={20} />
           </div>
           <h1 className="mt-5 text-2xl font-semibold text-ink">{gallery.title}</h1>
-          <p className="mt-2 text-sm text-graphite/70">Diese Galerie ist passwortgeschützt.</p>
+          <p className="mt-2 text-sm text-graphite/70">{language === "hu" ? "Ez a galéria jelszóval védett." : "Diese Galerie ist passwortgeschützt."}</p>
 
           {flags.error ? (
             <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Das Galerie-Passwort ist nicht korrekt.
+              {language === "hu" ? "A galéria jelszava nem megfelelő." : "Das Galerie-Passwort ist nicht korrekt."}
             </div>
           ) : null}
 
@@ -102,10 +102,10 @@ export default async function PublicGalleryPage({
               name="password"
               type="password"
               required
-              placeholder="Galerie-Passwort"
+              placeholder={language === "hu" ? "Galéria jelszó" : "Galerie-Passwort"}
               className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-left outline-none transition focus:border-ink/50"
             />
-            <Button type="submit" className="w-full">Galerie öffnen</Button>
+            <Button type="submit" className="w-full">{language === "hu" ? "Galéria megnyitása" : "Galerie öffnen"}</Button>
           </form>
         </section>
       </main>
@@ -156,11 +156,11 @@ export default async function PublicGalleryPage({
             <p className="font-playfair mt-4 text-xl text-ink/75 md:text-2xl">{heroMeta}</p>
             {proofingSelection ? (
               <p className="mt-4 max-w-2xl text-sm leading-6 text-ink/75 md:text-base">
-                Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet.
+                {language === "hu" ? "Válasszátok ki azokat a fotókat, amelyeket végleges kidolgozásra szeretnétek." : "Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet."}
               </p>
             ) : null}
             <p className="mt-3 text-sm font-medium uppercase tracking-[0.24em] text-graphite/70">
-              {visiblePhotos.length} Medien
+              {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
             </p>
             <div className="mt-7 flex justify-center">
               <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" />
@@ -178,10 +178,11 @@ export default async function PublicGalleryPage({
             downloadsEnabled={downloadsEnabled}
             favoritesEnabled={favoritesEnabled}
             favoriteMode={proofingSelection ? "proofing" : "favorites"}
+            language={language}
           />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
-            Diese Galerie enthält noch keine Fotos.
+            {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
           </div>
         )}
       </section>

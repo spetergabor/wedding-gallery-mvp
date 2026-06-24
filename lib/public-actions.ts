@@ -7,7 +7,6 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
@@ -118,21 +117,13 @@ export async function canViewGallery(slug: string, password: string | null) {
 export async function unlockGalleryAction(slug: string, formData: FormData) {
   const value = formData.get("password");
   const password = typeof value === "string" ? value : "";
-  const languageValue = formData.get("lang");
-  const language = normalizeCustomerLanguage(typeof languageValue === "string" ? languageValue : null);
   const gallery = await prisma.gallery.findUnique({
     where: { slug },
     select: { password: true }
   });
 
   if (!gallery || gallery.password !== password) {
-    const params = new URLSearchParams({ error: "1" });
-
-    if (language) {
-      params.set("lang", language);
-    }
-
-    redirect(`/g/${slug}?${params.toString()}`);
+    redirect(`/g/${slug}?error=1`);
   }
 
   const cookieStore = await cookies();
@@ -144,8 +135,7 @@ export async function unlockGalleryAction(slug: string, formData: FormData) {
     maxAge: 60 * 60 * 24
   });
 
-  const redirectTo = language ? `/g/${slug}?lang=${language}` : `/g/${slug}`;
-  redirect(redirectTo);
+  redirect(`/g/${slug}`);
 }
 
 export async function recordGalleryDownloadAction(galleryId: string, email: string) {

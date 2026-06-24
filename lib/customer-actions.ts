@@ -86,7 +86,15 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
 
   const customer = await prisma.customer.findFirst({
     where: customerAccessWhere(admin, customerId),
-    select: { id: true }
+    select: {
+      id: true,
+      galleries: {
+        select: {
+          id: true,
+          slug: true
+        }
+      }
+    }
   });
 
   if (!customer) {
@@ -100,6 +108,11 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
 
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${customerId}`);
+  for (const gallery of customer.galleries) {
+    revalidatePath(`/admin/galleries/${gallery.id}`);
+    revalidatePath(`/g/${gallery.slug}`);
+    revalidatePath(`/client/${gallery.slug}`);
+  }
   redirect(`/admin/clients/${customerId}?updated=1`);
 }
 

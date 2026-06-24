@@ -372,10 +372,6 @@ export function adminGalleryUrl(galleryId: string) {
 export function publicGalleryUrl(slug: string, language?: CustomerLanguage) {
   const publicUrl = new URL(`/g/${slug}`, appBaseUrl());
 
-  if (language) {
-    publicUrl.searchParams.set("lang", language);
-  }
-
   return publicUrl.toString();
 }
 

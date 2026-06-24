@@ -24,6 +24,75 @@ type SaveNotice = {
   zipRefreshing: boolean;
 };
 
+const CLIENT_REVIEW_COPY = {
+  de: {
+    saveVisibilityError: "Die Sichtbarkeit der Fotos konnte nicht gespeichert werden.",
+    guestGallery: "Öffentliche Gästegalerie",
+    visible: "sichtbar",
+    hidden: "ausgeblendet",
+    intro: "Wählt in Ruhe aus. Eure Änderungen werden erst übernommen, wenn ihr unten speichert; danach werden die öffentliche Galerie und das Download-Paket aktualisiert.",
+    visibleLabel: "Sichtbar",
+    hiddenLabel: "Ausgeblendet",
+    savedSummary: (visibleCount: number, hiddenCount: number) => `Gespeichert: ${visibleCount} Fotos sind sichtbar, ${hiddenCount} sind ausgeblendet.`,
+    galleryUpdated: "Die öffentliche Galerie ist aktualisiert.",
+    zipRefreshing: " Das Download-Paket wird im Hintergrund neu vorbereitet.",
+    zipCurrent: " Das aktuelle Download-Paket bleibt passend.",
+    copied: "Öffentlicher Link kopiert",
+    copyLink: "Öffentlichen Link kopieren",
+    openGallery: "Öffentliche Galerie öffnen",
+    previewPending: "Vorschau wird erstellt",
+    hiddenBadge: "Nicht für Gäste sichtbar",
+    visibleBadge: "Für Gäste sichtbar",
+    unsaved: "Ungespeichert",
+    hiddenDescription: "Dieses Foto bleibt hier sichtbar, erscheint aber nicht in der öffentlichen Galerie oder im Gäste-Download.",
+    visibleDescription: "Dieses Foto erscheint in der öffentlichen Galerie und im Gäste-Download.",
+    showAgain: "Für Gäste wieder anzeigen",
+    hideForGuests: "Für Gäste ausblenden",
+    doneTitle: "Seid ihr mit dem Ausblenden fertig?",
+    doneIntro: "Speichert die Auswahl, wenn alles passt. Erst danach erscheinen die Änderungen in der öffentlichen Galerie und im Gäste-Download.",
+    shareGallery: "Öffentliche Galerie teilen",
+    bottomStatus: (hiddenCount: number, visibleCount: number) => `${hiddenCount} ausgeblendet · ${visibleCount} sichtbar`,
+    unsavedStatus: "Ungespeicherte Änderungen. Speichern aktualisiert die Gästegalerie und startet ein neues Download-Paket.",
+    savedStatus: "Alles gespeichert. Das aktuelle Download-Paket passt zur Auswahl.",
+    reset: "Zurücksetzen",
+    saving: "Wird gespeichert",
+    save: "Auswahl speichern"
+  },
+  hu: {
+    saveVisibilityError: "A fotók láthatóságát nem sikerült menteni.",
+    guestGallery: "Publikus vendéggaléria",
+    visible: "látható",
+    hidden: "elrejtve",
+    intro: "Válogassatok nyugodtan. A módosítások csak akkor kerülnek át a publikus galériába és a letöltési csomagba, amikor lent mentitek őket.",
+    visibleLabel: "Látható",
+    hiddenLabel: "Elrejtve",
+    savedSummary: (visibleCount: number, hiddenCount: number) => `Mentve: ${visibleCount} fotó látható, ${hiddenCount} fotó el van rejtve.`,
+    galleryUpdated: "A publikus galéria frissült.",
+    zipRefreshing: " A letöltési csomag a háttérben újra előkészül.",
+    zipCurrent: " Az aktuális letöltési csomag továbbra is megfelelő.",
+    copied: "Publikus link másolva",
+    copyLink: "Publikus link másolása",
+    openGallery: "Publikus galéria megnyitása",
+    previewPending: "Előnézet készül",
+    hiddenBadge: "Vendégeknek nem látható",
+    visibleBadge: "Vendégeknek látható",
+    unsaved: "Nincs mentve",
+    hiddenDescription: "Ez a fotó itt látható marad, de nem jelenik meg a publikus galériában vagy a vendég letöltésben.",
+    visibleDescription: "Ez a fotó megjelenik a publikus galériában és a vendég letöltésben.",
+    showAgain: "Újra mutatás vendégeknek",
+    hideForGuests: "Elrejtés vendégek elől",
+    doneTitle: "Készen vagytok az elrejtésekkel?",
+    doneIntro: "Mentsétek a válogatást, amikor minden rendben van. A változások csak mentés után jelennek meg a publikus galériában és a vendég letöltésben.",
+    shareGallery: "Publikus galéria megosztása",
+    bottomStatus: (hiddenCount: number, visibleCount: number) => `${hiddenCount} elrejtve · ${visibleCount} látható`,
+    unsavedStatus: "Nem mentett módosítások. A mentés frissíti a vendéggalériát és új letöltési csomagot indít.",
+    savedStatus: "Minden mentve. Az aktuális letöltési csomag illeszkedik a válogatáshoz.",
+    reset: "Visszaállítás",
+    saving: "Mentés",
+    save: "Válogatás mentése"
+  }
+} as const;
+
 function getClientPreviewUrl(photo: ClientPhoto) {
   if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
     return photo.thumbnailUrl;
@@ -61,7 +130,8 @@ export function ClientGalleryReview({
   const [error, setError] = useState("");
   const [saveNotice, setSaveNotice] = useState<SaveNotice | null>(null);
   const [copied, setCopied] = useState(false);
-  const publicHref = language ? `/g/${publicSlug}?lang=${language}` : `/g/${publicSlug}`;
+  const copy = CLIENT_REVIEW_COPY[language ?? "de"];
+  const publicHref = `/g/${publicSlug}`;
   const hiddenCount = hiddenPhotoIds.size;
   const visibleCount = photos.length - hiddenCount;
   const reviewedPhotoIds = useMemo(() => photos.map((photo) => photo.id), [photos]);
@@ -127,7 +197,7 @@ export function ClientGalleryReview({
     });
 
     if (!result.ok) {
-      setError(result.message ?? "Die Sichtbarkeit der Fotos konnte nicht gespeichert werden.");
+      setError(result.message ?? copy.saveVisibilityError);
       setIsSaving(false);
       return;
     }
@@ -150,21 +220,21 @@ export function ClientGalleryReview({
       <div className="mb-5 rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Öffentliche Gästegalerie</p>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">{copy.guestGallery}</p>
             <h2 className="mt-2 text-2xl font-semibold text-ink">
-              {visibleCount} sichtbar · {hiddenCount} ausgeblendet
+              {visibleCount} {copy.visible} · {hiddenCount} {copy.hidden}
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
-              Wählt in Ruhe aus. Eure Änderungen werden erst übernommen, wenn ihr unten speichert; danach werden die öffentliche Galerie und das Download-Paket aktualisiert.
+              {copy.intro}
             </p>
           </div>
           <div className="grid min-w-[220px] grid-cols-2 gap-2 text-center">
             <div className="rounded-md bg-paper px-3 py-2">
-              <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Sichtbar</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">{copy.visibleLabel}</p>
               <p className="mt-1 text-xl font-semibold text-ink">{visibleCount}</p>
             </div>
             <div className="rounded-md bg-paper px-3 py-2">
-              <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Ausgeblendet</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">{copy.hiddenLabel}</p>
               <p className="mt-1 text-xl font-semibold text-ink">{hiddenCount}</p>
             </div>
           </div>
@@ -176,11 +246,11 @@ export function ClientGalleryReview({
               <CheckCircle2 className="mt-0.5 shrink-0 text-sage" size={17} />
               <div>
                 <p className="font-medium">
-                  Gespeichert: {photos.length - saveNotice.hiddenCount} Fotos sind sichtbar, {saveNotice.hiddenCount} sind ausgeblendet.
+                  {copy.savedSummary(photos.length - saveNotice.hiddenCount, saveNotice.hiddenCount)}
                 </p>
                 <p className="mt-1 text-graphite/70">
-                  Die öffentliche Galerie ist aktualisiert.
-                  {saveNotice.zipRefreshing ? " Das Download-Paket wird im Hintergrund neu vorbereitet." : " Das aktuelle Download-Paket bleibt passend."}
+                  {copy.galleryUpdated}
+                  {saveNotice.zipRefreshing ? copy.zipRefreshing : copy.zipCurrent}
                 </p>
               </div>
             </div>
@@ -190,14 +260,14 @@ export function ClientGalleryReview({
         <div className="mt-5 flex flex-col justify-end gap-3 sm:flex-row">
           <Button type="button" variant="secondary" onClick={copyPublicLink}>
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? "Öffentlicher Link kopiert" : "Öffentlichen Link kopieren"}
+            {copied ? copy.copied : copy.copyLink}
           </Button>
           <a
             href={publicHref}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
           >
             <ExternalLink size={16} />
-            Öffentliche Galerie öffnen
+            {copy.openGallery}
           </a>
         </div>
       </div>
@@ -235,25 +305,25 @@ export function ClientGalleryReview({
                   <div className={`grid h-full w-full place-items-center text-graphite/60 transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
                     <div className="flex flex-col items-center gap-2 text-center">
                       <ImageIcon size={24} />
-                      <span className="text-xs font-medium">Vorschau wird erstellt</span>
+                      <span className="text-xs font-medium">{copy.previewPending}</span>
                     </div>
                   </div>
                 )}
                 {isHidden ? (
                   <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">
                     <EyeOff size={13} />
-                    Nicht für Gäste sichtbar
+                    {copy.hiddenBadge}
                   </span>
                 ) : (
                   <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink shadow-soft">
                     <Eye size={13} />
-                    Für Gäste sichtbar
+                    {copy.visibleBadge}
                   </span>
                 )}
                 {hasDraftChange ? (
                   <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-md bg-sage px-2.5 py-1 text-xs font-medium text-white shadow-soft">
                     <Save size={13} />
-                    Ungespeichert
+                    {copy.unsaved}
                   </span>
                 ) : null}
               </div>
@@ -261,8 +331,8 @@ export function ClientGalleryReview({
                 <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
                 <p className="text-xs leading-5 text-graphite/65">
                   {isHidden
-                    ? "Dieses Foto bleibt hier sichtbar, erscheint aber nicht in der öffentlichen Galerie oder im Gäste-Download."
-                    : "Dieses Foto erscheint in der öffentlichen Galerie und im Gäste-Download."}
+                    ? copy.hiddenDescription
+                    : copy.visibleDescription}
                 </p>
                 <Button
                   type="button"
@@ -272,7 +342,7 @@ export function ClientGalleryReview({
                   onClick={() => togglePhoto(photo.id)}
                 >
                   {isHidden ? <Eye size={16} /> : <EyeOff size={16} />}
-                  {isHidden ? "Für Gäste wieder anzeigen" : "Für Gäste ausblenden"}
+                  {isHidden ? copy.showAgain : copy.hideForGuests}
                 </Button>
               </div>
             </article>
@@ -281,21 +351,21 @@ export function ClientGalleryReview({
       </section>
 
       <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 text-center shadow-soft">
-        <p className="text-lg font-semibold text-ink">Seid ihr mit dem Ausblenden fertig?</p>
+        <p className="text-lg font-semibold text-ink">{copy.doneTitle}</p>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-graphite/70">
-          Speichert die Auswahl, wenn alles passt. Erst danach erscheinen die Änderungen in der öffentlichen Galerie und im Gäste-Download.
+          {copy.doneIntro}
         </p>
         <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
           <Button type="button" variant="secondary" onClick={copyPublicLink}>
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? "Öffentlicher Link kopiert" : "Öffentlichen Link kopieren"}
+            {copied ? copy.copied : copy.copyLink}
           </Button>
           <a
             href={publicHref}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
           >
             <ExternalLink size={16} />
-            Öffentliche Galerie teilen
+            {copy.shareGallery}
           </a>
         </div>
         <div className="mt-4 flex justify-center">
@@ -307,22 +377,22 @@ export function ClientGalleryReview({
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">
-              {hiddenCount} ausgeblendet · {visibleCount} sichtbar
+              {copy.bottomStatus(hiddenCount, visibleCount)}
             </p>
             <p className="mt-0.5 text-xs text-graphite/70">
               {hasUnsavedChanges
-                ? "Ungespeicherte Änderungen. Speichern aktualisiert die Gästegalerie und startet ein neues Download-Paket."
-                : "Alles gespeichert. Das aktuelle Download-Paket passt zur Auswahl."}
+                ? copy.unsavedStatus
+                : copy.savedStatus}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button type="button" variant="secondary" disabled={!hasUnsavedChanges || isSaving} onClick={resetChanges}>
               <RotateCcw size={16} />
-              Zurücksetzen
+              {copy.reset}
             </Button>
             <Button type="button" disabled={!hasUnsavedChanges || isSaving} onClick={() => void saveChanges()}>
               {isSaving ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />}
-              {isSaving ? "Wird gespeichert" : "Auswahl speichern"}
+              {isSaving ? copy.saving : copy.save}
             </Button>
           </div>
         </div>

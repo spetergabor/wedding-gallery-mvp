@@ -54,7 +54,19 @@ export default async function ClientGalleryReviewPage({
   const visiblePhotos = isProofingGallery(gallery.galleryMode)
     ? gallery.photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW)
     : gallery.photos;
-  const language = normalizeCustomerLanguage(lang ?? gallery.customer?.preferredLanguage);
+  const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage ?? lang);
+  const copy =
+    language === "hu"
+      ? {
+          area: "Ügyfél felület",
+          intro: "Itt állíthatjátok be, mely fotókat láthatja és töltheti le a család és a vendégek a publikus galériában. Menjetek végig nyugodtan a válogatáson, és a végén mentsétek el.",
+          photos: "fotó"
+        }
+      : {
+          area: "Kundenbereich",
+          intro: "Hier legt ihr fest, welche Fotos Familie und Gäste in der öffentlichen Galerie sehen und herunterladen können. Geht die Auswahl in Ruhe durch und speichert sie am Ende.",
+          photos: "Fotos"
+        };
 
   return (
     <main className="min-h-screen bg-paper">
@@ -62,18 +74,18 @@ export default async function ClientGalleryReviewPage({
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-8 lg:px-8">
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-brass">
             <ShieldCheck size={16} />
-            Kundenbereich
+            {copy.area}
           </div>
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <h1 className="text-4xl font-semibold text-ink">{gallery.title}</h1>
               <p className="mt-3 max-w-2xl text-graphite/70">
-                Hier legt ihr fest, welche Fotos Familie und Gäste in der öffentlichen Galerie sehen und herunterladen können. Geht die Auswahl in Ruhe durch und speichert sie am Ende.
+                {copy.intro}
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-md bg-paper px-4 py-3 text-sm text-graphite">
               <Camera size={16} />
-              {visiblePhotos.length} Fotos
+              {visiblePhotos.length} {copy.photos}
             </div>
           </div>
         </div>
