@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, MapPin, Settings, UserRound } from "lucide-react";
+import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
@@ -10,6 +10,7 @@ import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
+import { GalleryTabController } from "@/components/gallery-tab-controller";
 import { ManualZipUploadForm } from "@/components/manual-zip-upload-form";
 import { MediaProcessingStatus } from "@/components/media-processing-status";
 import { PhotoManager } from "@/components/photo-manager";
@@ -46,13 +47,13 @@ type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
 const galleryTabs: Array<{
   key: GalleryTab;
   label: string;
-  icon: typeof Camera;
+  icon: "Camera" | "Heart" | "MapPin" | "Download" | "Settings";
 }> = [
-  { key: "photos", label: "Fotók", icon: Camera },
-  { key: "client", label: "Kedvenc listák", icon: Heart },
-  { key: "views", label: "Megtekintések", icon: MapPin },
-  { key: "downloads", label: "Letöltések", icon: Download },
-  { key: "settings", label: "Beállítások", icon: Settings }
+  { key: "photos", label: "Fotók", icon: "Camera" },
+  { key: "client", label: "Kedvenc listák", icon: "Heart" },
+  { key: "views", label: "Megtekintések", icon: "MapPin" },
+  { key: "downloads", label: "Letöltések", icon: "Download" },
+  { key: "settings", label: "Beállítások", icon: "Settings" }
 ];
 
 type WorkflowStep = {
@@ -61,6 +62,11 @@ type WorkflowStep = {
   done: boolean;
   href: string;
 };
+
+function galleryTabTargetFromHref(href: string): GalleryTab | undefined {
+  const match = href.match(/[?&]tab=(photos|client|views|downloads|settings)\b/);
+  return match?.[1] as GalleryTab | undefined;
+}
 
 function WorkflowPanel({
   title,
@@ -72,6 +78,7 @@ function WorkflowPanel({
   steps: WorkflowStep[];
 }) {
   const nextStep = steps.find((step) => !step.done) ?? steps[steps.length - 1];
+  const nextStepTab = nextStep ? galleryTabTargetFromHref(nextStep.href) : undefined;
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
@@ -82,10 +89,16 @@ function WorkflowPanel({
           <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{description}</p>
         </div>
         {nextStep ? (
-          <ButtonLink href={nextStep.href} variant={nextStep.done ? "secondary" : "primary"} className="shrink-0">
+          <Link
+            href={nextStep.href}
+            data-gallery-tab-target={nextStepTab}
+            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition ${
+              nextStep.done ? "border border-ink/15 bg-white text-ink hover:border-ink/30" : "bg-ink text-white hover:bg-graphite"
+            }`}
+          >
             {nextStep.done ? <CheckCircle2 size={16} /> : null}
             {nextStep.done ? "Workflow kész" : nextStep.label}
-          </ButtonLink>
+          </Link>
         ) : null}
       </div>
 
@@ -94,6 +107,7 @@ function WorkflowPanel({
           <Link
             key={step.label}
             href={step.href}
+            data-gallery-tab-target={galleryTabTargetFromHref(step.href)}
             className={`rounded-md border px-3 py-3 transition hover:border-ink/20 ${
               step.done ? "border-sage/20 bg-sage/10" : "border-ink/10 bg-paper"
             }`}
@@ -307,6 +321,10 @@ export default async function GalleryDetailPage({
   const activeTab = getActiveTab(flags);
   const locationPoints = createViewLocationPoints(gallery.views);
   const proofingGallery = isProofingGallery(gallery.galleryMode);
+  const renderedGalleryTabs = galleryTabs.map((tab) => ({
+    ...tab,
+    label: tab.key === "client" ? (proofingGallery ? "Válogatás" : "Kedvenc listák") : tab.label
+  }));
   const galleryModeLabel = proofingGallery ? "Nyers válogatás" : "Teljes galéria";
   const rawPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "raw").length;
   const finalPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "final").length;
@@ -546,30 +564,9 @@ export default async function GalleryDetailPage({
           <StatCard label="Állapot" value={gallery.isActive ? "Aktív" : "Archivált"} detail="Publikus elérhetőség" />
         </div>
 
-        <div className="rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
-          <nav className="grid gap-2 md:grid-cols-5" aria-label="Galéria részletek">
-            {galleryTabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.key;
-              const label = tab.key === "client" ? (proofingGallery ? "Válogatás" : "Kedvenc listák") : tab.label;
+        <GalleryTabController tabs={renderedGalleryTabs} initialTab={activeTab} />
 
-              return (
-                <Link
-                  key={tab.key}
-                  href={`/admin/galleries/${gallery.id}?tab=${tab.key}`}
-                  className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
-                    isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
-                  }`}
-                >
-                  <Icon size={16} />
-                  {label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-
-        {activeTab === "photos" ? (
+        <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
             <PhotoUploadForm
               galleryId={gallery.id}
@@ -617,9 +614,9 @@ export default async function GalleryDetailPage({
               selectedPhotoIds={selectedPhotoIds}
             />
           </div>
-        ) : null}
+        </div>
 
-        {activeTab === "client" ? (
+        <div data-gallery-tab-panel="client" hidden={activeTab !== "client"}>
           <div className="max-w-4xl space-y-6">
             {proofingGallery ? (
               <ProofingStatusPanel
@@ -772,9 +769,9 @@ export default async function GalleryDetailPage({
             ) : null}
             <FavoriteListsLog lists={gallery.favoriteLists} mode={proofingGallery ? "proofing" : "favorites"} />
           </div>
-        ) : null}
+        </div>
 
-        {activeTab === "views" ? (
+        <div data-gallery-tab-panel="views" hidden={activeTab !== "views"}>
           <div className="space-y-6">
             <ViewLog views={gallery.views} />
             <ViewLocationMap
@@ -783,9 +780,9 @@ export default async function GalleryDetailPage({
               description="Összesített helyszínek kizárólag ennek a galériának a publikus megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható."
             />
           </div>
-        ) : null}
+        </div>
 
-        {activeTab === "downloads" ? (
+        <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
           <div className="max-w-3xl space-y-6">
             <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -805,14 +802,14 @@ export default async function GalleryDetailPage({
             <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
           </div>
-        ) : null}
+        </div>
 
-        {activeTab === "settings" ? (
+        <div data-gallery-tab-panel="settings" hidden={activeTab !== "settings"}>
           <div className="space-y-8">
             <GalleryForm gallery={gallery} customers={customers} projects={projects} selectedCustomerId={gallery.customerId} selectedProjectId={gallery.projectId} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
           </div>
-        ) : null}
+        </div>
       </div>
     </AdminShell>
   );
