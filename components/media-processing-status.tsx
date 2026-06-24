@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, Clock3, ImageIcon, RefreshCw } from "lucide-react";
-import { Button } from "@/components/button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { requeueGalleryMediaProcessingAction } from "@/lib/gallery-actions";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 const STALE_JOB_PROCESSING_MS = 30 * 60 * 1000;
 const ACTIVE_PENDING_JOB_MS = 2 * 60 * 60 * 1000;
@@ -197,15 +197,16 @@ export function MediaProcessingStatus({
             {meta.label}
           </span>
           <form action={requeueGalleryMediaProcessingAction.bind(null, galleryId)}>
-            <Button
+            <FormSubmitButton
               type="submit"
               variant="secondary"
               disabled={requeueableCount === 0}
               className={requeueableCount === 0 ? "opacity-60" : ""}
+              pendingLabel="Újragenerálás..."
             >
               <RefreshCw size={16} />
               Hiányzó előnézetek újragenerálása
-            </Button>
+            </FormSubmitButton>
           </form>
         </div>
       </div>

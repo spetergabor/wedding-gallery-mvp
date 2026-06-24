@@ -10,6 +10,7 @@ import {
   setCoverPhotoAction
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
@@ -187,10 +188,14 @@ export function PhotoManager({
           ) : null}
           {photos.length > 1 ? (
             <form action={reorderGalleryPhotosAction.bind(null, galleryId)}>
-              <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5 hover:text-ink">
+              <FormSubmitButton
+                variant="secondary"
+                className="inline-flex h-10 items-center justify-center gap-2 border border-ink/10 px-3 text-sm text-graphite"
+                pendingLabel="Rendezés..."
+              >
                 <Clock3 size={15} />
                 Capture time szerint rendezés
-              </button>
+              </FormSubmitButton>
             </form>
           ) : null}
         </div>

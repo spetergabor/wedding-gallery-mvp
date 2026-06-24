@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Download, Grid3X3, RefreshCcw, Save, Shuffle, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
   deleteAlbumDesignSpreadAction,
@@ -180,10 +180,10 @@ export function AlbumDesignWorkbench({
               {changedSpreadIds.map((spreadId) => (
                 <SpreadDraftInputs key={spreadId} spreadId={spreadId} items={draftItemsBySpread[spreadId] ?? []} />
               ))}
-              <Button type="submit" className="h-10 px-3">
+              <FormSubmitButton className="h-10 px-3" pendingLabel="Mentés...">
                 <Save size={15} />
                 Összes mentése
-              </Button>
+              </FormSubmitButton>
             </form>
           </div>
         </div>
@@ -218,10 +218,15 @@ export function AlbumDesignWorkbench({
                   JPG export
                 </a>
                 <form action={regenerateAlbumDesignSpreadLayoutAction.bind(null, customerId, designId, spread.id)}>
-                  <Button type="submit" variant="secondary" className="h-9 px-3" disabled={spread.items.length === 0}>
+                  <FormSubmitButton
+                    variant="secondary"
+                    className="h-9 px-3"
+                    disabled={spread.items.length === 0}
+                    pendingLabel="Újragenerálás..."
+                  >
                     <Shuffle size={15} />
                     Újragenerálás
-                  </Button>
+                  </FormSubmitButton>
                 </form>
                 <form action={deleteAlbumDesignSpreadAction.bind(null, customerId, designId, spread.id)}>
                   <ConfirmSubmitButton
@@ -264,10 +269,10 @@ export function AlbumDesignWorkbench({
                     <div className="mt-2">
                       <AlbumLayoutRadioGrid defaultLayoutKey={spread.layoutKey} />
                     </div>
-                    <Button type="submit" className="mt-3 w-full">
+                    <FormSubmitButton className="mt-3 w-full" pendingLabel="Mentés...">
                       <Grid3X3 size={15} />
                       Layout mentése
-                    </Button>
+                    </FormSubmitButton>
                   </div>
                   <div>
                     <p className="text-xs text-graphite/60">

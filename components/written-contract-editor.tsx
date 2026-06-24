@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { PenLine, Plus } from "lucide-react";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   CONTRACT_FIELD_OPTIONS,
   contractFieldToken,
@@ -124,10 +124,10 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
         </div>
       </fieldset>
 
-      <Button type="submit" className="w-full">
+      <FormSubmitButton className="w-full" pendingLabel="Mentés...">
         <PenLine size={16} />
         Szerződés létrehozása
-      </Button>
+      </FormSubmitButton>
     </form>
   );
 }

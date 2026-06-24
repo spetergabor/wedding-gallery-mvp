@@ -12,6 +12,7 @@ import {
   refreshAdminSessionAction
 } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   GALLERY_MODE_PROOFING,
@@ -1248,18 +1249,22 @@ export function PhotoUploadForm({
           </div>
 
           <div className="mt-5 grid gap-2">
-            <Button type="submit" disabled={isUploading || isReadingExif || selectedFiles.length === 0} className="w-full">
+            <FormSubmitButton
+              type="submit"
+              disabled={isReadingExif || selectedFiles.length === 0}
+              className="w-full"
+              busy={isUploading}
+              pendingLabel="Feltöltés..."
+            >
               <UploadCloud size={16} />
-              {isUploading
-                ? "Feltöltés..."
-                : selectedResumeSession
-                  ? "Feltöltés folytatása"
-                  : failedCount > 0
+              {selectedResumeSession
+                ? "Feltöltés folytatása"
+                : failedCount > 0
                   ? "Feltöltés folytatása"
                   : selectedFiles.length > 0
                     ? `${selectedFiles.length} média feltöltése`
                     : "Médiák feltöltése"}
-            </Button>
+            </FormSubmitButton>
             {failedCount > 0 && !isUploading ? (
               <Button type="button" variant="secondary" onClick={() => void retryFailedUploads()} className="w-full">
                 <UploadCloud size={16} />

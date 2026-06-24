@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { ExternalLink, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { AlbumSpreadUploadForm } from "@/components/album-spread-upload-form";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { createAlbumReviewAction, deleteAlbumReviewAction, deleteAlbumReviewSpreadAction } from "@/lib/album-review-actions";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -74,10 +74,10 @@ export function AlbumReviewManager({
             placeholder="pl. Album v1"
             className="h-11 min-w-0 flex-1 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
           />
-          <Button type="submit">
+          <FormSubmitButton>
             <Plus size={16} />
             Új ellenőrző
-          </Button>
+          </FormSubmitButton>
         </form>
       </div>
 

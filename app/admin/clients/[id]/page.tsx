@@ -24,6 +24,7 @@ import { AlbumReviewManager } from "@/components/album-review-manager";
 import { AlbumWorkflowTabs } from "@/components/album-workflow-tabs";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
@@ -851,7 +852,7 @@ export default async function AdminClientDetailPage({
             <label className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
               <span className="space-y-1">
                 <span className="block text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Fő státusz</span>
-                <select
+              <select
                   name="status"
                   defaultValue={normalizeCustomerStatus(customer.status)}
                   className="h-10 w-full min-w-56 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
@@ -863,9 +864,9 @@ export default async function AdminClientDetailPage({
                   ))}
                 </select>
               </span>
-              <button className="h-10 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+              <FormSubmitButton className="h-10 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
                 Mentés
-              </button>
+              </FormSubmitButton>
             </label>
           </form>
         </div>

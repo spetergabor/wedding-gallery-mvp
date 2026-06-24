@@ -1,8 +1,8 @@
 import { Check, Clock, UserCheck, UserRound, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
-import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { requireSuperAdmin } from "@/lib/auth";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -107,10 +107,10 @@ export default async function AdminPhotographersPage({
                   <div className="flex flex-col gap-2 sm:flex-row">
                     {photographer.status !== "approved" ? (
                       <form action={approvePhotographerAction.bind(null, photographer.id)}>
-                        <Button type="submit" variant="secondary" className="w-full sm:w-auto">
+                        <FormSubmitButton type="submit" variant="secondary" className="w-full sm:w-auto" pendingLabel="Jóváhagyás...">
                           <Check size={16} />
                           Jóváhagyás
-                        </Button>
+                        </FormSubmitButton>
                       </form>
                     ) : null}
                     {photographer.status !== "rejected" ? (

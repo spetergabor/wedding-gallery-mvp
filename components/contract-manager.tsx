@@ -1,5 +1,5 @@
 import { Download, ExternalLink, FileText, Mail, UploadCloud } from "lucide-react";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { WrittenContractEditor } from "@/components/written-contract-editor";
 import { sendContractAction, uploadContractAction } from "@/lib/contract-actions";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -117,10 +117,10 @@ export function ContractManager({
               className="block w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
             />
           </label>
-          <Button type="submit" className="w-full">
+          <FormSubmitButton className="w-full" pendingLabel="Feltöltés...">
             <UploadCloud size={16} />
             PDF feltöltése
-          </Button>
+          </FormSubmitButton>
         </form>
 
         <WrittenContractEditor customerId={customerId} />
@@ -145,13 +145,15 @@ export function ContractManager({
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <form action={sendContractAction.bind(null, customerId, contract.id)}>
-                    <button
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
+                    <FormSubmitButton
+                      variant="secondary"
+                      className="h-10 border-ink/10 px-3 text-graphite hover:bg-ink/5"
+                      pendingLabel="Küldés..."
                       title="Szerződés kiküldése emailben"
                     >
                       <Mail size={16} />
                       Küldés
-                    </button>
+                    </FormSubmitButton>
                   </form>
                   {contract.fileUrl ? (
                     <>

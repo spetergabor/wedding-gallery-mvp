@@ -2,9 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Camera } from "lucide-react";
 import { loginAction } from "@/lib/gallery-actions";
-import { Button } from "@/components/button";
 import { Alert } from "@/components/alert";
 import { hasAnyAdmin } from "@/lib/auth";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export default async function AdminLoginPage({
   searchParams
@@ -69,7 +69,7 @@ export default async function AdminLoginPage({
               />
             </label>
 
-            <Button type="submit" className="w-full">Belépés</Button>
+            <FormSubmitButton className="w-full" pendingLabel="Belépés...">Belépés</FormSubmitButton>
             <Link href="/admin/login" className="block text-center text-sm font-medium text-graphite/70 hover:text-ink">
               Belépés újrakezdése
             </Link>
@@ -96,7 +96,7 @@ export default async function AdminLoginPage({
               />
             </label>
 
-            <Button type="submit" className="w-full">Belépés</Button>
+            <FormSubmitButton className="w-full" pendingLabel="Belépés...">Belépés</FormSubmitButton>
           </form>
         )}
 

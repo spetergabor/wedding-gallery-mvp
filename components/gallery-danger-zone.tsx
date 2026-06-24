@@ -4,8 +4,8 @@ import {
   archiveGalleryAction,
   deleteGalleryAction
 } from "@/lib/gallery-actions";
-import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export function GalleryDangerZone({
   galleryId,
@@ -26,17 +26,17 @@ export function GalleryDangerZone({
         <div className="flex flex-col gap-3 sm:flex-row">
           {isActive ? (
             <form action={archiveGalleryAction.bind(null, galleryId)}>
-              <Button type="submit" variant="secondary" className="w-full sm:w-auto">
+              <FormSubmitButton type="submit" variant="secondary" className="w-full sm:w-auto" pendingLabel="Archiválás...">
                 <Archive size={16} />
                 Archiválás
-              </Button>
+              </FormSubmitButton>
             </form>
           ) : (
             <form action={activateGalleryAction.bind(null, galleryId)}>
-              <Button type="submit" variant="secondary" className="w-full sm:w-auto">
+              <FormSubmitButton type="submit" variant="secondary" className="w-full sm:w-auto" pendingLabel="Aktiválás...">
                 <RotateCcw size={16} />
                 Aktiválás
-              </Button>
+              </FormSubmitButton>
             </form>
           )}
 

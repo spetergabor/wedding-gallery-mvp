@@ -1,5 +1,5 @@
 import { CheckCircle2, Clock, Heart, Mail, PackageCheck } from "lucide-react";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { updateGalleryProofingStatusAction } from "@/lib/gallery-actions";
 import {
@@ -157,9 +157,9 @@ export function ProofingStatusPanel({ galleryId, status, updatedAt, metrics }: P
               </span>
             ) : (
               <form action={updateGalleryProofingStatusAction.bind(null, galleryId, item.key as ProofingStatus)}>
-                <Button type="submit" variant="secondary">
+                <FormSubmitButton type="submit" variant="secondary" pendingLabel="Beállítás...">
                   Erre állítom
-                </Button>
+                </FormSubmitButton>
               </form>
             )}
           </div>

@@ -2,11 +2,11 @@ import QRCode from "qrcode";
 import { KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
-import { Button } from "@/components/button";
 import { disableTwoFactorAction, enableTwoFactorAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { createTotpUri, generateTotpSecret } from "@/lib/totp";
 import { requireAdmin } from "@/lib/auth";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export default async function AdminSecurityPage({
   searchParams
@@ -87,10 +87,10 @@ export default async function AdminSecurityPage({
                   className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
                 />
               </label>
-              <Button type="submit" variant="danger">
+              <FormSubmitButton type="submit" variant="danger" pendingLabel="Kikapcsolás...">
                 <ShieldOff size={16} />
                 Kétfaktor kikapcsolása
-              </Button>
+              </FormSubmitButton>
             </form>
           ) : (
             <form action={enableTwoFactorAction} className="mt-6 space-y-5">
@@ -122,10 +122,10 @@ export default async function AdminSecurityPage({
                 />
               </label>
 
-              <Button type="submit">
+              <FormSubmitButton type="submit" pendingLabel="Bekapcsolás...">
                 <ShieldCheck size={16} />
                 Kétfaktor bekapcsolása
-              </Button>
+              </FormSubmitButton>
             </form>
           )}
         </section>

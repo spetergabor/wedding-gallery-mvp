@@ -2,8 +2,8 @@
 
 import { FormEvent, MouseEvent, useMemo, useState } from "react";
 import { MessageSquare, Plus, X } from "lucide-react";
-import { Button } from "@/components/button";
 import { createAlbumReviewCommentAction } from "@/lib/album-review-actions";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 type AlbumComment = {
   id: string;
@@ -158,10 +158,16 @@ export function AlbumReviewBoard({
                       placeholder="z.B. Bitte dieses Bild gegen Bild 1234 tauschen"
                       className="w-full rounded-md border border-ink/15 bg-paper px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/50"
                     />
-                    <Button type="submit" disabled={pending || !draftText.trim()} className="mt-2 w-full">
+                    <FormSubmitButton
+                      type="submit"
+                      disabled={!draftText.trim()}
+                      className="mt-2 w-full"
+                      busy={pending}
+                      pendingLabel="Speichern..."
+                    >
                       <Plus size={16} />
-                      {pending ? "Speichern..." : "Notiz speichern"}
-                    </Button>
+                      Notiz speichern
+                    </FormSubmitButton>
                   </form>
                 ) : null}
               </div>

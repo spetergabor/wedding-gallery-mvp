@@ -4,7 +4,8 @@ import Image from "next/image";
 import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, Film, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
-import { Button, ButtonLink } from "@/components/button";
+import { ButtonLink } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
@@ -464,10 +465,10 @@ export default async function GalleryDetailPage({
               <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
             ) : (
               <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                <Button type="submit" variant="secondary">
+                <FormSubmitButton variant="secondary" pendingLabel="Link készítése...">
                   <KeyRound size={16} />
                   Privát kezelő link generálása
-                </Button>
+                </FormSubmitButton>
               </form>
             )
           ) : null}
@@ -609,10 +610,10 @@ export default async function GalleryDetailPage({
                       <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
                     ) : (
                       <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                        <Button type="submit" variant="secondary">
+                        <FormSubmitButton variant="secondary" pendingLabel="Link készítése...">
                           <KeyRound size={16} />
                           Privát kezelő link generálása
-                        </Button>
+                        </FormSubmitButton>
                       </form>
                     )}
                   </div>
@@ -711,20 +712,25 @@ export default async function GalleryDetailPage({
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <form action={updateGalleryProofingStatusAction.bind(null, gallery.id, PROOFING_STATUS_DELIVERED)}>
-                      <Button
-                        type="submit"
+                      <FormSubmitButton
                         variant={gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "secondary" : "primary"}
                         disabled={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED || !gallery.clientEmail}
                         className={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED || !gallery.clientEmail ? "opacity-60" : ""}
+                        pendingLabel="Átadás..."
                       >
                         Kész képek átadása
-                      </Button>
+                      </FormSubmitButton>
                     </form>
                     {gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? (
                       <form action={sendFinalDeliveryEmailAction.bind(null, gallery.id)}>
-                        <Button type="submit" variant="secondary" disabled={!gallery.clientEmail} className={!gallery.clientEmail ? "opacity-60" : ""}>
+                        <FormSubmitButton
+                          variant="secondary"
+                          disabled={!gallery.clientEmail}
+                          className={!gallery.clientEmail ? "opacity-60" : ""}
+                          pendingLabel="Küldés..."
+                        >
                           Email újraküldése
-                        </Button>
+                        </FormSubmitButton>
                       </form>
                     ) : null}
                   </div>
@@ -771,10 +777,15 @@ export default async function GalleryDetailPage({
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <form action={sendProofingInviteAction.bind(null, gallery.id)}>
-                      <Button type="submit" variant="secondary" disabled={!gallery.clientEmail} className={!gallery.clientEmail ? "opacity-60" : ""}>
+                      <FormSubmitButton
+                        variant="secondary"
+                        disabled={!gallery.clientEmail}
+                        className={!gallery.clientEmail ? "opacity-60" : ""}
+                        pendingLabel="Küldés..."
+                      >
                         <Mail size={16} />
                         Válogató link küldése
-                      </Button>
+                      </FormSubmitButton>
                     </form>
                     <CopyPublicLinkButton
                       slug={gallery.slug}
@@ -808,10 +819,14 @@ export default async function GalleryDetailPage({
                   <p className="mt-1 text-sm text-graphite/70">Nagy galériáknál a rendszer több kisebb ZIP csomagot készít.</p>
                 </div>
                 <form action={queueGalleryZipPackageAction.bind(null, gallery.id)}>
-                  <Button type="submit" disabled={!canPrepareZip} className={`whitespace-nowrap ${!canPrepareZip ? "opacity-60" : ""}`}>
+                  <FormSubmitButton
+                    disabled={!canPrepareZip}
+                    className={`whitespace-nowrap ${!canPrepareZip ? "opacity-60" : ""}`}
+                    pendingLabel="Előkészítés..."
+                  >
                     <Download size={16} />
                     {hasStaleZipPackages ? "Újragenerálás" : "ZIP részek előkészítése"}
-                  </Button>
+                  </FormSubmitButton>
                 </form>
               </div>
             </section>

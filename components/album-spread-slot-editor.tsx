@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { ImageIcon, MousePointer2, RotateCcw, Save, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
 import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 
@@ -293,14 +294,14 @@ export function AlbumSpreadSlotEditor({
                   <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />
                 </span>
               ))}
-              <button
-                type="submit"
-                disabled={!hasChanges}
+              <FormSubmitButton
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-ink px-3 text-xs font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!hasChanges}
+                pendingLabel="Mentés..."
               >
                 <Save size={14} />
                 Mentés
-              </button>
+              </FormSubmitButton>
             </form>
           </div>
         </div>

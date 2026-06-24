@@ -1,5 +1,6 @@
 import { createCustomerAction, updateCustomerAction } from "@/lib/customer-actions";
-import { Button, ButtonLink } from "@/components/button";
+import { ButtonLink } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { Calendar, Mail, MapPin, Pencil, Phone, StickyNote, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -248,7 +249,7 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
       </div>
 
       <div className="mt-6 flex justify-end">
-        <Button type="submit">{customer ? "Ügyfél mentése" : "Ügyfél létrehozása"}</Button>
+        <FormSubmitButton>{customer ? "Ügyfél mentése" : "Ügyfél létrehozása"}</FormSubmitButton>
       </div>
     </form>
   );

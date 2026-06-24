@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, ImagePlus, Loader2 } from "lucide-react";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   completeAlbumReviewSpreadUploadsAction,
   createAlbumReviewSpreadUploadTargetsAction
@@ -282,10 +282,16 @@ export function AlbumSpreadUploadForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={!canUpload} className="mt-3 w-full">
+      <FormSubmitButton
+        type="submit"
+        disabled={!canUpload}
+        className="mt-3 w-full"
+        busy={isUploading}
+        pendingLabel="Feltöltés..."
+      >
         {isUploading ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
         {isUploading ? "Feltöltés..." : "Feltöltés"}
-      </Button>
+      </FormSubmitButton>
     </form>
   );
 }

@@ -17,8 +17,9 @@ import {
   Trash2
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Button, ButtonLink } from "@/components/button";
+import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   CUSTOMER_PROJECT_STATUSES,
   CUSTOMER_PROJECT_TYPES,
@@ -467,10 +468,10 @@ export function CustomerProjectManager({
             />
           </label>
           <div className="xl:col-span-4">
-            <Button type="submit">
+            <FormSubmitButton pendingLabel="Projekt létrehozása...">
               <Plus size={16} />
               Projekt létrehozása
-            </Button>
+            </FormSubmitButton>
           </div>
         </form>
       </div>
@@ -654,9 +655,9 @@ export function CustomerProjectManager({
                     ))}
                   </select>
                 </label>
-                <Button type="submit" variant="secondary" className="h-10">
+                <FormSubmitButton type="submit" variant="secondary" className="h-10" pendingLabel="Mentés...">
                   Státusz mentése
-                </Button>
+                </FormSubmitButton>
               </form>
 
               {project.galleries.length > 0 ? (

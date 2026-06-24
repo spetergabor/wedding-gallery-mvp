@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Camera } from "lucide-react";
-import { Button } from "@/components/button";
 import { Alert } from "@/components/alert";
 import { hasAnyAdmin } from "@/lib/auth";
 import { registerAdminAction } from "@/lib/gallery-actions";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export default async function AdminRegisterPage({
   searchParams
@@ -78,9 +78,9 @@ export default async function AdminRegisterPage({
             />
           </label>
 
-          <Button type="submit" className="w-full">
+          <FormSubmitButton className="w-full" pendingLabel="Küldés...">
             {alreadyHasAdmin ? "Regisztráció elküldése" : "Főadmin létrehozása"}
-          </Button>
+          </FormSubmitButton>
         </form>
 
         {alreadyHasAdmin ? (

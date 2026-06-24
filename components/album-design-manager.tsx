@@ -1,8 +1,8 @@
 import Image from "next/image";
 import { Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
-import { Button } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   createAlbumDesignAction,
   createAutoAlbumDesignSpreadAction,
@@ -169,10 +169,14 @@ function AlbumSpreadCreateForm({
               Jelölj ki 1-{maxAlbumLayoutPhotoCount} képet, majd generálj belőlük automatikus oldalpárt. Ha a kompozíció nem jó, az oldalpárnál az Újragenerálás gombbal másik verziót kapsz.
             </p>
           </div>
-          <Button type="submit" formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, designId)} className="shrink-0">
+          <FormSubmitButton
+            formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, designId)}
+            className="shrink-0"
+            pendingLabel="Készítés..."
+          >
             <Shuffle size={16} />
             Automatikus oldalpár
-          </Button>
+          </FormSubmitButton>
         </div>
 
         <div className="grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
@@ -203,10 +207,10 @@ function AlbumSpreadCreateForm({
           </summary>
           <div className="border-t border-ink/10 p-3">
             <AlbumLayoutRadioGrid />
-            <Button type="submit" variant="secondary" className="mt-3">
+            <FormSubmitButton variant="secondary" className="mt-3" pendingLabel="Kézi generálás...">
               <Grid3X3 size={16} />
               Kézi layout létrehozása
-            </Button>
+            </FormSubmitButton>
           </div>
         </details>
       </div>
@@ -258,10 +262,10 @@ export function AlbumDesignManager({
               </option>
             ))}
           </select>
-          <Button type="submit" disabled={favoriteLists.length === 0}>
+          <FormSubmitButton disabled={favoriteLists.length === 0} pendingLabel="Létrehozás...">
             <Plus size={16} />
             Új albumterv
-          </Button>
+          </FormSubmitButton>
         </form>
       </div>
 

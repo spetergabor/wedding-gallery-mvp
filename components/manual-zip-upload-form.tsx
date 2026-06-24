@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   completeManualGalleryZipUploadAction,
   createManualGalleryZipUploadTargetAction
@@ -224,10 +224,16 @@ export function ManualZipUploadForm({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={!selectedFile || disabled || isWorking || status === "completed"} className={!selectedFile || disabled || isWorking ? "opacity-60" : ""}>
+          <FormSubmitButton
+            type="submit"
+            disabled={!selectedFile || disabled || isWorking || status === "completed"}
+            className={(!selectedFile || disabled || isWorking) ? "opacity-60" : ""}
+            busy={isWorking}
+            pendingLabel={statusLabel(status)}
+          >
             <UploadCloud size={16} />
-            {isWorking ? statusLabel(status) : "ZIP feltöltése"}
-          </Button>
+            {status === "idle" ? "ZIP feltöltése" : statusLabel(status)}
+          </FormSubmitButton>
           {selectedFile ? (
             <button
               type="button"

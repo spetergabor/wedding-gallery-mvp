@@ -1,7 +1,7 @@
 import { Download, ExternalLink, Mail, ReceiptText, UploadCloud } from "lucide-react";
-import { Button } from "@/components/button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { sendInvoiceAction, updateInvoiceStatusAction, uploadInvoiceAction } from "@/lib/invoice-actions";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 type Invoice = {
   id: string;
@@ -201,10 +201,10 @@ export function InvoiceManager({
           />
         </label>
         <div className="xl:col-span-4">
-          <Button type="submit">
+          <FormSubmitButton pendingLabel="Feltöltés...">
             <UploadCloud size={16} />
             Számla feltöltése
-          </Button>
+          </FormSubmitButton>
         </div>
       </form>
 
@@ -235,14 +235,16 @@ export function InvoiceManager({
                   {invoice.notes ? <p className="mt-2 text-sm text-graphite/70">{invoice.notes}</p> : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  <form action={sendInvoiceAction.bind(null, customerId, invoice.id)}>
-                    <button
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
+                <form action={sendInvoiceAction.bind(null, customerId, invoice.id)}>
+                    <FormSubmitButton
+                      variant="secondary"
+                      className="h-10 border-ink/10 px-3 text-graphite hover:bg-ink/5"
+                      pendingLabel="Küldés..."
                       title="Számla kiküldése emailben"
                     >
                       <Mail size={16} />
                       Küldés
-                    </button>
+                    </FormSubmitButton>
                   </form>
                   <a
                     href={invoice.fileUrl}
@@ -275,9 +277,9 @@ export function InvoiceManager({
                     <option value="paid">Fizetett</option>
                   </select>
                 </label>
-                <Button type="submit" variant="secondary" className="h-10">
+                <FormSubmitButton type="submit" variant="secondary" className="h-10" pendingLabel="Mentés...">
                   Státusz mentése
-                </Button>
+                </FormSubmitButton>
               </form>
 
               <div className="mt-3 grid gap-2 text-xs text-graphite/60">

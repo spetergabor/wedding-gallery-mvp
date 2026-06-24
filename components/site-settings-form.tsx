@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Building2, FileSignature, Globe2, ImageIcon, Instagram, Mail, Phone, Youtube } from "lucide-react";
-import { Button } from "@/components/button";
 import { updateSiteSettingsAction } from "@/lib/settings-actions";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 type SiteSettingsFormProps = {
   settings: {
@@ -203,7 +203,7 @@ export function SiteSettingsForm({ settings }: SiteSettingsFormProps) {
       </section>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Button type="submit">Beállítások mentése</Button>
+        <FormSubmitButton>Beállítások mentése</FormSubmitButton>
         <p className="text-sm text-graphite/70">A márkaadatok azonnal frissülnek az admin felületen.</p>
       </div>
     </form>

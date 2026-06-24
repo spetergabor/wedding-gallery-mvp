@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
-import { Button } from "@/components/button";
 import { markAllNotificationsReadAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 export default async function AdminNotificationsPage() {
   const admin = await requireAdmin();
@@ -31,10 +31,10 @@ export default async function AdminNotificationsPage() {
         </div>
         {unreadCount > 0 ? (
           <form action={markAllNotificationsReadAction}>
-            <Button type="submit" variant="secondary">
+            <FormSubmitButton variant="secondary" pendingLabel="Frissítés...">
               <CheckCheck size={16} />
               Összes olvasottnak
-            </Button>
+            </FormSubmitButton>
           </form>
         ) : null}
       </div>

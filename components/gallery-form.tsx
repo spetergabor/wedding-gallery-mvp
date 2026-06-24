@@ -6,6 +6,7 @@ import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { SlugFields } from "@/components/slug-fields";
 import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 type CustomerOption = {
   id: string;
@@ -281,7 +282,7 @@ export function GalleryForm({
         </div>
 
         <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:flex-row sm:items-center">
-          <Button type="submit">{gallery ? "Módosítások mentése" : "Galéria létrehozása"}</Button>
+          <FormSubmitButton>{gallery ? "Módosítások mentése" : "Galéria létrehozása"}</FormSubmitButton>
           <p className="text-sm text-graphite/70">A módosítások azonnal érvényesek a publikus galérián.</p>
         </div>
       </div>
