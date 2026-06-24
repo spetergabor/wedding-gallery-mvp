@@ -50,13 +50,13 @@ export default async function AdminPhotographersPage({
     <AdminShell>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Főadmin</p>
-          <h1 className="mt-2 text-4xl font-semibold text-ink">Fotós regisztrációk</h1>
+          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Főadmin</p>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">Fotós regisztrációk</h1>
           <p className="mt-3 max-w-2xl text-sm text-graphite/70">
             Itt tudod jóváhagyni azokat a fotósokat, akik saját galériákat szeretnének létrehozni.
           </p>
         </div>
-        <div className="rounded-md bg-white px-4 py-3 text-sm font-medium text-graphite shadow-soft">
+        <div className="rounded-md border border-ink/10 bg-white px-4 py-3 text-sm font-medium text-graphite">
           {pendingCount} függő regisztráció
         </div>
       </div>
@@ -73,7 +73,7 @@ export default async function AdminPhotographersPage({
           description="Ha valaki regisztrál, itt fog megjelenni jóváhagyásra."
         />
       ) : (
-        <section className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
+        <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
           <div className="divide-y divide-ink/10">
             {photographers.map((photographer) => (
               <article
@@ -86,7 +86,7 @@ export default async function AdminPhotographersPage({
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-semibold text-ink">{photographer.name}</p>
+                      <p className="text-base font-semibold text-ink">{photographer.name}</p>
                       <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                         {statusLabels[photographer.status] ?? photographer.status}
                       </span>

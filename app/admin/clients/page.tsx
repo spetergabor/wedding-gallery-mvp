@@ -151,8 +151,8 @@ export default async function AdminClientsPage({
     <AdminShell>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Ügyfelek</p>
-          <h1 className="mt-2 text-4xl font-semibold text-ink">Ügyfélkezelő</h1>
+          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfelek</p>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">Ügyfélkezelő</h1>
           <p className="mt-3 max-w-2xl text-sm text-graphite/70">
             Az ügyfél a nulladik pont: innen indul a galéria, a feltöltés, a válogatás és a szerződés.
           </p>
@@ -169,7 +169,7 @@ export default async function AdminClientsPage({
         </div>
       ) : null}
 
-      <form className="mb-5 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
+      <form className="mb-5 rounded-md border border-ink/10 bg-white p-4">
         {workflowView ? <input type="hidden" name="view" value={workflowView} /> : null}
         <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto] md:items-end">
           <label className="space-y-2">
@@ -261,7 +261,7 @@ export default async function AdminClientsPage({
           }
         />
       ) : (
-        <section className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
+        <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
           <div className="divide-y divide-ink/10">
             {visibleCustomers.map((customer) => (
               <Link
@@ -271,7 +271,7 @@ export default async function AdminClientsPage({
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-lg font-semibold text-ink">{customer.coupleName}</p>
+                    <p className="text-base font-semibold text-ink">{customer.coupleName}</p>
                     <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                       {customerStatusLabel(customer.status)}
                     </span>

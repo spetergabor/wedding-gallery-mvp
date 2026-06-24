@@ -839,15 +839,15 @@ export default async function AdminClientDetailPage({
   return (
     <AdminShell>
       <div className="mb-8">
-        <p className="text-sm uppercase tracking-[0.24em] text-brass">Ügyfél</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfél</p>
         <div className="mt-2 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <h1 className="text-4xl font-semibold text-ink">{customer.coupleName}</h1>
+            <h1 className="text-3xl font-semibold text-ink">{customer.coupleName}</h1>
             <p className="mt-3 text-sm text-graphite/70">
               {typeLabel} · {customerStatusLabel(customer.status)} · {formatDate(customer.weddingDate)}
             </p>
           </div>
-          <form action={updateCustomerStatusAction.bind(null, customer.id)} className="rounded-lg border border-ink/10 bg-white p-3 shadow-soft">
+          <form action={updateCustomerStatusAction.bind(null, customer.id)} className="rounded-md border border-ink/10 bg-white p-3">
             <label className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
               <span className="space-y-1">
                 <span className="block text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Fő státusz</span>
@@ -968,14 +968,14 @@ export default async function AdminClientDetailPage({
       <div data-customer-tab-panel="overview" hidden={activeTab !== "overview"}>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-6">
-            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <section className="rounded-md border border-ink/10 bg-white p-5">
               <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
                 <div>
-                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                     <CheckCircle2 size={15} />
                     Teendők
                   </div>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">Leadás előtti checklist</h2>
+                  <h2 className="mt-2 text-base font-semibold text-ink">Leadás előtti checklist</h2>
                   <p className="mt-1 text-sm leading-6 text-graphite/70">
                     A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.
                   </p>
@@ -1018,14 +1018,14 @@ export default async function AdminClientDetailPage({
               </div>
             </section>
 
-            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <section className="rounded-md border border-ink/10 bg-white p-5">
               <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
                 <div>
-                  <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                     <FolderKanban size={15} />
                     Projekt naptár
                   </div>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">Következő projektek</h2>
+                  <h2 className="mt-2 text-base font-semibold text-ink">Következő projektek</h2>
                   <p className="mt-1 text-sm leading-6 text-graphite/70">
                     Ügyfélhez tartozó fotózások és munkák dátum szerint rendezve.
                   </p>
@@ -1054,8 +1054,8 @@ export default async function AdminClientDetailPage({
                     >
                       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brass">Következő projekt</p>
-                          <h3 className="mt-2 text-lg font-semibold text-ink">{nextProject.title}</h3>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/65">Következő projekt</p>
+                          <h3 className="mt-2 text-base font-semibold text-ink">{nextProject.title}</h3>
                           <p className="mt-1 text-sm text-graphite/75">
                             {customerProjectTypeLabel(nextProject.projectType)} · {formatDate(nextProject.eventDate)}
                             {nextProject.venue ? ` · ${nextProject.venue}` : ""}
@@ -1105,13 +1105,13 @@ export default async function AdminClientDetailPage({
             </section>
           </div>
 
-          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+          <section className="rounded-md border border-ink/10 bg-white p-5">
             <div className="border-b border-ink/10 pb-4">
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                 <CalendarClock size={15} />
                 Timeline
               </div>
-              <h2 className="mt-2 text-xl font-semibold text-ink">Legutóbbi események</h2>
+              <h2 className="mt-2 text-base font-semibold text-ink">Legutóbbi események</h2>
             </div>
             <div className="mt-4 space-y-4">
               {timelineEvents.map((event) => {
@@ -1154,14 +1154,14 @@ export default async function AdminClientDetailPage({
       </div>
 
       <div data-customer-tab-panel="galleries" hidden={activeTab !== "galleries"}>
-        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+        <section className="rounded-md border border-ink/10 bg-white p-5">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
             <div>
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                 <Camera size={15} />
                 Galériák
               </div>
-              <h2 className="mt-2 text-xl font-semibold text-ink">Ügyfélhez tartozó galériák</h2>
+              <h2 className="mt-2 text-base font-semibold text-ink">Ügyfélhez tartozó galériák</h2>
               <p className="mt-1 text-sm leading-6 text-graphite/70">
                 Innen induljon az új feltöltés. Így a galéria, a válogatás, az átadás és a szerződések egy ügyfél alatt maradnak.
               </p>
@@ -1214,12 +1214,12 @@ export default async function AdminClientDetailPage({
       </div>
 
       <div data-customer-tab-panel="proofing" hidden={activeTab !== "proofing"}>
-        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-          <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+        <section className="rounded-md border border-ink/10 bg-white p-5">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
             <Heart size={15} />
             Válogatás
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">Nyers képes workflow</h2>
+          <h2 className="mt-2 text-base font-semibold text-ink">Nyers képes workflow</h2>
           <p className="mt-1 text-sm leading-6 text-graphite/70">
             Itt látod az ügyfél válogató galériáit, leadott listáit és a kész képek átadási pontját.
           </p>
@@ -1290,12 +1290,12 @@ export default async function AdminClientDetailPage({
       </div>
 
       <div data-customer-tab-panel="communication" hidden={activeTab !== "communication"}>
-        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-          <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+        <section className="rounded-md border border-ink/10 bg-white p-5">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
             <MessageSquare size={15} />
             Kommunikáció
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">Kiküldött email események</h2>
+          <h2 className="mt-2 text-base font-semibold text-ink">Kiküldött email események</h2>
           <p className="mt-1 text-sm leading-6 text-graphite/70">
             Szerződés, válogató link és kész galéria email állapotok egy helyen.
           </p>
@@ -1337,8 +1337,8 @@ export default async function AdminClientDetailPage({
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div>{isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} />}</div>
           <aside className="space-y-6">
-            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-              <h2 className="text-lg font-semibold text-ink">Gyors adatok</h2>
+            <section className="rounded-md border border-ink/10 bg-white p-5">
+              <h2 className="text-base font-semibold text-ink">Gyors adatok</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <div>
                   <dt className="text-graphite/60">Típus</dt>
@@ -1363,8 +1363,8 @@ export default async function AdminClientDetailPage({
               </dl>
             </section>
 
-            <section className="rounded-lg border border-red-200 bg-white p-5 shadow-soft">
-              <h2 className="text-lg font-semibold text-ink">Veszélyzóna</h2>
+            <section className="rounded-md border border-red-200 bg-white p-5">
+              <h2 className="text-base font-semibold text-ink">Veszélyzóna</h2>
               <p className="mt-2 text-sm leading-6 text-graphite/70">
                 Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A galériák megmaradnak,
                 de ügyfél nélküli régi galériaként folytatják. A művelet nem vonható vissza.
