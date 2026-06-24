@@ -35,7 +35,7 @@ const GALLERY_COPY = {
     sendSelection: "Auswahl abschicken",
     finishSelection: "Auswahl abschließen",
     zipPreparing: "ZIP wird vorbereitet",
-    zipEmail: "ZIP per E-Mail",
+    zipEmail: "Herunterladen",
     downloadAlbum: "Album herunterladen",
     downloadIntro: "Gib deine E-Mail-Adresse ein. Bei großen Galerien senden wir dir eine E-Mail mit allen ZIP-Teilen.",
     close: "Schließen",
