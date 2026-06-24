@@ -9,9 +9,10 @@ import { hasAnyAdmin } from "@/lib/auth";
 export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ approval?: string; error?: string; registered?: string }>;
+  searchParams: Promise<{ approval?: string; email?: string; error?: string; registered?: string; twoFactor?: string }>;
 }) {
   const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
+  const needsTwoFactor = params.twoFactor === "1";
 
   if (!alreadyHasAdmin) {
     redirect("/admin/register");
@@ -31,7 +32,16 @@ export default async function AdminLoginPage({
         </div>
 
         <div className="mb-5 space-y-3">
-          {params.error ? <Alert title="Hibás belépési adatok." variant="error">Ha be van kapcsolva a kétfaktoros hitelesítés, a 6 jegyű kód is szükséges.</Alert> : null}
+          {params.error ? (
+            <Alert title="Hibás belépési adatok." variant="error">
+              {needsTwoFactor ? "Ellenőrizd a jelszót és az authenticator appban látható friss 6 jegyű kódot." : "Ellenőrizd az email címet és a jelszót."}
+            </Alert>
+          ) : null}
+          {needsTwoFactor && !params.error ? (
+            <Alert title="Kétfaktoros kód szükséges." variant="info">
+              Ehhez a fiókhoz be van kapcsolva a kétfaktoros hitelesítés. Írd be az authenticator appban látható aktuális kódot.
+            </Alert>
+          ) : null}
           {params.approval === "pending" ? (
             <Alert title="A fiók még jóváhagyásra vár." variant="info">
               A főadmin jóváhagyása után tudsz belépni.
@@ -51,6 +61,7 @@ export default async function AdminLoginPage({
               name="email"
               type="email"
               required
+              defaultValue={params.email ?? ""}
               className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
             />
           </label>
@@ -65,17 +76,20 @@ export default async function AdminLoginPage({
             />
           </label>
 
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Kétfaktoros kód</span>
-            <input
-              name="twoFactorCode"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9 ]*"
-              placeholder="123456"
-              className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
-            />
-          </label>
+          {needsTwoFactor ? (
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Kétfaktoros kód</span>
+              <input
+                name="twoFactorCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9 ]*"
+                placeholder="123456"
+                required
+                className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+              />
+            </label>
+          ) : null}
 
           <Button type="submit" className="w-full">Belépés</Button>
         </form>

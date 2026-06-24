@@ -136,7 +136,7 @@ export default async function AdminSecurityPage({
           </div>
           <h2 className="mt-5 text-xl font-semibold text-ink">Belépés után</h2>
           <p className="mt-2 text-sm leading-6 text-graphite/70">
-            A bejelentkezési oldalon az email és jelszó mellett megjelenő kétfaktoros kód mezőbe kell írni az appban látható aktuális kódot.
+            Email és jelszó után csak ennél a fióknál jelenik meg a kétfaktoros kód mező. Oda kell írni az appban látható aktuális kódot.
           </p>
           <p className="mt-4 rounded-md bg-paper px-4 py-3 text-sm text-graphite/70">
             Ha telefont váltasz, előtte érdemes itt kikapcsolni és újra bekapcsolni a kétfaktort az új készüléken.

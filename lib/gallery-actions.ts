@@ -526,13 +526,18 @@ export async function loginAction(formData: FormData) {
   const password = formString(formData, "password");
   const twoFactorCode = formString(formData, "twoFactorCode");
   const result = await signInAdmin(email, password, twoFactorCode);
+  const loginEmailQuery = email ? `&email=${encodeURIComponent(email)}` : "";
 
   if (result === "pending") {
     redirect("/admin/login?approval=pending");
   }
 
+  if (result === "two_factor_required") {
+    redirect(`/admin/login?twoFactor=1${loginEmailQuery}`);
+  }
+
   if (result !== "success") {
-    redirect("/admin/login?error=1");
+    redirect(`/admin/login?error=1${twoFactorCode ? `&twoFactor=1${loginEmailQuery}` : ""}`);
   }
 
   redirect("/admin/dashboard");

@@ -137,7 +137,11 @@ export async function signInAdmin(email: string, password: string, twoFactorCode
   }
 
   if (admin.twoFactorEnabled) {
-    if (!admin.twoFactorSecret || !twoFactorCode || !verifyTotpCode(admin.twoFactorSecret, twoFactorCode)) {
+    if (!twoFactorCode) {
+      return "two_factor_required";
+    }
+
+    if (!admin.twoFactorSecret || !verifyTotpCode(admin.twoFactorSecret, twoFactorCode)) {
       return "invalid";
     }
   }
