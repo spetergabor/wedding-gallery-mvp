@@ -1,8 +1,5 @@
-import { Plus, Users } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
-import { ButtonLink } from "@/components/button";
-import { EmptyState } from "@/components/empty-state";
 import { GalleryForm } from "@/components/gallery-form";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
@@ -55,7 +52,7 @@ export default async function NewGalleryPage({
         <p className="text-sm uppercase tracking-[0.24em] text-brass">Új galéria</p>
         <h1 className="mt-2 text-4xl font-semibold text-ink">Galéria létrehozása</h1>
         <p className="mt-3 max-w-2xl text-sm text-graphite/70">
-          Válassz meglévő ügyfelet, majd ehhez kapcsolódik a feltöltés, a válogatás, az átadás és a szerződéses folyamat.
+          Kapcsold meglévő ügyfélhez, ha munkafolyamat része. Saját vagy belső célra ügyfél nélkül is létrehozható.
         </p>
       </div>
       <div className="mb-5 space-y-3">
@@ -65,7 +62,7 @@ export default async function NewGalleryPage({
         {flags.error === "missing" ? <Alert title="Hiányzó kötelező mező." variant="error" /> : null}
         {flags.error === "customer" ? (
           <Alert title="Válassz érvényes ügyfelet." variant="error">
-            A galéria csak létező ügyfélhez kapcsolva hozható létre.
+            A kiválasztott ügyfél nem található vagy nem hozzád tartozik.
           </Alert>
         ) : null}
         {flags.error === "project" ? (
@@ -74,21 +71,7 @@ export default async function NewGalleryPage({
           </Alert>
         ) : null}
       </div>
-      {customers.length === 0 ? (
-        <EmptyState
-          icon={<Users size={22} />}
-          title="Először hozz létre ügyfelet"
-          description="Az új működésben az ügyfél a nulladik pont. Az ügyfél adatlapjáról indítható a galéria, szerződés és később a fizetés."
-          action={
-            <ButtonLink href="/admin/clients/new">
-              <Plus size={16} />
-              Új ügyfél
-            </ButtonLink>
-          }
-        />
-      ) : (
-        <GalleryForm customers={customers} projects={projects} selectedCustomerId={selectedCustomerId} selectedProjectId={selectedProjectId} />
-      )}
+      <GalleryForm customers={customers} projects={projects} selectedCustomerId={selectedCustomerId} selectedProjectId={selectedProjectId} />
     </AdminShell>
   );
 }

@@ -804,23 +804,25 @@ export async function createGalleryAction(formData: FormData) {
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
 
-  if (!title || !slug || !customerId) {
+  if (!title || !slug) {
     redirect("/admin/galleries/new?error=missing");
   }
 
-  const customer = await prisma.customer.findFirst({
-    where: {
-      id: customerId,
-      ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
-    },
-    select: {
-      id: true,
-      primaryEmail: true,
-      weddingDate: true
-    }
-  });
+  const customer = customerId
+    ? await prisma.customer.findFirst({
+        where: {
+          id: customerId,
+          ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+        },
+        select: {
+          id: true,
+          primaryEmail: true,
+          weddingDate: true
+        }
+      })
+    : null;
 
-  if (!customer) {
+  if (customerId && !customer) {
     redirect("/admin/galleries/new?error=customer");
   }
 
@@ -828,7 +830,7 @@ export async function createGalleryAction(formData: FormData) {
     ? await prisma.customerProject.findFirst({
         where: {
           id: projectId,
-          customerId: customer.id,
+          customerId: customer?.id ?? "",
           ...(admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } })
         },
         select: {
@@ -842,7 +844,7 @@ export async function createGalleryAction(formData: FormData) {
     redirect("/admin/galleries/new?error=project");
   }
 
-  const eventDate = submittedEventDate ?? project?.eventDate ?? customer.weddingDate;
+  const eventDate = submittedEventDate ?? project?.eventDate ?? customer?.weddingDate ?? null;
   let gallery;
 
   try {
@@ -851,7 +853,7 @@ export async function createGalleryAction(formData: FormData) {
         title,
         slug,
         adminId: admin.id,
-        customerId: customer.id,
+        customerId: customer?.id ?? null,
         projectId: project?.id ?? null,
         password: password || null,
         eventDate,
@@ -860,7 +862,7 @@ export async function createGalleryAction(formData: FormData) {
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
-        clientEmail: normalizeEmail(customer.primaryEmail),
+        clientEmail: customer ? normalizeEmail(customer.primaryEmail) : null,
         clientAccessToken: createClientAccessToken()
       }
     });
@@ -874,7 +876,9 @@ export async function createGalleryAction(formData: FormData) {
 
   revalidatePath("/admin/galleries");
   revalidatePath("/admin/clients");
-  revalidatePath(`/admin/clients/${customer.id}`);
+  if (customer?.id) {
+    revalidatePath(`/admin/clients/${customer.id}`);
+  }
   redirect(`/admin/galleries/${gallery.id}`);
 }
 
@@ -954,7 +958,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         eventDate,
         isActive,
         galleryMode,
-        clientEmail: selectedCustomer ? normalizeEmail(selectedCustomer.primaryEmail) : previousGallery?.clientEmail ?? null,
+        clientEmail: selectedCustomer ? normalizeEmail(selectedCustomer.primaryEmail) : null,
         proofingInviteEmailError: null,
         finalDeliveryEmailError: null,
         ...(becameProofing
