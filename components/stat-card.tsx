@@ -8,10 +8,10 @@ export function StatCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-      <p className="text-sm text-graphite/70">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-normal text-ink">{value}</p>
-      <p className="mt-2 text-sm text-graphite">{detail}</p>
+    <div className="rounded-md border border-ink/12 bg-white p-4">
+      <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/65">{label}</p>
+      <p className="mt-2 text-2xl font-semibold leading-tight text-ink">{value}</p>
+      <p className="mt-1 text-sm text-graphite/75">{detail}</p>
     </div>
   );
 }

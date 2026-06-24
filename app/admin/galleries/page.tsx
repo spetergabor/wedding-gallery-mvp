@@ -43,12 +43,14 @@ export default async function AdminGalleriesPage({
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-brass">Galériák</p>
-          <h1 className="mt-2 text-4xl font-semibold text-ink">Galériakezelés</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">Galériakezelés</h1>
           <p className="mt-3 max-w-2xl text-sm text-graphite/70">
             A galériák mostantól ügyfelekhez kapcsolódnak. Új munka előtt érdemes az ügyfél adatlapjáról indítani.
           </p>
         </div>
-        <ButtonLink href="/admin/galleries/new">Új galéria</ButtonLink>
+        <ButtonLink href="/admin/galleries/new" variant="secondary">
+          Új galéria
+        </ButtonLink>
       </div>
 
       {flags.deleted ? (
@@ -70,12 +72,12 @@ export default async function AdminGalleriesPage({
           }
         />
       ) : (
-      <section className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
+      <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
         <div className="divide-y divide-ink/10">
           {galleries.map((gallery) => (
             <div key={gallery.id} className="grid gap-4 px-5 py-5 md:grid-cols-[1fr_auto] md:items-center">
-              <Link href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[96px_1fr] sm:items-center">
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md bg-paper sm:w-24">
+              <Link href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[86px_1fr] sm:items-center">
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-ink/10 bg-paper sm:w-20">
                   {(() => {
                     const cover =
                       gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
+import Image from "next/image";
+import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, Film, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, ButtonLink } from "@/components/button";
@@ -63,6 +64,8 @@ type WorkflowStep = {
   href: string;
 };
 
+const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
+
 function galleryTabTargetFromHref(href: string): GalleryTab | undefined {
   const match = href.match(/[?&]tab=(photos|client|views|downloads|settings)\b/);
   return match?.[1] as GalleryTab | undefined;
@@ -81,11 +84,11 @@ function WorkflowPanel({
   const nextStepTab = nextStep ? galleryTabTargetFromHref(nextStep.href) : undefined;
 
   return (
-    <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+    <section className="rounded-md border border-ink/12 bg-white p-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Munkafolyamat</p>
-          <h2 className="mt-2 text-xl font-semibold text-ink">{title}</h2>
+          <p className={sectionMetaClass}>Munkafolyamat</p>
+          <h2 className="mt-2 text-lg font-semibold text-ink">{title}</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{description}</p>
         </div>
         {nextStep ? (
@@ -108,8 +111,8 @@ function WorkflowPanel({
             key={step.label}
             href={step.href}
             data-gallery-tab-target={galleryTabTargetFromHref(step.href)}
-            className={`rounded-md border px-3 py-3 transition hover:border-ink/20 ${
-              step.done ? "border-sage/20 bg-sage/10" : "border-ink/10 bg-paper"
+            className={`rounded-md border border-ink/10 bg-paper/75 px-3 py-3 transition hover:border-ink/20 ${
+              step.done ? "border-sage/20 bg-sage/12" : ""
             }`}
           >
             <div className="flex items-center gap-2">
@@ -416,13 +419,14 @@ export default async function GalleryDetailPage({
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString()
     }));
+  const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
 
   return (
     <AdminShell>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Galéria</p>
-          <h1 className="mt-2 text-4xl font-semibold text-ink">{gallery.title}</h1>
+          <p className={sectionMetaClass}>Galéria</p>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">{gallery.title}</h1>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <p className="text-sm text-graphite/70">/g/{gallery.slug}</p>
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
@@ -454,10 +458,10 @@ export default async function GalleryDetailPage({
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <CopyPublicLinkButton slug={gallery.slug} />
+          <CopyPublicLinkButton slug={gallery.slug} variant="primary" />
           {!proofingGallery ? (
             gallery.clientAccessToken ? (
-              <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+              <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
             ) : (
               <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
                 <Button type="submit" variant="secondary">
@@ -473,6 +477,19 @@ export default async function GalleryDetailPage({
           </ButtonLink>
         </div>
       </div>
+      {coverPhoto ? (
+        <section className="mb-8 rounded-md border border-ink/12 bg-paper p-1">
+          <div className="relative h-16 w-full overflow-hidden rounded-sm sm:h-20">
+            {coverPhoto.mediaType === "video" ? (
+              <div className="grid h-full place-items-center bg-ink text-white">
+                <Film size={16} />
+              </div>
+            ) : (
+              <Image src={coverPhoto.imageUrl} alt={coverPhoto.filename} fill unoptimized className="object-cover" sizes="100vw" />
+            )}
+          </div>
+        </section>
+      ) : null}
 
       <div className="mb-5 space-y-3">
         {flags.saved ? <Alert title="Galéria mentve." variant="success" /> : null}
@@ -575,21 +592,21 @@ export default async function GalleryDetailPage({
               resumableSessions={resumableUploadSessions}
             />
             {!proofingGallery ? (
-              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <section className="rounded-md border border-ink/12 bg-white p-4">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                   <div>
-                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                    <div className={sectionMetaClass}>
                       <KeyRound size={15} />
                       Privát kezelő link
                     </div>
-                    <h2 className="mt-2 text-xl font-semibold text-ink">Képek elrejtése az ügyfélnek</h2>
+                    <h2 className="mt-2 text-lg font-semibold text-ink">Képek elrejtése az ügyfélnek</h2>
                     <p className="mt-1 text-sm text-graphite/70">
                       Ezen a linken az ügyfél végig tudja nézni a kész galériát, és elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
                     </p>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     {gallery.clientAccessToken ? (
-                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} />
+                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
                     ) : (
                       <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
                         <Button type="submit" variant="secondary">
@@ -635,14 +652,14 @@ export default async function GalleryDetailPage({
               />
             ) : null}
             {proofingGallery ? (
-              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <section className="rounded-md border border-ink/12 bg-white p-4">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                   <div>
-                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                    <div className={sectionMetaClass}>
                       <Download size={15} />
                       Kész képek átadása
                     </div>
-                    <h2 className="mt-2 text-xl font-semibold text-ink">
+                    <h2 className="mt-2 text-lg font-semibold text-ink">
                       {gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "A kész képek át vannak adva" : "Kész anyag publikálása"}
                     </h2>
                     <p className="mt-1 text-sm text-graphite/70">
@@ -651,11 +668,11 @@ export default async function GalleryDetailPage({
                     <p className="mt-3 text-sm font-medium text-ink">Kész képek: {finalPhotoCount}</p>
                     <div className="mt-4 grid gap-3 text-sm text-graphite md:grid-cols-2">
                       <div className="rounded-md bg-paper px-3 py-2">
-                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfél email</p>
+                        <p className={sectionMetaClass}>Ügyfél email</p>
                         <p className="mt-1 font-medium text-ink">{gallery.clientEmail ?? "Nincs megadva"}</p>
                       </div>
                       <div className="rounded-md bg-paper px-3 py-2">
-                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Átadás email</p>
+                        <p className={sectionMetaClass}>Átadás email</p>
                         <p className="mt-1 font-medium text-ink">
                           {gallery.finalDeliveryEmailSentAt
                             ? `${gallery.finalDeliveryEmailSentAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })} · ${gallery.finalDeliveryEmailSentTo ?? gallery.clientEmail ?? ""}`
@@ -668,10 +685,10 @@ export default async function GalleryDetailPage({
                     {!gallery.clientEmail ? (
                       <p className="mt-3 text-sm text-red-700">Az email küldéshez előbb add meg az ügyfél email címét a galéria beállításaiban.</p>
                     ) : null}
-                    <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
-                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">Fizetés / hozzáférés váz</p>
+                    <div className="mt-5 rounded-md border border-ink/10 bg-paper/80 p-4">
+                      <p className={sectionMetaClass}>Fizetés / hozzáférés váz</p>
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <div className="rounded-md border border-sage/20 bg-white px-3 py-3">
+                        <div className="rounded-md border border-sage/20 bg-paper px-3 py-3">
                           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                             <Landmark size={16} />
                             Most: számla és utalás
@@ -680,7 +697,7 @@ export default async function GalleryDetailPage({
                             A kész galéria csak akkor megy ki az ügyfélnek, amikor te manuálisan átadod. Így maradhat a számla után érkező utalás ellenőrzése.
                           </p>
                         </div>
-                        <div className="rounded-md border border-ink/10 bg-white/70 px-3 py-3">
+                        <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
                           <div className="flex items-center gap-2 text-sm font-semibold text-ink">
                             <CreditCard size={16} />
                             Később: Stripe kártyás fizetés
@@ -726,24 +743,24 @@ export default async function GalleryDetailPage({
               />
             ) : null}
             {proofingGallery ? (
-              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <section className="rounded-md border border-ink/12 bg-white p-4">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                   <div>
-                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+                    <div className={sectionMetaClass}>
                       <KeyRound size={15} />
                       Válogató link
                     </div>
-                    <h2 className="mt-2 text-xl font-semibold text-ink">Normál galéria link válogatáshoz</h2>
+                    <h2 className="mt-2 text-lg font-semibold text-ink">Normál galéria link válogatáshoz</h2>
                     <p className="mt-1 text-sm text-graphite/70">
                       Nyers válogatásnál ezt a galéria linket kapja meg az ügyfél. Itt tud kedvenceket jelölni és leadni, melyik képeket szeretné megvenni.
                     </p>
                     <div className="mt-4 grid gap-3 text-sm text-graphite md:grid-cols-2">
                       <div className="rounded-md bg-paper px-3 py-2">
-                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfél email</p>
+                        <p className={sectionMetaClass}>Ügyfél email</p>
                         <p className="mt-1 font-medium text-ink">{gallery.clientEmail ?? "Nincs megadva"}</p>
                       </div>
                       <div className="rounded-md bg-paper px-3 py-2">
-                        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Válogató email</p>
+                        <p className={sectionMetaClass}>Válogató email</p>
                         <p className="mt-1 font-medium text-ink">
                           {gallery.proofingInviteSentAt
                             ? `${gallery.proofingInviteSentAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })} · ${gallery.proofingInviteSentTo ?? gallery.clientEmail ?? ""}`
@@ -784,7 +801,7 @@ export default async function GalleryDetailPage({
 
         <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
           <div className="max-w-3xl space-y-6">
-            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <section className="rounded-md border border-ink/12 bg-white p-4">
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
                   <h2 className="text-lg font-semibold text-ink">Automata ZIP részek</h2>

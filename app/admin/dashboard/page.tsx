@@ -21,6 +21,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
+import { EmptyState } from "@/components/empty-state";
 import { StatCard } from "@/components/stat-card";
 import { ViewLocationMap } from "@/components/view-location-map";
 import { requireAdmin } from "@/lib/auth";
@@ -52,6 +53,9 @@ type DashboardTask = {
   icon: LucideIcon;
   createdAt: Date;
 };
+
+const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
+const sectionTitleClass = "text-base font-semibold text-ink";
 
 function formatStorageSize(bytes: number) {
   if (bytes <= 0) {
@@ -525,8 +529,8 @@ export default async function AdminDashboardPage() {
     <AdminShell>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Admin</p>
-          <h1 className="mt-2 text-4xl font-semibold text-ink">Dashboard</h1>
+          <p className={sectionMetaClass}>Admin</p>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">Dashboard</h1>
         </div>
         <ButtonLink href="/admin/galleries/new">Új galéria</ButtonLink>
       </div>
@@ -539,14 +543,14 @@ export default async function AdminDashboardPage() {
         <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
       </div>
 
-      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
+      <section className="mt-8 rounded-md border border-ink/12 bg-white">
         <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
           <div>
-            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+            <div className={sectionMetaClass}>
               <ListChecks size={15} />
               Mai fókusz
             </div>
-            <h2 className="mt-2 text-lg font-semibold text-ink">Teendőközpont</h2>
+            <h2 className={`mt-2 ${sectionTitleClass}`}>Teendőközpont</h2>
             <p className="mt-1 text-sm text-graphite/70">
               A legfontosabb ügyfél-, galéria- és háttérfolyamatok egy gyors listában.
             </p>
@@ -558,9 +562,12 @@ export default async function AdminDashboardPage() {
         </div>
 
         {dashboardTasks.length === 0 ? (
-          <div className="flex flex-col gap-2 px-5 py-8 text-sm text-graphite/70 sm:flex-row sm:items-center">
-            <CheckCircle2 size={18} className="text-brass" />
-            Nincs sürgős admin teendő. A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg.
+          <div className="px-5 pb-4">
+            <EmptyState
+              icon={<CheckCircle2 size={18} className="text-ink" />}
+              title="Nincs sürgős admin teendő"
+              description="A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg, ha érkeznek."
+            />
           </div>
         ) : (
           <div className="divide-y divide-ink/10">
@@ -593,14 +600,14 @@ export default async function AdminDashboardPage() {
         )}
       </section>
 
-      <section className="mt-8 rounded-lg border border-ink/10 bg-white shadow-soft">
+      <section className="mt-8 rounded-md border border-ink/12 bg-white">
         <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
           <div>
-            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+            <div className={sectionMetaClass}>
               <FolderKanban size={15} />
               Projektek
             </div>
-            <h2 className="mt-2 text-lg font-semibold text-ink">Következő projektek</h2>
+            <h2 className={`mt-2 ${sectionTitleClass}`}>Következő projektek</h2>
           </div>
           <ButtonLink href="/admin/clients" variant="secondary" className="h-10">
             Ügyfelek megnyitása
@@ -608,8 +615,12 @@ export default async function AdminDashboardPage() {
         </div>
 
         {upcomingProjects.length === 0 ? (
-          <div className="px-5 py-8 text-sm text-graphite/70">
-            Nincs dátummal ellátott közelgő projekt. Az ügyfél adatlapján létrehozott projektek itt jelennek meg időrendben.
+          <div className="px-5 pb-4">
+            <EmptyState
+              icon={<FolderKanban size={18} className="text-ink" />}
+              title="Nincs közelgő projekt"
+              description="Az ügyfél adatlapján létrehozott jövőbeli projektek itt jelennek majd meg időrendben."
+            />
           </div>
         ) : (
           <div className="grid gap-3 p-5 lg:grid-cols-2 2xl:grid-cols-3">
@@ -654,9 +665,9 @@ export default async function AdminDashboardPage() {
       </section>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
-        <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
+        <section className="rounded-md border border-ink/12 bg-white">
           <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
-            <h2 className="text-lg font-semibold text-ink">Értesítések</h2>
+            <h2 className={sectionTitleClass}>Értesítések</h2>
             <Link href="/admin/notifications" className="text-sm font-medium text-ink hover:underline">
               Összes
             </Link>
@@ -685,14 +696,20 @@ export default async function AdminDashboardPage() {
               </Link>
             ))}
             {latestNotifications.length === 0 ? (
-              <div className="px-5 py-10 text-sm text-graphite/70">Még nincs értesítés.</div>
+              <div className="px-5 py-4">
+                <EmptyState
+                  icon={<Bell size={18} className="text-ink" />}
+                  title="Még nincs értesítés"
+                  description="Egyelőre nincs nyitott üzenet vagy figyelmeztetés."
+                />
+              </div>
             ) : null}
           </div>
         </section>
 
-        <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
+        <section className="rounded-md border border-ink/12 bg-white">
           <div className="border-b border-ink/10 px-5 py-4">
-            <h2 className="text-lg font-semibold text-ink">Legutóbbi galériák</h2>
+            <h2 className={sectionTitleClass}>Legutóbbi galériák</h2>
           </div>
           <div className="divide-y divide-ink/10">
             {latestGalleries.map((gallery) => (
@@ -735,7 +752,13 @@ export default async function AdminDashboardPage() {
               </a>
             ))}
             {latestGalleries.length === 0 ? (
-              <div className="px-5 py-10 text-sm text-graphite/70">Még nincs galéria.</div>
+              <div className="px-5 pb-4">
+                <EmptyState
+                  icon={<Camera size={18} className="text-ink" />}
+                  title="Még nincs galéria"
+                  description="A frissen létrehozott galériáid itt fognak megjelenni."
+                />
+              </div>
             ) : null}
           </div>
         </section>

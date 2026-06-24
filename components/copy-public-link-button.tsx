@@ -6,10 +6,14 @@ import { Button } from "@/components/button";
 
 export function CopyPublicLinkButton({
   slug,
-  label = "Publikus link másolása"
+  label = "Publikus link másolása",
+  variant = "secondary",
+  className
 }: {
   slug: string;
   label?: string;
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  className?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -26,7 +30,7 @@ export function CopyPublicLinkButton({
   }
 
   return (
-    <Button type="button" variant="secondary" onClick={handleCopy}>
+    <Button type="button" variant={variant} className={className} onClick={handleCopy}>
       {copied ? <Check size={16} /> : <Copy size={16} />}
       {copied ? "Másolva" : label}
     </Button>

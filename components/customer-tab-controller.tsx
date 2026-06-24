@@ -99,8 +99,8 @@ export function CustomerTabController({
   }, [validTabs]);
 
   return (
-    <div className="mb-6 rounded-lg border border-ink/10 bg-white p-2 shadow-soft">
-      <nav className="grid gap-2 md:grid-cols-3 xl:grid-cols-9" aria-label="Ügyfél munkaterületek">
+    <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
+      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white md:grid-cols-3 xl:grid-cols-9" aria-label="Ügyfél munkaterületek">
         {tabs.map((tab) => {
           const Icon = icons[tab.icon];
           const isActive = activeTab === tab.key;
@@ -111,8 +111,8 @@ export function CustomerTabController({
               type="button"
               data-customer-tab-target={tab.key}
               aria-current={isActive ? "page" : undefined}
-              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
-                isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              className={`flex min-h-11 items-center justify-center gap-2 border-r border-ink/10 px-3 text-sm font-medium transition last:border-r-0 ${
+                isActive ? "bg-paper text-ink border-b-2 border-b-ink/50" : "text-graphite hover:bg-ink/[0.04] hover:text-ink"
               }`}
             >
               <Icon size={16} />
