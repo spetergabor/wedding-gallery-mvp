@@ -18,7 +18,6 @@ import { MediaProcessingStatus } from "@/components/media-processing-status";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { ProofingStatusPanel } from "@/components/proofing-status-panel";
-import { StatCard } from "@/components/stat-card";
 import { UploadSessionLog } from "@/components/upload-session-log";
 import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
@@ -85,7 +84,7 @@ function WorkflowPanel({
   const nextStepTab = nextStep ? galleryTabTargetFromHref(nextStep.href) : undefined;
 
   return (
-    <section className="rounded-md border border-ink/12 bg-white p-5">
+    <section className="rounded-lg border border-ink/10 bg-paper/70 p-4">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
         <div>
           <p className={sectionMetaClass}>Munkafolyamat</p>
@@ -96,8 +95,8 @@ function WorkflowPanel({
           <Link
             href={nextStep.href}
             data-gallery-tab-target={nextStepTab}
-            className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition ${
-              nextStep.done ? "border border-ink/15 bg-white text-ink hover:border-ink/30" : "bg-ink text-white hover:bg-graphite"
+            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium transition ${
+              nextStep.done ? "bg-paper text-graphite hover:border-ink/30" : "bg-ink text-white hover:bg-graphite"
             }`}
           >
             {nextStep.done ? <CheckCircle2 size={16} /> : null}
@@ -106,27 +105,47 @@ function WorkflowPanel({
         ) : null}
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-5">
+      <div className="mt-4 grid gap-2 md:grid-cols-5">
         {steps.map((step, index) => (
           <Link
             key={step.label}
             href={step.href}
             data-gallery-tab-target={galleryTabTargetFromHref(step.href)}
-            className={`rounded-md border border-ink/10 bg-paper/75 px-3 py-3 transition hover:border-ink/20 ${
-              step.done ? "border-sage/20 bg-sage/12" : ""
+            className={`rounded-md border border-ink/8 bg-white/70 px-3 py-2.5 transition hover:border-ink/25 ${
+              step.done ? "border-sage/25 bg-sage/8" : ""
             }`}
           >
             <div className="flex items-center gap-2">
               <span className={`grid size-6 place-items-center rounded-full text-xs font-semibold ${step.done ? "bg-sage text-white" : "bg-white text-graphite"}`}>
                 {step.done ? <CheckCircle2 size={14} /> : index + 1}
               </span>
-              <span className="text-sm font-semibold text-ink">{step.label}</span>
+              <span className="text-sm font-medium text-ink">{step.label}</span>
             </div>
             <p className="mt-2 text-xs leading-5 text-graphite/70">{step.detail}</p>
           </Link>
         ))}
       </div>
     </section>
+  );
+}
+
+type CompactStat = {
+  label: string;
+  value: string | number;
+  detail: string;
+};
+
+function CompactStatsGrid({ items }: { items: CompactStat[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {items.map((item) => (
+        <div key={item.label} className="rounded-md border border-ink/10 bg-paper px-3 py-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-graphite/65">{item.label}</p>
+          <p className="mt-1.5 text-xl font-semibold leading-tight text-ink">{item.value}</p>
+          <p className="mt-1 text-xs text-graphite/75">{item.detail}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -569,18 +588,24 @@ export default async function GalleryDetailPage({
           steps={workflowSteps}
         />
 
-        <div className="grid gap-4 md:grid-cols-6">
-          <StatCard
-            label="Fotók"
-            value={gallery.photos.length}
-            detail={proofingGallery ? `Nyers: ${rawPhotoCount} · Kész: ${finalPhotoCount}` : "Feltöltött képek száma"}
-          />
-          <StatCard label="Típus" value={galleryModeLabel} detail={proofingGallery ? proofingStatusLabel(gallery.proofingStatus) : "Kész galéria átadásra"} />
-          <StatCard label="Megtekintések" value={gallery._count.views} detail={`Legutóbbi: ${latestLocation}`} />
-          <StatCard label="Kedvenc listák" value={gallery._count.favoriteLists} detail="Emailhez mentett válogatások" />
-          <StatCard label="Elrejtve" value={hiddenByClientCount} detail="Ügyfél által publikusból kivéve" />
-          <StatCard label="Állapot" value={gallery.isActive ? "Aktív" : "Archivált"} detail="Publikus elérhetőség" />
-        </div>
+        <CompactStatsGrid
+          items={[
+            {
+              label: "Fotók",
+              value: gallery.photos.length,
+              detail: proofingGallery ? `Nyers: ${rawPhotoCount} · Kész: ${finalPhotoCount}` : "Feltöltött képek száma"
+            },
+            {
+              label: "Típus",
+              value: galleryModeLabel,
+              detail: proofingGallery ? proofingStatusLabel(gallery.proofingStatus) : "Kész galéria átadásra"
+            },
+            { label: "Megtekintések", value: gallery._count.views, detail: `Legutóbbi: ${latestLocation}` },
+            { label: "Kedvenc listák", value: gallery._count.favoriteLists, detail: "Emailhez mentett válogatások" },
+            { label: "Elrejtve", value: hiddenByClientCount, detail: "Ügyfél által publikusból kivéve" },
+            { label: "Állapot", value: gallery.isActive ? "Aktív" : "Archivált", detail: "Publikus elérhetőség" }
+          ]}
+        />
 
         <GalleryTabController tabs={renderedGalleryTabs} initialTab={activeTab} />
 
