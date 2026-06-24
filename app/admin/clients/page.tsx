@@ -62,7 +62,17 @@ export default async function AdminClientsPage({
         : {})
     },
     orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }],
-    include: {
+    select: {
+      id: true,
+      coupleName: true,
+      primaryEmail: true,
+      secondaryEmail: true,
+      phone: true,
+      weddingDate: true,
+      venue: true,
+      status: true,
+      customerType: true,
+      createdAt: true,
       contracts: {
         orderBy: { createdAt: "desc" },
         take: 1,
