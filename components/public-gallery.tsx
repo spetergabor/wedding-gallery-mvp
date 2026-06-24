@@ -4,6 +4,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, Play, X } from "lucide-react";
 import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   createFavoriteListAction,
@@ -243,6 +244,7 @@ export function PublicGallery({
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
   const [lastFavoritePulseId, setLastFavoritePulseId] = useState<string | null>(null);
   const [isSubmittingFavoriteList, setIsSubmittingFavoriteList] = useState(false);
+  const [isSubmittingFavoriteEmail, setIsSubmittingFavoriteEmail] = useState(false);
   const [favoriteSuccess, setFavoriteSuccess] = useState("");
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
@@ -631,6 +633,9 @@ export function PublicGallery({
 
   async function submitFavoriteEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmittingFavoriteEmail) {
+      return;
+    }
 
     if (!favoritesEnabled) {
       return;
@@ -643,37 +648,44 @@ export function PublicGallery({
       return;
     }
 
+    setIsSubmittingFavoriteEmail(true);
+    setFavoriteError("");
+
     setFavoriteEmail(normalizedEmail);
     window.localStorage.setItem(`wgm-favorite-email-${galleryId}`, normalizedEmail);
     const queuedPhotoId = favoritePromptPhotoId;
     setFavoritePromptPhotoId(null);
 
-    let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail);
+    try {
+      let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail);
 
-    if (listsResult.ok && listsResult.lists.length === 0) {
-      const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? copy.defaultSelectionName : copy.defaultFavoritesName);
+      if (listsResult.ok && listsResult.lists.length === 0) {
+        const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? copy.defaultSelectionName : copy.defaultFavoritesName);
 
-      if (created.ok && created.list) {
-        listsResult = {
-          ok: true,
-          lists: [created.list]
-        };
+        if (created.ok && created.list) {
+          listsResult = {
+            ok: true,
+            lists: [created.list]
+          };
+        }
       }
-    }
 
-    if (listsResult.ok) {
-      const nextActiveListId = listsResult.lists[0]?.id ?? "";
-      setFavoriteLists(listsResult.lists);
-      setActiveFavoriteListId(nextActiveListId);
+      if (listsResult.ok) {
+        const nextActiveListId = listsResult.lists[0]?.id ?? "";
+        setFavoriteLists(listsResult.lists);
+        setActiveFavoriteListId(nextActiveListId);
+
+        if (queuedPhotoId) {
+          await toggleFavorite(queuedPhotoId, normalizedEmail, nextActiveListId);
+          return;
+        }
+      }
 
       if (queuedPhotoId) {
-        await toggleFavorite(queuedPhotoId, normalizedEmail, nextActiveListId);
-        return;
+        await toggleFavorite(queuedPhotoId, normalizedEmail);
       }
-    }
-
-    if (queuedPhotoId) {
-      await toggleFavorite(queuedPhotoId, normalizedEmail);
+    } finally {
+      setIsSubmittingFavoriteEmail(false);
     }
   }
 
@@ -1028,10 +1040,16 @@ export function PublicGallery({
             ) : null}
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <Button type="submit" disabled={isZipping} className="sm:flex-1">
+              <FormSubmitButton
+                type="submit"
+                disabled={isZipping}
+                className="sm:flex-1"
+                busy={isZipping}
+                pendingLabel={copy.zipLinksPreparing}
+              >
                 <Download size={16} />
-                {isZipping ? copy.zipLinksPreparing : copy.requestDownloadLinks}
-              </Button>
+                {copy.requestDownloadLinks}
+              </FormSubmitButton>
               <Button type="button" variant="secondary" onClick={closeDownloadDialog}>
                 {copy.cancel}
               </Button>
@@ -1166,10 +1184,16 @@ export function PublicGallery({
             ) : null}
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <Button type="submit" className="sm:flex-1">
+              <FormSubmitButton
+                type="submit"
+                className="sm:flex-1"
+                busy={isSubmittingFavoriteEmail}
+                pendingLabel={copy.saving}
+                disabled={isSubmittingFavoriteEmail}
+              >
                 <Heart size={16} />
                 {proofingSelection ? copy.saveSelectionButton : copy.saveFavoriteButton}
-              </Button>
+              </FormSubmitButton>
               <Button type="button" variant="secondary" onClick={() => setFavoritePromptPhotoId(null)}>
                 {copy.cancel}
               </Button>
