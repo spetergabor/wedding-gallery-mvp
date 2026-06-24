@@ -499,7 +499,7 @@ export default async function GalleryDetailPage({
       </div>
       {coverPhoto ? (
         <section className="mb-8 rounded-md border border-ink/12 bg-paper p-1">
-          <div className="relative h-16 w-full overflow-hidden rounded-sm sm:h-20">
+          <div className="relative h-44 w-full overflow-hidden rounded-sm md:h-56 lg:h-64">
             {coverPhoto.mediaType === "video" ? (
               <div className="grid h-full place-items-center bg-ink text-white">
                 <Film size={16} />
