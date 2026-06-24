@@ -45,6 +45,7 @@ type GalleryFormProps = {
   projects?: ProjectOption[];
   selectedCustomerId?: string | null;
   selectedProjectId?: string | null;
+  initialGalleryMode?: string;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -107,7 +108,8 @@ export function GalleryForm({
   customers = [],
   projects = [],
   selectedCustomerId = null,
-  selectedProjectId = null
+  selectedProjectId = null,
+  initialGalleryMode = GALLERY_MODE_FULL
 }: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
@@ -117,14 +119,18 @@ export function GalleryForm({
   const selectedCustomer = customers.find((customer) => customer.id === defaultCustomerId) ?? null;
   const selectedProject = projects.find((project) => project.id === defaultProjectId) ?? null;
   const defaultEventDate = gallery?.eventDate ?? selectedProject?.eventDate ?? selectedCustomer?.weddingDate ?? null;
+  const defaultGalleryMode = gallery?.galleryMode ?? initialGalleryMode;
+  const proofingMode = defaultGalleryMode === GALLERY_MODE_PROOFING;
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
       <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-5 md:flex-row md:items-start">
         <div>
-          <h2 className="text-xl font-semibold text-ink">Galéria adatai</h2>
+          <h2 className="text-xl font-semibold text-ink">{proofingMode ? "Nyers válogatás adatai" : "Kész galéria adatai"}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            A galéria kapcsolódhat ügyfélhez, de saját vagy belső célra ügyfél nélkül is létrehozható.
+            {proofingMode
+              ? "Az ügyfél nyers képekből választ, a kész galéria később ebből az útvonalból születik meg."
+              : "Végleges képek átadásához, vendéggalériához és letöltésekhez használd ezt az útvonalat."}
           </p>
         </div>
       </div>
@@ -205,14 +211,14 @@ export function GalleryForm({
               </span>
               <select
                 name="galleryMode"
-                defaultValue={gallery?.galleryMode ?? GALLERY_MODE_FULL}
+                defaultValue={defaultGalleryMode}
                 className={fieldClass}
               >
-                <option value={GALLERY_MODE_FULL}>Teljes galéria</option>
+                <option value={GALLERY_MODE_FULL}>Kész galéria átadásra</option>
                 <option value={GALLERY_MODE_PROOFING}>Nyers képek válogatásra</option>
               </select>
               <span className="block text-xs leading-5 text-graphite/70">
-                Nyers válogatásnál külön státuszban követhető az ügyfél kiválasztása.
+                Ezt később is módosíthatod, de a feltöltés és az ügyfél útvonala ehhez igazodik.
               </span>
             </label>
 

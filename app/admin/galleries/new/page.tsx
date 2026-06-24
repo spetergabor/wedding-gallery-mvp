@@ -1,14 +1,46 @@
+import Link from "next/link";
+import { Camera, CheckCircle2, ImagePlus } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { GalleryForm } from "@/components/gallery-form";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { prisma } from "@/lib/prisma";
+import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
+
+function modeHref(mode: string, flags: { customerId?: string; projectId?: string }) {
+  const params = new URLSearchParams({ mode });
+
+  if (flags.customerId) {
+    params.set("customerId", flags.customerId);
+  }
+
+  if (flags.projectId) {
+    params.set("projectId", flags.projectId);
+  }
+
+  return `/admin/galleries/new?${params.toString()}`;
+}
+
+function chooserHref(flags: { customerId?: string; projectId?: string }) {
+  const params = new URLSearchParams();
+
+  if (flags.customerId) {
+    params.set("customerId", flags.customerId);
+  }
+
+  if (flags.projectId) {
+    params.set("projectId", flags.projectId);
+  }
+
+  const query = params.toString();
+  return query ? `/admin/galleries/new?${query}` : "/admin/galleries/new";
+}
 
 export default async function NewGalleryPage({
   searchParams
 }: {
-  searchParams: Promise<{ customerId?: string; projectId?: string; error?: string }>;
+  searchParams: Promise<{ customerId?: string; projectId?: string; error?: string; mode?: string }>;
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
@@ -45,6 +77,7 @@ export default async function NewGalleryPage({
   const selectedProject = projects.find((project) => project.id === flags.projectId) ?? null;
   const selectedCustomerId = selectedProject?.customerId ?? (customers.some((customer) => customer.id === flags.customerId) ? flags.customerId : null);
   const selectedProjectId = selectedProject?.id ?? null;
+  const selectedMode = flags.mode === GALLERY_MODE_PROOFING ? GALLERY_MODE_PROOFING : flags.mode === GALLERY_MODE_FULL ? GALLERY_MODE_FULL : null;
 
   return (
     <AdminShell>
@@ -52,7 +85,7 @@ export default async function NewGalleryPage({
         <p className="text-sm uppercase tracking-[0.24em] text-brass">Új galéria</p>
         <h1 className="mt-2 text-4xl font-semibold text-ink">Galéria létrehozása</h1>
         <p className="mt-3 max-w-2xl text-sm text-graphite/70">
-          Kapcsold meglévő ügyfélhez, ha munkafolyamat része. Saját vagy belső célra ügyfél nélkül is létrehozható.
+          Először válaszd ki, milyen munkafolyamatot indítasz. Így a feltöltés, ügyfél link és átadás útvonala is egyértelmű lesz.
         </p>
       </div>
       <div className="mb-5 space-y-3">
@@ -71,7 +104,72 @@ export default async function NewGalleryPage({
           </Alert>
         ) : null}
       </div>
-      <GalleryForm customers={customers} projects={projects} selectedCustomerId={selectedCustomerId} selectedProjectId={selectedProjectId} />
+      {!selectedMode ? (
+        <section className="grid gap-4 lg:grid-cols-2">
+          <Link
+            href={modeHref(GALLERY_MODE_FULL, flags)}
+            className="group rounded-lg border border-ink/10 bg-white p-6 shadow-soft transition hover:border-ink/25 hover:bg-ink/[0.02]"
+          >
+            <div className="flex size-12 items-center justify-center rounded-md bg-ink text-white">
+              <Camera size={22} />
+            </div>
+            <h2 className="mt-5 text-2xl font-semibold text-ink">Kész galéria átadásra</h2>
+            <p className="mt-3 text-sm leading-6 text-graphite/70">
+              Végleges képek feltöltése, publikus vendéggaléria, letöltések és átadási link. Ezt válaszd, ha az anyag már kész.
+            </p>
+            <div className="mt-5 space-y-2 text-sm text-graphite">
+              <p className="flex items-center gap-2"><CheckCircle2 size={15} /> Kész képek feltöltése</p>
+              <p className="flex items-center gap-2"><CheckCircle2 size={15} /> Vendégoldali galéria</p>
+              <p className="flex items-center gap-2"><CheckCircle2 size={15} /> Letöltések és ZIP csomagok</p>
+            </div>
+            <span className="mt-6 inline-flex h-11 items-center rounded-md bg-ink px-4 text-sm font-medium text-white transition group-hover:bg-graphite">
+              Kész galéria indítása
+            </span>
+          </Link>
+
+          <Link
+            href={modeHref(GALLERY_MODE_PROOFING, flags)}
+            className="group rounded-lg border border-ink/10 bg-white p-6 shadow-soft transition hover:border-ink/25 hover:bg-ink/[0.02]"
+          >
+            <div className="flex size-12 items-center justify-center rounded-md bg-brass text-white">
+              <ImagePlus size={22} />
+            </div>
+            <h2 className="mt-5 text-2xl font-semibold text-ink">Nyers képek válogatásra</h2>
+            <p className="mt-3 text-sm leading-6 text-graphite/70">
+              Nyers képek feltöltése, ügyfél válogató link, leadott választás, majd későbbi kész galéria átadás.
+            </p>
+            <div className="mt-5 space-y-2 text-sm text-graphite">
+              <p className="flex items-center gap-2"><CheckCircle2 size={15} /> Ügyfél válogató workflow</p>
+              <p className="flex items-center gap-2"><CheckCircle2 size={15} /> Leadott választás követése</p>
+              <p className="flex items-center gap-2"><CheckCircle2 size={15} /> Kész képek későbbi átadása</p>
+            </div>
+            <span className="mt-6 inline-flex h-11 items-center rounded-md bg-ink px-4 text-sm font-medium text-white transition group-hover:bg-graphite">
+              Nyers válogatás indítása
+            </span>
+          </Link>
+        </section>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-col justify-between gap-3 rounded-lg border border-ink/10 bg-white p-4 shadow-soft sm:flex-row sm:items-center">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Kiválasztott útvonal</p>
+              <p className="mt-1 text-lg font-semibold text-ink">
+                {selectedMode === GALLERY_MODE_PROOFING ? "Nyers képek válogatásra" : "Kész galéria átadásra"}
+              </p>
+            </div>
+            <Link href={chooserHref(flags)} className="inline-flex h-10 items-center justify-center rounded-md border border-ink/10 px-3 text-sm font-medium text-graphite hover:bg-ink/5">
+              Másik útvonal
+            </Link>
+          </div>
+          <GalleryForm
+            customers={customers}
+            projects={projects}
+            selectedCustomerId={selectedCustomerId}
+            selectedProjectId={selectedProjectId}
+            initialGalleryMode={selectedMode}
+          />
+        </div>
+      )}
     </AdminShell>
   );
 }
