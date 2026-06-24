@@ -617,7 +617,19 @@ export default async function AdminClientDetailPage({
   const albumMode = getAlbumMode(flags);
   const customer = await prisma.customer.findFirst({
     where: customerAccessWhere(admin, id),
-    include: {
+    select: {
+      id: true,
+      customerType: true,
+      coupleName: true,
+      primaryEmail: true,
+      secondaryEmail: true,
+      phone: true,
+      weddingDate: true,
+      venue: true,
+      preferredLanguage: true,
+      status: true,
+      notes: true,
+      createdAt: true,
       contracts: {
         orderBy: { createdAt: "desc" }
       },
