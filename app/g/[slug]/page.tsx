@@ -12,7 +12,7 @@ import {
   isProofingGallery
 } from "@/lib/proofing";
 import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
-import { Button } from "@/components/button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
@@ -105,7 +105,13 @@ export default async function PublicGalleryPage({
               placeholder={language === "hu" ? "Galéria jelszó" : "Galerie-Passwort"}
               className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-left outline-none transition focus:border-ink/50"
             />
-            <Button type="submit" className="w-full">{language === "hu" ? "Galéria megnyitása" : "Galerie öffnen"}</Button>
+            <FormSubmitButton
+              type="submit"
+              className="w-full"
+              pendingLabel={language === "hu" ? "Megnyitás..." : "Öffnen..."}
+            >
+              {language === "hu" ? "Galéria megnyitása" : "Galerie öffnen"}
+            </FormSubmitButton>
           </form>
         </section>
       </main>
