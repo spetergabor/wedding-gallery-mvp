@@ -558,9 +558,14 @@ export default async function AdminDashboardPage() {
           <p className={sectionMetaClass}>Admin</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Dashboard</h1>
         </div>
-        <ButtonLink href="/admin/galleries/new" className="h-10 md:h-11">
-          Új galéria
-        </ButtonLink>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <ButtonLink href="/admin/clients/new" variant="secondary" className="h-10 px-3 md:h-11 md:px-4">
+            Új ügyfél
+          </ButtonLink>
+          <ButtonLink href="/admin/galleries/new" className="h-10 px-3 md:h-11 md:px-4">
+            Új galéria
+          </ButtonLink>
+        </div>
       </div>
 
       <DashboardStats
