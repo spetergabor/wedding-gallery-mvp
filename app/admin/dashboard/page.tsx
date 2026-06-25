@@ -22,7 +22,6 @@ import type { LucideIcon } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
-import { StatCard } from "@/components/stat-card";
 import { ViewLocationMap } from "@/components/view-location-map";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -52,6 +51,12 @@ type DashboardTask = {
   priority: DashboardTaskPriority;
   icon: LucideIcon;
   createdAt: Date;
+};
+
+type DashboardStat = {
+  label: string;
+  value: string | number;
+  detail: string;
 };
 
 const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
@@ -128,6 +133,27 @@ function sortDashboardTasks(tasks: DashboardTask[]) {
 
     return right.createdAt.getTime() - left.createdAt.getTime();
   });
+}
+
+function DashboardStats({ stats }: { stats: DashboardStat[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      {stats.map((stat, index) => (
+        <div
+          key={stat.label}
+          className={`rounded-md border border-ink/10 bg-white px-3 py-3 sm:p-4 ${
+            index === stats.length - 1 ? "col-span-2 md:col-span-1" : ""
+          }`}
+        >
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-graphite/65 sm:text-xs sm:tracking-[0.16em]">
+            {stat.label}
+          </p>
+          <p className="mt-1.5 text-2xl font-semibold leading-tight text-ink sm:mt-2">{stat.value}</p>
+          <p className="mt-1 hidden text-sm text-graphite/75 sm:block">{stat.detail}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function isSupersededDownloadPackageMessage(message: string | null | undefined) {
@@ -527,23 +553,27 @@ export default async function AdminDashboardPage() {
 
   return (
     <AdminShell>
-      <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+      <div className="mb-5 flex flex-col justify-between gap-4 md:mb-8 md:flex-row md:items-end">
         <div>
           <p className={sectionMetaClass}>Admin</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Dashboard</h1>
         </div>
-        <ButtonLink href="/admin/galleries/new">Új galéria</ButtonLink>
+        <ButtonLink href="/admin/galleries/new" className="h-10 md:h-11">
+          Új galéria
+        </ButtonLink>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Galériák" value={galleryCount} detail="Összes létrehozott galéria" />
-        <StatCard label="Aktív" value={activeCount} detail="Publikusan elérhető galériák" />
-        <StatCard label="Médiák" value={photoCount} detail="Adatbázisban rögzített képek és videók" />
-        <StatCard label="R2 tárhely" value={formatStorageSize(totalStorageBytes)} detail="Feltöltött médiák összmérete" />
-        <StatCard label="Új értesítések" value={unreadNotifications} detail="Olvasatlan admin jelzések" />
-      </div>
+      <DashboardStats
+        stats={[
+          { label: "Galériák", value: galleryCount, detail: "Összes létrehozott galéria" },
+          { label: "Aktív", value: activeCount, detail: "Publikusan elérhető galériák" },
+          { label: "Médiák", value: photoCount, detail: "Adatbázisban rögzített képek és videók" },
+          { label: "R2 tárhely", value: formatStorageSize(totalStorageBytes), detail: "Feltöltött médiák összmérete" },
+          { label: "Új értesítések", value: unreadNotifications, detail: "Olvasatlan admin jelzések" }
+        ]}
+      />
 
-      <section className="mt-8 rounded-md border border-ink/12 bg-white">
+      <section className="mt-5 rounded-md border border-ink/12 bg-white md:mt-8">
         <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
           <div>
             <div className={sectionMetaClass}>
