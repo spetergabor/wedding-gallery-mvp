@@ -360,6 +360,75 @@ export async function createAlbumReviewCommentAction({
   };
 }
 
+export async function updateAlbumReviewCommentAction({
+  token,
+  commentId,
+  text
+}: {
+  token: string;
+  commentId: string;
+  text: string;
+}) {
+  const normalizedText = text.trim();
+
+  if (!normalizedText) {
+    return { ok: false, message: "Bitte geben Sie eine Notiz ein." };
+  }
+
+  const comment = await prisma.albumReviewComment.findFirst({
+    where: {
+      id: commentId,
+      spread: {
+        review: { accessToken: token }
+      }
+    },
+    select: {
+      id: true,
+      spreadId: true,
+      x: true,
+      y: true,
+      createdAt: true,
+      spread: {
+        select: {
+          review: {
+            select: {
+              customerId: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!comment) {
+    return { ok: false, message: "Diese Notiz wurde nicht gefunden." };
+  }
+
+  const updatedComment = await prisma.albumReviewComment.update({
+    where: { id: comment.id },
+    data: { text: normalizedText.slice(0, 1000) },
+    select: {
+      id: true,
+      spreadId: true,
+      x: true,
+      y: true,
+      text: true,
+      createdAt: true
+    }
+  });
+
+  revalidatePath(`/album/${token}`);
+  revalidatePath(`/admin/clients/${comment.spread.review.customerId}`);
+
+  return {
+    ok: true,
+    comment: {
+      ...updatedComment,
+      createdAt: updatedComment.createdAt.toISOString()
+    }
+  };
+}
+
 export async function approveAlbumReviewSpreadAction({
   token,
   spreadId

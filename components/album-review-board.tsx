@@ -1,8 +1,12 @@
 "use client";
 
 import { FormEvent, MouseEvent, useMemo, useState } from "react";
-import { CheckCircle2, MessageSquare, Plus, X } from "lucide-react";
-import { approveAlbumReviewSpreadAction, createAlbumReviewCommentAction } from "@/lib/album-review-actions";
+import { CheckCircle2, MessageSquare, Pencil, Plus, X } from "lucide-react";
+import {
+  approveAlbumReviewSpreadAction,
+  createAlbumReviewCommentAction,
+  updateAlbumReviewCommentAction
+} from "@/lib/album-review-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 
 type AlbumComment = {
@@ -43,7 +47,10 @@ export function AlbumReviewBoard({
   );
   const [draft, setDraft] = useState<DraftComment | null>(null);
   const [draftText, setDraftText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
   const [pending, setPending] = useState(false);
+  const [updatingCommentId, setUpdatingCommentId] = useState<string | null>(null);
   const [approvingSpreadId, setApprovingSpreadId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const commentsBySpread = useMemo(() => {
@@ -57,7 +64,7 @@ export function AlbumReviewBoard({
   }, [comments]);
 
   function startComment(spreadId: string, event: MouseEvent<HTMLDivElement>) {
-    if (pending) {
+    if (pending || editingCommentId) {
       return;
     }
 
@@ -103,6 +110,46 @@ export function AlbumReviewBoard({
     setDraft(null);
     setDraftText("");
     setPending(false);
+  }
+
+  function startEditComment(comment: AlbumComment) {
+    if (pending || updatingCommentId) {
+      return;
+    }
+
+    setDraft(null);
+    setEditingCommentId(comment.id);
+    setEditingText(comment.text);
+    setError("");
+  }
+
+  async function saveCommentEdit(event: FormEvent<HTMLFormElement>, commentId: string) {
+    event.preventDefault();
+
+    if (!editingText.trim()) {
+      setError("Bitte geben Sie eine Notiz ein.");
+      return;
+    }
+
+    setUpdatingCommentId(commentId);
+    setError("");
+
+    const result = await updateAlbumReviewCommentAction({
+      token,
+      commentId,
+      text: editingText
+    });
+
+    if (!result.ok || !result.comment) {
+      setError(result.message ?? "Die Notiz konnte nicht aktualisiert werden.");
+      setUpdatingCommentId(null);
+      return;
+    }
+
+    setComments((current) => current.map((comment) => (comment.id === commentId ? result.comment : comment)));
+    setEditingCommentId(null);
+    setEditingText("");
+    setUpdatingCommentId(null);
   }
 
   async function approveSpread(spreadId: string) {
@@ -168,16 +215,70 @@ export function AlbumReviewBoard({
               >
                 <img src={spread.imageUrl} alt={spread.title ?? spread.filename} className="block h-auto w-full" />
 
-                {spreadComments.map((comment, index) => (
-                  <div
-                    key={comment.id}
-                    className="absolute z-10 max-w-[260px] -translate-x-3 -translate-y-3 rounded-md bg-ink px-3 py-2 text-sm font-medium text-white shadow-soft"
-                    style={{ left: `${comment.x}%`, top: `${comment.y}%` }}
-                  >
-                    <span className="mr-1 inline-flex size-5 items-center justify-center rounded-full bg-white text-xs text-ink">{index + 1}</span>
-                    {comment.text}
-                  </div>
-                ))}
+                {spreadComments.map((comment, index) => {
+                  const isEditing = editingCommentId === comment.id;
+
+                  return (
+                    <div
+                      key={comment.id}
+                      onClick={(event) => event.stopPropagation()}
+                      className={`absolute z-10 max-w-[min(360px,calc(100%-24px))] -translate-x-3 -translate-y-3 rounded-md shadow-soft ${
+                        isEditing ? "min-w-72 border border-ink/15 bg-white p-3 text-ink" : "bg-ink px-3 py-2 text-sm font-medium text-white"
+                      }`}
+                      style={{ left: `${comment.x}%`, top: `${comment.y}%` }}
+                    >
+                      {isEditing ? (
+                        <form onSubmit={(event) => saveCommentEdit(event, comment.id)}>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
+                              <span className="inline-flex size-5 items-center justify-center rounded-full bg-ink text-xs text-white">{index + 1}</span>
+                              Notiz bearbeiten
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCommentId(null);
+                                setEditingText("");
+                              }}
+                              className="rounded-md p-1 text-graphite hover:bg-ink/5"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                          <textarea
+                            value={editingText}
+                            onChange={(event) => setEditingText(event.target.value)}
+                            rows={3}
+                            autoFocus
+                            className="w-full rounded-md border border-ink/15 bg-paper px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/50"
+                          />
+                          <FormSubmitButton
+                            type="submit"
+                            disabled={!editingText.trim()}
+                            className="mt-2 w-full"
+                            busy={updatingCommentId === comment.id}
+                            pendingLabel="Speichern..."
+                          >
+                            Notiz aktualisieren
+                          </FormSubmitButton>
+                        </form>
+                      ) : (
+                        <>
+                          <span className="mr-1 inline-flex size-5 items-center justify-center rounded-full bg-white text-xs text-ink">{index + 1}</span>
+                          {comment.text}
+                          <button
+                            type="button"
+                            onClick={() => startEditComment(comment)}
+                            className="ml-2 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-white/20 hover:text-white"
+                          >
+                            <Pencil size={12} />
+                            Bearbeiten
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
 
                 {draftForSpread ? (
                   <form
