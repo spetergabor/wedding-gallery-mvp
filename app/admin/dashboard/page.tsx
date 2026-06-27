@@ -632,7 +632,7 @@ export default async function AdminDashboardPage() {
           </div>
 
           {dashboardTasks.length === 0 ? (
-            <div className="px-5 pb-4">
+            <div className="p-5">
               <EmptyState
                 icon={<CheckCircle2 size={18} className="text-ink" />}
                 title="Nincs sürgős admin teendő"
@@ -685,7 +685,7 @@ export default async function AdminDashboardPage() {
           </div>
 
           {upcomingProjects.length === 0 ? (
-            <div className="px-5 pb-4">
+            <div className="p-5">
               <EmptyState
                 icon={<FolderKanban size={18} className="text-ink" />}
                 title="Nincs közelgő projekt"
