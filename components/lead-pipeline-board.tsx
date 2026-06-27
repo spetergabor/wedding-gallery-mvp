@@ -211,9 +211,9 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
             <GripVertical size={15} />
             Érdeklődők
           </div>
-          <h2 className="mt-2 text-base font-semibold text-ink">Lead pipeline</h2>
+          <h2 className="mt-2 text-base font-semibold text-ink">Megkeresések áttekintése</h2>
           <p className="mt-1 max-w-2xl text-sm text-graphite/70">
-            A kártyák még nem ügyfelek. Mozgasd őket oszlopok között, és csak a foglalásnál hozd létre manuálisan az ügyfelet.
+            Itt követheted, hol tartanak az érdeklődők a megkereséstől a foglalásig. Ügyfelet csak akkor hozz létre, amikor a foglalás már biztos.
           </p>
         </div>
       </div>
