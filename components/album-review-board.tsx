@@ -1,10 +1,11 @@
 "use client";
 
 import { FormEvent, MouseEvent, useMemo, useState } from "react";
-import { CheckCircle2, MessageSquare, Pencil, Plus, X } from "lucide-react";
+import { CheckCircle2, MessageSquare, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   approveAlbumReviewSpreadAction,
   createAlbumReviewCommentAction,
+  deleteAlbumReviewCommentAction,
   updateAlbumReviewCommentAction
 } from "@/lib/album-review-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -51,6 +52,7 @@ export function AlbumReviewBoard({
   const [editingText, setEditingText] = useState("");
   const [pending, setPending] = useState(false);
   const [updatingCommentId, setUpdatingCommentId] = useState<string | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [approvingSpreadId, setApprovingSpreadId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const commentsBySpread = useMemo(() => {
@@ -150,6 +152,34 @@ export function AlbumReviewBoard({
     setEditingCommentId(null);
     setEditingText("");
     setUpdatingCommentId(null);
+  }
+
+  async function deleteComment(commentId: string) {
+    if (pending || updatingCommentId || deletingCommentId) {
+      return;
+    }
+
+    if (!window.confirm("Diese Notiz wirklich löschen?")) {
+      return;
+    }
+
+    setDeletingCommentId(commentId);
+    setError("");
+
+    const result = await deleteAlbumReviewCommentAction({ token, commentId });
+
+    if (!result.ok) {
+      setError(result.message ?? "Die Notiz konnte nicht gelöscht werden.");
+      setDeletingCommentId(null);
+      return;
+    }
+
+    setComments((current) => current.filter((comment) => comment.id !== commentId));
+    if (editingCommentId === commentId) {
+      setEditingCommentId(null);
+      setEditingText("");
+    }
+    setDeletingCommentId(null);
   }
 
   async function approveSpread(spreadId: string) {
@@ -273,6 +303,15 @@ export function AlbumReviewBoard({
                           >
                             <Pencil size={12} />
                             Bearbeiten
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteComment(comment.id)}
+                            disabled={deletingCommentId === comment.id}
+                            className="ml-1 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-red-500/40 hover:text-white disabled:opacity-60"
+                          >
+                            <Trash2 size={12} />
+                            {deletingCommentId === comment.id ? "Löschen..." : "Löschen"}
                           </button>
                         </>
                       )}

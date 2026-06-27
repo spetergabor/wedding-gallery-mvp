@@ -429,6 +429,48 @@ export async function updateAlbumReviewCommentAction({
   };
 }
 
+export async function deleteAlbumReviewCommentAction({
+  token,
+  commentId
+}: {
+  token: string;
+  commentId: string;
+}) {
+  const comment = await prisma.albumReviewComment.findFirst({
+    where: {
+      id: commentId,
+      spread: {
+        review: { accessToken: token }
+      }
+    },
+    select: {
+      id: true,
+      spread: {
+        select: {
+          review: {
+            select: {
+              customerId: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!comment) {
+    return { ok: false, message: "Diese Notiz wurde nicht gefunden." };
+  }
+
+  await prisma.albumReviewComment.delete({
+    where: { id: comment.id }
+  });
+
+  revalidatePath(`/album/${token}`);
+  revalidatePath(`/admin/clients/${comment.spread.review.customerId}`);
+
+  return { ok: true, commentId: comment.id };
+}
+
 export async function approveAlbumReviewSpreadAction({
   token,
   spreadId
