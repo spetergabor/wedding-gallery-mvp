@@ -215,7 +215,7 @@ export default async function GalleryDetailPage({
   const gallery = await prisma.gallery.findFirst({
     where: {
       id,
-      ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+      ...adminOwnedWhere(admin)
     },
     include: {
       downloads: { orderBy: { createdAt: "desc" } },

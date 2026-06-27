@@ -23,10 +23,10 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { ViewLocationMap } from "@/components/view-location-map";
+import { adminOwnedWhere, notificationWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
-import { notificationWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import {
@@ -162,16 +162,16 @@ function isSupersededDownloadPackageMessage(message: string | null | undefined) 
 
 export default async function AdminDashboardPage() {
   const admin = await requireAdmin();
-  const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
-  const photoWhere = admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } };
-  const projectWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
+  const galleryWhere = adminOwnedWhere(admin);
+  const photoWhere = { gallery: adminOwnedWhere(admin) };
+  const projectWhere = { customer: adminOwnedWhere(admin) };
   const adminNotificationWhere = notificationWhere(admin);
   const today = startOfToday();
   const staleZipCutoff = new Date(Date.now() - 15 * 60 * 1000);
-  const contractWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
-  const invoiceWhere = admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } };
-  const albumCommentWhere = admin.role === "super_admin" ? {} : { spread: { review: { customer: { adminId: admin.id } } } };
-  const downloadPackageWhere = admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } };
+  const contractWhere = { customer: adminOwnedWhere(admin) };
+  const invoiceWhere = { customer: adminOwnedWhere(admin) };
+  const albumCommentWhere = { spread: { review: { customer: adminOwnedWhere(admin) } } };
+  const downloadPackageWhere = { gallery: adminOwnedWhere(admin) };
 
   const [
     galleryCount,
@@ -418,7 +418,7 @@ export default async function AdminDashboardPage() {
       }
     }),
     prisma.galleryView.findMany({
-      where: admin.role === "super_admin" ? {} : { gallery: { adminId: admin.id } },
+      where: { gallery: adminOwnedWhere(admin) },
       select: {
         city: true,
         country: true,

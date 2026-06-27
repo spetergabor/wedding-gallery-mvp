@@ -11,7 +11,7 @@ import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { enqueueGalleryZipJob, kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
-import { notificationWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, notificationWhere } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   GALLERY_MODE_FULL,
@@ -78,7 +78,7 @@ async function requireGalleryAccess(galleryId: string) {
   const gallery = await prisma.gallery.findFirst({
     where: {
       id: galleryId,
-      ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+      ...adminOwnedWhere(admin)
     },
     select: { id: true, slug: true, galleryMode: true, proofingStatus: true, clientEmail: true, clientAccessToken: true }
   });
@@ -825,7 +825,7 @@ export async function createGalleryAction(formData: FormData) {
     ? await prisma.customer.findFirst({
         where: {
           id: customerId,
-          ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+          ...adminOwnedWhere(admin)
         },
         select: {
           id: true,
@@ -844,7 +844,7 @@ export async function createGalleryAction(formData: FormData) {
         where: {
           id: projectId,
           customerId: customer?.id ?? "",
-          ...(admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } })
+          customer: adminOwnedWhere(admin)
         },
         select: {
           id: true,
@@ -917,7 +917,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
     ? await prisma.customer.findFirst({
         where: {
           id: customerId,
-          ...(admin.role === "super_admin" ? {} : { adminId: admin.id })
+          ...adminOwnedWhere(admin)
         },
         select: {
           id: true,
@@ -935,7 +935,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         where: {
           id: projectId,
           customerId: selectedCustomer?.id ?? "",
-          ...(admin.role === "super_admin" ? {} : { customer: { adminId: admin.id } })
+          customer: adminOwnedWhere(admin)
         },
         select: {
           id: true

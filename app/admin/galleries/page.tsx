@@ -6,6 +6,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
+import { adminOwnedWhere } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { prisma } from "@/lib/prisma";
 
@@ -16,7 +17,7 @@ export default async function AdminGalleriesPage({
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
-  const galleryWhere = admin.role === "super_admin" ? {} : { adminId: admin.id };
+  const galleryWhere = adminOwnedWhere(admin);
 
   const galleries = await prisma.gallery.findMany({
     where: galleryWhere,
