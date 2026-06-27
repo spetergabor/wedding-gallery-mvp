@@ -369,7 +369,7 @@ export function ClientGalleryReview({
           </a>
         </div>
         <div className="mt-4 flex justify-center">
-          <SocialShareButtons path={publicHref} title={title} variant="card" />
+          <SocialShareButtons path={publicHref} title={title} variant="card" language={language} />
         </div>
       </section>
 

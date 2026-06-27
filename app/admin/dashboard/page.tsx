@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/empty-state";
 import { LeadPipelineBoard } from "@/components/lead-pipeline-board";
 import { ViewLocationMap } from "@/components/view-location-map";
 import { adminOwnedWhere, notificationWhere } from "@/lib/admin-scope";
+import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
@@ -76,12 +77,12 @@ function formatStorageSize(bytes: number) {
   return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
 }
 
-function formatDate(date: Date | null) {
+function formatDate(date: Date | null, language: AdminLanguage) {
   if (!date) {
-    return "Nincs dátum";
+    return language === "de" ? "Kein Datum" : "Nincs dátum";
   }
 
-  return date.toLocaleDateString("hu-HU", {
+  return date.toLocaleDateString(dateLocaleForAdmin(language), {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -159,12 +160,150 @@ function DashboardStats({ stats }: { stats: DashboardStat[] }) {
   );
 }
 
+const DASHBOARD_COPY = {
+  hu: {
+    area: "Admin",
+    title: "Dashboard",
+    intro: "Áttekintés a galériákról, ügyfélfolyamatokról és a következő fontos lépésekről.",
+    newClient: "Új ügyfél",
+    newGallery: "Új galéria",
+    stats: {
+      galleries: ["Galériák", "Összes létrehozott galéria"],
+      active: ["Aktív", "Publikusan elérhető galériák"],
+      media: ["Médiák", "Adatbázisban rögzített képek és videók"],
+      storage: ["R2 tárhely", "Feltöltött médiák összmérete"],
+      notifications: ["Új értesítések", "Olvasatlan admin jelzések"]
+    },
+    tasks: {
+      deliverFinal: "Kész képek átadása",
+      uploadFinal: "Kész képek feltöltése",
+      finalReady: (name: string) => `${name}: van kész anyag, az átadás email vár kiküldésre.`,
+      finalMissing: (name: string, status: string) => `${name}: ${status.toLowerCase()}, a kidolgozott képek még hiányoznak.`,
+      waitingDelivery: "Átadásra vár",
+      processing: "Feldolgozás",
+      sendDeliveryEmail: "Átadás email kiküldése",
+      deliveryEmailMissing: (name: string) => `${name}: a kész képek átadva státuszban vannak, de az email még nincs kiküldve.`,
+      emailMissing: "Email hiányzik",
+      sendProofingInvite: "Válogató link kiküldése",
+      noClientEmail: "nincs ügyfél email",
+      inviteDetail: (name: string, count: number, email: string) => `${name}: ${count} kép feltöltve, címzett: ${email}.`,
+      waitingSend: "Küldésre vár",
+      contractWaiting: "Szerződés aláírásra vár",
+      waitingClient: "Ügyfélre vár",
+      sendInvoice: "Számla kiküldése",
+      overdueInvoice: "Lejárt nyitott számla",
+      followInvoice: "Nyitott számla követése",
+      overdue: "Lejárt",
+      open: "Nyitott",
+      due: "határidő",
+      answerAlbumComment: "Album megjegyzés megválaszolása",
+      albumReview: "Album ellenőrző",
+      fixPreview: "Előnézet feldolgozás javítása",
+      brokenPreview: "Hibás előnézet",
+      fixZip: "ZIP előkészítés javítása",
+      zipFallback: "a letöltési csomag beragadt vagy hibás.",
+      stuck: "Beragadt",
+      brokenZip: "Hibás ZIP"
+    },
+    focusEyebrow: "Mai fókusz",
+    focusTitle: "Teendőközpont",
+    focusDescription: "A legfontosabb ügyfél-, galéria- és háttérfolyamatok egy gyors listában.",
+    urgent: "sürgős",
+    noUrgentTitle: "Nincs sürgős admin teendő",
+    noUrgentDescription: "A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg, ha érkeznek.",
+    projectsEyebrow: "Projektek",
+    projectsTitle: "Következő projektek",
+    openClients: "Ügyfelek megnyitása",
+    noUpcomingTitle: "Nincs közelgő projekt",
+    noUpcomingDescription: "Az ügyfél adatlapján létrehozott jövőbeli projektek itt jelennek majd meg időrendben.",
+    gallery: "galéria",
+    notificationsTitle: "Értesítések",
+    all: "Összes",
+    noNotificationsTitle: "Még nincs értesítés",
+    noNotificationsDescription: "Egyelőre nincs nyitott üzenet vagy figyelmeztetés.",
+    latestGalleriesTitle: "Legutóbbi galériák",
+    media: "média",
+    active: "Aktív",
+    inactive: "Inaktív",
+    noGalleriesTitle: "Még nincs galéria",
+    noGalleriesDescription: "A frissen létrehozott galériáid itt fognak megjelenni."
+  },
+  de: {
+    area: "Admin",
+    title: "Dashboard",
+    intro: "Überblick über Galerien, Kundenprozesse und die nächsten wichtigen Schritte.",
+    newClient: "Neuer Kunde",
+    newGallery: "Neue Galerie",
+    stats: {
+      galleries: ["Galerien", "Alle angelegten Galerien"],
+      active: ["Aktiv", "Öffentlich erreichbare Galerien"],
+      media: ["Medien", "Bilder und Videos in der Datenbank"],
+      storage: ["R2 Speicher", "Gesamtgröße der hochgeladenen Medien"],
+      notifications: ["Neue Hinweise", "Ungelesene Admin-Hinweise"]
+    },
+    tasks: {
+      deliverFinal: "Fertige Bilder übergeben",
+      uploadFinal: "Fertige Bilder hochladen",
+      finalReady: (name: string) => `${name}: fertiges Material ist vorhanden, die Übergabe-E-Mail wartet noch.`,
+      finalMissing: (name: string, status: string) => `${name}: ${status.toLowerCase()}, die fertig bearbeiteten Bilder fehlen noch.`,
+      waitingDelivery: "Wartet auf Übergabe",
+      processing: "In Bearbeitung",
+      sendDeliveryEmail: "Übergabe-E-Mail senden",
+      deliveryEmailMissing: (name: string) => `${name}: die fertigen Bilder sind übergeben, aber die E-Mail wurde noch nicht gesendet.`,
+      emailMissing: "E-Mail fehlt",
+      sendProofingInvite: "Auswahllink senden",
+      noClientEmail: "keine Kunden-E-Mail",
+      inviteDetail: (name: string, count: number, email: string) => `${name}: ${count} Bilder hochgeladen, Empfänger: ${email}.`,
+      waitingSend: "Wartet auf Versand",
+      contractWaiting: "Vertrag wartet auf Signatur",
+      waitingClient: "Wartet auf Kunde",
+      sendInvoice: "Rechnung senden",
+      overdueInvoice: "Offene Rechnung überfällig",
+      followInvoice: "Offene Rechnung verfolgen",
+      overdue: "Überfällig",
+      open: "Offen",
+      due: "fällig",
+      answerAlbumComment: "Albumkommentar beantworten",
+      albumReview: "Albumfreigabe",
+      fixPreview: "Vorschau-Verarbeitung prüfen",
+      brokenPreview: "Vorschau fehlerhaft",
+      fixZip: "ZIP-Vorbereitung prüfen",
+      zipFallback: "das Download-Paket hängt oder ist fehlerhaft.",
+      stuck: "Hängt",
+      brokenZip: "ZIP fehlerhaft"
+    },
+    focusEyebrow: "Heute im Fokus",
+    focusTitle: "Aufgabenzentrale",
+    focusDescription: "Die wichtigsten Kunden-, Galerie- und Hintergrundprozesse in einer schnellen Liste.",
+    urgent: "dringend",
+    noUrgentTitle: "Keine dringenden Admin-Aufgaben",
+    noUrgentDescription: "Problematische Verarbeitungen, abgegebene Auswahlen und wartende Kundenprozesse erscheinen hier.",
+    projectsEyebrow: "Projekte",
+    projectsTitle: "Nächste Projekte",
+    openClients: "Kunden öffnen",
+    noUpcomingTitle: "Keine anstehenden Projekte",
+    noUpcomingDescription: "Zukünftige Projekte aus den Kundendaten erscheinen hier chronologisch.",
+    gallery: "Galerie",
+    notificationsTitle: "Benachrichtigungen",
+    all: "Alle",
+    noNotificationsTitle: "Noch keine Benachrichtigungen",
+    noNotificationsDescription: "Aktuell gibt es keine offenen Nachrichten oder Hinweise.",
+    latestGalleriesTitle: "Letzte Galerien",
+    media: "Medien",
+    active: "Aktiv",
+    inactive: "Inaktiv",
+    noGalleriesTitle: "Noch keine Galerie",
+    noGalleriesDescription: "Frisch angelegte Galerien erscheinen hier."
+  }
+} as const;
+
 function isSupersededDownloadPackageMessage(message: string | null | undefined) {
   return message?.toLowerCase().includes("superseded by") ?? false;
 }
 
 export default async function AdminDashboardPage() {
-  const admin = await requireAdmin();
+  const [admin, language] = await Promise.all([requireAdmin(), getAdminLanguage()]);
+  const copy = DASHBOARD_COPY[language];
   await ensureLeadPipelineSchema(prisma);
   const galleryWhere = adminOwnedWhere(admin);
   const photoWhere = { gallery: adminOwnedWhere(admin) };
@@ -470,12 +609,12 @@ export default async function AdminDashboardPage() {
 
       return {
         key: `proofing-${gallery.id}`,
-        title: hasFinalPhotos ? "Kész képek átadása" : "Kész képek feltöltése",
+        title: hasFinalPhotos ? copy.tasks.deliverFinal : copy.tasks.uploadFinal,
         detail: hasFinalPhotos
-          ? `${customerName}: van kész anyag, az átadás email vár kiküldésre.`
-          : `${customerName}: ${proofingStatusLabel(gallery.proofingStatus).toLowerCase()}, a kidolgozott képek még hiányoznak.`,
+          ? copy.tasks.finalReady(customerName)
+          : copy.tasks.finalMissing(customerName, proofingStatusLabel(gallery.proofingStatus)),
         href: `/admin/galleries/${gallery.id}?tab=client`,
-        label: hasFinalPhotos ? "Átadásra vár" : "Feldolgozás",
+        label: hasFinalPhotos ? copy.tasks.waitingDelivery : copy.tasks.processing,
         priority: "high",
         icon: hasFinalPhotos ? CheckCircle2 : ImagePlus,
         createdAt: gallery.proofingStatusUpdatedAt ?? gallery.updatedAt
@@ -486,10 +625,10 @@ export default async function AdminDashboardPage() {
 
       return {
         key: `finished-proofing-${gallery.id}`,
-        title: "Átadás email kiküldése",
-        detail: `${customerName}: a kész képek átadva státuszban vannak, de az email még nincs kiküldve.`,
+        title: copy.tasks.sendDeliveryEmail,
+        detail: copy.tasks.deliveryEmailMissing(customerName),
         href: `/admin/galleries/${gallery.id}?tab=client`,
-        label: "Email hiányzik",
+        label: copy.tasks.emailMissing,
         priority: "high",
         icon: Mail,
         createdAt: gallery.proofingStatusUpdatedAt ?? gallery.updatedAt
@@ -497,14 +636,14 @@ export default async function AdminDashboardPage() {
     }),
     ...proofingInviteGalleries.map((gallery): DashboardTask => {
       const customerName = gallery.customer?.coupleName ?? gallery.title;
-      const emailText = gallery.customer?.primaryEmail ?? gallery.clientEmail ?? "nincs ügyfél email";
+      const emailText = gallery.customer?.primaryEmail ?? gallery.clientEmail ?? copy.tasks.noClientEmail;
 
       return {
         key: `invite-${gallery.id}`,
-        title: "Válogató link kiküldése",
-        detail: `${customerName}: ${gallery._count.photos} kép feltöltve, címzett: ${emailText}.`,
+        title: copy.tasks.sendProofingInvite,
+        detail: copy.tasks.inviteDetail(customerName, gallery._count.photos, emailText),
         href: `/admin/galleries/${gallery.id}?tab=client`,
-        label: "Küldésre vár",
+        label: copy.tasks.waitingSend,
         priority: "medium",
         icon: Heart,
         createdAt: gallery.createdAt
@@ -512,10 +651,10 @@ export default async function AdminDashboardPage() {
     }),
     ...waitingContracts.map((contract): DashboardTask => ({
       key: `contract-${contract.id}`,
-      title: "Szerződés aláírásra vár",
+      title: copy.tasks.contractWaiting,
       detail: `${contract.customer.coupleName}: ${contract.title}`,
       href: `/admin/clients/${contract.customer.id}?tab=contracts`,
-      label: "Ügyfélre vár",
+      label: copy.tasks.waitingClient,
       priority: "medium",
       icon: FileText,
       createdAt: contract.sentAt ?? contract.createdAt
@@ -523,10 +662,10 @@ export default async function AdminDashboardPage() {
     ...openInvoices.map((invoice): DashboardTask => {
       const isOverdue = Boolean(invoice.dueDate && invoice.dueDate.getTime() < today.getTime());
       const isUnsent = !invoice.sentAt;
-      const title = isUnsent ? "Számla kiküldése" : isOverdue ? "Lejárt nyitott számla" : "Nyitott számla követése";
-      const label = isUnsent ? "Küldésre vár" : isOverdue ? "Lejárt" : "Nyitott";
+      const title = isUnsent ? copy.tasks.sendInvoice : isOverdue ? copy.tasks.overdueInvoice : copy.tasks.followInvoice;
+      const label = isUnsent ? copy.tasks.waitingSend : isOverdue ? copy.tasks.overdue : copy.tasks.open;
       const projectText = invoice.project ? ` · ${invoice.project.title}` : "";
-      const dueText = invoice.dueDate ? ` · határidő: ${formatDate(invoice.dueDate)}` : "";
+      const dueText = invoice.dueDate ? ` · ${copy.tasks.due}: ${formatDate(invoice.dueDate, language)}` : "";
 
       return {
         key: `invoice-${invoice.id}`,
@@ -541,30 +680,30 @@ export default async function AdminDashboardPage() {
     }),
     ...openAlbumComments.map((comment): DashboardTask => ({
       key: `album-comment-${comment.id}`,
-      title: "Album megjegyzés megválaszolása",
+      title: copy.tasks.answerAlbumComment,
       detail: `${comment.spread.review.customer.coupleName}: ${comment.text}`,
       href: `/admin/clients/${comment.spread.review.customer.id}?tab=album`,
-      label: "Album ellenőrző",
+      label: copy.tasks.albumReview,
       priority: "medium",
       icon: MessageSquare,
       createdAt: comment.createdAt
     })),
     ...failedProcessingPhotos.map((photo): DashboardTask => ({
       key: `processing-${photo.id}`,
-      title: "Előnézet feldolgozás javítása",
+      title: copy.tasks.fixPreview,
       detail: `${photo.gallery.title}: ${photo.filename}`,
       href: `/admin/galleries/${photo.gallery.id}?tab=photos`,
-      label: "Hibás előnézet",
+      label: copy.tasks.brokenPreview,
       priority: "high",
       icon: AlertCircle,
       createdAt: photo.createdAt
     })),
     ...actionableZipPackages.map((downloadPackage): DashboardTask => ({
       key: `zip-${downloadPackage.id}`,
-      title: "ZIP előkészítés javítása",
-      detail: `${downloadPackage.gallery.title}: ${downloadPackage.errorMessage ?? "a letöltési csomag beragadt vagy hibás."}`,
+      title: copy.tasks.fixZip,
+      detail: `${downloadPackage.gallery.title}: ${downloadPackage.errorMessage ?? copy.tasks.zipFallback}`,
       href: `/admin/galleries/${downloadPackage.gallery.id}?tab=downloads`,
-      label: downloadPackage.status === "processing" ? "Beragadt" : "Hibás ZIP",
+      label: downloadPackage.status === "processing" ? copy.tasks.stuck : copy.tasks.brokenZip,
       priority: "high",
       icon: AlertCircle,
       createdAt: downloadPackage.updatedAt
@@ -577,18 +716,18 @@ export default async function AdminDashboardPage() {
       <div className="mb-5 rounded-md border border-brass/15 bg-white px-4 py-4 shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mb-8 md:px-5">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <p className={sectionMetaClass}>Admin</p>
-          <h1 className="mt-2 text-3xl font-semibold text-ink">Dashboard</h1>
+          <p className={sectionMetaClass}>{copy.area}</p>
+          <h1 className="mt-2 text-3xl font-semibold text-ink">{copy.title}</h1>
           <p className="mt-2 max-w-xl text-sm text-graphite/70">
-            Áttekintés a galériákról, ügyfélfolyamatokról és a következő fontos lépésekről.
+            {copy.intro}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <ButtonLink href="/admin/clients/new" variant="secondary" className="h-10 px-3 md:h-11 md:px-4">
-            Új ügyfél
+            {copy.newClient}
           </ButtonLink>
           <ButtonLink href="/admin/galleries/new" className="h-10 px-3 md:h-11 md:px-4">
-            Új galéria
+            {copy.newGallery}
           </ButtonLink>
         </div>
         </div>
@@ -596,15 +735,16 @@ export default async function AdminDashboardPage() {
 
       <DashboardStats
         stats={[
-          { label: "Galériák", value: galleryCount, detail: "Összes létrehozott galéria" },
-          { label: "Aktív", value: activeCount, detail: "Publikusan elérhető galériák" },
-          { label: "Médiák", value: photoCount, detail: "Adatbázisban rögzített képek és videók" },
-          { label: "R2 tárhely", value: formatStorageSize(totalStorageBytes), detail: "Feltöltött médiák összmérete" },
-          { label: "Új értesítések", value: unreadNotifications, detail: "Olvasatlan admin jelzések" }
+          { label: copy.stats.galleries[0], value: galleryCount, detail: copy.stats.galleries[1] },
+          { label: copy.stats.active[0], value: activeCount, detail: copy.stats.active[1] },
+          { label: copy.stats.media[0], value: photoCount, detail: copy.stats.media[1] },
+          { label: copy.stats.storage[0], value: formatStorageSize(totalStorageBytes), detail: copy.stats.storage[1] },
+          { label: copy.stats.notifications[0], value: unreadNotifications, detail: copy.stats.notifications[1] }
         ]}
       />
 
       <LeadPipelineBoard
+        language={language}
         initialLeads={leads.map((lead) => ({
           ...lead,
           eventDate: lead.eventDate?.toISOString() ?? null,
@@ -618,16 +758,16 @@ export default async function AdminDashboardPage() {
             <div>
               <div className={sectionMetaClass}>
                 <ListChecks size={15} />
-                Mai fókusz
+                {copy.focusEyebrow}
               </div>
-              <h2 className={`mt-2 ${sectionTitleClass}`}>Teendőközpont</h2>
+              <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.focusTitle}</h2>
               <p className="mt-1 text-sm text-graphite/70">
-                A legfontosabb ügyfél-, galéria- és háttérfolyamatok egy gyors listában.
+                {copy.focusDescription}
               </p>
             </div>
             <span className="inline-flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1.5 text-sm font-medium text-brass">
               <Clock3 size={15} />
-              {urgentTaskCount} sürgős
+              {urgentTaskCount} {copy.urgent}
             </span>
           </div>
 
@@ -635,8 +775,8 @@ export default async function AdminDashboardPage() {
             <div className="p-5">
               <EmptyState
                 icon={<CheckCircle2 size={18} className="text-ink" />}
-                title="Nincs sürgős admin teendő"
-                description="A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg, ha érkeznek."
+                title={copy.noUrgentTitle}
+                description={copy.noUrgentDescription}
               />
             </div>
           ) : (
@@ -675,12 +815,12 @@ export default async function AdminDashboardPage() {
             <div>
               <div className={sectionMetaClass}>
                 <FolderKanban size={15} />
-                Projektek
+                {copy.projectsEyebrow}
               </div>
-              <h2 className={`mt-2 ${sectionTitleClass}`}>Következő projektek</h2>
+              <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.projectsTitle}</h2>
             </div>
             <ButtonLink href="/admin/clients" variant="secondary" className="h-10">
-              Ügyfelek megnyitása
+              {copy.openClients}
             </ButtonLink>
           </div>
 
@@ -688,8 +828,8 @@ export default async function AdminDashboardPage() {
             <div className="p-5">
               <EmptyState
                 icon={<FolderKanban size={18} className="text-ink" />}
-                title="Nincs közelgő projekt"
-                description="Az ügyfél adatlapján létrehozott jövőbeli projektek itt jelennek majd meg időrendben."
+                title={copy.noUpcomingTitle}
+                description={copy.noUpcomingDescription}
               />
             </div>
           ) : (
@@ -713,11 +853,11 @@ export default async function AdminDashboardPage() {
                   <div className="mt-4 grid gap-2 text-sm text-graphite/75 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                     <span className="inline-flex items-center gap-1.5">
                       <CalendarClock size={14} />
-                      {formatDate(project.eventDate)}
+                      {formatDate(project.eventDate, language)}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <Camera size={14} />
-                      {project._count.galleries} galéria
+                      {project._count.galleries} {copy.gallery}
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -738,9 +878,9 @@ export default async function AdminDashboardPage() {
       <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <section className="rounded-md border border-ink/12 bg-white">
           <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
-            <h2 className={sectionTitleClass}>Értesítések</h2>
+            <h2 className={sectionTitleClass}>{copy.notificationsTitle}</h2>
             <Link href="/admin/notifications" className="text-sm font-medium text-ink hover:underline">
-              Összes
+              {copy.all}
             </Link>
           </div>
           <div className="divide-y divide-ink/10">
@@ -757,7 +897,7 @@ export default async function AdminDashboardPage() {
                   <span className="block font-medium text-ink">{notification.title}</span>
                   <span className="mt-1 block text-sm text-graphite/70">{notification.message}</span>
                   <span className="mt-2 block text-xs text-graphite/60">
-                    {notification.createdAt.toLocaleString("hu-HU", {
+                    {notification.createdAt.toLocaleString(dateLocaleForAdmin(language), {
                       dateStyle: "medium",
                       timeStyle: "short",
                       timeZone: APP_TIME_ZONE
@@ -770,8 +910,8 @@ export default async function AdminDashboardPage() {
               <div className="px-5 py-4">
                 <EmptyState
                   icon={<Bell size={18} className="text-ink" />}
-                  title="Még nincs értesítés"
-                  description="Egyelőre nincs nyitott üzenet vagy figyelmeztetés."
+                  title={copy.noNotificationsTitle}
+                  description={copy.noNotificationsDescription}
                 />
               </div>
             ) : null}
@@ -780,7 +920,7 @@ export default async function AdminDashboardPage() {
 
         <section className="rounded-md border border-ink/12 bg-white">
           <div className="border-b border-ink/10 px-5 py-4">
-            <h2 className={sectionTitleClass}>Legutóbbi galériák</h2>
+            <h2 className={sectionTitleClass}>{copy.latestGalleriesTitle}</h2>
           </div>
           <div className="divide-y divide-ink/10">
             {latestGalleries.map((gallery) => (
@@ -817,8 +957,8 @@ export default async function AdminDashboardPage() {
                   </div>
                 </div>
                 <div className="text-right text-sm text-graphite/70">
-                  <p>{gallery._count.photos} média</p>
-                  <p>{gallery.isActive ? "Aktív" : "Inaktív"}</p>
+                  <p>{gallery._count.photos} {copy.media}</p>
+                  <p>{gallery.isActive ? copy.active : copy.inactive}</p>
                 </div>
               </a>
             ))}
@@ -826,8 +966,8 @@ export default async function AdminDashboardPage() {
               <div className="px-5 pb-4">
                 <EmptyState
                   icon={<Camera size={18} className="text-ink" />}
-                  title="Még nincs galéria"
-                  description="A frissen létrehozott galériáid itt fognak megjelenni."
+                  title={copy.noGalleriesTitle}
+                  description={copy.noGalleriesDescription}
                 />
               </div>
             ) : null}

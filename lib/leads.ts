@@ -1,10 +1,12 @@
+import type { AdminLanguage } from "@/lib/admin-language";
+
 export const LEAD_STATUSES = [
-  { key: "requested", label: "Angefragt" },
-  { key: "answered", label: "Beantwortet" },
-  { key: "meeting", label: "Besprechung" },
-  { key: "booking", label: "Buchungsprozess" },
-  { key: "booked", label: "Gebucht" },
-  { key: "follow_up", label: "Nachbearbeiten" }
+  { key: "requested", label: { hu: "Megkeresés", de: "Angefragt" } },
+  { key: "answered", label: { hu: "Megválaszolva", de: "Beantwortet" } },
+  { key: "meeting", label: { hu: "Egyeztetés", de: "Besprechung" } },
+  { key: "booking", label: { hu: "Foglalási folyamat", de: "Buchungsprozess" } },
+  { key: "booked", label: { hu: "Lefoglalva", de: "Gebucht" } },
+  { key: "follow_up", label: { hu: "Utókövetés", de: "Nachbearbeiten" } }
 ] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number]["key"];
@@ -14,12 +16,12 @@ export function normalizeLeadStatus(value: string | null | undefined): LeadStatu
 }
 
 export const LEAD_EVENT_TYPES = [
-  { key: "wedding", label: "Hochzeit" },
-  { key: "family", label: "Familie" },
-  { key: "newborn", label: "Neugeborenen" },
-  { key: "engagement", label: "Verlobung" },
-  { key: "business", label: "Business" },
-  { key: "other", label: "Egyéb" }
+  { key: "wedding", label: { hu: "Esküvő", de: "Hochzeit" } },
+  { key: "family", label: { hu: "Család", de: "Familie" } },
+  { key: "newborn", label: { hu: "Újszülött", de: "Neugeborene" } },
+  { key: "engagement", label: { hu: "Jegyesfotózás", de: "Verlobung" } },
+  { key: "business", label: { hu: "Business", de: "Business" } },
+  { key: "other", label: { hu: "Egyéb", de: "Sonstiges" } }
 ] as const;
 
 export type LeadEventType = (typeof LEAD_EVENT_TYPES)[number]["key"];
@@ -28,8 +30,12 @@ export function normalizeLeadEventType(value: string | null | undefined): LeadEv
   return LEAD_EVENT_TYPES.some((type) => type.key === value) ? (value as LeadEventType) : "wedding";
 }
 
-export function leadEventTypeLabel(value: string) {
-  return LEAD_EVENT_TYPES.find((type) => type.key === value)?.label ?? "Egyéb";
+export function leadStatusLabel(value: string, language: AdminLanguage = "hu") {
+  return LEAD_STATUSES.find((status) => status.key === value)?.label[language] ?? LEAD_STATUSES[0].label[language];
+}
+
+export function leadEventTypeLabel(value: string, language: AdminLanguage = "hu") {
+  return LEAD_EVENT_TYPES.find((type) => type.key === value)?.label[language] ?? LEAD_EVENT_TYPES[LEAD_EVENT_TYPES.length - 1].label[language];
 }
 
 export async function ensureLeadPipelineSchema(prismaClient: {

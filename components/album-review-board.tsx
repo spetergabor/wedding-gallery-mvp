@@ -9,6 +9,7 @@ import {
   updateAlbumReviewCommentAction
 } from "@/lib/album-review-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import type { CustomerLanguage } from "@/lib/customer-language";
 
 type AlbumComment = {
   id: string;
@@ -35,13 +36,65 @@ type DraftComment = {
   y: number;
 };
 
+const ALBUM_REVIEW_COPY = {
+  de: {
+    saveError: "Die Notiz konnte nicht gespeichert werden.",
+    emptyNote: "Bitte geben Sie eine Notiz ein.",
+    updateError: "Die Notiz konnte nicht aktualisiert werden.",
+    deleteConfirm: "Diese Notiz wirklich löschen?",
+    deleteError: "Die Notiz konnte nicht gelöscht werden.",
+    approveError: "Die Freigabe konnte nicht gespeichert werden.",
+    spread: (index: number) => `Doppelseite ${index}`,
+    notes: "Notizen",
+    approved: "Freigegeben",
+    approving: "Speichern...",
+    approve: "Diese Seite ist in Ordnung",
+    editTitle: "Notiz bearbeiten",
+    updatePending: "Speichern...",
+    update: "Notiz aktualisieren",
+    edit: "Bearbeiten",
+    deleting: "Löschen...",
+    delete: "Löschen",
+    newNote: "Neue Notiz",
+    placeholder: "z.B. Bitte dieses Bild gegen Bild 1234 tauschen",
+    savePending: "Speichern...",
+    save: "Notiz speichern"
+  },
+  hu: {
+    saveError: "A megjegyzést nem sikerült menteni.",
+    emptyNote: "Írjatok be egy megjegyzést.",
+    updateError: "A megjegyzést nem sikerült frissíteni.",
+    deleteConfirm: "Biztosan törlitek ezt a megjegyzést?",
+    deleteError: "A megjegyzést nem sikerült törölni.",
+    approveError: "Az oldalpár jóváhagyását nem sikerült menteni.",
+    spread: (index: number) => `Oldalpár ${index}`,
+    notes: "megjegyzés",
+    approved: "Rendben jelölve",
+    approving: "Mentés...",
+    approve: "Ez az oldal rendben van",
+    editTitle: "Megjegyzés szerkesztése",
+    updatePending: "Mentés...",
+    update: "Megjegyzés frissítése",
+    edit: "Szerkesztés",
+    deleting: "Törlés...",
+    delete: "Törlés",
+    newNote: "Új megjegyzés",
+    placeholder: "pl. Ezt a képet cseréljük a 1234-es képre",
+    savePending: "Mentés...",
+    save: "Megjegyzés mentése"
+  }
+} as const;
+
 export function AlbumReviewBoard({
   token,
-  spreads
+  spreads,
+  language = "de"
 }: {
   token: string;
   spreads: AlbumSpread[];
+  language?: CustomerLanguage;
 }) {
+  const copy = ALBUM_REVIEW_COPY[language];
   const [comments, setComments] = useState<AlbumComment[]>(() => spreads.flatMap((spread) => spread.comments));
   const [approvedSpreads, setApprovedSpreads] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(spreads.map((spread) => [spread.id, spread.approvedAt]))
@@ -103,7 +156,7 @@ export function AlbumReviewBoard({
     });
 
     if (!result.ok || !result.comment) {
-      setError(result.message ?? "Die Notiz konnte nicht gespeichert werden.");
+      setError(result.message ?? copy.saveError);
       setPending(false);
       return;
     }
@@ -131,7 +184,7 @@ export function AlbumReviewBoard({
     event.preventDefault();
 
     if (!editingText.trim()) {
-      setError("Bitte geben Sie eine Notiz ein.");
+      setError(copy.emptyNote);
       return;
     }
 
@@ -145,7 +198,7 @@ export function AlbumReviewBoard({
     });
 
     if (!result.ok || !result.comment) {
-      setError(result.message ?? "Die Notiz konnte nicht aktualisiert werden.");
+      setError(result.message ?? copy.updateError);
       setUpdatingCommentId(null);
       return;
     }
@@ -162,7 +215,7 @@ export function AlbumReviewBoard({
       return;
     }
 
-    if (!window.confirm("Diese Notiz wirklich löschen?")) {
+    if (!window.confirm(copy.deleteConfirm)) {
       return;
     }
 
@@ -172,7 +225,7 @@ export function AlbumReviewBoard({
     const result = await deleteAlbumReviewCommentAction({ token, commentId });
 
     if (!result.ok) {
-      setError(result.message ?? "Die Notiz konnte nicht gelöscht werden.");
+      setError(result.message ?? copy.deleteError);
       setDeletingCommentId(null);
       return;
     }
@@ -199,7 +252,7 @@ export function AlbumReviewBoard({
     const result = await approveAlbumReviewSpreadAction({ token, spreadId });
 
     if (!result.ok || !result.approvedAt) {
-      setError(result.message ?? "Die Freigabe konnte nicht gespeichert werden.");
+      setError(result.message ?? copy.approveError);
       setApprovingSpreadId(null);
       return;
     }
@@ -224,13 +277,13 @@ export function AlbumReviewBoard({
             <section key={spread.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
               <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-4 py-3 sm:flex-row sm:items-center">
                 <div>
-                  <p className="font-semibold text-ink">{spread.title ?? `Doppelseite ${spread.sortOrder}`}</p>
-                  <p className="mt-1 text-sm text-graphite/70">{spreadComments.length} Notizen</p>
+                  <p className="font-semibold text-ink">{spread.title ?? copy.spread(spread.sortOrder)}</p>
+                  <p className="mt-1 text-sm text-graphite/70">{spreadComments.length} {copy.notes}</p>
                 </div>
                 {approvedAt ? (
                   <span className="inline-flex w-fit items-center gap-2 rounded-md bg-brass/10 px-3 py-2 text-sm font-medium text-brass">
                     <CheckCircle2 size={16} />
-                    Freigegeben
+                    {copy.approved}
                   </span>
                 ) : (
                   <button
@@ -240,7 +293,7 @@ export function AlbumReviewBoard({
                     className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-3 text-sm font-medium text-brass transition hover:bg-brass/15 disabled:opacity-60"
                   >
                     <CheckCircle2 size={16} />
-                    {approvingSpreadId === spread.id ? "Speichern..." : "Diese Seite ist in Ordnung"}
+                    {approvingSpreadId === spread.id ? copy.approving : copy.approve}
                   </button>
                 )}
               </div>
@@ -278,7 +331,7 @@ export function AlbumReviewBoard({
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
                               <span className="inline-flex size-5 items-center justify-center rounded-full bg-ink text-xs text-white">{index + 1}</span>
-                              Notiz bearbeiten
+                              {copy.editTitle}
                             </span>
                             <button
                               type="button"
@@ -304,9 +357,9 @@ export function AlbumReviewBoard({
                             disabled={!editingText.trim()}
                             className="mt-2 w-full"
                             busy={updatingCommentId === comment.id}
-                            pendingLabel="Speichern..."
+                            pendingLabel={copy.updatePending}
                           >
-                            Notiz aktualisieren
+                            {copy.update}
                           </FormSubmitButton>
                         </form>
                       ) : (
@@ -326,7 +379,7 @@ export function AlbumReviewBoard({
                                 className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-white/20 hover:text-white"
                               >
                                 <Pencil size={12} />
-                                Bearbeiten
+                                {copy.edit}
                               </button>
                               <button
                                 type="button"
@@ -338,7 +391,7 @@ export function AlbumReviewBoard({
                                 className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-red-500/40 hover:text-white disabled:opacity-60"
                               >
                                 <Trash2 size={12} />
-                                {deletingCommentId === comment.id ? "Löschen..." : "Löschen"}
+                                {deletingCommentId === comment.id ? copy.deleting : copy.delete}
                               </button>
                             </span>
                           ) : null}
@@ -358,7 +411,7 @@ export function AlbumReviewBoard({
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
                         <MessageSquare size={15} />
-                        Neue Notiz
+                        {copy.newNote}
                       </span>
                       <button type="button" onClick={() => setDraft(null)} className="rounded-md p-1 text-graphite hover:bg-ink/5">
                         <X size={15} />
@@ -369,7 +422,7 @@ export function AlbumReviewBoard({
                       onChange={(event) => setDraftText(event.target.value)}
                       rows={3}
                       autoFocus
-                      placeholder="z.B. Bitte dieses Bild gegen Bild 1234 tauschen"
+                      placeholder={copy.placeholder}
                       className="w-full rounded-md border border-ink/15 bg-paper px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/50"
                     />
                     <FormSubmitButton
@@ -377,10 +430,10 @@ export function AlbumReviewBoard({
                       disabled={!draftText.trim()}
                       className="mt-2 w-full"
                       busy={pending}
-                      pendingLabel="Speichern..."
+                      pendingLabel={copy.savePending}
                     >
                       <Plus size={16} />
-                      Notiz speichern
+                      {copy.save}
                     </FormSubmitButton>
                   </form>
                 ) : null}

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, RotateCcw } from "lucide-react";
 import { signContractAction } from "@/lib/public-contract-actions";
+import type { CustomerLanguage } from "@/lib/customer-language";
 
 function getPoint(canvas: HTMLCanvasElement, event: React.PointerEvent<HTMLCanvasElement>) {
   const rect = canvas.getBoundingClientRect();
@@ -14,8 +15,40 @@ function getPoint(canvas: HTMLCanvasElement, event: React.PointerEvent<HTMLCanva
   };
 }
 
-function SubmitButton({ hasSignature, hasAccepted }: { hasSignature: boolean; hasAccepted: boolean }) {
+const CONTRACT_SIGNATURE_COPY = {
+  de: {
+    pending: "Unterschrift wird gespeichert...",
+    submit: "Vertrag unterschreiben",
+    signed: "Der Vertrag wurde bereits unterschrieben. Das signierte PDF kann über die Schaltfläche oben heruntergeladen werden.",
+    terms: "Ich habe den Vertrag vollständig gelesen, verstanden und akzeptiere ihn mit meiner elektronischen Unterschrift.",
+    privacy: "Ich stimme zu, dass technische Nachweise zur Unterzeichnung gespeichert werden, darunter Zeitstempel, Dokument-Hash, IP-Adresse und Browser-Informationen.",
+    canvasLabel: "Unterschriftsfeld",
+    hint: "Mit Finger oder Maus unterschreiben.",
+    reset: "Neu beginnen"
+  },
+  hu: {
+    pending: "Aláírás mentése...",
+    submit: "Szerződés aláírása",
+    signed: "A szerződés már alá van írva. Az aláírt PDF-et a fenti gombbal lehet letölteni.",
+    terms: "A szerződést teljes egészében elolvastam, megértettem, és elektronikus aláírásommal elfogadom.",
+    privacy: "Elfogadom, hogy az aláíráshoz szükséges technikai bizonyítékok mentésre kerülnek, beleértve az időbélyeget, dokumentum hash-t, IP-címet és böngészőadatokat.",
+    canvasLabel: "Aláírás mező",
+    hint: "Ujjal vagy egérrel írjatok alá.",
+    reset: "Újrakezdés"
+  }
+} as const;
+
+function SubmitButton({
+  hasSignature,
+  hasAccepted,
+  language
+}: {
+  hasSignature: boolean;
+  hasAccepted: boolean;
+  language: CustomerLanguage;
+}) {
   const { pending } = useFormStatus();
+  const copy = CONTRACT_SIGNATURE_COPY[language];
 
   return (
     <button
@@ -24,7 +57,7 @@ function SubmitButton({ hasSignature, hasAccepted }: { hasSignature: boolean; ha
       className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
     >
       <Check size={16} />
-      {pending ? "Unterschrift wird gespeichert..." : "Vertrag unterschreiben"}
+      {pending ? copy.pending : copy.submit}
     </button>
   );
 }
@@ -33,13 +66,16 @@ export function ContractSignaturePad({
   token,
   disabled = false,
   formId,
+  language = "de",
   children
 }: {
   token: string;
   disabled?: boolean;
   formId?: string;
+  language?: CustomerLanguage;
   children?: React.ReactNode;
 }) {
+  const copy = CONTRACT_SIGNATURE_COPY[language];
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const signatureInputRef = useRef<HTMLInputElement | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
@@ -143,7 +179,7 @@ export function ContractSignaturePad({
   if (disabled) {
     return (
       <div className="rounded-md bg-white px-4 py-3 text-sm text-sage">
-        Der Vertrag wurde bereits unterschrieben. Das signierte PDF kann über die Schaltfläche oben heruntergeladen werden.
+        {copy.signed}
       </div>
     );
   }
@@ -162,7 +198,7 @@ export function ContractSignaturePad({
             onChange={(event) => setAcceptedTerms(event.currentTarget.checked)}
             className="mt-1 size-4 rounded border-ink/20"
           />
-          <span>Ich habe den Vertrag vollständig gelesen, verstanden und akzeptiere ihn mit meiner elektronischen Unterschrift.</span>
+          <span>{copy.terms}</span>
         </label>
         <label className="flex gap-3">
           <input
@@ -173,13 +209,13 @@ export function ContractSignaturePad({
             onChange={(event) => setAcceptedPrivacy(event.currentTarget.checked)}
             className="mt-1 size-4 rounded border-ink/20"
           />
-          <span>Ich stimme zu, dass technische Nachweise zur Unterzeichnung gespeichert werden, darunter Zeitstempel, Dokument-Hash, IP-Adresse und Browser-Informationen.</span>
+          <span>{copy.privacy}</span>
         </label>
       </div>
       <div className="overflow-hidden rounded-md border border-ink/15 bg-white">
         <canvas
           ref={canvasRef}
-          aria-label="Unterschriftsfeld"
+          aria-label={copy.canvasLabel}
           className="block h-44 w-full touch-none cursor-crosshair"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -187,7 +223,7 @@ export function ContractSignaturePad({
           onPointerCancel={handlePointerUp}
         />
         <div className="border-t border-ink/10 px-4 py-2 text-xs text-graphite/60">
-          Mit Finger oder Maus unterschreiben.
+          {copy.hint}
         </div>
       </div>
 
@@ -199,9 +235,9 @@ export function ContractSignaturePad({
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RotateCcw size={16} />
-          Neu beginnen
+          {copy.reset}
         </button>
-        <SubmitButton hasSignature={hasSignature} hasAccepted={acceptedTerms && acceptedPrivacy} />
+        <SubmitButton hasSignature={hasSignature} hasAccepted={acceptedTerms && acceptedPrivacy} language={language} />
       </div>
     </form>
   );

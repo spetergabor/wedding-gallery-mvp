@@ -169,7 +169,7 @@ export default async function PublicGalleryPage({
               {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
             </p>
             <div className="mt-7 flex justify-center">
-              <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" />
+              <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
             </div>
           </div>
         </div>

@@ -3,7 +3,8 @@
 import { FormEvent, useMemo, useState, useTransition } from "react";
 import { CalendarDays, GripVertical, Mail, Plus, Trash2, X } from "lucide-react";
 import { createLeadAction, deleteLeadAction, moveLeadAction } from "@/lib/lead-actions";
-import { LEAD_EVENT_TYPES, LEAD_STATUSES, leadEventTypeLabel, type LeadStatus } from "@/lib/leads";
+import { LEAD_EVENT_TYPES, LEAD_STATUSES, leadEventTypeLabel, leadStatusLabel, type LeadStatus } from "@/lib/leads";
+import type { AdminLanguage } from "@/lib/admin-language";
 
 type LeadCard = {
   id: string;
@@ -20,14 +21,48 @@ type LeadCard = {
 
 type LeadPipelineBoardProps = {
   initialLeads: LeadCard[];
+  language: AdminLanguage;
 };
 
-function formatDate(value: string | null) {
+const LEAD_PIPELINE_COPY = {
+  hu: {
+    nameRequired: "Adj meg nevet.",
+    saveError: "Nem sikerült menteni.",
+    name: "Név",
+    email: "Email",
+    saving: "Mentés...",
+    saveLead: "Lead mentése",
+    cancel: "Mégse",
+    deleteLead: "Lead törlése",
+    eyebrow: "Érdeklődők",
+    title: "Megkeresések áttekintése",
+    description: "Itt követheted, hol tartanak az érdeklődők a megkereséstől a foglalásig. Ügyfelet csak akkor hozz létre, amikor a foglalás már biztos.",
+    addLead: "Lead hozzáadása",
+    locale: "hu-HU"
+  },
+  de: {
+    nameRequired: "Bitte einen Namen eingeben.",
+    saveError: "Konnte nicht gespeichert werden.",
+    name: "Name",
+    email: "E-Mail",
+    saving: "Speichern...",
+    saveLead: "Lead speichern",
+    cancel: "Abbrechen",
+    deleteLead: "Lead löschen",
+    eyebrow: "Anfragen",
+    title: "Anfragen im Überblick",
+    description: "Hier siehst du, wo Anfragen vom ersten Kontakt bis zur Buchung stehen. Einen Kunden legst du erst an, wenn die Buchung sicher ist.",
+    addLead: "Lead hinzufügen",
+    locale: "de-AT"
+  }
+} as const;
+
+function formatDate(value: string | null, language: AdminLanguage) {
   if (!value) {
     return null;
   }
 
-  return new Intl.DateTimeFormat("hu-HU", {
+  return new Intl.DateTimeFormat(LEAD_PIPELINE_COPY[language].locale, {
     year: "numeric",
     month: "short",
     day: "numeric"
@@ -36,15 +71,18 @@ function formatDate(value: string | null) {
 
 function AddLeadForm({
   status,
+  language,
   onCancel,
   onCreated
 }: {
   status: LeadStatus;
+  language: AdminLanguage;
   onCancel: () => void;
   onCreated: (lead: LeadCard) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const copy = LEAD_PIPELINE_COPY[language];
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,7 +91,7 @@ function AddLeadForm({
     const name = String(formData.get("name") ?? "").trim();
 
     if (!name) {
-      setError("Adj meg nevet.");
+      setError(copy.nameRequired);
       return;
     }
 
@@ -61,7 +99,7 @@ function AddLeadForm({
       const result = await createLeadAction(formData);
 
       if (!result.ok || !result.leadId) {
-        setError(result.message ?? "Nem sikerült menteni.");
+        setError(result.message ?? copy.saveError);
         return;
       }
 
@@ -89,13 +127,13 @@ function AddLeadForm({
         <input
           name="name"
           autoFocus
-          placeholder="Név"
+          placeholder={copy.name}
           className="h-10 min-w-0 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
         />
         <select name="eventType" className="h-10 min-w-0 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50">
           {LEAD_EVENT_TYPES.map((type) => (
             <option key={type.key} value={type.key}>
-              {type.label}
+              {type.label[language]}
             </option>
           ))}
         </select>
@@ -103,7 +141,7 @@ function AddLeadForm({
           <input
             name="email"
             type="email"
-            placeholder="Email"
+            placeholder={copy.email}
             className="h-10 min-w-0 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
           />
           <input
@@ -122,13 +160,13 @@ function AddLeadForm({
           disabled={isPending}
           className="inline-flex min-h-9 flex-1 items-center justify-center rounded-md bg-ink px-3 py-2 text-center text-sm font-medium leading-tight text-white transition hover:bg-graphite disabled:opacity-60"
         >
-          {isPending ? "Mentés..." : "Lead mentése"}
+          {isPending ? copy.saving : copy.saveLead}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
-          title="Mégse"
+          title={copy.cancel}
         >
           <X size={16} />
         </button>
@@ -137,11 +175,12 @@ function AddLeadForm({
   );
 }
 
-export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
+export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardProps) {
   const [leads, setLeads] = useState(initialLeads);
   const [activeFormStatus, setActiveFormStatus] = useState<LeadStatus | null>(null);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ status: LeadStatus; index: number } | null>(null);
+  const copy = LEAD_PIPELINE_COPY[language];
 
   const groupedLeads = useMemo(() => {
     return LEAD_STATUSES.reduce<Record<LeadStatus, LeadCard[]>>((acc, status) => {
@@ -209,11 +248,11 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/65">
             <GripVertical size={15} />
-            Érdeklődők
+            {copy.eyebrow}
           </div>
-          <h2 className="mt-2 text-base font-semibold text-ink">Megkeresések áttekintése</h2>
+          <h2 className="mt-2 text-base font-semibold text-ink">{copy.title}</h2>
           <p className="mt-1 max-w-2xl text-sm text-graphite/70">
-            Itt követheted, hol tartanak az érdeklődők a megkereséstől a foglalásig. Ügyfelet csak akkor hozz létre, amikor a foglalás már biztos.
+            {copy.description}
           </p>
         </div>
       </div>
@@ -242,7 +281,7 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
                 }`}
               >
                 <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                  <h3 className="text-sm font-semibold text-ink">{status.label}</h3>
+                  <h3 className="text-sm font-semibold text-ink">{leadStatusLabel(status.key, language)}</h3>
                   <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-graphite">{statusLeads.length}</span>
                 </div>
 
@@ -271,13 +310,13 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-ink">{lead.name}</p>
-                          <p className="mt-0.5 truncate text-xs font-medium text-brass">{leadEventTypeLabel(lead.eventType)}</p>
+                          <p className="mt-0.5 truncate text-xs font-medium text-brass">{leadEventTypeLabel(lead.eventType, language)}</p>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleDelete(lead.id)}
                           className="flex size-7 shrink-0 items-center justify-center rounded-md text-graphite/45 opacity-0 transition hover:bg-red-50 hover:text-red-700 group-hover:opacity-100"
-                          title="Lead törlése"
+                          title={copy.deleteLead}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -287,7 +326,7 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
                         {lead.eventDate ? (
                           <p className="flex items-center gap-1.5">
                             <CalendarDays size={13} />
-                            {formatDate(lead.eventDate)}
+                            {formatDate(lead.eventDate, language)}
                           </p>
                         ) : null}
                         {lead.email ? (
@@ -304,6 +343,7 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
                   {activeFormStatus === status.key ? (
                     <AddLeadForm
                       status={status.key}
+                      language={language}
                       onCancel={() => setActiveFormStatus(null)}
                       onCreated={(lead) => setLeads((current) => [...current, lead])}
                     />
@@ -314,7 +354,7 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
                       className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-dashed border-ink/15 bg-white/60 text-sm font-medium text-graphite transition hover:border-ink/30 hover:text-ink"
                     >
                       <Plus size={15} />
-                      Lead hozzáadása
+                      {copy.addLead}
                     </button>
                   )}
                 </div>

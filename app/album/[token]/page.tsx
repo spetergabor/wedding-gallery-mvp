@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AlbumReviewBoard } from "@/components/album-review-board";
 import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export default async function AlbumReviewPage({
     include: {
       customer: {
         select: {
-          coupleName: true
+          coupleName: true,
+          preferredLanguage: true
         }
       },
       spreads: {
@@ -62,16 +64,28 @@ export default async function AlbumReviewPage({
       createdAt: comment.createdAt.toISOString()
     }))
   }));
+  const language = normalizeCustomerLanguage(review.customer.preferredLanguage);
+  const copy =
+    language === "hu"
+      ? {
+          area: "Album ellenőrzés",
+          intro: "Kattintsatok közvetlenül az albumterv egyik pontjára, ha megjegyzést szeretnétek írni. Így a képcsere, javítás vagy kérés pontosan az adott oldalpárhoz kerül.",
+          empty: "Ehhez az albumhoz még nincs feltöltött oldalpár."
+        }
+      : {
+          area: "Albumfreigabe",
+          intro: "Klicken Sie direkt auf eine Stelle im Albumlayout, um dort eine Notiz zu platzieren. So können Bildwechsel, Korrekturen oder Wünsche eindeutig markiert werden.",
+          empty: "Für dieses Album wurden noch keine Seiten hochgeladen."
+        };
 
   return (
     <main className="min-h-screen bg-paper text-ink">
       <header className="border-b border-ink/10 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-10">
-          <p className="text-sm uppercase tracking-[0.24em] text-brass">Albumfreigabe</p>
+          <p className="text-sm uppercase tracking-[0.24em] text-brass">{copy.area}</p>
           <h1 className="mt-3 text-4xl font-semibold">{review.title}</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-graphite/70">
-            Klicken Sie direkt auf eine Stelle im Albumlayout, um dort eine Notiz zu platzieren. So können Bildwechsel,
-            Korrekturen oder Wünsche eindeutig markiert werden.
+            {copy.intro}
           </p>
           <p className="mt-4 text-sm font-medium text-graphite">{review.customer.coupleName}</p>
         </div>
@@ -80,10 +94,10 @@ export default async function AlbumReviewPage({
       <div className="mx-auto max-w-6xl px-4 py-8">
         {spreads.length === 0 ? (
           <div className="rounded-lg border border-ink/10 bg-white p-6 text-sm text-graphite/70 shadow-soft">
-            Für dieses Album wurden noch keine Seiten hochgeladen.
+            {copy.empty}
           </div>
         ) : (
-          <AlbumReviewBoard token={token} spreads={spreads} />
+          <AlbumReviewBoard token={token} spreads={spreads} language={language} />
         )}
       </div>
     </main>

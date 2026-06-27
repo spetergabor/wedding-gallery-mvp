@@ -1,14 +1,17 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Bell, Camera, ChevronDown, LayoutDashboard, LogOut, Menu, Plus, Settings, Users } from "lucide-react";
+import { AdminLanguageSwitch } from "@/components/admin-language-switch";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
 import { logoutAction } from "@/lib/gallery-actions";
 import { getAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationWhere } from "@/lib/admin-scope";
+import { ADMIN_SHELL_COPY, getAdminLanguage } from "@/lib/admin-language";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
-  const admin = await getAdminSession();
+  const [admin, language] = await Promise.all([getAdminSession(), getAdminLanguage()]);
+  const copy = ADMIN_SHELL_COPY[language];
   const [unreadNotifications, settings] = await Promise.all([
     prisma.adminNotification.count({
       where: { ...notificationWhere(admin ?? { id: "", role: "photographer" }), readAt: null }
@@ -41,37 +44,37 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <p className="text-sm font-semibold text-ink">{brandName}</p>
-            <p className="text-xs text-graphite/70">Admin MVP</p>
+            <p className="text-xs text-graphite/70">{copy.appArea}</p>
           </div>
         </Link>
 
-        <nav className="mt-10 space-y-1">
+        <nav className="mt-10 space-y-1" aria-label={copy.navigationLabel}>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/dashboard">
             <LayoutDashboard size={17} />
-            Dashboard
+            {copy.dashboard}
           </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/clients">
             <Users size={17} />
-            Ügyfelek
+            {copy.clients}
           </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
             <Camera size={17} />
-            Galériák
+            {copy.galleries}
           </Link>
           {admin?.role === "super_admin" ? (
             <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
               <Users size={17} />
-              Fotósok
+              {copy.photographers}
             </Link>
           ) : null}
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/clients/new">
             <Plus size={17} />
-            Új ügyfél
+            {copy.newClient}
           </Link>
           <Link className="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/notifications">
             <span className="flex items-center gap-3">
               <Bell size={17} />
-              Értesítések
+              {copy.notifications}
             </span>
             {unreadNotifications > 0 ? (
               <span className="rounded-full bg-brass px-2 py-0.5 text-xs font-medium text-white">{unreadNotifications}</span>
@@ -79,14 +82,18 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/settings">
             <Settings size={17} />
-            Beállítások
+            {copy.settings}
           </Link>
         </nav>
+
+        <div className="absolute bottom-20 left-5 right-5">
+          <AdminLanguageSwitch language={language} label={copy.language} />
+        </div>
 
         <form action={logoutAction} className="absolute bottom-6 left-5 right-5">
           <button className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5">
             <LogOut size={17} />
-            Kilépés
+            {copy.logout}
           </button>
         </form>
       </aside>
@@ -100,40 +107,40 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <details className="group relative">
               <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink shadow-soft marker:hidden">
                 <Menu size={17} />
-                Menü
+                {copy.menu}
                 {unreadNotifications > 0 ? (
                   <span className="grid size-5 place-items-center rounded-full bg-brass text-[11px] font-semibold text-white">{unreadNotifications}</span>
                 ) : null}
                 <ChevronDown size={15} className="transition group-open:rotate-180" />
               </summary>
               <div className="absolute right-0 mt-2 w-[min(86vw,320px)] overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
-                <nav className="p-2" aria-label="Mobil admin menü">
+                <nav className="p-2" aria-label={copy.mobileNavigationLabel}>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/dashboard">
                     <LayoutDashboard size={17} />
-                    Dashboard
+                    {copy.dashboard}
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/clients">
                     <Users size={17} />
-                    Ügyfelek
+                    {copy.clients}
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
                     <Camera size={17} />
-                    Galériák
+                    {copy.galleries}
                   </Link>
                   {admin?.role === "super_admin" ? (
                     <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
                       <Users size={17} />
-                      Fotósok
+                      {copy.photographers}
                     </Link>
                   ) : null}
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/clients/new">
                     <Plus size={17} />
-                    Új ügyfél
+                    {copy.newClient}
                   </Link>
                   <Link className="flex items-center justify-between gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/notifications">
                     <span className="flex items-center gap-3">
                       <Bell size={17} />
-                      Értesítések
+                      {copy.notifications}
                     </span>
                     {unreadNotifications > 0 ? (
                       <span className="rounded-full bg-brass px-2 py-0.5 text-xs font-medium text-white">{unreadNotifications}</span>
@@ -141,13 +148,16 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/settings">
                     <Settings size={17} />
-                    Beállítások
+                    {copy.settings}
                   </Link>
                 </nav>
+                <div className="border-t border-ink/10 p-2">
+                  <AdminLanguageSwitch language={language} label={copy.language} compact />
+                </div>
                 <form action={logoutAction} className="border-t border-ink/10 p-2">
                   <button className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5">
                     <LogOut size={17} />
-                    Kilépés
+                    {copy.logout}
                   </button>
                 </form>
               </div>

@@ -9,17 +9,18 @@ import {
   parseContractTemplateParts,
   type ContractFieldDefinition
 } from "@/lib/contract-fields";
+import { dateLocaleForCustomer, normalizeCustomerLanguage, type CustomerLanguage } from "@/lib/customer-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(date: Date | null) {
+function formatDate(date: Date | null, language: CustomerLanguage) {
   if (!date) {
-    return "Kein Datum angegeben";
+    return language === "hu" ? "Nincs dátum megadva" : "Kein Datum angegeben";
   }
 
-  return date.toLocaleDateString("de-AT", {
+  return date.toLocaleDateString(dateLocaleForCustomer(language), {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -27,12 +28,12 @@ function formatDate(date: Date | null) {
   });
 }
 
-function formatDateTime(date: Date | null) {
+function formatDateTime(date: Date | null, language: CustomerLanguage) {
   if (!date) {
     return null;
   }
 
-  return date.toLocaleString("de-AT", {
+  return date.toLocaleString(dateLocaleForCustomer(language), {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: APP_TIME_ZONE
@@ -101,6 +102,55 @@ function ContractInlineInput({
   );
 }
 
+const CONTRACT_PAGE_COPY = {
+  de: {
+    area: "Vertrag",
+    date: "Datum",
+    location: "Location",
+    notProvided: "Nicht angegeben",
+    sent: "Gesendet",
+    noInfo: "keine Angabe",
+    validUntil: "Link gültig bis",
+    openSignedPdf: "Signiertes PDF öffnen",
+    openPdf: "PDF öffnen",
+    downloadSignedPdf: "Signiertes PDF herunterladen",
+    downloadPdf: "PDF herunterladen",
+    signature: "Unterschrift",
+    signed: "Vielen Dank, der Vertrag wurde erfolgreich unterschrieben.",
+    missingSignature: "Bitte zeichnet eure Unterschrift in das Feld.",
+    expired: "Der Link ist abgelaufen. Bitte fordert einen neuen Vertragslink an.",
+    consent: "Bitte bestätigt die Vertragsannahme und den Hinweis zur Speicherung der technischen Nachweise.",
+    server: "Beim Speichern der Unterschrift ist ein Fehler aufgetreten. Bitte versucht es erneut oder kontaktiert den Fotografen.",
+    writtenIntro: "Füllt die erforderlichen Angaben aus und unterschreibt anschließend. Nach dem Speichern wird ein signiertes PDF erstellt.",
+    pdfIntro: "Unterschreibt den Vertrag mit Finger oder Maus. Nach dem Speichern wird eine signierte PDF-Kopie erstellt.",
+    writtenHint: "Die auszufüllenden Felder erscheinen im Vertragstext. Prüft die Angaben und unterschreibt anschließend.",
+    extraFields: "Weitere auszufüllende Angaben"
+  },
+  hu: {
+    area: "Szerződés",
+    date: "Dátum",
+    location: "Helyszín",
+    notProvided: "Nincs megadva",
+    sent: "Kiküldve",
+    noInfo: "nincs adat",
+    validUntil: "Link érvényes eddig",
+    openSignedPdf: "Aláírt PDF megnyitása",
+    openPdf: "PDF megnyitása",
+    downloadSignedPdf: "Aláírt PDF letöltése",
+    downloadPdf: "PDF letöltése",
+    signature: "Aláírás",
+    signed: "Köszönjük, a szerződés sikeresen alá lett írva.",
+    missingSignature: "Rajzoljátok be az aláírást a mezőbe.",
+    expired: "A link lejárt. Kérjetek új szerződéslinket a fotóstól.",
+    consent: "Erősítsétek meg a szerződés elfogadását és a technikai bizonyítékok mentéséről szóló tájékoztatást.",
+    server: "Az aláírás mentése közben hiba történt. Próbáljátok újra, vagy vegyétek fel a kapcsolatot a fotóssal.",
+    writtenIntro: "Töltsétek ki a szükséges adatokat, majd írjátok alá. Mentés után aláírt PDF készül.",
+    pdfIntro: "Írjátok alá a szerződést ujjal vagy egérrel. Mentés után aláírt PDF-másolat készül.",
+    writtenHint: "A kitöltendő mezők a szerződésszövegben jelennek meg. Ellenőrizzétek az adatokat, majd írjátok alá.",
+    extraFields: "További kitöltendő adatok"
+  }
+} as const;
+
 export default async function ContractPublicPage({
   params,
   searchParams
@@ -119,7 +169,8 @@ export default async function ContractPublicPage({
           secondaryEmail: true,
           phone: true,
           weddingDate: true,
-          venue: true
+          venue: true,
+          preferredLanguage: true
         }
       }
     }
@@ -141,6 +192,8 @@ export default async function ContractPublicPage({
   const templateParts = parseContractTemplateParts(contract.bodyText ?? "", contractFields);
   const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
   const extraContractFields = contractFields.filter((field) => !templateFieldKeys.has(field.key));
+  const language = normalizeCustomerLanguage(contract.customer.preferredLanguage);
+  const copy = CONTRACT_PAGE_COPY[language];
   const customerDefaults: Record<string, string> = {
     coupleName: contract.customer.coupleName,
     primaryEmail: contract.customer.primaryEmail,
@@ -165,14 +218,14 @@ export default async function ContractPublicPage({
         <section className="rounded-lg border border-ink/10 bg-white shadow-soft">
           <div className="grid gap-6 border-b border-ink/10 p-5 md:grid-cols-[1fr_auto] md:items-start md:p-8">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-brass">Vertrag</p>
+              <p className="text-sm uppercase tracking-[0.24em] text-brass">{copy.area}</p>
               <h1 className="mt-3 text-3xl font-semibold text-ink md:text-4xl">{contract.title}</h1>
               <p className="mt-3 text-base text-graphite/75">{contract.customer.coupleName}</p>
               <div className="mt-5 grid gap-2 text-sm text-graphite/65 sm:grid-cols-2">
-                <p>Datum: {formatDate(contract.customer.weddingDate)}</p>
-                <p>Location: {contract.customer.venue || "Nicht angegeben"}</p>
-                <p>Gesendet: {formatDateTime(contract.sentAt) ?? "keine Angabe"}</p>
-                <p>Link gültig bis: {formatDateTime(contract.accessTokenExpiresAt)}</p>
+                <p>{copy.date}: {formatDate(contract.customer.weddingDate, language)}</p>
+                <p>{copy.location}: {contract.customer.venue || copy.notProvided}</p>
+                <p>{copy.sent}: {formatDateTime(contract.sentAt, language) ?? copy.noInfo}</p>
+                <p>{copy.validUntil}: {formatDateTime(contract.accessTokenExpiresAt, language)}</p>
               </div>
             </div>
 
@@ -184,7 +237,7 @@ export default async function ContractPublicPage({
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-graphite transition hover:bg-ink/5"
                 >
                   <ExternalLink size={16} />
-                  {contract.signedFileUrl ? "Signiertes PDF öffnen" : "PDF öffnen"}
+                  {contract.signedFileUrl ? copy.openSignedPdf : copy.openPdf}
                 </a>
                 <a
                   href={currentPdfUrl}
@@ -192,7 +245,7 @@ export default async function ContractPublicPage({
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
                 >
                   <Download size={16} />
-                  {contract.signedFileUrl ? "Signiertes PDF herunterladen" : "PDF herunterladen"}
+                  {contract.signedFileUrl ? copy.downloadSignedPdf : copy.downloadPdf}
                 </a>
               </div>
             ) : null}
@@ -237,50 +290,49 @@ export default async function ContractPublicPage({
               <div className="flex size-11 items-center justify-center rounded-md bg-white text-graphite">
                 <PenLine size={20} />
               </div>
-              <h2 className="mt-4 text-lg font-semibold text-ink">Unterschrift</h2>
+              <h2 className="mt-4 text-lg font-semibold text-ink">{copy.signature}</h2>
               {flags.signed ? (
                 <div className="mt-3 rounded-md border border-sage/20 bg-sage/10 px-4 py-3 text-sm text-sage">
-                  Vielen Dank, der Vertrag wurde erfolgreich unterschrieben.
+                  {copy.signed}
                 </div>
               ) : null}
               {flags.signError === "missing" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  Bitte zeichnet eure Unterschrift in das Feld.
+                  {copy.missingSignature}
                 </div>
               ) : null}
               {flags.signError === "expired" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  Der Link ist abgelaufen. Bitte fordert einen neuen Vertragslink an.
+                  {copy.expired}
                 </div>
               ) : null}
               {flags.signError === "consent" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  Bitte bestätigt die Vertragsannahme und den Hinweis zur Speicherung der technischen Nachweise.
+                  {copy.consent}
                 </div>
               ) : null}
               {flags.signError === "server" ? (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  Beim Speichern der Unterschrift ist ein Fehler aufgetreten. Bitte versucht es erneut oder kontaktiert den Fotografen.
+                  {copy.server}
                 </div>
               ) : null}
               <p className="mt-2 text-sm leading-6 text-graphite/70">
-                {isWrittenContract
-                  ? "Füllt die erforderlichen Angaben aus und unterschreibt anschließend. Nach dem Speichern wird ein signiertes PDF erstellt."
-                  : "Unterschreibt den Vertrag mit Finger oder Maus. Nach dem Speichern wird eine signierte PDF-Kopie erstellt."}
+                {isWrittenContract ? copy.writtenIntro : copy.pdfIntro}
               </p>
               <ContractSignaturePad
                 token={token}
                 formId={signatureFormId}
                 disabled={Boolean(contract.signedAt && contract.signedFileUrl)}
+                language={language}
               >
                 {isWrittenContract ? (
                   <div className="rounded-md border border-ink/10 bg-white p-4 text-sm leading-6 text-graphite/70">
-                    Die auszufüllenden Felder erscheinen im Vertragstext. Prüft die Angaben und unterschreibt anschließend.
+                    {copy.writtenHint}
                   </div>
                 ) : null}
                 {isWrittenContract && extraContractFields.length > 0 ? (
                   <div className="space-y-3 rounded-md border border-ink/10 bg-white p-4">
-                    <p className="text-sm font-semibold text-ink">Weitere auszufüllende Angaben</p>
+                    <p className="text-sm font-semibold text-ink">{copy.extraFields}</p>
                     {extraContractFields.map((field) => {
                       const defaultValue = completedFields[field.key] ?? customerDefaults[field.key] ?? "";
                       const inputName = contractFieldInputName(field.key);
