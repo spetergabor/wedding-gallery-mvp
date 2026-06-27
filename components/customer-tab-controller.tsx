@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Camera,
   CheckCircle2,
@@ -60,7 +61,13 @@ export function CustomerTabController({
   initialTab: CustomerTab;
 }) {
   const validTabs = useMemo(() => new Set(tabs.map((tab) => tab.key)), [tabs]);
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<CustomerTab>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(tabParam && validTabs.has(tabParam as CustomerTab) ? (tabParam as CustomerTab) : "overview");
+  }, [tabParam, validTabs]);
 
   useEffect(() => {
     updatePanels(activeTab);

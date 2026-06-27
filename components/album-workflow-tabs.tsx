@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ImagePlus, LayoutTemplate, Upload } from "lucide-react";
 
 type AlbumMode = "editor" | "upload";
@@ -27,7 +28,18 @@ export function AlbumWorkflowTabs({
   editorContent,
   uploadContent
 }: AlbumWorkflowTabsProps) {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const albumModeParam = searchParams.get("albumMode");
   const [mode, setMode] = useState<AlbumMode>(initialMode);
+
+  useEffect(() => {
+    if (tabParam !== "album") {
+      return;
+    }
+
+    setMode(albumModeParam === "upload" ? "upload" : "editor");
+  }, [albumModeParam, tabParam]);
 
   function selectMode(nextMode: AlbumMode) {
     setMode(nextMode);
