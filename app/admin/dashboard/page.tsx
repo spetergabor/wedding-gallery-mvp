@@ -61,7 +61,7 @@ type DashboardStat = {
   detail: string;
 };
 
-const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
+const sectionMetaClass = "flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brass";
 const sectionTitleClass = "text-base font-semibold text-ink";
 
 function formatStorageSize(bytes: number) {
@@ -143,7 +143,7 @@ function DashboardStats({ stats }: { stats: DashboardStat[] }) {
       {stats.map((stat, index) => (
         <div
           key={stat.label}
-          className={`rounded-md border border-ink/10 bg-white px-3 py-3 sm:p-4 ${
+          className={`rounded-md border border-brass/15 bg-white px-3 py-3 shadow-[0_1px_0_rgba(178,139,78,0.08)] transition hover:border-brass/30 sm:p-4 ${
             index === stats.length - 1 ? "col-span-2 md:col-span-1" : ""
           }`}
         >
@@ -151,6 +151,7 @@ function DashboardStats({ stats }: { stats: DashboardStat[] }) {
             {stat.label}
           </p>
           <p className="mt-1.5 text-2xl font-semibold leading-tight text-ink sm:mt-2">{stat.value}</p>
+          <div className="mt-2 h-0.5 w-8 rounded-full bg-brass/45" />
           <p className="mt-1 hidden text-sm text-graphite/75 sm:block">{stat.detail}</p>
         </div>
       ))}
@@ -573,10 +574,14 @@ export default async function AdminDashboardPage() {
 
   return (
     <AdminShell>
-      <div className="mb-5 flex flex-col justify-between gap-4 md:mb-8 md:flex-row md:items-end">
+      <div className="mb-5 rounded-md border border-brass/15 bg-white px-4 py-4 shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mb-8 md:px-5">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className={sectionMetaClass}>Admin</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Dashboard</h1>
+          <p className="mt-2 max-w-xl text-sm text-graphite/70">
+            Áttekintés a galériákról, ügyfélfolyamatokról és a következő fontos lépésekről.
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <ButtonLink href="/admin/clients/new" variant="secondary" className="h-10 px-3 md:h-11 md:px-4">
@@ -585,6 +590,7 @@ export default async function AdminDashboardPage() {
           <ButtonLink href="/admin/galleries/new" className="h-10 px-3 md:h-11 md:px-4">
             Új galéria
           </ButtonLink>
+        </div>
         </div>
       </div>
 
@@ -606,126 +612,128 @@ export default async function AdminDashboardPage() {
         }))}
       />
 
-      <section className="mt-5 rounded-md border border-ink/12 bg-white md:mt-8">
-        <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
-          <div>
-            <div className={sectionMetaClass}>
-              <ListChecks size={15} />
-              Mai fókusz
+      <div className="mt-5 grid gap-6 md:mt-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+        <section className="rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)]">
+          <div className="flex flex-col justify-between gap-3 border-b border-brass/15 px-5 py-4 sm:flex-row sm:items-center">
+            <div>
+              <div className={sectionMetaClass}>
+                <ListChecks size={15} />
+                Mai fókusz
+              </div>
+              <h2 className={`mt-2 ${sectionTitleClass}`}>Teendőközpont</h2>
+              <p className="mt-1 text-sm text-graphite/70">
+                A legfontosabb ügyfél-, galéria- és háttérfolyamatok egy gyors listában.
+              </p>
             </div>
-            <h2 className={`mt-2 ${sectionTitleClass}`}>Teendőközpont</h2>
-            <p className="mt-1 text-sm text-graphite/70">
-              A legfontosabb ügyfél-, galéria- és háttérfolyamatok egy gyors listában.
-            </p>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1.5 text-sm font-medium text-brass">
+              <Clock3 size={15} />
+              {urgentTaskCount} sürgős
+            </span>
           </div>
-          <span className="inline-flex w-fit items-center gap-2 rounded-full bg-paper px-3 py-1.5 text-sm font-medium text-graphite">
-            <Clock3 size={15} />
-            {urgentTaskCount} sürgős
-          </span>
-        </div>
 
-        {dashboardTasks.length === 0 ? (
-          <div className="px-5 pb-4">
-            <EmptyState
-              icon={<CheckCircle2 size={18} className="text-ink" />}
-              title="Nincs sürgős admin teendő"
-              description="A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg, ha érkeznek."
-            />
-          </div>
-        ) : (
-          <div className="divide-y divide-ink/10">
-            {dashboardTasks.map((task) => {
-              const Icon = task.icon;
+          {dashboardTasks.length === 0 ? (
+            <div className="px-5 pb-4">
+              <EmptyState
+                icon={<CheckCircle2 size={18} className="text-ink" />}
+                title="Nincs sürgős admin teendő"
+                description="A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg, ha érkeznek."
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-ink/10">
+              {dashboardTasks.map((task) => {
+                const Icon = task.icon;
 
-              return (
-                <Link
-                  key={task.key}
-                  href={task.href}
-                  className="group flex items-start gap-4 px-5 py-4 transition hover:bg-ink/[0.03]"
-                >
-                  <span className={`mt-1 flex size-10 shrink-0 items-center justify-center rounded-md ${taskIconClass(task.priority)}`}>
-                    <Icon size={18} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-ink">{task.title}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${taskPriorityClass(task.priority)}`}>
-                        {task.label}
-                      </span>
+                return (
+                  <Link
+                    key={task.key}
+                    href={task.href}
+                    className="group flex items-start gap-4 px-5 py-4 transition hover:bg-brass/[0.04]"
+                  >
+                    <span className={`mt-1 flex size-10 shrink-0 items-center justify-center rounded-md ${taskIconClass(task.priority)}`}>
+                      <Icon size={18} />
                     </span>
-                    <span className="mt-1 line-clamp-2 block text-sm text-graphite/70">{task.detail}</span>
-                  </span>
-                  <ArrowRight size={18} className="mt-2 shrink-0 text-graphite/35 transition group-hover:translate-x-0.5 group-hover:text-ink" />
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="mt-8 rounded-md border border-ink/12 bg-white">
-        <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
-          <div>
-            <div className={sectionMetaClass}>
-              <FolderKanban size={15} />
-              Projektek
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-ink">{task.title}</span>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${taskPriorityClass(task.priority)}`}>
+                          {task.label}
+                        </span>
+                      </span>
+                      <span className="mt-1 line-clamp-2 block text-sm text-graphite/70">{task.detail}</span>
+                    </span>
+                    <ArrowRight size={18} className="mt-2 shrink-0 text-graphite/35 transition group-hover:translate-x-0.5 group-hover:text-brass" />
+                  </Link>
+                );
+              })}
             </div>
-            <h2 className={`mt-2 ${sectionTitleClass}`}>Következő projektek</h2>
-          </div>
-          <ButtonLink href="/admin/clients" variant="secondary" className="h-10">
-            Ügyfelek megnyitása
-          </ButtonLink>
-        </div>
+          )}
+        </section>
 
-        {upcomingProjects.length === 0 ? (
-          <div className="px-5 pb-4">
-            <EmptyState
-              icon={<FolderKanban size={18} className="text-ink" />}
-              title="Nincs közelgő projekt"
-              description="Az ügyfél adatlapján létrehozott jövőbeli projektek itt jelennek majd meg időrendben."
-            />
+        <section className="rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)]">
+          <div className="flex flex-col justify-between gap-3 border-b border-brass/15 px-5 py-4 sm:flex-row sm:items-center">
+            <div>
+              <div className={sectionMetaClass}>
+                <FolderKanban size={15} />
+                Projektek
+              </div>
+              <h2 className={`mt-2 ${sectionTitleClass}`}>Következő projektek</h2>
+            </div>
+            <ButtonLink href="/admin/clients" variant="secondary" className="h-10">
+              Ügyfelek megnyitása
+            </ButtonLink>
           </div>
-        ) : (
-          <div className="grid gap-3 p-5 lg:grid-cols-2 2xl:grid-cols-3">
-            {upcomingProjects.map((project) => (
-              <Link
-                key={project.id}
-                href={`/admin/clients/${project.customer.id}?tab=projects`}
-                className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-ink/20 hover:bg-ink/[0.03]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-semibold text-ink">{project.title}</p>
-                    <p className="mt-1 truncate text-sm text-graphite/70">{project.customer.coupleName}</p>
+
+          {upcomingProjects.length === 0 ? (
+            <div className="px-5 pb-4">
+              <EmptyState
+                icon={<FolderKanban size={18} className="text-ink" />}
+                title="Nincs közelgő projekt"
+                description="Az ügyfél adatlapján létrehozott jövőbeli projektek itt jelennek majd meg időrendben."
+              />
+            </div>
+          ) : (
+            <div className="grid gap-3 p-5">
+              {upcomingProjects.map((project) => (
+                <Link
+                  key={project.id}
+                  href={`/admin/clients/${project.customer.id}?tab=projects`}
+                  className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-brass/35 hover:bg-brass/[0.04]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-semibold text-ink">{project.title}</p>
+                      <p className="mt-1 truncate text-sm text-graphite/70">{project.customer.coupleName}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                      {customerProjectStatusLabel(project.status)}
+                    </span>
                   </div>
-                  <span className="shrink-0 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
-                    {customerProjectStatusLabel(project.status)}
-                  </span>
-                </div>
 
-                <div className="mt-4 grid gap-2 text-sm text-graphite/75 sm:grid-cols-2">
-                  <span className="inline-flex items-center gap-1.5">
-                    <CalendarClock size={14} />
-                    {formatDate(project.eventDate)}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Camera size={14} />
-                    {project._count.galleries} galéria
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
-                    {customerProjectTypeLabel(project.projectType)}
-                  </span>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
-                    {project.customer.primaryEmail}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+                  <div className="mt-4 grid gap-2 text-sm text-graphite/75 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    <span className="inline-flex items-center gap-1.5">
+                      <CalendarClock size={14} />
+                      {formatDate(project.eventDate)}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Camera size={14} />
+                      {project._count.galleries} galéria
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
+                      {customerProjectTypeLabel(project.projectType)}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
+                      {project.customer.primaryEmail}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <section className="rounded-md border border-ink/12 bg-white">
