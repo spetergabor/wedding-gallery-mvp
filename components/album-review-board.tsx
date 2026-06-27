@@ -48,6 +48,7 @@ export function AlbumReviewBoard({
   );
   const [draft, setDraft] = useState<DraftComment | null>(null);
   const [draftText, setDraftText] = useState("");
+  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [pending, setPending] = useState(false);
@@ -120,6 +121,7 @@ export function AlbumReviewBoard({
     }
 
     setDraft(null);
+    setSelectedCommentId(comment.id);
     setEditingCommentId(comment.id);
     setEditingText(comment.text);
     setError("");
@@ -149,6 +151,7 @@ export function AlbumReviewBoard({
     }
 
     setComments((current) => current.map((comment) => (comment.id === commentId ? result.comment : comment)));
+    setSelectedCommentId(commentId);
     setEditingCommentId(null);
     setEditingText("");
     setUpdatingCommentId(null);
@@ -175,6 +178,9 @@ export function AlbumReviewBoard({
     }
 
     setComments((current) => current.filter((comment) => comment.id !== commentId));
+    if (selectedCommentId === commentId) {
+      setSelectedCommentId(null);
+    }
     if (editingCommentId === commentId) {
       setEditingCommentId(null);
       setEditingText("");
@@ -247,13 +253,23 @@ export function AlbumReviewBoard({
 
                 {spreadComments.map((comment, index) => {
                   const isEditing = editingCommentId === comment.id;
+                  const isSelected = selectedCommentId === comment.id;
 
                   return (
                     <div
                       key={comment.id}
-                      onClick={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (!isEditing) {
+                          setSelectedCommentId(isSelected ? null : comment.id);
+                        }
+                      }}
                       className={`absolute z-10 max-w-[min(360px,calc(100%-24px))] -translate-x-3 -translate-y-3 rounded-md shadow-soft ${
-                        isEditing ? "min-w-72 border border-ink/15 bg-white p-3 text-ink" : "bg-ink px-3 py-2 text-sm font-medium text-white"
+                        isEditing
+                          ? "min-w-72 border border-ink/15 bg-white p-3 text-ink"
+                          : isSelected
+                            ? "bg-ink px-3 py-2 text-sm font-medium text-white"
+                            : "max-w-[240px] cursor-pointer bg-ink/90 px-2.5 py-1.5 text-xs font-medium text-white"
                       }`}
                       style={{ left: `${comment.x}%`, top: `${comment.y}%` }}
                     >
@@ -267,6 +283,7 @@ export function AlbumReviewBoard({
                             <button
                               type="button"
                               onClick={() => {
+                                setSelectedCommentId(comment.id);
                                 setEditingCommentId(null);
                                 setEditingText("");
                               }}
@@ -294,25 +311,37 @@ export function AlbumReviewBoard({
                         </form>
                       ) : (
                         <>
-                          <span className="mr-1 inline-flex size-5 items-center justify-center rounded-full bg-white text-xs text-ink">{index + 1}</span>
-                          {comment.text}
-                          <button
-                            type="button"
-                            onClick={() => startEditComment(comment)}
-                            className="ml-2 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-white/20 hover:text-white"
-                          >
-                            <Pencil size={12} />
-                            Bearbeiten
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteComment(comment.id)}
-                            disabled={deletingCommentId === comment.id}
-                            className="ml-1 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-red-500/40 hover:text-white disabled:opacity-60"
-                          >
-                            <Trash2 size={12} />
-                            {deletingCommentId === comment.id ? "Löschen..." : "Löschen"}
-                          </button>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-white text-xs text-ink">{index + 1}</span>
+                            <span className={isSelected ? "" : "line-clamp-1"}>{comment.text}</span>
+                          </span>
+                          {isSelected ? (
+                            <span className="mt-2 flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  startEditComment(comment);
+                                }}
+                                className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-white/20 hover:text-white"
+                              >
+                                <Pencil size={12} />
+                                Bearbeiten
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  deleteComment(comment.id);
+                                }}
+                                disabled={deletingCommentId === comment.id}
+                                className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/85 transition hover:bg-red-500/40 hover:text-white disabled:opacity-60"
+                              >
+                                <Trash2 size={12} />
+                                {deletingCommentId === comment.id ? "Löschen..." : "Löschen"}
+                              </button>
+                            </span>
+                          ) : null}
                         </>
                       )}
                     </div>
