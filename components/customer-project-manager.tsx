@@ -530,18 +530,21 @@ export function CustomerProjectManager({
               </div>
               <div className="mt-5 grid grid-cols-3 divide-x divide-ink/10 rounded-md bg-paper">
                 <div className="px-3 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Nyitott</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Folyamatban</p>
                   <p className="mt-1 text-lg font-semibold text-ink">{openProjectCount}</p>
                 </div>
                 <div className="px-3 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Átadva</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Lezárva</p>
                   <p className="mt-1 text-lg font-semibold text-ink">{deliveredProjectCount}</p>
                 </div>
                 <div className="px-3 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Dátumos</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Van dátum</p>
                   <p className="mt-1 text-lg font-semibold text-ink">{datedProjectCount}</p>
                 </div>
               </div>
+              <p className="mt-3 text-xs leading-5 text-graphite/60">
+                Rövid projektösszesítő: hány munka fut még, hány van lezárva, és hányhoz van megadva eseménydátum.
+              </p>
             </div>
           </div>
         </section>
