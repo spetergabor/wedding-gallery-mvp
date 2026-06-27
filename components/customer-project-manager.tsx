@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   Archive,
   ArrowRight,
+  BookOpen,
   Calendar,
   Camera,
   CheckCircle2,
@@ -12,6 +13,7 @@ import {
   ImagePlus,
   ListChecks,
   MapPin,
+  MessageSquare,
   Plus,
   Sparkles,
   Trash2
@@ -94,6 +96,14 @@ const PROJECT_PHASES = [
   { key: "delivered", label: "Átadás" }
 ] as const;
 
+const ALBUM_PROJECT_PHASES = [
+  { key: "planned", label: "Tervezés" },
+  { key: "design", label: "Albumterv" },
+  { key: "review", label: "Ellenőrzés" },
+  { key: "changes", label: "Módosítás" },
+  { key: "delivered", label: "Lezárás" }
+] as const;
+
 function dateInputValue(date: Date | null | undefined) {
   if (!date) {
     return "";
@@ -169,6 +179,26 @@ function stepStyle(state: ProjectStep["state"]) {
 }
 
 function projectPhaseIndex(project: CustomerProject) {
+  if (project.projectType === "album") {
+    if (project.status === "delivered") {
+      return 4;
+    }
+
+    if (project.status === "editing") {
+      return 3;
+    }
+
+    if (project._count.albumReviews > 0 || project.status === "proofing") {
+      return 2;
+    }
+
+    if (project._count.albumDesigns > 0 || project.status === "in_progress") {
+      return 1;
+    }
+
+    return 0;
+  }
+
   if (project.status === "delivered") {
     return 4;
   }
@@ -208,10 +238,11 @@ function projectPhaseIndex(project: CustomerProject) {
 
 function ProjectPhaseRail({ project }: { project: CustomerProject }) {
   const currentPhase = projectPhaseIndex(project);
+  const phases = project.projectType === "album" ? ALBUM_PROJECT_PHASES : PROJECT_PHASES;
 
   return (
     <div className="grid gap-2 sm:grid-cols-5">
-      {PROJECT_PHASES.map((phase, index) => {
+      {phases.map((phase, index) => {
         const isDone = index < currentPhase;
         const isCurrent = index === currentPhase;
 
@@ -235,6 +266,7 @@ function getPrimaryGallery(project: CustomerProject) {
 function getProjectNextStep(customerId: string, project: CustomerProject): ProjectStep {
   const proofingGallery = project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING) ?? null;
   const primaryGallery = getPrimaryGallery(project);
+  const isAlbumProject = project.projectType === "album";
 
   if (project.status === "archived") {
     return {
@@ -251,10 +283,43 @@ function getProjectNextStep(customerId: string, project: CustomerProject): Proje
     return {
       title: "Projekt átadva",
       detail: "A projekt státusza kész, de manuálisan bármikor visszaállítható, ha még van ügyfélmódosítás.",
-      href: primaryGallery ? `/admin/galleries/${primaryGallery.id}` : `/admin/clients/${customerId}?tab=projects`,
-      cta: primaryGallery ? "Anyag megnyitása" : "Projekt megnyitása",
+      href: primaryGallery ? `/admin/galleries/${primaryGallery.id}` : `/admin/clients/${customerId}?tab=${isAlbumProject ? "album&albumMode=upload" : "projects"}`,
+      cta: primaryGallery ? "Anyag megnyitása" : isAlbumProject ? "Album megnyitása" : "Projekt megnyitása",
       state: "done",
       icon: CheckCircle2
+    };
+  }
+
+  if (isAlbumProject) {
+    if (project._count.albumReviews > 0) {
+      return {
+        title: "Album ellenőrzés követése",
+        detail: "Van ügyfélnek kiküldhető vagy már kiküldött album ellenőrző. Itt látod a megjegyzéseket és a rendben jelölt oldalpárokat.",
+        href: `/admin/clients/${customerId}?tab=album&albumMode=upload`,
+        cta: "Album ellenőrző megnyitása",
+        state: project.status === "proofing" ? "waiting" : "action",
+        icon: MessageSquare
+      };
+    }
+
+    if (project._count.albumDesigns > 0) {
+      return {
+        title: "Albumterv ellenőrzővé alakítása",
+        detail: "Az albumterv már elindult. Ha elkészült egy verzió, exportáld album ellenőrzőként, hogy az ügyfél oldalpáronként visszajelezhessen.",
+        href: `/admin/clients/${customerId}?tab=album&albumMode=editor`,
+        cta: "Albumterv megnyitása",
+        state: "action",
+        icon: BookOpen
+      };
+    }
+
+    return {
+      title: "Album munka indítása",
+      detail: "Album projektnél nem kötelező galériát létrehozni. Készítheted az albumot külső programban, majd a kész oldalpárokat töltheted fel ellenőrzésre.",
+      href: `/admin/clients/${customerId}?tab=album&albumMode=upload`,
+      cta: "Album oldalpárok feltöltése",
+      state: "action",
+      icon: BookOpen
     };
   }
 
@@ -562,6 +627,7 @@ export function CustomerProjectManager({
                 const nextStep = getProjectNextStep(customerId, project);
                 const StepIcon = nextStep.icon;
                 const nextStepStyle = stepStyle(nextStep.state);
+                const isAlbumProject = project.projectType === "album";
 
                 return (
                   <>
@@ -589,10 +655,17 @@ export function CustomerProjectManager({
                   {project.notes ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-graphite/70">{project.notes}</p> : null}
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <ButtonLink href={`/admin/galleries/new?customerId=${customerId}&projectId=${project.id}`}>
-                    <Camera size={16} />
-                    Új galéria
-                  </ButtonLink>
+                  {isAlbumProject ? (
+                    <ButtonLink href={`/admin/clients/${customerId}?tab=album&albumMode=upload`}>
+                      <BookOpen size={16} />
+                      Album munka
+                    </ButtonLink>
+                  ) : (
+                    <ButtonLink href={`/admin/galleries/new?customerId=${customerId}&projectId=${project.id}`}>
+                      <Camera size={16} />
+                      Új galéria
+                    </ButtonLink>
+                  )}
                   <form action={deleteCustomerProjectAction.bind(null, customerId, project.id)}>
                     <ConfirmSubmitButton
                       message="Biztosan törlöd ezt a projektet? A kapcsolt galériák és dokumentumok megmaradnak, csak projekt nélkül folytatják."
@@ -640,7 +713,7 @@ export function CustomerProjectManager({
                 <CountPill icon={FileText} label="szerződés" count={project._count.contracts} />
                 <CountPill icon={FileText} label="számla" count={project._count.invoices} />
                 <CountPill icon={ImagePlus} label="album ellenőrző" count={project._count.albumReviews} />
-                <CountPill icon={Archive} label="albumterv" count={project._count.albumDesigns} />
+                <CountPill icon={BookOpen} label="albumterv" count={project._count.albumDesigns} />
               </div>
 
               <form action={updateCustomerProjectStatusAction.bind(null, customerId, project.id)} className="mt-4 flex flex-col gap-2 rounded-md bg-paper p-3 sm:flex-row sm:items-end">
@@ -685,7 +758,9 @@ export function CustomerProjectManager({
                 </div>
               ) : (
                 <div className="mt-4 rounded-md bg-paper px-4 py-3 text-sm text-graphite/70">
-                  Ehhez a projekthez még nincs galéria kapcsolva.
+                  {isAlbumProject
+                    ? "Album projektnél nem szükséges galéria. Dolgozhatsz külső albumprogramban, majd a kész oldalpárokat az Album fülön töltheted fel ellenőrzésre."
+                    : "Ehhez a projekthez még nincs galéria kapcsolva."}
                 </div>
               )}
                   </>
