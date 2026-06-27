@@ -433,7 +433,7 @@ export function CustomerProjectManager({
   return (
     <section className="space-y-6">
       <div className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-        <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div>
             <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
               <FolderKanban size={15} />
@@ -441,7 +441,7 @@ export function CustomerProjectManager({
             </div>
             <h2 className="mt-2 text-xl font-semibold text-ink">Fotózások és munkák egy ügyfél alatt</h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-              Egy ügyfélhez több projekt tartozhat: esküvő, jegyesfotózás, mini fotózás, album vagy rendezvény. A galériákat innen indítva már tiszta projekt alá kerülnek.
+              Itt látod az ügyfélhez tartozó külön munkákat. Új projektet csak akkor nyiss, ha tényleg külön folyamatot szeretnél vezetni.
             </p>
           </div>
           <ButtonLink href={`/admin/galleries/new?customerId=${customerId}`} variant="secondary">
@@ -450,78 +450,91 @@ export function CustomerProjectManager({
           </ButtonLink>
         </div>
 
-        <form action={createCustomerProjectAction.bind(null, customerId)} className="mt-5 grid gap-4 rounded-md border border-ink/10 bg-paper p-4 xl:grid-cols-4">
-          <label className="space-y-2 xl:col-span-2">
-            <span className="text-sm font-medium text-graphite">Projekt neve</span>
-            <input
-              name="title"
-              required
-              placeholder="pl. Jegyesfotózás, Esküvő napja, Album v1"
-              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-graphite">Típus</span>
-            <select
-              name="projectType"
-              defaultValue="general"
-              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            >
-              {CUSTOMER_PROJECT_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-graphite">Státusz</span>
-            <select
-              name="status"
-              defaultValue="planned"
-              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            >
-              {CUSTOMER_PROJECT_STATUSES.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-graphite">Dátum</span>
-            <input
-              name="eventDate"
-              type="date"
-              defaultValue={dateInputValue(defaultEventDate)}
-              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            />
-          </label>
-          <label className="space-y-2 xl:col-span-2">
-            <span className="text-sm font-medium text-graphite">Helyszín</span>
-            <input
-              name="venue"
-              defaultValue={defaultVenue ?? ""}
-              placeholder="pl. Graz, Studio, Schloss..."
-              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            />
-          </label>
-          <label className="space-y-2 xl:col-span-4">
-            <span className="text-sm font-medium text-graphite">Megjegyzés</span>
-            <textarea
-              name="notes"
-              rows={3}
-              placeholder="Belső megjegyzés ehhez a konkrét munkához..."
-              className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            />
-          </label>
-          <div className="xl:col-span-4">
-            <FormSubmitButton pendingLabel="Projekt létrehozása...">
-              <Plus size={16} />
-              Projekt létrehozása
-            </FormSubmitButton>
-          </div>
-        </form>
+        <details className="group mt-4 rounded-md border border-ink/10 bg-paper">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-ink transition hover:bg-ink/[0.03] [&::-webkit-details-marker]:hidden">
+            <span className="inline-flex items-center gap-2">
+              <span className="flex size-8 items-center justify-center rounded-md bg-white text-brass">
+                <Plus size={15} />
+              </span>
+              Új projekt létrehozása
+            </span>
+            <span className="text-xs text-graphite/60 group-open:hidden">Űrlap megnyitása</span>
+            <span className="hidden text-xs text-graphite/60 group-open:inline">Űrlap bezárása</span>
+          </summary>
+
+          <form action={createCustomerProjectAction.bind(null, customerId)} className="grid gap-4 border-t border-ink/10 p-4 xl:grid-cols-4">
+            <label className="space-y-2 xl:col-span-2">
+              <span className="text-sm font-medium text-graphite">Projekt neve</span>
+              <input
+                name="title"
+                required
+                placeholder="pl. Jegyesfotózás, Esküvő napja, Album v1"
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-graphite">Típus</span>
+              <select
+                name="projectType"
+                defaultValue="general"
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              >
+                {CUSTOMER_PROJECT_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-graphite">Státusz</span>
+              <select
+                name="status"
+                defaultValue="planned"
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              >
+                {CUSTOMER_PROJECT_STATUSES.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-graphite">Dátum</span>
+              <input
+                name="eventDate"
+                type="date"
+                defaultValue={dateInputValue(defaultEventDate)}
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <label className="space-y-2 xl:col-span-2">
+              <span className="text-sm font-medium text-graphite">Helyszín</span>
+              <input
+                name="venue"
+                defaultValue={defaultVenue ?? ""}
+                placeholder="pl. Graz, Studio, Schloss..."
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <label className="space-y-2 xl:col-span-4">
+              <span className="text-sm font-medium text-graphite">Megjegyzés</span>
+              <textarea
+                name="notes"
+                rows={3}
+                placeholder="Belső megjegyzés ehhez a konkrét munkához..."
+                className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <div className="xl:col-span-4">
+              <FormSubmitButton pendingLabel="Projekt létrehozása...">
+                <Plus size={16} />
+                Projekt létrehozása
+              </FormSubmitButton>
+            </div>
+          </form>
+        </details>
       </div>
 
       {projects.length === 0 ? (
