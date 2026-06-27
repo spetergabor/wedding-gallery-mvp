@@ -410,16 +410,6 @@ function getProjectNextStep(customerId: string, project: CustomerProject): Proje
   };
 }
 
-function getProjectSortTime(project: CustomerProject) {
-  return project.eventDate?.getTime() ?? Number.MAX_SAFE_INTEGER - project.id.length;
-}
-
-function getFocusProject(projects: CustomerProject[]) {
-  const activeProjects = projects.filter((project) => !["delivered", "archived"].includes(project.status));
-
-  return [...(activeProjects.length > 0 ? activeProjects : projects)].sort((a, b) => getProjectSortTime(a) - getProjectSortTime(b))[0] ?? null;
-}
-
 export function CustomerProjectManager({
   customerId,
   projects,
@@ -439,13 +429,6 @@ export function CustomerProjectManager({
     unassignedCounts.invoices +
     unassignedCounts.albumReviews +
     unassignedCounts.albumDesigns;
-  const focusProject = getFocusProject(projects);
-  const focusStep = focusProject ? getProjectNextStep(customerId, focusProject) : null;
-  const FocusStepIcon = focusStep?.icon ?? ListChecks;
-  const focusStepStyle = focusStep ? stepStyle(focusStep.state) : stepStyle("info");
-  const openProjectCount = projects.filter((project) => !["delivered", "archived"].includes(project.status)).length;
-  const deliveredProjectCount = projects.filter((project) => project.status === "delivered").length;
-  const datedProjectCount = projects.filter((project) => project.eventDate).length;
 
   return (
     <section className="space-y-6">
@@ -540,80 +523,6 @@ export function CustomerProjectManager({
           </div>
         </form>
       </div>
-
-      {focusProject && focusStep ? (
-        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-          <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start">
-            <div>
-              <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-                <ListChecks size={15} />
-                Projekt cockpit
-              </div>
-              <h2 className="mt-2 text-xl font-semibold text-ink">Aktív munka gyorsnézet</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-                Innen látszik, melyik projekt van fókuszban, hol tart, és mi a következő értelmes lépés.
-              </p>
-            </div>
-            <ButtonLink href={focusStep.href} className="h-10">
-              <FocusStepIcon size={16} />
-              {focusStep.cta}
-            </ButtonLink>
-          </div>
-
-          <div className="grid divide-y divide-ink/10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:divide-x lg:divide-y-0">
-            <div className="py-5 lg:pr-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">Aktív fókusz</span>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass(focusProject.status)}`}>
-                  {customerProjectStatusLabel(focusProject.status)}
-                </span>
-              </div>
-              <h3 className="mt-3 text-2xl font-semibold text-ink">{focusProject.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-graphite/70">
-                {customerProjectTypeLabel(focusProject.projectType)} · {formatDate(focusProject.eventDate)}
-                {focusProject.venue ? ` · ${focusProject.venue}` : ""}
-              </p>
-              <div className="mt-5">
-                <ProjectPhaseRail project={focusProject} />
-              </div>
-            </div>
-
-            <div className="py-5 lg:pl-5">
-              <div className="flex items-start gap-3">
-                <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${focusStepStyle.className}`}>
-                  <FocusStepIcon size={17} />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold text-ink">{focusStep.title}</h3>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${focusStepStyle.className}`}>
-                      {focusStepStyle.label}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-graphite/70">{focusStep.detail}</p>
-                </div>
-              </div>
-              <div className="mt-5 grid grid-cols-3 divide-x divide-ink/10 rounded-md bg-paper">
-                <div className="px-3 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Folyamatban</p>
-                  <p className="mt-1 text-lg font-semibold text-ink">{openProjectCount}</p>
-                </div>
-                <div className="px-3 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Lezárva</p>
-                  <p className="mt-1 text-lg font-semibold text-ink">{deliveredProjectCount}</p>
-                </div>
-                <div className="px-3 py-3">
-                  <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Van dátum</p>
-                  <p className="mt-1 text-lg font-semibold text-ink">{datedProjectCount}</p>
-                </div>
-              </div>
-              <p className="mt-3 text-xs leading-5 text-graphite/60">
-                Rövid projektösszesítő: hány munka fut még, hány van lezárva, és hányhoz van megadva eseménydátum.
-              </p>
-            </div>
-          </div>
-        </section>
-      ) : null}
 
       {projects.length === 0 ? (
         <div className="rounded-lg border border-dashed border-ink/15 bg-white p-6 text-sm text-graphite/70">
