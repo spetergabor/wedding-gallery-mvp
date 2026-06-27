@@ -22,6 +22,7 @@ import type { LucideIcon } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
+import { LeadPipelineBoard } from "@/components/lead-pipeline-board";
 import { ViewLocationMap } from "@/components/view-location-map";
 import { adminOwnedWhere, notificationWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
@@ -29,6 +30,7 @@ import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
+import { normalizeLeadStatus } from "@/lib/leads";
 import {
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -190,7 +192,8 @@ export default async function AdminDashboardPage() {
     failedProcessingPhotos,
     problemZipPackages,
     latestGalleries,
-    viewLocations
+    viewLocations,
+    leads
   ] = await Promise.all([
     prisma.gallery.count({ where: galleryWhere }),
     prisma.gallery.count({ where: { ...galleryWhere, isActive: true } }),
@@ -425,6 +428,22 @@ export default async function AdminDashboardPage() {
         latitude: true,
         longitude: true
       }
+    }),
+    prisma.lead.findMany({
+      where: adminOwnedWhere(admin),
+      orderBy: [{ status: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        eventType: true,
+        eventDate: true,
+        venue: true,
+        notes: true,
+        status: true,
+        sortOrder: true
+      }
     })
   ]);
   const locationPoints = createViewLocationPoints(viewLocations);
@@ -576,6 +595,14 @@ export default async function AdminDashboardPage() {
           { label: "R2 tárhely", value: formatStorageSize(totalStorageBytes), detail: "Feltöltött médiák összmérete" },
           { label: "Új értesítések", value: unreadNotifications, detail: "Olvasatlan admin jelzések" }
         ]}
+      />
+
+      <LeadPipelineBoard
+        initialLeads={leads.map((lead) => ({
+          ...lead,
+          eventDate: lead.eventDate?.toISOString() ?? null,
+          status: normalizeLeadStatus(lead.status)
+        }))}
       />
 
       <section className="mt-5 rounded-md border border-ink/12 bg-white md:mt-8">

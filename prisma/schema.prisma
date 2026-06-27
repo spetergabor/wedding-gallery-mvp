@@ -25,6 +25,7 @@ model Admin {
   customers    Customer[]
   notifications AdminNotification[]
   siteSettings SiteSettings?
+  leads        Lead[]
 }
 
 model AdminNotification {
@@ -93,6 +94,29 @@ model Customer {
   @@index([status])
   @@index([weddingDate])
   @@index([primaryEmail])
+}
+
+model Lead {
+  id           String   @id @default(cuid())
+  adminId      String?
+  name         String
+  email        String?
+  phone        String?
+  eventType    String   @default("wedding")
+  eventDate    DateTime?
+  venue        String?
+  status       String   @default("requested")
+  notes        String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  admin        Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([status])
+  @@index([sortOrder])
+  @@index([eventDate])
+  @@index([email])
 }
 
 model CustomerProject {
