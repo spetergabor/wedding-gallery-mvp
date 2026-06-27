@@ -30,7 +30,7 @@ import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
-import { normalizeLeadStatus } from "@/lib/leads";
+import { ensureLeadPipelineSchema, normalizeLeadStatus } from "@/lib/leads";
 import {
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -164,6 +164,7 @@ function isSupersededDownloadPackageMessage(message: string | null | undefined) 
 
 export default async function AdminDashboardPage() {
   const admin = await requireAdmin();
+  await ensureLeadPipelineSchema(prisma);
   const galleryWhere = adminOwnedWhere(admin);
   const photoWhere = { gallery: adminOwnedWhere(admin) };
   const projectWhere = { customer: adminOwnedWhere(admin) };

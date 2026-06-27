@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
-import { normalizeLeadEventType, normalizeLeadStatus } from "@/lib/leads";
+import { ensureLeadPipelineSchema, normalizeLeadEventType, normalizeLeadStatus } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 
 function formString(formData: FormData, key: string) {
@@ -29,6 +29,7 @@ function formDate(formData: FormData, key: string) {
 
 export async function createLeadAction(formData: FormData) {
   const admin = await requireAdmin();
+  await ensureLeadPipelineSchema(prisma);
   const name = formString(formData, "name");
   const status = normalizeLeadStatus(formString(formData, "status"));
 
@@ -65,6 +66,7 @@ export async function createLeadAction(formData: FormData) {
 
 export async function moveLeadAction(leadId: string, statusValue: string, targetIndex: number) {
   const admin = await requireAdmin();
+  await ensureLeadPipelineSchema(prisma);
   const status = normalizeLeadStatus(statusValue);
   const lead = await prisma.lead.findFirst({
     where: {
@@ -113,6 +115,7 @@ export async function moveLeadAction(leadId: string, statusValue: string, target
 
 export async function deleteLeadAction(leadId: string) {
   const admin = await requireAdmin();
+  await ensureLeadPipelineSchema(prisma);
   const lead = await prisma.lead.findFirst({
     where: {
       id: leadId,
