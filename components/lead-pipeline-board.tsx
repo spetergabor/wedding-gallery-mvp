@@ -83,16 +83,16 @@ function AddLeadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-md border border-ink/10 bg-white p-3 shadow-sm">
+    <form onSubmit={handleSubmit} className="w-full max-w-full overflow-hidden rounded-md border border-ink/10 bg-white p-3 shadow-sm">
       <input type="hidden" name="status" value={status} />
-      <div className="grid gap-2">
+      <div className="grid min-w-0 gap-2">
         <input
           name="name"
           autoFocus
           placeholder="Név"
-          className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+          className="h-10 min-w-0 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
         />
-        <select name="eventType" className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50">
+        <select name="eventType" className="h-10 min-w-0 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50">
           {LEAD_EVENT_TYPES.map((type) => (
             <option key={type.key} value={type.key}>
               {type.label}
@@ -104,12 +104,12 @@ function AddLeadForm({
             name="email"
             type="email"
             placeholder="Email"
-            className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+            className="h-10 min-w-0 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
           />
           <input
             name="eventDate"
             type="date"
-            className="h-10 rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+            className="h-10 min-w-0 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
           />
         </div>
       </div>
@@ -120,7 +120,7 @@ function AddLeadForm({
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex h-9 flex-1 items-center justify-center rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-graphite disabled:opacity-60"
+          className="inline-flex min-h-9 flex-1 items-center justify-center rounded-md bg-ink px-3 py-2 text-center text-sm font-medium leading-tight text-white transition hover:bg-graphite disabled:opacity-60"
         >
           {isPending ? "Mentés..." : "Lead mentése"}
         </button>
@@ -219,7 +219,7 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
       </div>
 
       <div className="overflow-x-auto p-4">
-        <div className="grid min-w-[1040px] grid-cols-6 gap-3">
+        <div className="flex min-w-max gap-3">
           {LEAD_STATUSES.map((status) => {
             const statusLeads = groupedLeads[status.key];
             const isColumnTarget = dropTarget?.status === status.key;
@@ -237,7 +237,7 @@ export function LeadPipelineBoard({ initialLeads }: LeadPipelineBoardProps) {
                     setActiveFormStatus(status.key);
                   }
                 }}
-                className={`min-h-80 rounded-md border border-ink/10 bg-paper/75 p-2 transition ${
+                className={`min-h-80 w-[260px] shrink-0 rounded-md border border-ink/10 bg-paper/75 p-2 transition sm:w-[280px] ${
                   isColumnTarget ? "border-ink/30 bg-brass/10" : ""
                 }`}
               >
