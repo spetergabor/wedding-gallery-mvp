@@ -735,7 +735,7 @@ export default async function AdminDashboardPage() {
         </section>
       </div>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-2">
+      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <section className="rounded-md border border-ink/12 bg-white">
           <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
             <h2 className={sectionTitleClass}>Értesítések</h2>
