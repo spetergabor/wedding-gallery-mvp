@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, Camera, ChevronDown, LayoutDashboard, LogOut, Menu, Plus, Settings, ShieldCheck, Users } from "lucide-react";
+import { Bell, Camera, ChevronDown, LayoutDashboard, LogOut, Menu, Plus, Settings, Users } from "lucide-react";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
 import { logoutAction } from "@/lib/gallery-actions";
 import { getAdminSession } from "@/lib/auth";
@@ -77,10 +77,6 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
               <span className="rounded-full bg-brass px-2 py-0.5 text-xs font-medium text-white">{unreadNotifications}</span>
             ) : null}
           </Link>
-          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/security">
-            <ShieldCheck size={17} />
-            Biztonság
-          </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/settings">
             <Settings size={17} />
             Beállítások
@@ -142,10 +138,6 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                     {unreadNotifications > 0 ? (
                       <span className="rounded-full bg-brass px-2 py-0.5 text-xs font-medium text-white">{unreadNotifications}</span>
                     ) : null}
-                  </Link>
-                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/security">
-                    <ShieldCheck size={17} />
-                    Biztonság
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/settings">
                     <Settings size={17} />

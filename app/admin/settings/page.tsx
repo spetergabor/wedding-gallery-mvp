@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { Activity, Cloud, Database, ExternalLink, GitBranch, Globe2, Mail, Server, Zap } from "lucide-react";
+import { Activity, Cloud, Database, ExternalLink, GitBranch, Globe2, Mail, Server, ShieldCheck, Zap } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
+import { AdminSecuritySettings } from "@/components/admin-security-settings";
 import { SiteSettingsForm } from "@/components/site-settings-form";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-type SettingsTab = "brand" | "providers";
+type SettingsTab = "brand" | "providers" | "security";
 
 const providerLinks = [
   {
@@ -108,10 +109,13 @@ export default async function AdminSettingsPage({
     error?: string;
     saved?: string;
     tab?: string;
+    disabled?: string;
+    enabled?: string;
   }>;
 }) {
   const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
-  const activeTab: SettingsTab = params.tab === "providers" && admin.role === "super_admin" ? "providers" : "brand";
+  const activeTab: SettingsTab =
+    params.tab === "security" ? "security" : params.tab === "providers" && admin.role === "super_admin" ? "providers" : "brand";
   const settings = await prisma.siteSettings.findFirst({
     where: {
       OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -136,12 +140,12 @@ export default async function AdminSettingsPage({
         <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Admin</p>
         <h1 className="mt-2 text-3xl font-semibold text-ink">Általános beállítások</h1>
         <p className="mt-3 max-w-2xl text-graphite/70">
-          Márkaadatok, logó, elérhetőségek és a platform külső szolgáltatói egy helyen.
+          Márkaadatok, logó, elérhetőségek, biztonság és a platform külső szolgáltatói egy helyen.
         </p>
       </div>
 
       <div className="mb-6 rounded-md border border-ink/10 bg-white p-2">
-        <nav className={`grid gap-2 ${admin.role === "super_admin" ? "sm:grid-cols-2" : "sm:grid-cols-1"}`} aria-label="Beállítások fülek">
+        <nav className={`grid gap-2 ${admin.role === "super_admin" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`} aria-label="Beállítások fülek">
           <Link
             href="/admin/settings?tab=brand"
             className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
@@ -150,6 +154,15 @@ export default async function AdminSettingsPage({
           >
             <Globe2 size={16} />
             Márka
+          </Link>
+          <Link
+            href="/admin/settings?tab=security"
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+              activeTab === "security" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+            }`}
+          >
+            <ShieldCheck size={16} />
+            Biztonság
           </Link>
           {admin.role === "super_admin" ? (
             <Link
@@ -180,6 +193,8 @@ export default async function AdminSettingsPage({
       </div>
 
       {activeTab === "brand" ? <SiteSettingsForm settings={settings ?? emptySettings} /> : null}
+
+      {activeTab === "security" ? <AdminSecuritySettings enabled={params.enabled} disabled={params.disabled} error={params.error} /> : null}
 
       {activeTab === "providers" ? (
         <div className="space-y-6">

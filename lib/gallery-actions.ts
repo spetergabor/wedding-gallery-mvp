@@ -619,7 +619,7 @@ export async function enableTwoFactorAction(formData: FormData) {
   const code = formString(formData, "code");
 
   if (!secret || !verifyTotpCode(secret, code)) {
-    redirect("/admin/security?error=code");
+    redirect("/admin/settings?tab=security&error=code");
   }
 
   await prisma.admin.update({
@@ -630,7 +630,7 @@ export async function enableTwoFactorAction(formData: FormData) {
     }
   });
 
-  redirect("/admin/security?enabled=1");
+  redirect("/admin/settings?tab=security&enabled=1");
 }
 
 export async function disableTwoFactorAction(formData: FormData) {
@@ -643,7 +643,7 @@ export async function disableTwoFactorAction(formData: FormData) {
   });
 
   if (!admin || !password || !(await verifyPassword(password, admin.passwordHash))) {
-    redirect("/admin/security?error=password");
+    redirect("/admin/settings?tab=security&error=password");
   }
 
   await prisma.admin.update({
@@ -654,7 +654,7 @@ export async function disableTwoFactorAction(formData: FormData) {
     }
   });
 
-  redirect("/admin/security?disabled=1");
+  redirect("/admin/settings?tab=security&disabled=1");
 }
 
 export async function markAllNotificationsReadAction() {
