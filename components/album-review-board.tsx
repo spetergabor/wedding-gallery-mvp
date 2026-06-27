@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, MouseEvent, useMemo, useState } from "react";
-import { MessageSquare, Plus, X } from "lucide-react";
-import { createAlbumReviewCommentAction } from "@/lib/album-review-actions";
+import { CheckCircle2, MessageSquare, Plus, X } from "lucide-react";
+import { approveAlbumReviewSpreadAction, createAlbumReviewCommentAction } from "@/lib/album-review-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 
 type AlbumComment = {
@@ -20,6 +20,7 @@ type AlbumSpread = {
   filename: string;
   imageUrl: string;
   sortOrder: number;
+  approvedAt: string | null;
   comments: AlbumComment[];
 };
 
@@ -37,9 +38,13 @@ export function AlbumReviewBoard({
   spreads: AlbumSpread[];
 }) {
   const [comments, setComments] = useState<AlbumComment[]>(() => spreads.flatMap((spread) => spread.comments));
+  const [approvedSpreads, setApprovedSpreads] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(spreads.map((spread) => [spread.id, spread.approvedAt]))
+  );
   const [draft, setDraft] = useState<DraftComment | null>(null);
   const [draftText, setDraftText] = useState("");
   const [pending, setPending] = useState(false);
+  const [approvingSpreadId, setApprovingSpreadId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const commentsBySpread = useMemo(() => {
     const grouped = new Map<string, AlbumComment[]>();
@@ -94,9 +99,30 @@ export function AlbumReviewBoard({
     }
 
     setComments((current) => [...current, result.comment]);
+    setApprovedSpreads((current) => ({ ...current, [draft.spreadId]: null }));
     setDraft(null);
     setDraftText("");
     setPending(false);
+  }
+
+  async function approveSpread(spreadId: string) {
+    if (pending || approvingSpreadId) {
+      return;
+    }
+
+    setApprovingSpreadId(spreadId);
+    setError("");
+
+    const result = await approveAlbumReviewSpreadAction({ token, spreadId });
+
+    if (!result.ok || !result.approvedAt) {
+      setError(result.message ?? "Die Freigabe konnte nicht gespeichert werden.");
+      setApprovingSpreadId(null);
+      return;
+    }
+
+    setApprovedSpreads((current) => ({ ...current, [spreadId]: result.approvedAt }));
+    setApprovingSpreadId(null);
   }
 
   return (
@@ -109,12 +135,31 @@ export function AlbumReviewBoard({
         {spreads.map((spread) => {
           const spreadComments = commentsBySpread.get(spread.id) ?? [];
           const draftForSpread = draft?.spreadId === spread.id ? draft : null;
+          const approvedAt = approvedSpreads[spread.id];
 
           return (
             <section key={spread.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
-              <div className="border-b border-ink/10 px-4 py-3">
-                <p className="font-semibold text-ink">{spread.title ?? `Doppelseite ${spread.sortOrder}`}</p>
-                <p className="mt-1 text-sm text-graphite/70">{spreadComments.length} Notizen</p>
+              <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-4 py-3 sm:flex-row sm:items-center">
+                <div>
+                  <p className="font-semibold text-ink">{spread.title ?? `Doppelseite ${spread.sortOrder}`}</p>
+                  <p className="mt-1 text-sm text-graphite/70">{spreadComments.length} Notizen</p>
+                </div>
+                {approvedAt ? (
+                  <span className="inline-flex w-fit items-center gap-2 rounded-md bg-brass/10 px-3 py-2 text-sm font-medium text-brass">
+                    <CheckCircle2 size={16} />
+                    Freigegeben
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => approveSpread(spread.id)}
+                    disabled={approvingSpreadId === spread.id}
+                    className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-3 text-sm font-medium text-brass transition hover:bg-brass/15 disabled:opacity-60"
+                  >
+                    <CheckCircle2 size={16} />
+                    {approvingSpreadId === spread.id ? "Speichern..." : "Diese Seite ist in Ordnung"}
+                  </button>
+                )}
               </div>
 
               <div

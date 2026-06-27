@@ -48,6 +48,10 @@ function normalizePoint(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
+export async function ensureAlbumReviewApprovalSchema() {
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AlbumReviewSpread" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3)`);
+}
+
 async function requireAlbumReviewAccess(customerId: string, reviewId: string) {
   const admin = await requireAdmin();
   const review = await prisma.albumReview.findFirst({
@@ -295,6 +299,7 @@ export async function createAlbumReviewCommentAction({
   y: number;
   text: string;
 }) {
+  await ensureAlbumReviewApprovalSchema();
   const normalizedText = text.trim();
 
   if (!normalizedText) {
@@ -333,10 +338,16 @@ export async function createAlbumReviewCommentAction({
     }
   });
 
-  await prisma.albumReview.update({
-    where: { id: spread.reviewId },
-    data: { status: "in_review" }
-  });
+  await prisma.$transaction([
+    prisma.albumReviewSpread.update({
+      where: { id: spread.id },
+      data: { approvedAt: null }
+    }),
+    prisma.albumReview.update({
+      where: { id: spread.reviewId },
+      data: { status: "in_review" }
+    })
+  ]);
 
   revalidatePath(`/album/${token}`);
 
@@ -346,5 +357,47 @@ export async function createAlbumReviewCommentAction({
       ...comment,
       createdAt: comment.createdAt.toISOString()
     }
+  };
+}
+
+export async function approveAlbumReviewSpreadAction({
+  token,
+  spreadId
+}: {
+  token: string;
+  spreadId: string;
+}) {
+  await ensureAlbumReviewApprovalSchema();
+  const spread = await prisma.albumReviewSpread.findFirst({
+    where: {
+      id: spreadId,
+      review: { accessToken: token }
+    },
+    select: {
+      id: true,
+      reviewId: true
+    }
+  });
+
+  if (!spread) {
+    return { ok: false, message: "Diese Albumseite wurde nicht gefunden." };
+  }
+
+  const updatedSpread = await prisma.albumReviewSpread.update({
+    where: { id: spread.id },
+    data: { approvedAt: new Date() },
+    select: { approvedAt: true }
+  });
+
+  await prisma.albumReview.update({
+    where: { id: spread.reviewId },
+    data: { status: "in_review" }
+  });
+
+  revalidatePath(`/album/${token}`);
+
+  return {
+    ok: true,
+    approvedAt: updatedSpread.approvedAt?.toISOString() ?? null
   };
 }

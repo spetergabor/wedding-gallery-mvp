@@ -32,6 +32,7 @@ import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { CustomerTabController } from "@/components/customer-tab-controller";
 import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { InvoiceManager } from "@/components/invoice-manager";
+import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -719,6 +720,8 @@ export default async function AdminClientDetailPage({
   if (!customer) {
     notFound();
   }
+
+  await ensureAlbumReviewApprovalSchema();
 
   const [albumReviews, albumFavoriteLists, albumDesigns, unassignedAlbumReviewCount, unassignedAlbumDesignCount] =
     await Promise.all([

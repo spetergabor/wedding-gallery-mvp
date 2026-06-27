@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ExternalLink, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { AlbumSpreadUploadForm } from "@/components/album-spread-upload-form";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -18,6 +18,7 @@ type AlbumReview = {
     filename: string;
     imageUrl: string;
     sortOrder: number;
+    approvedAt: Date | null;
     comments: Array<{
       id: string;
       x: number;
@@ -90,6 +91,7 @@ export function AlbumReviewManager({
         <div className="mt-5 space-y-6">
           {reviews.map((review) => {
             const commentCount = review.spreads.reduce((total, spread) => total + spread.comments.length, 0);
+            const approvedCount = review.spreads.filter((spread) => spread.approvedAt).length;
 
             return (
               <article key={review.id} className="rounded-lg border border-ink/10 bg-paper p-4">
@@ -103,6 +105,11 @@ export function AlbumReviewManager({
                       <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                         {review.spreads.length} oldalpár · {commentCount} címke
                       </span>
+                      {review.spreads.length > 0 ? (
+                        <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                          {approvedCount}/{review.spreads.length} rendben
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">Létrehozva: {formatDate(review.createdAt)}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -156,7 +163,15 @@ export function AlbumReviewManager({
                         <div className="p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="font-medium text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
+                                {spread.approvedAt ? (
+                                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                                    <CheckCircle2 size={13} />
+                                    Ügyfél szerint rendben
+                                  </span>
+                                ) : null}
+                              </div>
                               <p className="mt-1 truncate text-sm text-graphite/70">{spread.filename}</p>
                             </div>
                             <form action={deleteAlbumReviewSpreadAction.bind(null, customerId, review.id, spread.id)} className="shrink-0">

@@ -175,6 +175,7 @@ model AlbumReviewSpread {
   imageWidth  Int      @default(0)
   imageHeight Int      @default(0)
   sortOrder   Int      @default(0)
+  approvedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   review      AlbumReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)

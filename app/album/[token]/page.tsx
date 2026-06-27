@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { AlbumReviewBoard } from "@/components/album-review-board";
+import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export default async function AlbumReviewPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+  await ensureAlbumReviewApprovalSchema();
   const review = await prisma.albumReview.findUnique({
     where: { accessToken: token },
     include: {
@@ -54,6 +56,7 @@ export default async function AlbumReviewPage({
     filename: spread.filename,
     imageUrl: spread.imageUrl,
     sortOrder: spread.sortOrder,
+    approvedAt: spread.approvedAt?.toISOString() ?? null,
     comments: spread.comments.map((comment) => ({
       ...comment,
       createdAt: comment.createdAt.toISOString()
