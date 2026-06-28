@@ -70,6 +70,34 @@ type DashboardCalendarEvent = {
   icon: LucideIcon;
 };
 
+type DashboardAlbumComment = {
+  text: string;
+  createdAt: Date;
+  spread: {
+    review: {
+      id: string;
+      title: string;
+      customer: {
+        id: string;
+        coupleName: string;
+      };
+    };
+  };
+};
+
+type DashboardAlbumSpreadApproval = {
+  id: string;
+  approvedAt: Date | null;
+  review: {
+    id: string;
+    title: string;
+    customer: {
+      id: string;
+      coupleName: string;
+    };
+  };
+};
+
 type DashboardStat = {
   label: string;
   value: string | number;
@@ -230,6 +258,90 @@ function sortCalendarEvents(events: DashboardCalendarEvent[], today: Date) {
   return [...futureEvents, ...recentEvents];
 }
 
+function groupAlbumCommentsByReview(comments: DashboardAlbumComment[]) {
+  const groups = new Map<
+    string,
+    {
+      reviewId: string;
+      reviewTitle: string;
+      customerId: string;
+      customerName: string;
+      count: number;
+      latestText: string;
+      latestAt: Date;
+    }
+  >();
+
+  for (const comment of comments) {
+    const review = comment.spread.review;
+    const existing = groups.get(review.id);
+
+    if (!existing) {
+      groups.set(review.id, {
+        reviewId: review.id,
+        reviewTitle: review.title,
+        customerId: review.customer.id,
+        customerName: review.customer.coupleName,
+        count: 1,
+        latestText: comment.text,
+        latestAt: comment.createdAt
+      });
+      continue;
+    }
+
+    existing.count += 1;
+
+    if (comment.createdAt.getTime() > existing.latestAt.getTime()) {
+      existing.latestText = comment.text;
+      existing.latestAt = comment.createdAt;
+    }
+  }
+
+  return Array.from(groups.values()).sort((left, right) => right.latestAt.getTime() - left.latestAt.getTime());
+}
+
+function groupAlbumApprovalsByReview(spreads: DashboardAlbumSpreadApproval[]) {
+  const groups = new Map<
+    string,
+    {
+      reviewId: string;
+      reviewTitle: string;
+      customerId: string;
+      customerName: string;
+      count: number;
+      latestAt: Date;
+    }
+  >();
+
+  for (const spread of spreads) {
+    if (!spread.approvedAt) {
+      continue;
+    }
+
+    const existing = groups.get(spread.review.id);
+
+    if (!existing) {
+      groups.set(spread.review.id, {
+        reviewId: spread.review.id,
+        reviewTitle: spread.review.title,
+        customerId: spread.review.customer.id,
+        customerName: spread.review.customer.coupleName,
+        count: 1,
+        latestAt: spread.approvedAt
+      });
+      continue;
+    }
+
+    existing.count += 1;
+
+    if (spread.approvedAt.getTime() > existing.latestAt.getTime()) {
+      existing.latestAt = spread.approvedAt;
+    }
+  }
+
+  return Array.from(groups.values()).sort((left, right) => right.latestAt.getTime() - left.latestAt.getTime());
+}
+
 function DashboardStats({ stats }: { stats: DashboardStat[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -288,7 +400,10 @@ const DASHBOARD_COPY = {
       overdue: "Lejárt",
       open: "Nyitott",
       due: "határidő",
-      answerAlbumComment: "Album megjegyzés megválaszolása",
+      answerAlbumComment: "Album megjegyzések megválaszolása",
+      albumCommentCount: (count: number) => `${count} nyitott megjegyzés`,
+      albumCommentDetail: (name: string, count: number, latestText: string) =>
+        `${name}: ${count} nyitott album megjegyzés. Legutóbbi: ${latestText}`,
       albumReview: "Album ellenőrző",
       fixPreview: "Előnézet feldolgozás javítása",
       brokenPreview: "Hibás előnézet",
@@ -322,7 +437,10 @@ const DASHBOARD_COPY = {
       invoicePaid: "Számla fizetve",
       selectionSubmitted: "Válogatás leadva",
       albumComment: "Album megjegyzés",
+      albumCommentCount: (count: number) => `${count} megjegyzés`,
       albumApproved: "Album oldal rendben",
+      albumApprovedCount: (count: number) => `${count} oldal rendben`,
+      albumApprovedDetail: (name: string, count: number) => `${name}: ${count} album oldalpár rendben jelölve.`,
       task: "Teendő",
       event: "Esemény",
       activity: "Aktivitás",
@@ -380,7 +498,10 @@ const DASHBOARD_COPY = {
       overdue: "Überfällig",
       open: "Offen",
       due: "fällig",
-      answerAlbumComment: "Albumkommentar beantworten",
+      answerAlbumComment: "Albumkommentare beantworten",
+      albumCommentCount: (count: number) => `${count} offene Kommentare`,
+      albumCommentDetail: (name: string, count: number, latestText: string) =>
+        `${name}: ${count} offene Albumkommentare. Neuester Kommentar: ${latestText}`,
       albumReview: "Albumfreigabe",
       fixPreview: "Vorschau-Verarbeitung prüfen",
       brokenPreview: "Vorschau fehlerhaft",
@@ -414,7 +535,10 @@ const DASHBOARD_COPY = {
       invoicePaid: "Rechnung bezahlt",
       selectionSubmitted: "Auswahl abgegeben",
       albumComment: "Albumkommentar",
+      albumCommentCount: (count: number) => `${count} Kommentare`,
       albumApproved: "Albumseite freigegeben",
+      albumApprovedCount: (count: number) => `${count} Seiten ok`,
+      albumApprovedDetail: (name: string, count: number) => `${name}: ${count} Albumseiten wurden freigegeben.`,
       task: "Aufgabe",
       event: "Termin",
       activity: "Aktivität",
@@ -1059,6 +1183,9 @@ export default async function AdminDashboardPage() {
     seenZipGalleryIds.add(downloadPackage.galleryId);
     return true;
   });
+  const openAlbumCommentGroups = groupAlbumCommentsByReview(openAlbumComments);
+  const calendarAlbumCommentGroups = groupAlbumCommentsByReview(calendarAlbumComments);
+  const calendarApprovedSpreadGroups = groupAlbumApprovalsByReview(calendarApprovedSpreads);
   const dashboardTasks = sortDashboardTasks([
     ...submittedProofingGalleries.map((gallery): DashboardTask => {
       const hasFinalPhotos = gallery.photos.length > 0;
@@ -1135,15 +1262,15 @@ export default async function AdminDashboardPage() {
         createdAt: invoice.sentAt ?? invoice.createdAt
       };
     }),
-    ...openAlbumComments.map((comment): DashboardTask => ({
-      key: `album-comment-${comment.id}`,
+    ...openAlbumCommentGroups.map((group): DashboardTask => ({
+      key: `album-comments-${group.reviewId}`,
       title: copy.tasks.answerAlbumComment,
-      detail: `${comment.spread.review.customer.coupleName}: ${comment.text}`,
-      href: `/admin/clients/${comment.spread.review.customer.id}?tab=album`,
-      label: copy.tasks.albumReview,
+      detail: copy.tasks.albumCommentDetail(group.customerName, group.count, group.latestText),
+      href: `/admin/clients/${group.customerId}?tab=album`,
+      label: copy.tasks.albumCommentCount(group.count),
       priority: "medium",
       icon: MessageSquare,
-      createdAt: comment.createdAt
+      createdAt: group.latestAt
     })),
     ...failedProcessingPhotos.map((photo): DashboardTask => ({
       key: `processing-${photo.id}`,
@@ -1313,36 +1440,28 @@ export default async function AdminDashboardPage() {
         }
       ];
     }),
-    ...calendarAlbumComments.map((comment): DashboardCalendarEvent => ({
-      key: `calendar-album-comment-${comment.id}`,
-      date: comment.createdAt,
-      title: comment.spread.review.title,
-      detail: `${comment.spread.review.customer.coupleName}: ${comment.text}`,
-      href: `/admin/clients/${comment.spread.review.customer.id}?tab=album`,
-      label: copy.calendar.albumComment,
+    ...calendarAlbumCommentGroups.map((group): DashboardCalendarEvent => ({
+      key: `calendar-album-comments-${group.reviewId}`,
+      date: group.latestAt,
+      title: group.reviewTitle,
+      detail: copy.tasks.albumCommentDetail(group.customerName, group.count, group.latestText),
+      href: `/admin/clients/${group.customerId}?tab=album`,
+      label: copy.calendar.albumCommentCount(group.count),
       kind: "task",
       tone: "brass",
       icon: MessageSquare
     })),
-    ...calendarApprovedSpreads.flatMap((spread): DashboardCalendarEvent[] => {
-      if (!spread.approvedAt) {
-        return [];
-      }
-
-      return [
-        {
-          key: `calendar-album-approved-${spread.id}`,
-          date: spread.approvedAt,
-          title: spread.review.title,
-          detail: spread.review.customer.coupleName,
-          href: `/admin/clients/${spread.review.customer.id}?tab=album`,
-          label: copy.calendar.albumApproved,
-          kind: "activity",
-          tone: "sage",
-          icon: CheckCircle2
-        }
-      ];
-    })
+    ...calendarApprovedSpreadGroups.map((group): DashboardCalendarEvent => ({
+      key: `calendar-album-approved-${group.reviewId}`,
+      date: group.latestAt,
+      title: group.reviewTitle,
+      detail: copy.calendar.albumApprovedDetail(group.customerName, group.count),
+      href: `/admin/clients/${group.customerId}?tab=album`,
+      label: copy.calendar.albumApprovedCount(group.count),
+      kind: "activity",
+      tone: "sage",
+      icon: CheckCircle2
+    }))
   ];
   const urgentTaskCount = dashboardTasks.filter((task) => task.priority === "high").length;
 
