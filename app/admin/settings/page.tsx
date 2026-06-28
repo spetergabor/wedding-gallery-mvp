@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { Activity, Cloud, Database, ExternalLink, GitBranch, Globe2, Mail, Server, ShieldCheck, Zap } from "lucide-react";
+import { Activity, Cloud, Database, ExternalLink, GitBranch, Globe2, Mail, Server, ShieldCheck, UserRound, Zap } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { AdminSecuritySettings } from "@/components/admin-security-settings";
+import { PhotographerProfileSettings } from "@/components/photographer-profile-settings";
 import { SiteSettingsForm } from "@/components/site-settings-form";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-type SettingsTab = "brand" | "providers" | "security";
+type SettingsTab = "brand" | "profile" | "providers" | "security";
 
 const providerLinks = [
   {
@@ -116,25 +117,46 @@ export default async function AdminSettingsPage({
 }) {
   const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
   const activeTab: SettingsTab =
-    params.tab === "security" ? "security" : params.tab === "providers" && admin.role === "super_admin" ? "providers" : "brand";
-  const settings = await prisma.siteSettings.findFirst({
-    where: {
-      OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
-    },
-    select: {
-      businessName: true,
-      logoUrl: true,
-      logoHeight: true,
-      signatureUrl: true,
-      websiteUrl: true,
-      instagramUrl: true,
-      facebookUrl: true,
-      tiktokUrl: true,
-      youtubeUrl: true,
-      contactEmail: true,
-      contactPhone: true
-    }
-  });
+    params.tab === "profile" ? "profile" : params.tab === "security" ? "security" : params.tab === "providers" && admin.role === "super_admin" ? "providers" : "brand";
+  const [settings, photographerProfile] = await Promise.all([
+    prisma.siteSettings.findFirst({
+      where: {
+        OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
+      },
+      select: {
+        businessName: true,
+        logoUrl: true,
+        logoHeight: true,
+        signatureUrl: true,
+        websiteUrl: true,
+        instagramUrl: true,
+        facebookUrl: true,
+        tiktokUrl: true,
+        youtubeUrl: true,
+        contactEmail: true,
+        contactPhone: true
+      }
+    }),
+    prisma.admin.findUniqueOrThrow({
+      where: { id: admin.id },
+      select: {
+        name: true,
+        email: true,
+        legalName: true,
+        birthDate: true,
+        birthPlace: true,
+        phone: true,
+        addressLine: true,
+        postalCode: true,
+        city: true,
+        country: true,
+        taxNumber: true,
+        businessRegistrationNumber: true,
+        profileNotes: true
+      }
+    })
+  ]);
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-4" : "sm:grid-cols-3";
 
   return (
     <AdminShell>
@@ -147,7 +169,7 @@ export default async function AdminSettingsPage({
       </div>
 
       <div className="mb-6 rounded-md border border-ink/10 bg-white p-2">
-        <nav className={`grid gap-2 ${admin.role === "super_admin" ? "sm:grid-cols-3" : "sm:grid-cols-2"}`} aria-label="Beállítások fülek">
+        <nav className={`grid gap-2 ${settingsTabColumns}`} aria-label="Beállítások fülek">
           <Link
             href="/admin/settings?tab=brand"
             className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
@@ -156,6 +178,15 @@ export default async function AdminSettingsPage({
           >
             <Globe2 size={16} />
             Márka
+          </Link>
+          <Link
+            href="/admin/settings?tab=profile"
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+              activeTab === "profile" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+            }`}
+          >
+            <UserRound size={16} />
+            Fotós adatok
           </Link>
           <Link
             href="/admin/settings?tab=security"
@@ -192,9 +223,26 @@ export default async function AdminSettingsPage({
             PNG képfájlt tölts fel aláírásként.
           </Alert>
         ) : null}
+        {params.error === "profile_required" ? (
+          <Alert title="A fotós adatok mentése nem sikerült." variant="error">
+            A név és az email megadása kötelező.
+          </Alert>
+        ) : null}
+        {params.error === "profile_email" ? (
+          <Alert title="Az email cím nem megfelelő." variant="error">
+            Adj meg érvényes belépési email címet.
+          </Alert>
+        ) : null}
+        {params.error === "profile_email_taken" ? (
+          <Alert title="Ez az email cím már használatban van." variant="error">
+            Válassz másik email címet ehhez a fotós fiókhoz.
+          </Alert>
+        ) : null}
       </div>
 
       {activeTab === "brand" ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
+
+      {activeTab === "profile" ? <PhotographerProfileSettings profile={photographerProfile} /> : null}
 
       {activeTab === "security" ? <AdminSecuritySettings enabled={params.enabled} disabled={params.disabled} error={params.error} /> : null}
 

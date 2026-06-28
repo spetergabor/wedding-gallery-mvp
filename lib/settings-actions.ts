@@ -41,6 +41,70 @@ function formClampedNumber(formData: FormData, key: string, fallback: number, mi
   return Math.min(max, Math.max(min, value));
 }
 
+function formOptionalDate(formData: FormData, key: string) {
+  const value = formString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formNullableString(formData: FormData, key: string) {
+  return formString(formData, key) || null;
+}
+
+export async function updatePhotographerProfileAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const name = formString(formData, "name");
+  const email = formString(formData, "email").toLowerCase();
+
+  if (!name || !email) {
+    redirect("/admin/settings?tab=profile&error=profile_required");
+  }
+
+  if (!email.includes("@")) {
+    redirect("/admin/settings?tab=profile&error=profile_email");
+  }
+
+  if (email !== admin.email) {
+    const existingAdmin = await prisma.admin.findUnique({
+      where: { email },
+      select: { id: true }
+    });
+
+    if (existingAdmin && existingAdmin.id !== admin.id) {
+      redirect("/admin/settings?tab=profile&error=profile_email_taken");
+    }
+  }
+
+  await prisma.admin.update({
+    where: { id: admin.id },
+    data: {
+      name,
+      email,
+      legalName: formNullableString(formData, "legalName"),
+      birthDate: formOptionalDate(formData, "birthDate"),
+      birthPlace: formNullableString(formData, "birthPlace"),
+      phone: formNullableString(formData, "phone"),
+      addressLine: formNullableString(formData, "addressLine"),
+      postalCode: formNullableString(formData, "postalCode"),
+      city: formNullableString(formData, "city"),
+      country: formNullableString(formData, "country"),
+      taxNumber: formNullableString(formData, "taxNumber"),
+      businessRegistrationNumber: formNullableString(formData, "businessRegistrationNumber"),
+      profileNotes: formNullableString(formData, "profileNotes")
+    }
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/dashboard");
+  redirect("/admin/settings?tab=profile&saved=1");
+}
+
 export async function updateSiteSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
   const logoHeight = formClampedNumber(formData, "logoHeight", 80, 32, 140);

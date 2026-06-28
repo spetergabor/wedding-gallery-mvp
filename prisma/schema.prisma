@@ -13,6 +13,17 @@ model Admin {
   name         String
   email        String   @unique
   passwordHash String
+  legalName    String?
+  birthDate    DateTime?
+  birthPlace   String?
+  phone        String?
+  addressLine  String?
+  postalCode   String?
+  city         String?
+  country      String?
+  taxNumber    String?
+  businessRegistrationNumber String?
+  profileNotes String?
   role         String   @default("photographer")
   status       String   @default("pending")
   approvedAt   DateTime?

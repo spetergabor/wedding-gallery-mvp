@@ -1,0 +1,11 @@
+ALTER TABLE "Admin" ADD COLUMN "legalName" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "birthDate" TIMESTAMP(3);
+ALTER TABLE "Admin" ADD COLUMN "birthPlace" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "phone" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "addressLine" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "postalCode" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "city" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "country" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "taxNumber" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "businessRegistrationNumber" TEXT;
+ALTER TABLE "Admin" ADD COLUMN "profileNotes" TEXT;
