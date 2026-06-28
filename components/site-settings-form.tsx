@@ -4,6 +4,7 @@ import { updateSiteSettingsAction } from "@/lib/settings-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 
 type SiteSettingsFormProps = {
+  adminName: string;
   settings: {
     businessName: string;
     logoUrl: string | null;
@@ -18,7 +19,9 @@ type SiteSettingsFormProps = {
   };
 };
 
-export function SiteSettingsForm({ settings }: SiteSettingsFormProps) {
+export function SiteSettingsForm({ adminName, settings }: SiteSettingsFormProps) {
+  const contractPhotographerName = adminName.trim() || settings.businessName.trim() || "Fotós";
+
   return (
     <form action={updateSiteSettingsAction} className="space-y-6">
       <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
@@ -104,9 +107,9 @@ export function SiteSettingsForm({ settings }: SiteSettingsFormProps) {
         <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_280px]">
           <div className="rounded-md border border-ink/10 bg-paper p-4 text-sm leading-6 text-graphite/70">
             <p className="font-medium text-ink">Fotós neve a szerződésben</p>
-            <p className="mt-1 text-lg font-semibold text-ink">Peter Schulcz</p>
+            <p className="mt-1 text-lg font-semibold text-ink">{contractPhotographerName}</p>
             <p className="mt-3">
-              Átlátszó hátterű PNG ajánlott. A rendszer az aláírt PDF végén külön fotós aláírás blokként helyezi el.
+              A rendszer a fiókban megadott fotós nevet írja az aláírt PDF végére. Átlátszó hátterű PNG ajánlott.
             </p>
           </div>
 

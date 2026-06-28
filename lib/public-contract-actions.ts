@@ -254,6 +254,7 @@ async function fetchSignaturePngBytes(signatureUrl: string | null | undefined) {
 async function createSignedUploadedPdf({
   sourcePdfUrl,
   photographerSignatureBytes,
+  photographerName,
   signatureBytes,
   coupleName,
   contractTitle,
@@ -262,6 +263,7 @@ async function createSignedUploadedPdf({
 }: {
   sourcePdfUrl: string;
   photographerSignatureBytes: Buffer | null;
+  photographerName: string;
   signatureBytes: Buffer;
   coupleName: string;
   contractTitle: string;
@@ -365,7 +367,7 @@ async function createSignedUploadedPdf({
       thickness: 1,
       color: rgb(0.25, 0.25, 0.25)
     });
-    signaturePage.drawText("Peter Schulcz", {
+    signaturePage.drawText(pdfText(photographerName), {
       x: 56,
       y: blockY,
       size: 11,
@@ -391,6 +393,7 @@ async function createSignedWrittenPdf({
   bodyText,
   answers,
   photographerSignatureBytes,
+  photographerName,
   signatureBytes,
   coupleName,
   contractTitle,
@@ -400,6 +403,7 @@ async function createSignedWrittenPdf({
   bodyText: string;
   answers: Array<{ label: string; value: string }>;
   photographerSignatureBytes: Buffer | null;
+  photographerName: string;
   signatureBytes: Buffer;
   coupleName: string;
   contractTitle: string;
@@ -567,7 +571,7 @@ async function createSignedWrittenPdf({
       color: rgb(0.25, 0.25, 0.25)
     });
     y -= 20;
-    page.drawText("Peter Schulcz", {
+    page.drawText(pdfText(photographerName), {
       x: margin,
       y,
       size: 11,
@@ -610,7 +614,12 @@ export async function signContractAction(token: string, formData: FormData) {
       customer: {
         select: {
           coupleName: true,
-          adminId: true
+          adminId: true,
+          admin: {
+            select: {
+              name: true
+            }
+          }
         }
       }
     }
@@ -634,9 +643,10 @@ export async function signContractAction(token: string, formData: FormData) {
       where: contract.customer.adminId
         ? { adminId: contract.customer.adminId }
         : { id: "default" },
-      select: { signatureUrl: true }
+      select: { businessName: true, signatureUrl: true }
     });
     const photographerSignatureBytes = await fetchSignaturePngBytes(settings?.signatureUrl);
+    const photographerName = contract.customer.admin?.name?.trim() || settings?.businessName?.trim() || "Fotograf";
     const clientFields = parseContractFields(contract.clientFields);
     const completedFields = contract.sourceType === "written" ? readClientFieldAnswers(formData, clientFields) : {};
     const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
@@ -677,6 +687,7 @@ export async function signContractAction(token: string, formData: FormData) {
                 value: completedFields[field.key] ?? ""
               })),
             photographerSignatureBytes,
+            photographerName,
             signatureBytes,
             coupleName: contract.customer.coupleName,
             contractTitle: contract.title,
@@ -686,6 +697,7 @@ export async function signContractAction(token: string, formData: FormData) {
         : await createSignedUploadedPdf({
             sourcePdfUrl: contract.fileUrl,
             photographerSignatureBytes,
+            photographerName,
             signatureBytes,
             coupleName: contract.customer.coupleName,
             contractTitle: contract.title,

@@ -192,7 +192,7 @@ export default async function AdminSettingsPage({
         ) : null}
       </div>
 
-      {activeTab === "brand" ? <SiteSettingsForm settings={settings ?? emptySettings} /> : null}
+      {activeTab === "brand" ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
 
       {activeTab === "security" ? <AdminSecuritySettings enabled={params.enabled} disabled={params.disabled} error={params.error} /> : null}
 
