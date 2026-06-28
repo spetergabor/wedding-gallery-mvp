@@ -1005,7 +1005,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
 
   try {
     const previousGallery = await prisma.gallery.findFirst({
-      where: { id },
+      where: galleryAccessWhere(admin, id),
       select: { slug: true, galleryMode: true, clientEmail: true, customerId: true }
     });
 

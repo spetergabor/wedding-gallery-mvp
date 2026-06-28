@@ -1239,7 +1239,7 @@ async function notifyGalleryZipReady({
   generatedAt
 }: {
   galleryId: string;
-  adminId: string | null;
+  adminId: string;
   recipient?: string;
   galleryTitle: string;
   gallerySlug: string;
@@ -1247,22 +1247,29 @@ async function notifyGalleryZipReady({
   fileSizeBytes: bigint;
   generatedAt: Date;
 }) {
-  await prisma.adminNotification
-    .create({
-      data: {
-        adminId,
-        type: "gallery_zip_ready",
-        title: "Galéria ZIP elkészült",
-        message: `A(z) ${galleryTitle} galéria ZIP fájlja elkészült ${photoCount} médiával.`,
-        href: `/admin/galleries/${galleryId}`
-      }
-    })
-    .catch((error) => {
-      console.error("Gallery ZIP ready admin notification failed", {
-        galleryId,
-        error
+  if (adminId) {
+    await prisma.adminNotification
+      .create({
+        data: {
+          adminId,
+          type: "gallery_zip_ready",
+          title: "Galéria ZIP elkészült",
+          message: `A(z) ${galleryTitle} galéria ZIP fájlja elkészült ${photoCount} médiával.`,
+          href: `/admin/galleries/${galleryId}`
+        }
+      })
+      .catch((error) => {
+        console.error("Gallery ZIP ready admin notification failed", {
+          galleryId,
+          error
+        });
       });
+  } else {
+    console.warn("Skipped ZIP ready admin notification without gallery owner", {
+      galleryId,
+      galleryTitle
     });
+  }
 
   try {
     await sendAdminGalleryZipReadyEmail({
