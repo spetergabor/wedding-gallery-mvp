@@ -92,6 +92,7 @@ const providerLinks = [
 const emptySettings = {
   businessName: "",
   logoUrl: null,
+  logoHeight: 80,
   signatureUrl: null,
   websiteUrl: null,
   instagramUrl: null,
@@ -123,6 +124,7 @@ export default async function AdminSettingsPage({
     select: {
       businessName: true,
       logoUrl: true,
+      logoHeight: true,
       signatureUrl: true,
       websiteUrl: true,
       instagramUrl: true,

@@ -2,12 +2,14 @@ import Image from "next/image";
 import { Building2, FileSignature, Globe2, ImageIcon, Instagram, Mail, Phone, Youtube } from "lucide-react";
 import { updateSiteSettingsAction } from "@/lib/settings-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { LogoHeightControl } from "@/components/logo-height-control";
 
 type SiteSettingsFormProps = {
   adminName: string;
   settings: {
     businessName: string;
     logoUrl: string | null;
+    logoHeight: number;
     signatureUrl: string | null;
     websiteUrl: string | null;
     instagramUrl: string | null;
@@ -21,6 +23,7 @@ type SiteSettingsFormProps = {
 
 export function SiteSettingsForm({ adminName, settings }: SiteSettingsFormProps) {
   const contractPhotographerName = adminName.trim() || settings.businessName.trim() || "Fotós";
+  const logoHeight = Math.min(140, Math.max(32, settings.logoHeight || 80));
 
   return (
     <form action={updateSiteSettingsAction} className="space-y-6">
@@ -59,12 +62,22 @@ export function SiteSettingsForm({ adminName, settings }: SiteSettingsFormProps)
                 />
               </div>
             </label>
+
+            <LogoHeightControl defaultValue={logoHeight} />
           </div>
 
           <div className="rounded-lg border border-ink/10 bg-paper p-4">
             <div className="flex min-h-36 items-center justify-center rounded-md bg-white">
               {settings.logoUrl ? (
-                <Image src={settings.logoUrl} alt="Aktuális logó" width={220} height={120} unoptimized className="max-h-28 w-auto object-contain" />
+                <Image
+                  src={settings.logoUrl}
+                  alt="Aktuális logó"
+                  width={260}
+                  height={140}
+                  unoptimized
+                  className="w-auto object-contain"
+                  style={{ height: `${logoHeight}px`, maxWidth: "100%" }}
+                />
               ) : (
                 <div className="text-center text-graphite/60">
                   <ImageIcon className="mx-auto" size={24} />

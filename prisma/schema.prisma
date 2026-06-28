@@ -50,6 +50,7 @@ model SiteSettings {
   businessName   String   @default("")
   logoUrl        String?
   logoR2Key      String?
+  logoHeight     Int      @default(80)
   signatureUrl   String?
   signatureR2Key String?
   websiteUrl     String?

@@ -30,8 +30,20 @@ function formOptionalUrl(formData: FormData, key: string) {
   return `https://${value}`;
 }
 
+function formClampedNumber(formData: FormData, key: string, fallback: number, min: number, max: number) {
+  const rawValue = formString(formData, key);
+  const value = Number.parseInt(rawValue, 10);
+
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, value));
+}
+
 export async function updateSiteSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
+  const logoHeight = formClampedNumber(formData, "logoHeight", 80, 32, 140);
 
   const existingSettings = await prisma.siteSettings.findFirst({
     where: {
@@ -104,6 +116,7 @@ export async function updateSiteSettingsAction(formData: FormData) {
       businessName: formString(formData, "businessName"),
       logoUrl: logoUrl ?? null,
       logoR2Key: logoR2Key ?? null,
+      logoHeight,
       signatureUrl: signatureUrl ?? null,
       signatureR2Key: signatureR2Key ?? null,
       websiteUrl: formOptionalUrl(formData, "websiteUrl"),
@@ -119,6 +132,7 @@ export async function updateSiteSettingsAction(formData: FormData) {
       businessName: formString(formData, "businessName"),
       ...(logoUrl !== undefined ? { logoUrl } : {}),
       ...(logoR2Key !== undefined ? { logoR2Key } : {}),
+      logoHeight,
       ...(signatureUrl !== undefined ? { signatureUrl } : {}),
       ...(signatureR2Key !== undefined ? { signatureR2Key } : {}),
       websiteUrl: formOptionalUrl(formData, "websiteUrl"),

@@ -58,7 +58,7 @@ export default async function PublicGalleryPage({
         ...(gallery.adminId ? [] : [{ id: "default" }])
       ]
     },
-    select: { businessName: true, logoUrl: true }
+    select: { businessName: true, logoUrl: true, logoHeight: true }
   });
 
   const canView = await canViewGallery(slug, gallery.password);
@@ -78,6 +78,7 @@ export default async function PublicGalleryPage({
     null;
   const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
   const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage ?? flags.lang);
+  const logoHeight = Math.min(140, Math.max(32, settings?.logoHeight ?? 80));
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
 
@@ -151,7 +152,8 @@ export default async function PublicGalleryPage({
                 width={190}
                 height={90}
                 unoptimized
-                className="mb-5 max-h-20 w-auto object-contain"
+                className="mb-5 w-auto object-contain"
+                style={{ height: `${logoHeight}px`, maxWidth: "min(70vw, 320px)" }}
               />
             ) : settings?.businessName ? (
               <p className="font-playfair mb-5 text-lg tracking-[0.18em] text-ink/75">
