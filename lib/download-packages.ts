@@ -4,8 +4,14 @@ import { normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/
 
 export const PUBLIC_DOWNLOAD_SCOPE = "public";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
-export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web_v2";
-export const PUBLIC_DOWNLOAD_SCOPES = [PUBLIC_DOWNLOAD_SCOPE, LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE, PUBLIC_WEB_DOWNLOAD_SCOPE] as const;
+export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE_V2 = "public_web_v2";
+export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web_v3";
+export const PUBLIC_DOWNLOAD_SCOPES = [
+  PUBLIC_DOWNLOAD_SCOPE,
+  LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE,
+  LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE_V2,
+  PUBLIC_WEB_DOWNLOAD_SCOPE
+] as const;
 export const DOWNLOAD_LINK_TTL_DAYS = 7;
 export const DOWNLOAD_LINK_TTL_MS = DOWNLOAD_LINK_TTL_DAYS * 24 * 60 * 60 * 1000;
 

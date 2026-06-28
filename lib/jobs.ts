@@ -239,18 +239,21 @@ function createWebImageStream(photo: {
   fileSize: number;
 }) {
   const previewR2Key = photo.previewUrl && photo.previewUrl !== photo.imageUrl ? getR2KeyFromPublicUrl(photo.previewUrl) : null;
-  const sourceStream = previewR2Key
+
+  if (previewR2Key) {
+    return createPhotoReadStream({
+      r2Key: previewR2Key,
+      publicUrl: photo.previewUrl
+    });
+  }
+
+  const sourceStream = photo.r2Key
     ? createPhotoReadStream({
-        r2Key: previewR2Key,
-        publicUrl: photo.previewUrl
+        r2Key: photo.r2Key,
+        publicUrl: photo.imageUrl,
+        byteLength: photo.fileSize
       })
-    : photo.r2Key
-      ? createPhotoReadStream({
-          r2Key: photo.r2Key,
-          publicUrl: photo.imageUrl,
-          byteLength: photo.fileSize
-        })
-      : createRemoteFileStream({ filename: photo.filename, imageUrl: photo.previewUrl || photo.imageUrl });
+    : createRemoteFileStream({ filename: photo.filename, imageUrl: photo.previewUrl || photo.imageUrl });
 
   return sourceStream.pipe(
     sharp({ failOn: "none" })
