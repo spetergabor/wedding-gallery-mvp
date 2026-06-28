@@ -31,6 +31,7 @@ const REMOTE_FILE_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
 const WEB_DOWNLOAD_ESTIMATED_IMAGE_BYTES = 1024 * 1024;
 const WEB_DOWNLOAD_MAX_SIZE = 2400;
 const WEB_DOWNLOAD_JPEG_QUALITY = 76;
+const ZIP_TRIGGER_DISPATCH_CONCURRENCY = readPositiveInteger(process.env.ZIP_TRIGGER_DISPATCH_CONCURRENCY, 8, 1);
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -117,6 +118,16 @@ function readPositiveMegabytes(value: string | undefined, fallback: number, mini
   }
 
   return parsed * 1024 * 1024;
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return fallback;
+  }
+
+  return parsed;
 }
 
 const ZIP_PART_TARGET_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_PART_TARGET_MB, 2048, 256);
@@ -356,9 +367,32 @@ export async function kickGalleryZipJob(payload: ZipGenerationPayload) {
   };
 }
 
-export async function kickGalleryZipJobs(payloads: ZipGenerationPayload[]) {
-  const results = [];
+type KickGalleryZipJobResult = Awaited<ReturnType<typeof kickGalleryZipJob>>;
 
+export async function kickGalleryZipJobs(payloads: ZipGenerationPayload[]) {
+  if (payloads.length === 0) {
+    return [];
+  }
+
+  if (process.env.ZIP_WORKER_DRIVER === "trigger") {
+    const results: KickGalleryZipJobResult[] = [];
+    const concurrency = Math.min(ZIP_TRIGGER_DISPATCH_CONCURRENCY, payloads.length);
+    let nextIndex = 0;
+
+    async function worker() {
+      while (nextIndex < payloads.length) {
+        const payload = payloads[nextIndex];
+        nextIndex += 1;
+        results.push(await kickGalleryZipJob(payload));
+      }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+    return results;
+  }
+
+  const results = [];
   for (const payload of payloads) {
     results.push(await kickGalleryZipJob(payload));
   }
@@ -830,13 +864,13 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       const mediaStream =
         quality === "web" && photo.mediaType !== "video"
           ? createWebImageStream(photo)
-          : photo.imageUrl
-            ? createRemoteFileStream({ filename: photo.filename, imageUrl: photo.imageUrl })
-            : createPhotoReadStream({
+          : photo.r2Key
+            ? createPhotoReadStream({
                 r2Key: photo.r2Key,
                 publicUrl: photo.imageUrl,
                 byteLength: photo.fileSize
-              });
+              })
+            : createRemoteFileStream({ filename: photo.filename, imageUrl: photo.imageUrl });
 
       zip.append(mediaStream, {
         name: photoZipFileName(photo.filename, downloadPackage.photoOffset + index, quality, photo.mediaType)
