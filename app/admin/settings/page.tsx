@@ -131,8 +131,8 @@ const RESEND_FREE_EMAILS = 3_000;
 const RESEND_PRO_EMAILS = 50_000;
 const RESEND_PRO_MONTHLY_USD = 20;
 const RESEND_EXTRA_USD_PER_1000 = 0.9;
-const VERCEL_PRO_MONTHLY_USD = 20;
-const NEON_LAUNCH_TYPICAL_USD = 15;
+const VERCEL_FREE_MONTHLY_USD = 0;
+const NEON_FREE_MONTHLY_USD = 0;
 const TRIGGER_HOBBY_MONTHLY_USD = 10;
 
 type ProviderTone = "ok" | "watch" | "attention";
@@ -431,21 +431,21 @@ async function getServiceUsageSummary(): Promise<ServiceUsageSummary> {
     },
     {
       name: "Vercel",
-      status: "Provider dashboard kell",
-      tone: "watch",
+      status: "Free sávban",
+      tone: "ok",
       primaryMetric: `${formatNumber(monthlyGalleryViews)} publikus galérianézet`,
-      secondaryMetric: "Admin forgalom, bandwidth és function usage csak Vercelben pontos.",
-      estimatedUsd: VERCEL_PRO_MONTHLY_USD,
-      estimateNote: "Pro alapbecslés. A usage túllépés Vercel dashboardból látszik."
+      secondaryMetric: "Jelenleg free csomagként vezetjük. Bandwidth és function usage csak Vercelben pontos.",
+      estimatedUsd: VERCEL_FREE_MONTHLY_USD,
+      estimateNote: "Nem számolunk fix Pro díjjal. Ha később fizetős csomagra váltunk, ezt külön állítjuk át."
     },
     {
       name: "Neon",
-      status: "Provider dashboard kell",
-      tone: databaseRows > 100_000 ? "watch" : "ok",
+      status: "Free sávban",
+      tone: "ok",
       primaryMetric: `${formatNumber(databaseRows)} app rekord`,
-      secondaryMetric: `${formatNumber(totalPhotos)} fotó · ${formatNumber(totalViews)} galérianézet rekord · ${formatNumber(totalDownloadPackages)} ZIP rekord`,
-      estimatedUsd: NEON_LAUNCH_TYPICAL_USD,
-      estimateNote: "Launch tipikus becslés. Compute órát és DB méretet a Neon Console mér pontosan."
+      secondaryMetric: `${formatNumber(totalPhotos)} fotó · ${formatNumber(totalViews)} galérianézet rekord · ${formatNumber(totalDownloadPackages)} ZIP rekord. DB méretet a Neon Console mér pontosan.`,
+      estimatedUsd: NEON_FREE_MONTHLY_USD,
+      estimateNote: "Nem számolunk fix Launch díjjal. Ha a Neon free limit közelébe érünk, azt külön provider-adatból érdemes jelezni."
     },
     {
       name: "Trigger.dev",
