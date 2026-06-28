@@ -425,6 +425,10 @@ const DASHBOARD_COPY = {
       today: "ma",
       next7Days: "következő 7 nap",
       attention: "figyelmet kér",
+      daysTitle: "Következő aktív napok",
+      quietDaysTitle: "Nincs időzített esemény a következő napokban",
+      quietDaysDescription: "A friss ügyfélaktivitások ettől még az agendában látszanak, de most nincs külön dátumhoz kötött munka.",
+      eventCount: (count: number) => `${count} bejegyzés`,
       agendaTitle: "Agenda",
       noEventsTitle: "Nincs naptári esemény",
       noEventsDescription: "Ha projekt, szerződés, számla vagy ügyfélaktivitás érkezik, itt jelenik meg időrendben.",
@@ -523,6 +527,10 @@ const DASHBOARD_COPY = {
       today: "heute",
       next7Days: "nächste 7 Tage",
       attention: "braucht Aufmerksamkeit",
+      daysTitle: "Nächste aktive Tage",
+      quietDaysTitle: "Keine datierten Einträge in den nächsten Tagen",
+      quietDaysDescription: "Aktuelle Kundenaktivitäten bleiben in der Agenda sichtbar, aber es gibt gerade keine konkret datierte Arbeit.",
+      eventCount: (count: number) => `${count} Einträge`,
       agendaTitle: "Agenda",
       noEventsTitle: "Keine Kalendereinträge",
       noEventsDescription: "Projekte, Verträge, Rechnungen und Kundenaktivitäten erscheinen hier chronologisch.",
@@ -576,8 +584,15 @@ function DashboardWorkCalendar({
   language: AdminLanguage;
   today: Date;
 }) {
-  const dayStrip = Array.from({ length: 14 }, (_, index) => addDays(today, index));
+  const dayStrip = Array.from({ length: 30 }, (_, index) => addDays(today, index));
   const orderedEvents = sortCalendarEvents(events, today).slice(0, 14);
+  const daySummaries = dayStrip.map((day) => ({
+    day,
+    isToday: isSameCalendarDay(day, today),
+    events: events.filter((event) => isSameCalendarDay(event.date, day))
+  }));
+  const activeDaySummaries = daySummaries.filter(({ events: dayEvents }) => dayEvents.length > 0).slice(0, 8);
+  const activeDayEventCount = activeDaySummaries.reduce((count, summary) => count + summary.events.length, 0);
   const todayEventCount = events.filter((event) => isSameCalendarDay(event.date, today)).length;
   const nextWeekEnd = addDays(today, 7);
   const nextWeekEventCount = events.filter(
@@ -588,72 +603,92 @@ function DashboardWorkCalendar({
   ).length;
 
   return (
-    <section className="mt-5 rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mt-8">
-      <div className="flex flex-col justify-between gap-4 border-b border-brass/15 px-5 py-4 lg:flex-row lg:items-start">
-        <div>
-          <div className={sectionMetaClass}>
-            <CalendarClock size={15} />
-            {copy.calendar.eyebrow}
-          </div>
-          <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.calendar.title}</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{copy.calendar.description}</p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
-          {[
-            { label: copy.calendar.today, value: todayEventCount },
-            { label: copy.calendar.next7Days, value: nextWeekEventCount },
-            { label: copy.calendar.attention, value: attentionCount }
-          ].map((item) => (
-            <div key={item.label} className="rounded-md border border-ink/8 bg-paper px-3 py-2">
-              <p className="text-lg font-semibold leading-tight text-ink">{item.value}</p>
-              <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/60">{item.label}</p>
+    <section className="mt-5 overflow-hidden rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mt-8">
+      <div className="px-5 py-5 md:px-6">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+          <div>
+            <div className={sectionMetaClass}>
+              <CalendarClock size={15} />
+              {copy.calendar.eyebrow}
             </div>
-          ))}
+            <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.calendar.title}</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{copy.calendar.description}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: copy.calendar.today, value: todayEventCount },
+              { label: copy.calendar.next7Days, value: nextWeekEventCount },
+              { label: copy.calendar.attention, value: attentionCount }
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex min-w-[112px] items-center justify-between gap-3 rounded-full border border-brass/20 bg-brass/[0.06] px-3 py-2"
+              >
+                <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-brass">{item.label}</span>
+                <span className="text-sm font-semibold text-ink">{item.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 xl:grid-cols-2 2xl:grid-cols-7">
-          {dayStrip.map((day) => {
-            const dayEvents = events.filter((event) => isSameCalendarDay(event.date, day));
-            const isToday = isSameCalendarDay(day, today);
-
-            return (
-              <div
-                key={day.toISOString()}
-                className={`min-h-24 rounded-md border px-3 py-3 ${
-                  isToday ? "border-brass/45 bg-brass/[0.06]" : "border-ink/10 bg-paper"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
-                      {isToday ? copy.calendar.today : formatWeekday(day, language)}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-ink">{formatShortCalendarDate(day, language)}</p>
+      <div className="grid gap-5 border-t border-brass/15 p-5 md:p-6 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]">
+        <div className="rounded-md bg-paper/70 p-3 ring-1 ring-ink/8">
+          <div className="mb-3 flex items-center justify-between gap-3 px-1">
+            <h3 className="text-sm font-semibold text-ink">{copy.calendar.daysTitle}</h3>
+            <span className="text-xs font-medium text-graphite/55">{copy.calendar.eventCount(activeDayEventCount)}</span>
+          </div>
+          {activeDaySummaries.length === 0 ? (
+            <div className="rounded-md border border-dashed border-ink/10 bg-white px-4 py-5">
+              <div className="flex size-9 items-center justify-center rounded-full bg-brass/10 text-brass">
+                <CalendarClock size={17} />
+              </div>
+              <h4 className="mt-4 text-sm font-semibold text-ink">{copy.calendar.quietDaysTitle}</h4>
+              <p className="mt-1 text-sm leading-6 text-graphite/65">{copy.calendar.quietDaysDescription}</p>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              {activeDaySummaries.map(({ day, events: dayEvents, isToday }) => (
+                <div
+                  key={day.toISOString()}
+                  className={`rounded-md border px-3 py-3 ${
+                    isToday ? "border-brass/45 bg-brass/[0.08]" : "border-ink/8 bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
+                        {isToday ? copy.calendar.today : formatWeekday(day, language)}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-ink">{formatShortCalendarDate(day, language)}</p>
+                    </div>
+                    <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-semibold text-brass">
+                      {dayEvents.length}
+                    </span>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${dayEvents.length > 0 ? "bg-white text-ink" : "bg-ink/[0.04] text-graphite/50"}`}>
-                    {dayEvents.length}
-                  </span>
-                </div>
-                {dayEvents.length > 0 ? (
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {dayEvents.slice(0, 5).map((event) => (
-                      <span key={event.key} className={`size-2 rounded-full ${calendarDotClass(event.tone)}`} />
+                  <div className="mt-3 space-y-1.5">
+                    {dayEvents.slice(0, 3).map((event) => (
+                      <div key={event.key} className="flex min-w-0 items-center gap-2 text-xs text-graphite/70">
+                        <span className={`size-1.5 shrink-0 rounded-full ${calendarDotClass(event.tone)}`} />
+                        <span className="truncate">{event.label}</span>
+                      </div>
                     ))}
-                    {dayEvents.length > 5 ? (
-                      <span className="text-[11px] font-medium leading-none text-graphite/60">+{dayEvents.length - 5}</span>
+                    {dayEvents.length > 3 ? (
+                      <p className="text-xs font-medium text-graphite/55">+{dayEvents.length - 3}</p>
                     ) : null}
                   </div>
-                ) : null}
-              </div>
-            );
-          })}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="rounded-md border border-ink/10 bg-paper">
-          <div className="border-b border-ink/10 px-4 py-3">
+        <div className="rounded-md border border-ink/8 bg-white">
+          <div className="flex items-center justify-between gap-3 border-b border-ink/8 px-4 py-3">
             <h3 className="text-sm font-semibold text-ink">{copy.calendar.agendaTitle}</h3>
+            <span className="rounded-full bg-ink/[0.04] px-2.5 py-1 text-xs font-medium text-graphite/60">
+              {copy.calendar.eventCount(orderedEvents.length)}
+            </span>
           </div>
           {orderedEvents.length === 0 ? (
             <div className="p-5">
@@ -674,7 +709,7 @@ function DashboardWorkCalendar({
                   <Link
                     key={event.key}
                     href={event.href}
-                    className="group grid gap-3 px-4 py-3 transition hover:bg-brass/[0.04] sm:grid-cols-[112px_1fr_auto] sm:items-center"
+                    className="group grid gap-3 px-4 py-4 transition hover:bg-brass/[0.04] sm:grid-cols-[92px_1fr_auto] sm:items-center"
                   >
                     <div className="text-sm">
                       <p className="font-semibold text-ink">{formatShortCalendarDate(event.date, language)}</p>
@@ -683,12 +718,12 @@ function DashboardWorkCalendar({
                       </p>
                     </div>
                     <div className="flex min-w-0 items-start gap-3">
-                      <span className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md ring-1 ${calendarToneClass(event.tone)}`}>
-                        <Icon size={17} />
+                      <span className={`mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md ring-1 ${calendarToneClass(event.tone)}`}>
+                        <Icon size={18} />
                       </span>
                       <span className="min-w-0">
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-ink">{event.title}</span>
+                          <span className="font-semibold text-ink">{event.title}</span>
                           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${calendarToneClass(event.tone)}`}>
                             {event.label}
                           </span>
