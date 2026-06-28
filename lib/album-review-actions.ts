@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { customerAccessWhere } from "@/lib/admin-scope";
+import { albumReviewAccessWhere, customerAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -56,7 +56,8 @@ async function requireAlbumReviewAccess(customerId: string, reviewId: string) {
   const admin = await requireAdmin();
   const review = await prisma.albumReview.findFirst({
     where: {
-      id: reviewId,
+      ...albumReviewAccessWhere(admin, reviewId),
+      customerId,
       customer: customerAccessWhere(admin, customerId)
     },
     select: {

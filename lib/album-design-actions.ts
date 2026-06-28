@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { customerAccessWhere } from "@/lib/admin-scope";
+import { albumDesignAccessWhere, customerAccessWhere } from "@/lib/admin-scope";
 import {
   ALBUM_DESIGN_EXPORT_HEIGHT,
   ALBUM_DESIGN_EXPORT_WIDTH,
@@ -108,7 +108,8 @@ async function requireAlbumDesignAccess(customerId: string, designId: string) {
   const { admin } = await requireCustomerAccess(customerId);
   const design = await prisma.albumDesign.findFirst({
     where: {
-      id: designId,
+      ...albumDesignAccessWhere(admin, designId),
+      customerId,
       customer: customerAccessWhere(admin, customerId)
     },
     select: {

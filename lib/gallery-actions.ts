@@ -11,7 +11,7 @@ import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { enqueueGalleryZipJob, kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
-import { adminOwnedWhere, notificationWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, galleryAccessWhere, galleryPhotoAccessWhere, notificationWhere } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   GALLERY_MODE_FULL,
@@ -93,10 +93,7 @@ function formPercent(formData: FormData, key: string, fallback = 50) {
 async function requireGalleryAccess(galleryId: string) {
   const admin = await requireAdmin();
   const gallery = await prisma.gallery.findFirst({
-    where: {
-      id: galleryId,
-      ...adminOwnedWhere(admin)
-    },
+    where: galleryAccessWhere(admin, galleryId),
     select: { id: true, slug: true, galleryMode: true, proofingStatus: true, clientEmail: true, clientAccessToken: true }
   });
 
@@ -760,10 +757,10 @@ export async function sendFinalDeliveryEmailAction(galleryId: string) {
 }
 
 export async function restoreClientHiddenPhotoAction(galleryId: string, photoId: string) {
-  await requireGalleryAccess(galleryId);
+  const { admin } = await requireGalleryAccess(galleryId);
 
   const photo = await prisma.photo.findFirst({
-    where: { id: photoId, galleryId },
+    where: galleryPhotoAccessWhere(admin, galleryId, photoId),
     select: {
       gallery: {
         select: { slug: true }
@@ -1943,19 +1940,23 @@ export async function completePhotoUploadsAction(
 }
 
 export async function deletePhotoAction(photoId: string, galleryId: string) {
-  await requireGalleryAccess(galleryId);
+  const { admin } = await requireGalleryAccess(galleryId);
 
   const gallery = await prisma.gallery.findFirst({
-    where: { id: galleryId },
+    where: galleryAccessWhere(admin, galleryId),
     select: { coverPhotoId: true, slug: true }
   });
-  const photo = await prisma.photo.findUnique({
-    where: { id: photoId },
-    select: { r2Key: true, thumbnailUrl: true, previewUrl: true }
+  const photo = await prisma.photo.findFirst({
+    where: galleryPhotoAccessWhere(admin, galleryId, photoId),
+    select: { id: true, r2Key: true, thumbnailUrl: true, previewUrl: true }
   });
 
+  if (!gallery || !photo) {
+    return;
+  }
+
   await prisma.photo.delete({
-    where: { id: photoId }
+    where: { id: photo.id }
   });
 
   if (gallery?.coverPhotoId === photoId) {
@@ -2786,10 +2787,10 @@ export async function completeManualGalleryZipUploadAction(
 }
 
 export async function setCoverPhotoAction(galleryId: string, photoId: string) {
-  await requireGalleryAccess(galleryId);
+  const { admin } = await requireGalleryAccess(galleryId);
 
   const photo = await prisma.photo.findFirst({
-    where: { id: photoId, galleryId },
+    where: galleryPhotoAccessWhere(admin, galleryId, photoId),
     select: { gallery: { select: { slug: true } } }
   });
 

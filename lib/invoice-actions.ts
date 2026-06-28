@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { customerAccessWhere } from "@/lib/admin-scope";
+import { customerAccessWhere, customerInvoiceAccessWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { sendCustomerInvoiceEmail } from "@/lib/email";
@@ -139,11 +139,7 @@ export async function uploadInvoiceAction(customerId: string, formData: FormData
 export async function sendInvoiceAction(customerId: string, invoiceId: string) {
   const admin = await requireAdmin();
   const invoice = await prisma.customerInvoice.findFirst({
-    where: {
-      id: invoiceId,
-      customerId,
-      customer: { is: customerAccessWhere(admin, customerId) }
-    },
+    where: customerInvoiceAccessWhere(admin, customerId, invoiceId),
     include: {
       customer: {
         select: {
@@ -202,11 +198,7 @@ export async function updateInvoiceStatusAction(customerId: string, invoiceId: s
   const admin = await requireAdmin();
   const status = formString(formData, "status") === "paid" ? "paid" : "open";
   const invoice = await prisma.customerInvoice.findFirst({
-    where: {
-      id: invoiceId,
-      customerId,
-      customer: { is: customerAccessWhere(admin, customerId) }
-    },
+    where: customerInvoiceAccessWhere(admin, customerId, invoiceId),
     select: {
       id: true,
       paidAt: true

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createHash, randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
-import { customerAccessWhere } from "@/lib/admin-scope";
+import { customerAccessWhere, customerContractAccessWhere } from "@/lib/admin-scope";
 import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
@@ -124,11 +124,7 @@ export async function sendContractAction(customerId: string, contractId: string)
   const admin = await requireAdmin();
 
   const contract = await prisma.contract.findFirst({
-    where: {
-      id: contractId,
-      customerId,
-      customer: { is: customerAccessWhere(admin, customerId) }
-    },
+    where: customerContractAccessWhere(admin, customerId, contractId),
     include: {
       customer: {
         select: {
