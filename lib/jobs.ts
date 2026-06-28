@@ -13,7 +13,7 @@ import {
   sendAdminGalleryZipReadyEmail,
   sendGuestGalleryDownloadReadyEmail
 } from "@/lib/email";
-import { galleryDownloadQualityLabel, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
+import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, galleryDownloadQualityLabel, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
 import {
   createGalleryZipObjectKey,
   createPhotoReadStream,
@@ -32,6 +32,14 @@ const WEB_DOWNLOAD_ESTIMATED_IMAGE_BYTES = 1024 * 1024;
 const WEB_DOWNLOAD_MAX_SIZE = 2400;
 const WEB_DOWNLOAD_JPEG_QUALITY = 76;
 const ZIP_TRIGGER_DISPATCH_CONCURRENCY = readPositiveInteger(process.env.ZIP_TRIGGER_DISPATCH_CONCURRENCY, 8, 1);
+const ZIP_CLEANUP_BATCH_SIZE = readPositiveInteger(process.env.ZIP_CLEANUP_BATCH_SIZE, 25, 1);
+const ZIP_STUCK_PROCESSING_HOURS = readPositiveInteger(process.env.ZIP_STUCK_PROCESSING_HOURS, 3, 1);
+const ZIP_STALE_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_STALE_RETENTION_DAYS, 1, 0);
+const ZIP_COMPLETED_WEB_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_COMPLETED_WEB_RETENTION_DAYS, 14, 1);
+const ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS, 14, 1);
+const ZIP_MANUAL_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_MANUAL_RETENTION_DAYS, 30, 1);
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -405,7 +413,7 @@ export async function kickGalleryZipJobs(payloads: ZipGenerationPayload[]) {
 
 export async function preparePublicGalleryZipPackages(
   galleryId: string,
-  requestedQuality: GalleryDownloadQuality = "original"
+  requestedQuality: GalleryDownloadQuality = DEFAULT_GALLERY_DOWNLOAD_QUALITY
 ): Promise<PreparePublicGalleryZipPackagesResult> {
   const quality = normalizeGalleryDownloadQuality(requestedQuality);
   const downloadScope = publicDownloadScopeForQuality(quality);
@@ -672,6 +680,38 @@ async function completeGroupIfReady(packageId: string) {
   return false;
 }
 
+async function markOlderCompletedZipPackagesStale({
+  galleryId,
+  scope,
+  keepPackageId,
+  keepGroupId
+}: {
+  galleryId: string;
+  scope: string;
+  keepPackageId: string;
+  keepGroupId: string | null;
+}) {
+  const keepPackages = await prisma.galleryDownloadPackage.findMany({
+    where: keepGroupId ? { groupId: keepGroupId } : { id: keepPackageId },
+    select: { id: true }
+  });
+  const keepIds = keepPackages.length > 0 ? keepPackages.map((downloadPackage) => downloadPackage.id) : [keepPackageId];
+
+  await prisma.galleryDownloadPackage.updateMany({
+    where: {
+      galleryId,
+      scope,
+      status: "completed",
+      id: { notIn: keepIds },
+      r2Key: { not: null }
+    },
+    data: {
+      status: "stale",
+      errorMessage: "Újabb letöltési ZIP készült, ezért ez a régi csomag takarításra vár."
+    }
+  });
+}
+
 async function markBackgroundJobFailed(payload: ZipGenerationPayload, error: unknown, maxAttempts = 3, attempts = 0) {
   if (!payload.jobId) {
     return;
@@ -720,7 +760,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       partIndex: true,
       partCount: true,
       photoOffset: true,
-      photoLimit: true
+      photoLimit: true,
+      groupId: true
     }
   });
 
@@ -935,6 +976,13 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     const downloadSetReady = await completeGroupIfReady(downloadPackage.id);
 
     if (downloadSetReady) {
+      await markOlderCompletedZipPackagesStale({
+        galleryId: gallery.id,
+        scope: downloadPackage.scope,
+        keepPackageId: downloadPackage.id,
+        keepGroupId: downloadPackage.groupId
+      });
+
       await notifyGalleryZipReady({
         galleryId: gallery.id,
         adminId: gallery.adminId,
@@ -1305,6 +1353,157 @@ async function processBackgroundJob(job: {
   }
 
   throw new Error(`Unknown background job type: ${job.type}`);
+}
+
+function zipPackageAgeDate(downloadPackage: { generatedAt: Date | null; linkCreatedAt: Date | null; updatedAt: Date; createdAt: Date }) {
+  return downloadPackage.linkCreatedAt ?? downloadPackage.generatedAt ?? downloadPackage.updatedAt ?? downloadPackage.createdAt;
+}
+
+function shouldExpireZipPackage(
+  downloadPackage: {
+    status: string;
+    scope: string;
+    r2Key: string | null;
+    generatedAt: Date | null;
+    linkCreatedAt: Date | null;
+    accessTokenExpiresAt: Date | null;
+    updatedAt: Date;
+    createdAt: Date;
+  },
+  now: Date
+) {
+  if (!downloadPackage.r2Key) {
+    return false;
+  }
+
+  if (["stale", "failed"].includes(downloadPackage.status)) {
+    return downloadPackage.updatedAt.getTime() <= now.getTime() - ZIP_STALE_RETENTION_DAYS * DAY_MS;
+  }
+
+  if (downloadPackage.status !== "completed") {
+    return false;
+  }
+
+  if (downloadPackage.accessTokenExpiresAt && downloadPackage.accessTokenExpiresAt > now) {
+    return false;
+  }
+
+  const ageDate = zipPackageAgeDate(downloadPackage);
+  const isManualUpload = downloadPackage.r2Key.includes("/downloads/manual/");
+  const retentionDays = isManualUpload
+    ? ZIP_MANUAL_RETENTION_DAYS
+    : publicDownloadQualityFromScope(downloadPackage.scope) === "web"
+      ? ZIP_COMPLETED_WEB_RETENTION_DAYS
+      : ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS;
+
+  return ageDate.getTime() <= now.getTime() - retentionDays * DAY_MS;
+}
+
+export async function cleanupExpiredGalleryZipPackages({ limit = ZIP_CLEANUP_BATCH_SIZE } = {}) {
+  const now = new Date();
+  const stuckCutoff = new Date(now.getTime() - ZIP_STUCK_PROCESSING_HOURS * HOUR_MS);
+  const completedCutoff = new Date(now.getTime() - Math.min(ZIP_COMPLETED_WEB_RETENTION_DAYS, ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS, ZIP_MANUAL_RETENTION_DAYS) * DAY_MS);
+  const staleCutoff = new Date(now.getTime() - ZIP_STALE_RETENTION_DAYS * DAY_MS);
+  const [stuckPackages, stuckJobs] = await Promise.all([
+    prisma.galleryDownloadPackage.updateMany({
+      where: {
+        status: "processing",
+        updatedAt: { lt: stuckCutoff }
+      },
+      data: {
+        status: "failed",
+        errorMessage: "A ZIP feldolgozás beragadt, ezért újraindítás vagy új ZIP szükséges."
+      }
+    }),
+    prisma.backgroundJob.updateMany({
+      where: {
+        type: ZIP_GENERATION_JOB,
+        status: "processing",
+        lockedAt: { lt: stuckCutoff }
+      },
+      data: {
+        status: "failed",
+        lockedAt: null,
+        errorMessage: "A ZIP háttérmunka túl régóta futott, ezért takarítás failed státuszra állította."
+      }
+    })
+  ]);
+  const candidates = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      r2Key: { not: null },
+      OR: [
+        {
+          status: { in: ["stale", "failed"] },
+          updatedAt: { lt: staleCutoff }
+        },
+        {
+          status: "completed",
+          OR: [{ generatedAt: { lt: completedCutoff } }, { linkCreatedAt: { lt: completedCutoff } }, { createdAt: { lt: completedCutoff } }]
+        }
+      ]
+    },
+    orderBy: { updatedAt: "asc" },
+    take: Math.max(limit * 3, limit),
+    select: {
+      id: true,
+      galleryId: true,
+      status: true,
+      scope: true,
+      r2Key: true,
+      generatedAt: true,
+      linkCreatedAt: true,
+      accessTokenExpiresAt: true,
+      updatedAt: true,
+      createdAt: true
+    }
+  });
+  const expiredPackages = candidates.filter((downloadPackage) => shouldExpireZipPackage(downloadPackage, now)).slice(0, limit);
+  let deletedObjects = 0;
+  const affectedGalleryIds = new Set<string>();
+
+  for (const downloadPackage of expiredPackages) {
+    if (downloadPackage.r2Key) {
+      await deletePhotoObject(downloadPackage.r2Key);
+      deletedObjects += 1;
+    }
+
+    affectedGalleryIds.add(downloadPackage.galleryId);
+
+    await prisma.$transaction([
+      prisma.galleryDownloadPackage.update({
+        where: { id: downloadPackage.id },
+        data: {
+          status: "expired",
+          r2Key: null,
+          downloadUrl: null,
+          accessToken: null,
+          accessTokenExpiresAt: null,
+          errorMessage: "A ZIP retention szabály alapján törölve lett az R2 tárhelyről."
+        }
+      }),
+      prisma.galleryDownload.updateMany({
+        where: {
+          packageId: downloadPackage.id,
+          status: { in: ["waiting", "email_failed", "recorded"] }
+        },
+        data: {
+          status: "expired",
+          downloadLinkEmailError: "A ZIP csomag lejárt, új letöltési linket kell kérni."
+        }
+      })
+    ]);
+  }
+
+  for (const galleryId of affectedGalleryIds) {
+    safeRevalidatePath(`/admin/galleries/${galleryId}`);
+  }
+
+  return {
+    expiredPackages: expiredPackages.length,
+    deletedObjects,
+    stuckPackages: stuckPackages.count,
+    stuckJobs: stuckJobs.count
+  };
 }
 
 export async function processPendingJobs({ limit = 1 } = {}) {

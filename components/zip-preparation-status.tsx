@@ -30,6 +30,7 @@ type ZipGroupSummary = {
   processingCount: number;
   staleProcessingCount: number;
   staleCount: number;
+  expiredCount: number;
   failedCount: number;
   processedCount: number;
   processedBytes: bigint;
@@ -74,6 +75,7 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
   ).length;
   const pendingCount = packages.filter((downloadPackage) => downloadPackage.status === "pending").length;
   const staleCount = packages.filter((downloadPackage) => downloadPackage.status === "stale").length;
+  const expiredCount = packages.filter((downloadPackage) => downloadPackage.status === "expired").length;
   const failedCount = packages.filter((downloadPackage) => downloadPackage.status === "failed").length + staleProcessingCount;
   const processedCount = packages.reduce((sum, downloadPackage) => sum + downloadPackage.processedCount, 0);
   const partIndexes = new Set(downloadablePackages.map((downloadPackage) => downloadPackage.partIndex));
@@ -94,6 +96,7 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
     processingCount,
     staleProcessingCount,
     staleCount,
+    expiredCount,
     failedCount,
     processedCount,
     processedBytes: packages.reduce((sum, downloadPackage) => sum + BigInt(downloadPackage.processedBytes), BigInt(0)),
@@ -168,6 +171,15 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
       description: "A ZIP előkészítés hibára futott, újrapróbálás kell.",
       className: "bg-red-50 text-red-700",
       icon: AlertCircle
+    };
+  }
+
+  if (group.expiredCount > 0 && !group.hasActiveWork) {
+    return {
+      label: "Takarítva",
+      description: "A korábbi ZIP lejárt és törölve lett a tárhelyről. Új letöltési kérésnél új csomag készül.",
+      className: "bg-ink/5 text-graphite",
+      icon: Archive
     };
   }
 

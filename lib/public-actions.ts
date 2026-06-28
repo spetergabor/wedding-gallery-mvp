@@ -8,7 +8,7 @@ import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
-import { normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
+import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
@@ -181,7 +181,7 @@ export async function recordGalleryDownloadAction(galleryId: string, email: stri
   };
 }
 
-export async function requestGalleryDownloadPackageAction(galleryId: string, email: string, requestedQuality: string = "original") {
+export async function requestGalleryDownloadPackageAction(galleryId: string, email: string = "", requestedQuality: string = DEFAULT_GALLERY_DOWNLOAD_QUALITY) {
   const normalizedEmail = normalizeEmail(email);
   const quality = normalizeGalleryDownloadQuality(requestedQuality);
   const downloadScope = publicDownloadScopeForQuality(quality);

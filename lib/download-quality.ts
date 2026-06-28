@@ -1,5 +1,7 @@
 export type GalleryDownloadQuality = "original" | "web";
 
+export const DEFAULT_GALLERY_DOWNLOAD_QUALITY: GalleryDownloadQuality = "web";
+
 export const GALLERY_DOWNLOAD_QUALITIES = [
   { value: "web", label: { hu: "Webes méret", de: "Webgröße" } },
   { value: "original", label: { hu: "Teljes felbontás", de: "Volle Auflösung" } }

@@ -59,6 +59,18 @@ Authorization: Bearer CRON_SECRET
 
 The gallery download flow also starts processing after the visitor submits their email.
 
+The same route also runs ZIP cleanup. It marks stuck ZIP work as failed, removes expired/stale ZIP objects from R2, and
+keeps completed ZIP packages as a temporary cache instead of permanent storage. Defaults:
+
+```text
+ZIP_STUCK_PROCESSING_HOURS="3"
+ZIP_STALE_RETENTION_DAYS="1"
+ZIP_COMPLETED_WEB_RETENTION_DAYS="14"
+ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS="14"
+ZIP_MANUAL_RETENTION_DAYS="30"
+ZIP_CLEANUP_BATCH_SIZE="25"
+```
+
 For large full-gallery ZIP files, use the Trigger.dev worker instead of Vercel functions:
 
 ```text

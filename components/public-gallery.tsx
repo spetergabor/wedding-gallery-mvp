@@ -15,7 +15,7 @@ import {
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
-import type { GalleryDownloadQuality } from "@/lib/download-quality";
+import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, type GalleryDownloadQuality } from "@/lib/download-quality";
 
 const GALLERY_COPY = {
   de: {
@@ -239,7 +239,7 @@ export function PublicGallery({
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
-  const [downloadQuality, setDownloadQuality] = useState<GalleryDownloadQuality>("web");
+  const [downloadQuality, setDownloadQuality] = useState<GalleryDownloadQuality>(DEFAULT_GALLERY_DOWNLOAD_QUALITY);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isEmailOpen, setIsEmailOpen] = useState(false);

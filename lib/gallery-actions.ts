@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
-import { enqueueGalleryZipJob, kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
+import { kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { adminOwnedWhere, galleryAccessWhere, galleryPhotoAccessWhere, notificationWhere } from "@/lib/admin-scope";
@@ -109,46 +109,6 @@ function createClientAccessToken() {
 }
 
 const STALE_MEDIA_PROCESSING_MS = 2 * 60 * 60 * 1000;
-const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
-
-function readPositiveMegabytes(value: string | undefined, fallback: number, minimum: number) {
-  const parsed = Number.parseInt(value ?? "", 10);
-
-  if (!Number.isFinite(parsed) || parsed < minimum) {
-    return fallback * 1024 * 1024;
-  }
-
-  return parsed * 1024 * 1024;
-}
-
-const ZIP_PART_TARGET_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_PART_TARGET_MB, 2048, 256);
-
-function createZipPartRanges(photos: Array<{ fileSize: number | null }>) {
-  const ranges: Array<{ offset: number; limit: number }> = [];
-  let offset = 0;
-  let currentBytes = 0;
-  let currentCount = 0;
-
-  for (const photo of photos) {
-    const size = photo.fileSize && photo.fileSize > 0 ? photo.fileSize : 25 * 1024 * 1024;
-
-    if (currentCount > 0 && currentBytes + size > ZIP_PART_TARGET_BYTES) {
-      ranges.push({ offset, limit: currentCount });
-      offset += currentCount;
-      currentBytes = 0;
-      currentCount = 0;
-    }
-
-    currentBytes += size;
-    currentCount += 1;
-  }
-
-  if (currentCount > 0) {
-    ranges.push({ offset, limit: currentCount });
-  }
-
-  return ranges.length > 0 ? ranges : [{ offset: 0, limit: photos.length }];
-}
 
 function hasLightweightPhotoVariant(photo: { imageUrl: string; thumbnailUrl: string; previewUrl: string; mediaType: string }) {
   return (
@@ -2210,182 +2170,18 @@ export async function requeueGalleryMediaProcessingAction(galleryId: string) {
 
 export async function queueGalleryZipPackageAction(galleryId: string) {
   const { gallery } = await requireGalleryAccess(galleryId);
-  const now = Date.now();
+  const zipResult = await preparePublicGalleryZipPackages(galleryId);
+  const zipStatus = zipResult.ok ? (zipResult.cached ? "already-ready" : zipResult.payloads.length > 0 ? "queued" : "already-running") : zipResult.reason;
 
-  const galleryWithPhotos = await prisma.gallery.findUnique({
-    where: { id: galleryId },
-    select: {
-      slug: true,
-      isActive: true,
-      downloadsEnabled: true,
-      galleryMode: true,
-      proofingStatus: true,
-      photos: {
-        where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: {
-          createdAt: true,
-          fileSize: true
-        }
-      }
-    }
-  });
-
-  if (!galleryWithPhotos || !galleryWithPhotos.isActive) {
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=not-active`);
+  if (zipResult.ok && zipResult.payloads.length > 0) {
+    after(async () => {
+      await kickGalleryZipJobs(zipResult.payloads);
+    });
   }
-
-  if (!galleryWithPhotos.downloadsEnabled) {
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=downloads-disabled`);
-  }
-
-  if (
-    isProofingGallery(galleryWithPhotos.galleryMode) &&
-    galleryWithPhotos.proofingStatus !== PROOFING_STATUS_DELIVERED
-  ) {
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=proofing-pending`);
-  }
-
-  const photoCount = galleryWithPhotos.photos.length;
-
-  if (photoCount === 0) {
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=no-photos`);
-  }
-
-  const latestPhotoCreatedAt = galleryWithPhotos.photos.reduce<Date | null>((latest, photo) => {
-    if (!latest || photo.createdAt > latest) {
-      return photo.createdAt;
-    }
-
-    return latest;
-  }, null);
-
-  const freshCompletedPackages = await prisma.galleryDownloadPackage.findMany({
-    where: {
-      galleryId,
-      scope: PUBLIC_DOWNLOAD_SCOPE,
-      status: "completed",
-      photoCount,
-      downloadUrl: { not: null },
-      r2Key: { not: null },
-      generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
-    },
-    orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { generatedAt: "desc" }],
-    select: {
-      id: true,
-      groupId: true,
-      status: true,
-      downloadUrl: true,
-      partIndex: true,
-      partCount: true
-    }
-  });
-  const completedGroups = new Map<string, typeof freshCompletedPackages>();
-
-  for (const downloadPackage of freshCompletedPackages) {
-    const key = downloadPackage.groupId ?? downloadPackage.id;
-    completedGroups.set(key, [...(completedGroups.get(key) ?? []), downloadPackage]);
-  }
-
-  const hasFreshCompletedGroup = Array.from(completedGroups.values()).some((packages) => {
-    const expectedPartCount = Math.max(...packages.map((downloadPackage) => downloadPackage.partCount), packages.length, 1);
-    const completedPartIndexes = new Set(
-      packages
-        .filter((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl)
-        .map((downloadPackage) => downloadPackage.partIndex)
-    );
-
-    return packages.length === expectedPartCount && Array.from({ length: expectedPartCount }, (_, index) => completedPartIndexes.has(index)).every(Boolean);
-  });
-
-  if (hasFreshCompletedGroup) {
-    revalidatePath(`/admin/galleries/${gallery.id}`);
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=already-ready`);
-  }
-
-  const existingPackages = await prisma.galleryDownloadPackage.findMany({
-    where: {
-      galleryId,
-      scope: PUBLIC_DOWNLOAD_SCOPE,
-      status: { in: ["pending", "processing"] },
-      photoCount
-    },
-    orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { createdAt: "desc" }],
-    select: {
-      id: true,
-      status: true,
-      updatedAt: true,
-      groupId: true
-    }
-  });
-
-  if (existingPackages.length > 0) {
-    const latestGroupKey = existingPackages[0].groupId ?? existingPackages[0].id;
-    const latestGroupPackages = existingPackages.filter((downloadPackage) => (downloadPackage.groupId ?? downloadPackage.id) === latestGroupKey);
-    const packagesToKick = latestGroupPackages.filter(
-      (downloadPackage) =>
-        downloadPackage.status === "pending" ||
-        (downloadPackage.status === "processing" && now - downloadPackage.updatedAt.getTime() > STALE_ZIP_PROCESSING_MS)
-    );
-
-    if (packagesToKick.length > 0) {
-      const payloads = await Promise.all(
-        packagesToKick.map(async (downloadPackage) => ({
-          galleryId,
-          packageId: downloadPackage.id,
-          jobId: (await enqueueGalleryZipJob({ galleryId, packageId: downloadPackage.id })).id
-        }))
-      );
-      after(async () => {
-        await kickGalleryZipJobs(payloads);
-      });
-
-      revalidatePath(`/admin/galleries/${gallery.id}`);
-      redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
-    }
-
-    revalidatePath(`/admin/galleries/${gallery.id}`);
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=already-running`);
-  }
-
-  const ranges = createZipPartRanges(galleryWithPhotos.photos);
-  const partCount = ranges.length;
-  const groupId = partCount > 1 ? randomUUID() : null;
-  const downloadPackages = await prisma.$transaction(
-    ranges.map((range, partIndex) =>
-      prisma.galleryDownloadPackage.create({
-        data: {
-          galleryId,
-          scope: PUBLIC_DOWNLOAD_SCOPE,
-          status: "pending",
-          photoCount,
-          partIndex,
-          partCount,
-          photoOffset: range.offset,
-          photoLimit: range.limit,
-          groupId
-        }
-      })
-    )
-  );
-  const payloads = await Promise.all(
-    downloadPackages.map(async (downloadPackage) => ({
-      galleryId,
-      packageId: downloadPackage.id,
-      jobId: (await enqueueGalleryZipJob({
-        galleryId,
-        packageId: downloadPackage.id
-      })).id
-    }))
-  );
-
-  after(async () => {
-    await kickGalleryZipJobs(payloads);
-  });
 
   revalidatePath(`/admin/galleries/${gallery.id}`);
-  revalidatePath(`/g/${galleryWithPhotos.slug}`);
-  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=${zipStatus}`);
 }
 
 function isZipFilename(filename: string) {
@@ -2767,7 +2563,7 @@ export async function completeManualGalleryZipUploadAction(
       galleryId,
       scope: PUBLIC_DOWNLOAD_SCOPE,
       id: { not: downloadPackage.id },
-      status: { in: ["pending", "processing", "failed"] }
+      status: { in: ["pending", "processing", "completed", "failed"] }
     },
     data: {
       status: "stale",

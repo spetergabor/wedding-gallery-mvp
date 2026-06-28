@@ -838,8 +838,8 @@ export default async function GalleryDetailPage({
             <section className="rounded-md border border-ink/12 bg-white p-4">
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
-                  <h2 className="text-lg font-semibold text-ink">Automata ZIP részek</h2>
-                  <p className="mt-1 text-sm text-graphite/70">Nagy galériáknál a rendszer több kisebb ZIP csomagot készít.</p>
+                  <h2 className="text-lg font-semibold text-ink">Webes vendég ZIP részek</h2>
+                  <p className="mt-1 text-sm text-graphite/70">Alapból kompakt, webes méretű ZIP készül. Teljes felbontás csak külön letöltési kérésre indul.</p>
                 </div>
                 <form action={queueGalleryZipPackageAction.bind(null, gallery.id)}>
                   <FormSubmitButton
@@ -848,7 +848,7 @@ export default async function GalleryDetailPage({
                     pendingLabel="Előkészítés..."
                   >
                     <Download size={16} />
-                    {hasStaleZipPackages ? "Újragenerálás" : "ZIP részek előkészítése"}
+                    {hasStaleZipPackages ? "Webes ZIP újragenerálása" : "Webes ZIP előkészítése"}
                   </FormSubmitButton>
                 </form>
               </div>

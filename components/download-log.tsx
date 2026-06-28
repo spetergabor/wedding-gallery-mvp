@@ -45,6 +45,10 @@ function packageStatusLabel(status: string) {
     return "Elavult";
   }
 
+  if (status === "expired") {
+    return "Takarítva";
+  }
+
   return "Készül";
 }
 
@@ -59,6 +63,10 @@ function packageStatusClass(status: string) {
 
   if (status === "stale") {
     return "bg-graphite/10 text-graphite";
+  }
+
+  if (status === "expired") {
+    return "bg-ink/5 text-graphite";
   }
 
   return "bg-brass/15 text-brass";
