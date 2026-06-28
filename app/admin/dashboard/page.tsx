@@ -7,13 +7,11 @@ import {
   CalendarClock,
   Camera,
   CheckCircle2,
-  Clock3,
   FileText,
   Film,
   FolderKanban,
   Heart,
   ImagePlus,
-  ListChecks,
   Mail,
   MessageSquare,
   ReceiptText
@@ -30,7 +28,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
+import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { ensureLeadPipelineSchema, leadEventTypeLabel, leadStatusLabel, normalizeLeadStatus } from "@/lib/leads";
 import {
   GALLERY_MODE_PROOFING,
@@ -144,6 +142,20 @@ function addDays(date: Date, days: number) {
   return result;
 }
 
+function addMonths(date: Date, months: number) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function isSameMonth(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
+}
+
 function isSameCalendarDay(left: Date, right: Date) {
   return (
     left.getFullYear() === right.getFullYear() &&
@@ -160,35 +172,19 @@ function formatShortCalendarDate(date: Date, language: AdminLanguage) {
   });
 }
 
+function formatCalendarMonth(date: Date, language: AdminLanguage) {
+  return date.toLocaleDateString(dateLocaleForAdmin(language), {
+    month: "long",
+    year: "numeric",
+    timeZone: APP_TIME_ZONE
+  });
+}
+
 function formatWeekday(date: Date, language: AdminLanguage) {
   return date.toLocaleDateString(dateLocaleForAdmin(language), {
     weekday: "short",
     timeZone: APP_TIME_ZONE
   });
-}
-
-function taskPriorityClass(priority: DashboardTaskPriority) {
-  if (priority === "high") {
-    return "bg-red-50 text-red-700 ring-red-200";
-  }
-
-  if (priority === "medium") {
-    return "bg-brass/10 text-brass ring-brass/25";
-  }
-
-  return "bg-ink/[0.05] text-graphite ring-ink/10";
-}
-
-function taskIconClass(priority: DashboardTaskPriority) {
-  if (priority === "high") {
-    return "bg-red-50 text-red-700";
-  }
-
-  if (priority === "medium") {
-    return "bg-brass/10 text-brass";
-  }
-
-  return "bg-paper text-graphite";
 }
 
 function calendarToneClass(tone: DashboardCalendarTone) {
@@ -420,14 +416,14 @@ const DASHBOARD_COPY = {
     noUrgentDescription: "A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg, ha érkeznek.",
     calendar: {
       eyebrow: "Munkanaptár",
-      title: "Következő 30 nap",
-      description: "Fotózások, szerződések, számlák és ügyféloldali aktivitások egy olvasható idővonalon.",
+      title: "Aktuális hónap",
+      description: "Fotózások, szerződések, számlák és ügyféloldali aktivitások egy havi naptárban.",
       today: "ma",
-      next7Days: "következő 7 nap",
+      next7Days: "hónapban",
       attention: "figyelmet kér",
-      daysTitle: "Következő aktív napok",
-      quietDaysTitle: "Nincs időzített esemény a következő napokban",
-      quietDaysDescription: "A friss ügyfélaktivitások ettől még az agendában látszanak, de most nincs külön dátumhoz kötött munka.",
+      daysTitle: "Havi nézet",
+      quietDaysTitle: "Ezen a napon nincs bejegyzés",
+      quietDaysDescription: "A színezett napokra kattintva megnyílnak az adott napi teendők és események.",
       eventCount: (count: number) => `${count} bejegyzés`,
       agendaTitle: "Agenda",
       noEventsTitle: "Nincs naptári esemény",
@@ -522,14 +518,14 @@ const DASHBOARD_COPY = {
     noUrgentDescription: "Problematische Verarbeitungen, abgegebene Auswahlen und wartende Kundenprozesse erscheinen hier.",
     calendar: {
       eyebrow: "Arbeitskalender",
-      title: "Nächste 30 Tage",
-      description: "Shootings, Verträge, Rechnungen und Kundenaktivitäten in einer gut lesbaren Zeitleiste.",
+      title: "Aktueller Monat",
+      description: "Shootings, Verträge, Rechnungen und Kundenaktivitäten in einer Monatsübersicht.",
       today: "heute",
-      next7Days: "nächste 7 Tage",
+      next7Days: "im Monat",
       attention: "braucht Aufmerksamkeit",
-      daysTitle: "Nächste aktive Tage",
-      quietDaysTitle: "Keine datierten Einträge in den nächsten Tagen",
-      quietDaysDescription: "Aktuelle Kundenaktivitäten bleiben in der Agenda sichtbar, aber es gibt gerade keine konkret datierte Arbeit.",
+      daysTitle: "Monatsansicht",
+      quietDaysTitle: "An diesem Tag gibt es keine Einträge",
+      quietDaysDescription: "Klicke auf markierte Tage, um Aufgaben und Termine dieses Tages zu öffnen.",
       eventCount: (count: number) => `${count} Einträge`,
       agendaTitle: "Agenda",
       noEventsTitle: "Keine Kalendereinträge",
@@ -584,23 +580,18 @@ function DashboardWorkCalendar({
   language: AdminLanguage;
   today: Date;
 }) {
-  const dayStrip = Array.from({ length: 30 }, (_, index) => addDays(today, index));
-  const orderedEvents = sortCalendarEvents(events, today).slice(0, 14);
-  const daySummaries = dayStrip.map((day) => ({
-    day,
-    isToday: isSameCalendarDay(day, today),
-    events: events.filter((event) => isSameCalendarDay(event.date, day))
-  }));
-  const activeDaySummaries = daySummaries.filter(({ events: dayEvents }) => dayEvents.length > 0).slice(0, 8);
-  const activeDayEventCount = activeDaySummaries.reduce((count, summary) => count + summary.events.length, 0);
-  const todayEventCount = events.filter((event) => isSameCalendarDay(event.date, today)).length;
-  const nextWeekEnd = addDays(today, 7);
-  const nextWeekEventCount = events.filter(
-    (event) => event.date.getTime() >= today.getTime() && event.date.getTime() < nextWeekEnd.getTime()
-  ).length;
-  const attentionCount = events.filter(
-    (event) => event.kind === "task" && event.date.getTime() < nextWeekEnd.getTime()
-  ).length;
+  const monthStart = startOfMonth(today);
+  const monthEnd = addMonths(monthStart, 1);
+  const monthStartOffset = (monthStart.getDay() + 6) % 7;
+  const gridStart = addDays(monthStart, -monthStartOffset);
+  const weekdayHeaders = Array.from({ length: 7 }, (_, index) => addDays(gridStart, index));
+  const monthCells = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
+  const monthEvents = events.filter(
+    (event) => event.date.getTime() >= monthStart.getTime() && event.date.getTime() < monthEnd.getTime()
+  );
+  const orderedEvents = sortCalendarEvents(monthEvents, today).slice(0, 14);
+  const todayEventCount = monthEvents.filter((event) => isSameCalendarDay(event.date, today)).length;
+  const attentionCount = monthEvents.filter((event) => event.kind === "task").length;
 
   return (
     <section className="mt-5 overflow-hidden rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mt-8">
@@ -617,7 +608,7 @@ function DashboardWorkCalendar({
           <div className="flex flex-wrap gap-2">
             {[
               { label: copy.calendar.today, value: todayEventCount },
-              { label: copy.calendar.next7Days, value: nextWeekEventCount },
+              { label: copy.calendar.next7Days, value: monthEvents.length },
               { label: copy.calendar.attention, value: attentionCount }
             ].map((item) => (
               <div
@@ -632,55 +623,96 @@ function DashboardWorkCalendar({
         </div>
       </div>
 
-      <div className="grid gap-5 border-t border-brass/15 p-5 md:p-6 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]">
+      <div className="grid gap-5 border-t border-brass/15 p-5 md:p-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)]">
         <div className="rounded-md bg-paper/70 p-3 ring-1 ring-ink/8">
-          <div className="mb-3 flex items-center justify-between gap-3 px-1">
-            <h3 className="text-sm font-semibold text-ink">{copy.calendar.daysTitle}</h3>
-            <span className="text-xs font-medium text-graphite/55">{copy.calendar.eventCount(activeDayEventCount)}</span>
-          </div>
-          {activeDaySummaries.length === 0 ? (
-            <div className="rounded-md border border-dashed border-ink/10 bg-white px-4 py-5">
-              <div className="flex size-9 items-center justify-center rounded-full bg-brass/10 text-brass">
-                <CalendarClock size={17} />
-              </div>
-              <h4 className="mt-4 text-sm font-semibold text-ink">{copy.calendar.quietDaysTitle}</h4>
-              <p className="mt-1 text-sm leading-6 text-graphite/65">{copy.calendar.quietDaysDescription}</p>
+          <div className="mb-3 flex flex-col justify-between gap-2 px-1 sm:flex-row sm:items-center">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">{formatCalendarMonth(monthStart, language)}</h3>
+              <p className="mt-1 text-xs text-graphite/60">{copy.calendar.quietDaysDescription}</p>
             </div>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              {activeDaySummaries.map(({ day, events: dayEvents, isToday }) => (
-                <div
+            <span className="text-xs font-medium text-graphite/55">{copy.calendar.eventCount(monthEvents.length)}</span>
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {weekdayHeaders.map((day) => (
+              <div key={day.toISOString()} className="px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
+                {formatWeekday(day, language)}
+              </div>
+            ))}
+            {monthCells.map((day) => {
+              const dayEvents = sortCalendarEvents(
+                monthEvents.filter((event) => isSameCalendarDay(event.date, day)),
+                today
+              );
+              const isToday = isSameCalendarDay(day, today);
+              const isCurrentMonth = isSameMonth(day, monthStart);
+              const hasEvents = dayEvents.length > 0;
+              const CellTag = hasEvents ? "details" : "div";
+
+              return (
+                <CellTag
                   key={day.toISOString()}
-                  className={`rounded-md border px-3 py-3 ${
-                    isToday ? "border-brass/45 bg-brass/[0.08]" : "border-ink/8 bg-white"
-                  }`}
+                  className={`group min-h-[104px] rounded-md border px-2.5 py-2.5 ${
+                    hasEvents
+                      ? "border-brass/35 bg-brass/[0.055]"
+                      : isCurrentMonth
+                        ? "border-ink/8 bg-white"
+                        : "border-transparent bg-transparent text-graphite/35"
+                  } ${isToday ? "ring-1 ring-brass/55" : ""}`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
+                  {hasEvents ? (
+                    <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
+                            {isToday ? copy.calendar.today : formatWeekday(day, language)}
+                          </p>
+                          <p className="mt-1 text-lg font-semibold leading-none text-ink">{day.getDate()}</p>
+                        </div>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-brass shadow-sm">
+                          {dayEvents.length}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {dayEvents.slice(0, 5).map((event) => (
+                          <span key={event.key} className={`size-2 rounded-full ${calendarDotClass(event.tone)}`} />
+                        ))}
+                      </div>
+                    </summary>
+                  ) : (
+                    <div className="flex h-full flex-col">
+                      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/45">
                         {isToday ? copy.calendar.today : formatWeekday(day, language)}
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-ink">{formatShortCalendarDate(day, language)}</p>
+                      <p className={`mt-1 text-lg font-semibold leading-none ${isCurrentMonth ? "text-ink" : "text-graphite/35"}`}>
+                        {day.getDate()}
+                      </p>
                     </div>
-                    <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-semibold text-brass">
-                      {dayEvents.length}
-                    </span>
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {dayEvents.slice(0, 3).map((event) => (
-                      <div key={event.key} className="flex min-w-0 items-center gap-2 text-xs text-graphite/70">
-                        <span className={`size-1.5 shrink-0 rounded-full ${calendarDotClass(event.tone)}`} />
-                        <span className="truncate">{event.label}</span>
-                      </div>
-                    ))}
-                    {dayEvents.length > 3 ? (
-                      <p className="text-xs font-medium text-graphite/55">+{dayEvents.length - 3}</p>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  )}
+                  {hasEvents ? (
+                    <div className="mt-3 space-y-2 border-t border-brass/20 pt-3">
+                      {dayEvents.map((event) => {
+                        const Icon = event.icon;
+
+                        return (
+                          <Link
+                            key={event.key}
+                            href={event.href}
+                            className="flex min-w-0 items-start gap-2 rounded-md bg-white/80 px-2 py-2 text-xs transition hover:bg-white"
+                          >
+                            <Icon size={14} className="mt-0.5 shrink-0 text-brass" />
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold text-ink">{event.title}</span>
+                              <span className="mt-0.5 block truncate text-graphite/65">{event.label}</span>
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </CellTag>
+              );
+            })}
+          </div>
         </div>
 
         <div className="rounded-md border border-ink/8 bg-white">
@@ -759,8 +791,8 @@ export default async function AdminDashboardPage() {
   const projectWhere = { customer: adminOwnedWhere(admin) };
   const adminNotificationWhere = notificationWhere(admin);
   const today = startOfToday();
-  const calendarStart = addDays(today, -7);
-  const calendarEnd = addDays(today, 31);
+  const calendarStart = startOfMonth(today);
+  const calendarEnd = addMonths(calendarStart, 1);
   const staleZipCutoff = new Date(Date.now() - 15 * 60 * 1000);
   const contractWhere = { customer: adminOwnedWhere(admin) };
   const invoiceWhere = { customer: adminOwnedWhere(admin) };
@@ -774,13 +806,11 @@ export default async function AdminDashboardPage() {
     photoStorage,
     unreadNotifications,
     latestNotifications,
-    upcomingProjects,
     calendarProjects,
     calendarLeads,
     calendarContracts,
     calendarInvoices,
     calendarFavoriteLists,
-    calendarAlbumComments,
     calendarApprovedSpreads,
     proofingInviteGalleries,
     submittedProofingGalleries,
@@ -807,34 +837,7 @@ export default async function AdminDashboardPage() {
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
-        eventDate: { gte: today },
-        status: { not: "archived" }
-      },
-      orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
-      take: 6,
-      include: {
-        customer: {
-          select: {
-            id: true,
-            coupleName: true,
-            primaryEmail: true
-          }
-        },
-        _count: {
-          select: {
-            galleries: true,
-            contracts: true,
-            invoices: true,
-            albumReviews: true,
-            albumDesigns: true
-          }
-        }
-      }
-    }),
-    prisma.customerProject.findMany({
-      where: {
-        ...projectWhere,
-        eventDate: { gte: today, lt: calendarEnd },
+        eventDate: { gte: calendarStart, lt: calendarEnd },
         status: { not: "archived" }
       },
       orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
@@ -852,7 +855,7 @@ export default async function AdminDashboardPage() {
     prisma.lead.findMany({
       where: {
         ...adminOwnedWhere(admin),
-        eventDate: { gte: today, lt: calendarEnd }
+        eventDate: { gte: calendarStart, lt: calendarEnd }
       },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
       take: 30,
@@ -934,33 +937,6 @@ export default async function AdminDashboardPage() {
         _count: {
           select: {
             items: true
-          }
-        }
-      }
-    }),
-    prisma.albumReviewComment.findMany({
-      where: {
-        ...albumCommentWhere,
-        createdAt: { gte: calendarStart, lt: calendarEnd }
-      },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      include: {
-        spread: {
-          select: {
-            title: true,
-            review: {
-              select: {
-                id: true,
-                title: true,
-                customer: {
-                  select: {
-                    id: true,
-                    coupleName: true
-                  }
-                }
-              }
-            }
           }
         }
       }
@@ -1219,7 +1195,6 @@ export default async function AdminDashboardPage() {
     return true;
   });
   const openAlbumCommentGroups = groupAlbumCommentsByReview(openAlbumComments);
-  const calendarAlbumCommentGroups = groupAlbumCommentsByReview(calendarAlbumComments);
   const calendarApprovedSpreadGroups = groupAlbumApprovalsByReview(calendarApprovedSpreads);
   const dashboardTasks = sortDashboardTasks([
     ...submittedProofingGalleries.map((gallery): DashboardTask => {
@@ -1327,8 +1302,19 @@ export default async function AdminDashboardPage() {
       icon: AlertCircle,
       createdAt: downloadPackage.updatedAt
     }))
-  ]).slice(0, 8);
+  ]);
   const calendarEvents: DashboardCalendarEvent[] = [
+    ...dashboardTasks.map((task): DashboardCalendarEvent => ({
+      key: `calendar-task-${task.key}`,
+      date: task.createdAt,
+      title: task.title,
+      detail: task.detail,
+      href: task.href,
+      label: task.label,
+      kind: "task",
+      tone: task.priority === "high" ? "danger" : "brass",
+      icon: task.icon
+    })),
     ...calendarProjects.flatMap((project): DashboardCalendarEvent[] => {
       if (!project.eventDate) {
         return [];
@@ -1475,17 +1461,6 @@ export default async function AdminDashboardPage() {
         }
       ];
     }),
-    ...calendarAlbumCommentGroups.map((group): DashboardCalendarEvent => ({
-      key: `calendar-album-comments-${group.reviewId}`,
-      date: group.latestAt,
-      title: group.reviewTitle,
-      detail: copy.tasks.albumCommentDetail(group.customerName, group.count, group.latestText),
-      href: `/admin/clients/${group.customerId}?tab=album`,
-      label: copy.calendar.albumCommentCount(group.count),
-      kind: "task",
-      tone: "brass",
-      icon: MessageSquare
-    })),
     ...calendarApprovedSpreadGroups.map((group): DashboardCalendarEvent => ({
       key: `calendar-album-approved-${group.reviewId}`,
       date: group.latestAt,
@@ -1498,7 +1473,6 @@ export default async function AdminDashboardPage() {
       icon: CheckCircle2
     }))
   ];
-  const urgentTaskCount = dashboardTasks.filter((task) => task.priority === "high").length;
 
   return (
     <AdminShell>
@@ -1542,129 +1516,6 @@ export default async function AdminDashboardPage() {
       />
 
       <DashboardWorkCalendar copy={copy} events={calendarEvents} language={language} today={today} />
-
-      <div className="mt-5 grid gap-6 md:mt-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-        <section className="rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)]">
-          <div className="flex flex-col justify-between gap-3 border-b border-brass/15 px-5 py-4 sm:flex-row sm:items-center">
-            <div>
-              <div className={sectionMetaClass}>
-                <ListChecks size={15} />
-                {copy.focusEyebrow}
-              </div>
-              <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.focusTitle}</h2>
-              <p className="mt-1 text-sm text-graphite/70">
-                {copy.focusDescription}
-              </p>
-            </div>
-            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1.5 text-sm font-medium text-brass">
-              <Clock3 size={15} />
-              {urgentTaskCount} {copy.urgent}
-            </span>
-          </div>
-
-          {dashboardTasks.length === 0 ? (
-            <div className="p-5">
-              <EmptyState
-                icon={<CheckCircle2 size={18} className="text-ink" />}
-                title={copy.noUrgentTitle}
-                description={copy.noUrgentDescription}
-              />
-            </div>
-          ) : (
-            <div className="divide-y divide-ink/10">
-              {dashboardTasks.map((task) => {
-                const Icon = task.icon;
-
-                return (
-                  <Link
-                    key={task.key}
-                    href={task.href}
-                    className="group flex items-start gap-4 px-5 py-4 transition hover:bg-brass/[0.04]"
-                  >
-                    <span className={`mt-1 flex size-10 shrink-0 items-center justify-center rounded-md ${taskIconClass(task.priority)}`}>
-                      <Icon size={18} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-ink">{task.title}</span>
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${taskPriorityClass(task.priority)}`}>
-                          {task.label}
-                        </span>
-                      </span>
-                      <span className="mt-1 line-clamp-2 block text-sm text-graphite/70">{task.detail}</span>
-                    </span>
-                    <ArrowRight size={18} className="mt-2 shrink-0 text-graphite/35 transition group-hover:translate-x-0.5 group-hover:text-brass" />
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)]">
-          <div className="flex flex-col justify-between gap-3 border-b border-brass/15 px-5 py-4 sm:flex-row sm:items-center">
-            <div>
-              <div className={sectionMetaClass}>
-                <FolderKanban size={15} />
-                {copy.projectsEyebrow}
-              </div>
-              <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.projectsTitle}</h2>
-            </div>
-            <ButtonLink href="/admin/clients" variant="secondary" className="h-10">
-              {copy.openClients}
-            </ButtonLink>
-          </div>
-
-          {upcomingProjects.length === 0 ? (
-            <div className="p-5">
-              <EmptyState
-                icon={<FolderKanban size={18} className="text-ink" />}
-                title={copy.noUpcomingTitle}
-                description={copy.noUpcomingDescription}
-              />
-            </div>
-          ) : (
-            <div className="grid gap-3 p-5">
-              {upcomingProjects.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/admin/clients/${project.customer.id}?tab=projects`}
-                  className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-brass/35 hover:bg-brass/[0.04]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-semibold text-ink">{project.title}</p>
-                      <p className="mt-1 truncate text-sm text-graphite/70">{project.customer.coupleName}</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
-                      {customerProjectStatusLabel(project.status)}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid gap-2 text-sm text-graphite/75 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <span className="inline-flex items-center gap-1.5">
-                      <CalendarClock size={14} />
-                      {formatDate(project.eventDate, language)}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Camera size={14} />
-                      {project._count.galleries} {copy.gallery}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
-                      {customerProjectTypeLabel(project.projectType)}
-                    </span>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite">
-                      {project.customer.primaryEmail}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <section className="rounded-md border border-ink/12 bg-white">
