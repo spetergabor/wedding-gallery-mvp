@@ -44,6 +44,7 @@ function formClampedNumber(formData: FormData, key: string, fallback: number, mi
 export async function updateSiteSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
   const logoHeight = formClampedNumber(formData, "logoHeight", 80, 32, 140);
+  const adminName = formString(formData, "adminName") || admin.name;
 
   const existingSettings = await prisma.siteSettings.findFirst({
     where: {
@@ -106,6 +107,13 @@ export async function updateSiteSettingsAction(formData: FormData) {
 
     signatureR2Key = r2Key;
     signatureUrl = getPhotoPublicUrl(r2Key);
+  }
+
+  if (adminName !== admin.name) {
+    await prisma.admin.update({
+      where: { id: admin.id },
+      data: { name: adminName }
+    });
   }
 
   const settings = await prisma.siteSettings.upsert({

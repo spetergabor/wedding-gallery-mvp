@@ -119,9 +119,17 @@ export function SiteSettingsForm({ adminName, settings }: SiteSettingsFormProps)
 
         <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_280px]">
           <div className="rounded-md border border-ink/10 bg-paper p-4 text-sm leading-6 text-graphite/70">
-            <p className="font-medium text-ink">Fotós neve a szerződésben</p>
-            <p className="mt-1 text-lg font-semibold text-ink">{contractPhotographerName}</p>
-            <p className="mt-3">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-ink">Fotós neve a szerződésben</span>
+              <input
+                name="adminName"
+                defaultValue={contractPhotographerName}
+                required
+                autoComplete="name"
+                className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 text-base font-semibold text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <p className="mt-4">
               A rendszer a fiókban megadott fotós nevet írja az aláírt PDF végére. Átlátszó hátterű PNG ajánlott.
             </p>
           </div>
