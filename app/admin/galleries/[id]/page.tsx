@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, Film, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
+import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -442,7 +441,6 @@ export default async function GalleryDetailPage({
       updatedAt: session.updatedAt.toISOString()
     }));
   const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
-  const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
 
   return (
     <AdminShell>
@@ -500,27 +498,6 @@ export default async function GalleryDetailPage({
           </ButtonLink>
         </div>
       </div>
-      {coverPhoto ? (
-        <section className="mb-8 rounded-md border border-ink/12 bg-paper p-1">
-          <div className="relative h-44 w-full overflow-hidden rounded-sm md:h-56 lg:h-64">
-            {coverPhoto.mediaType === "video" ? (
-              <div className="grid h-full place-items-center bg-ink text-white">
-                <Film size={16} />
-              </div>
-            ) : (
-              <Image
-                src={coverPhoto.imageUrl}
-                alt={coverPhoto.filename}
-                fill
-                unoptimized
-                className="object-cover"
-                sizes="100vw"
-                style={{ objectPosition: coverPosition }}
-              />
-            )}
-          </div>
-        </section>
-      ) : null}
       {coverPhoto && coverPhoto.mediaType !== "video" ? (
         <CoverPositionControl
           galleryId={gallery.id}
