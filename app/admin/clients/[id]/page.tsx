@@ -39,6 +39,7 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { CUSTOMER_STATUSES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
+import { getProjectWorkflowSummary } from "@/lib/project-workflow";
 import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 import {
@@ -96,6 +97,51 @@ type CustomerProjectOverview = {
   eventDate: Date | null;
   venue: string | null;
   createdAt: Date;
+  galleries: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    galleryMode: string;
+    proofingStatus: string;
+    proofingInviteSentAt: Date | null;
+    finalDeliveryEmailSentAt: Date | null;
+    _count: {
+      photos: number;
+    };
+  }>;
+  contracts: Array<{
+    id: string;
+    title: string;
+    status: string;
+    sentAt: Date | null;
+    signedAt: Date | null;
+    createdAt: Date;
+  }>;
+  invoices: Array<{
+    id: string;
+    title: string;
+    status: string;
+    dueDate: Date | null;
+    sentAt: Date | null;
+    paidAt: Date | null;
+    createdAt: Date;
+  }>;
+  albumReviews: Array<{
+    id: string;
+    status: string;
+    createdAt: Date;
+    spreads: Array<{
+      approvedAt: Date | null;
+      comments: Array<{
+        status: string;
+      }>;
+    }>;
+  }>;
+  albumDesigns: Array<{
+    id: string;
+    status: string;
+    createdAt: Date;
+  }>;
   _count: {
     galleries: number;
     contracts: number;
@@ -703,6 +749,55 @@ export default async function AdminClientDetailPage({
               }
             }
           },
+          contracts: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              sentAt: true,
+              signedAt: true,
+              createdAt: true
+            }
+          },
+          invoices: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              dueDate: true,
+              sentAt: true,
+              paidAt: true,
+              createdAt: true
+            }
+          },
+          albumReviews: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              status: true,
+              createdAt: true,
+              spreads: {
+                select: {
+                  approvedAt: true,
+                  comments: {
+                    select: {
+                      status: true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          albumDesigns: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              status: true,
+              createdAt: true
+            }
+          },
           _count: {
             select: {
               galleries: true,
@@ -839,6 +934,10 @@ export default async function AdminClientDetailPage({
   const today = startOfToday();
   const projectsByDate = sortProjectsForOverview(customer.projects, today);
   const nextProject = getNextProject(customer.projects, today);
+  const projectWorkflowSummaries = new Map(
+    projectsByDate.map((project) => [project.id, getProjectWorkflowSummary(customer.id, project, { today })])
+  );
+  const nextProjectWorkflow = nextProject ? projectWorkflowSummaries.get(nextProject.id) : null;
 
   return (
     <AdminShell>
@@ -1064,45 +1163,64 @@ export default async function AdminClientDetailPage({
                             {customerProjectTypeLabel(nextProject.projectType)} · {formatDate(nextProject.eventDate)}
                             {nextProject.venue ? ` · ${nextProject.venue}` : ""}
                           </p>
+                          {nextProjectWorkflow ? (
+                            <p className="mt-2 text-sm font-medium text-ink">
+                              Most ez a következő: {nextProjectWorkflow.title}
+                            </p>
+                          ) : null}
                         </div>
                         <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-brass">
-                          {customerProjectStatusLabel(nextProject.status)}
+                          {nextProjectWorkflow?.stateLabel ?? customerProjectStatusLabel(nextProject.status)}
                         </span>
                       </div>
                     </Link>
                   ) : null}
 
                   <div className="divide-y divide-ink/10 rounded-md border border-ink/10">
-                    {projectsByDate.slice(0, 5).map((project) => (
-                      <Link
-                        key={project.id}
-                        href={`/admin/clients/${customer.id}?tab=projects`}
-                        data-customer-tab-target="projects"
-                        className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium text-ink">{project.title}</p>
-                            {project.id === nextProject?.id ? (
-                              <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
-                                Következő
-                              </span>
+                    {projectsByDate.slice(0, 5).map((project) => {
+                      const workflow = projectWorkflowSummaries.get(project.id);
+
+                      return (
+                        <Link
+                          key={project.id}
+                          href={`/admin/clients/${customer.id}?tab=projects`}
+                          data-customer-tab-target="projects"
+                          className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-ink">{project.title}</p>
+                              {project.id === nextProject?.id ? (
+                                <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
+                                  Következő
+                                </span>
+                              ) : null}
+                              {workflow ? (
+                                <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                                  {workflow.stateLabel}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-sm text-graphite/70">
+                              {customerProjectTypeLabel(project.projectType)} · {project.venue || "nincs helyszín"}
+                            </p>
+                            {workflow ? (
+                              <p className="mt-1 text-sm text-graphite/75">
+                                Következő: {workflow.title}
+                              </p>
                             ) : null}
                           </div>
-                          <p className="mt-1 text-sm text-graphite/70">
-                            {customerProjectTypeLabel(project.projectType)} · {project.venue || "nincs helyszín"}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                          <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                            {formatDate(project.eventDate)}
-                          </span>
-                          <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                            {project._count.galleries} galéria
-                          </span>
-                        </div>
-                      </Link>
-                    ))}
+                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                            <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                              {formatDate(project.eventDate)}
+                            </span>
+                            <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                              {project._count.galleries} galéria
+                            </span>
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
               )}

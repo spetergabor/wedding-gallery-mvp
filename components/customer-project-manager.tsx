@@ -15,6 +15,7 @@ import {
   MapPin,
   MessageSquare,
   Plus,
+  ReceiptText,
   Sparkles,
   Trash2
 } from "lucide-react";
@@ -31,14 +32,12 @@ import {
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectStatusAction } from "@/lib/customer-actions";
 import {
-  GALLERY_MODE_PROOFING,
-  PROOFING_STATUS_DELIVERED,
-  PROOFING_STATUS_IN_PROGRESS,
-  PROOFING_STATUS_NOT_OPENED,
-  PROOFING_STATUS_PROCESSING,
-  PROOFING_STATUS_SUBMITTED,
-  proofingStatusLabel
-} from "@/lib/proofing";
+  getProjectPhaseIndex,
+  getProjectWorkflowSummary,
+  type ProjectWorkflowIconKey,
+  type ProjectWorkflowState
+} from "@/lib/project-workflow";
+import { GALLERY_MODE_PROOFING } from "@/lib/proofing";
 
 type ProjectGallery = {
   id: string;
@@ -61,7 +60,41 @@ type CustomerProject = {
   eventDate: Date | null;
   venue: string | null;
   notes: string | null;
+  createdAt: Date;
   galleries: ProjectGallery[];
+  contracts: Array<{
+    id: string;
+    title: string;
+    status: string;
+    sentAt: Date | null;
+    signedAt: Date | null;
+    createdAt: Date;
+  }>;
+  invoices: Array<{
+    id: string;
+    title: string;
+    status: string;
+    dueDate: Date | null;
+    sentAt: Date | null;
+    paidAt: Date | null;
+    createdAt: Date;
+  }>;
+  albumReviews: Array<{
+    id: string;
+    status: string;
+    createdAt: Date;
+    spreads: Array<{
+      approvedAt: Date | null;
+      comments: Array<{
+        status: string;
+      }>;
+    }>;
+  }>;
+  albumDesigns: Array<{
+    id: string;
+    status: string;
+    createdAt: Date;
+  }>;
   _count: {
     galleries: number;
     contracts: number;
@@ -77,15 +110,6 @@ type UnassignedCounts = {
   invoices: number;
   albumReviews: number;
   albumDesigns: number;
-};
-
-type ProjectStep = {
-  title: string;
-  detail: string;
-  href: string;
-  cta: string;
-  state: "action" | "done" | "info" | "waiting";
-  icon: LucideIcon;
 };
 
 const PROJECT_PHASES = [
@@ -150,7 +174,23 @@ function CountPill({ icon: Icon, label, count }: { icon: LucideIcon; label: stri
   );
 }
 
-function stepStyle(state: ProjectStep["state"]) {
+const workflowIconMap: Record<ProjectWorkflowIconKey, LucideIcon> = {
+  archive: Archive,
+  arrow: ArrowRight,
+  book: BookOpen,
+  camera: Camera,
+  check: CheckCircle2,
+  clock: Clock3,
+  file: FileText,
+  heart: Heart,
+  image: ImagePlus,
+  invoice: ReceiptText,
+  list: ListChecks,
+  message: MessageSquare,
+  sparkles: Sparkles
+};
+
+function stepStyle(state: ProjectWorkflowState) {
   if (state === "done") {
     return {
       className: "bg-sage/10 text-sage",
@@ -178,66 +218,8 @@ function stepStyle(state: ProjectStep["state"]) {
   };
 }
 
-function projectPhaseIndex(project: CustomerProject) {
-  if (project.projectType === "album") {
-    if (project.status === "delivered") {
-      return 4;
-    }
-
-    if (project.status === "editing") {
-      return 3;
-    }
-
-    if (project._count.albumReviews > 0 || project.status === "proofing") {
-      return 2;
-    }
-
-    if (project._count.albumDesigns > 0 || project.status === "in_progress") {
-      return 1;
-    }
-
-    return 0;
-  }
-
-  if (project.status === "delivered") {
-    return 4;
-  }
-
-  if (project.status === "editing") {
-    return 3;
-  }
-
-  if (project.status === "proofing") {
-    return 2;
-  }
-
-  if (project.status === "in_progress") {
-    return 1;
-  }
-
-  const proofingGallery = project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING);
-
-  if (proofingGallery?.proofingStatus === PROOFING_STATUS_DELIVERED || proofingGallery?.finalDeliveryEmailSentAt) {
-    return 4;
-  }
-
-  if (proofingGallery?.proofingStatus === PROOFING_STATUS_PROCESSING || proofingGallery?.proofingStatus === PROOFING_STATUS_SUBMITTED) {
-    return 3;
-  }
-
-  if (proofingGallery) {
-    return 2;
-  }
-
-  if (project.galleries.length > 0) {
-    return 1;
-  }
-
-  return 0;
-}
-
 function ProjectPhaseRail({ project }: { project: CustomerProject }) {
-  const currentPhase = projectPhaseIndex(project);
+  const currentPhase = getProjectPhaseIndex(project);
   const phases = project.projectType === "album" ? ALBUM_PROJECT_PHASES : PROJECT_PHASES;
 
   return (
@@ -257,157 +239,6 @@ function ProjectPhaseRail({ project }: { project: CustomerProject }) {
       })}
     </div>
   );
-}
-
-function getPrimaryGallery(project: CustomerProject) {
-  return project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING) ?? project.galleries[0] ?? null;
-}
-
-function getProjectNextStep(customerId: string, project: CustomerProject): ProjectStep {
-  const proofingGallery = project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING) ?? null;
-  const primaryGallery = getPrimaryGallery(project);
-  const isAlbumProject = project.projectType === "album";
-
-  if (project.status === "archived") {
-    return {
-      title: "Projekt archiválva",
-      detail: "Ez a munka lezárt archívumban van, csak visszakeresésre érdemes használni.",
-      href: `/admin/clients/${customerId}?tab=projects`,
-      cta: "Projekt megnyitása",
-      state: "info",
-      icon: Archive
-    };
-  }
-
-  if (project.status === "delivered") {
-    return {
-      title: "Projekt átadva",
-      detail: "A projekt státusza kész, de manuálisan bármikor visszaállítható, ha még van ügyfélmódosítás.",
-      href: primaryGallery ? `/admin/galleries/${primaryGallery.id}` : `/admin/clients/${customerId}?tab=${isAlbumProject ? "album&albumMode=upload" : "projects"}`,
-      cta: primaryGallery ? "Anyag megnyitása" : isAlbumProject ? "Album megnyitása" : "Projekt megnyitása",
-      state: "done",
-      icon: CheckCircle2
-    };
-  }
-
-  if (isAlbumProject) {
-    if (project._count.albumReviews > 0) {
-      return {
-        title: "Album ellenőrzés követése",
-        detail: "Van ügyfélnek kiküldhető vagy már kiküldött album ellenőrző. Itt látod a megjegyzéseket és a rendben jelölt oldalpárokat.",
-        href: `/admin/clients/${customerId}?tab=album&albumMode=upload`,
-        cta: "Album ellenőrző megnyitása",
-        state: project.status === "proofing" ? "waiting" : "action",
-        icon: MessageSquare
-      };
-    }
-
-    if (project._count.albumDesigns > 0) {
-      return {
-        title: "Albumterv ellenőrzővé alakítása",
-        detail: "Az albumterv már elindult. Ha elkészült egy verzió, exportáld album ellenőrzőként, hogy az ügyfél oldalpáronként visszajelezhessen.",
-        href: `/admin/clients/${customerId}?tab=album&albumMode=editor`,
-        cta: "Albumterv megnyitása",
-        state: "action",
-        icon: BookOpen
-      };
-    }
-
-    return {
-      title: "Album munka indítása",
-      detail: "Album projektnél nem kötelező galériát létrehozni. Készítheted az albumot külső programban, majd a kész oldalpárokat töltheted fel ellenőrzésre.",
-      href: `/admin/clients/${customerId}?tab=album&albumMode=upload`,
-      cta: "Album oldalpárok feltöltése",
-      state: "action",
-      icon: BookOpen
-    };
-  }
-
-  if (!primaryGallery) {
-    return {
-      title: "Első galéria létrehozása",
-      detail: "Még nincs ehhez a projekthez kapcsolt galéria vagy feltöltött anyag.",
-      href: `/admin/galleries/new?customerId=${customerId}&projectId=${project.id}`,
-      cta: "Galéria indítása",
-      state: "action",
-      icon: Camera
-    };
-  }
-
-  if (proofingGallery) {
-    if (!proofingGallery.proofingInviteSentAt) {
-      return {
-        title: "Válogató link kiküldése",
-        detail: "A nyers galéria megvan, de az ügyfél még nem kapta meg a válogató linket.",
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-        cta: "Kiküldés kezelése",
-        state: "action",
-        icon: Heart
-      };
-    }
-
-    if (proofingGallery.proofingStatus === PROOFING_STATUS_NOT_OPENED || proofingGallery.proofingStatus === PROOFING_STATUS_IN_PROGRESS) {
-      return {
-        title: "Ügyfél válogatásra vár",
-        detail: proofingStatusLabel(proofingGallery.proofingStatus),
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-        cta: "Válogatás megnyitása",
-        state: "waiting",
-        icon: Clock3
-      };
-    }
-
-    if (proofingGallery.proofingStatus === PROOFING_STATUS_SUBMITTED) {
-      return {
-        title: "Képek kidolgozása",
-        detail: "Az ügyfél leadta a válogatást, most a kiválasztott képek feldolgozása következik.",
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-        cta: "Leadott válogatás",
-        state: "action",
-        icon: ListChecks
-      };
-    }
-
-    if (proofingGallery.proofingStatus === PROOFING_STATUS_PROCESSING) {
-      return {
-        title: "Kidolgozás alatt",
-        detail: "A válogatás feldolgozás alatt van. Ha elkészültél, a kész képek átadása következik.",
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-        cta: "Kész képek kezelése",
-        state: "waiting",
-        icon: Sparkles
-      };
-    }
-
-    return {
-      title: "Kész képek átadva",
-      detail: "A végleges anyag át lett adva az ügyfélnek. A projekt lezárását továbbra is kézzel döntöd el.",
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
-      cta: "Átadás megnyitása",
-      state: "done",
-      icon: CheckCircle2
-    };
-  }
-
-  if (primaryGallery._count.photos === 0) {
-    return {
-      title: "Képek feltöltése",
-      detail: "A galéria létrejött, de még nincs benne média.",
-      href: `/admin/galleries/${primaryGallery.id}?tab=photos`,
-      cta: "Feltöltés megnyitása",
-      state: "action",
-      icon: ImagePlus
-    };
-  }
-
-  return {
-    title: "Galéria használatban",
-    detail: "Van feltöltött anyag. A projekt lezárását vagy következő státuszát kézzel érdemes állítani.",
-    href: `/admin/galleries/${primaryGallery.id}`,
-    cta: "Galéria kezelése",
-    state: project.status === "editing" ? "action" : "info",
-    icon: ArrowRight
-  };
 }
 
 export function CustomerProjectManager({
@@ -546,8 +377,8 @@ export function CustomerProjectManager({
           {projects.map((project) => (
             <article key={project.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
               {(() => {
-                const nextStep = getProjectNextStep(customerId, project);
-                const StepIcon = nextStep.icon;
+                const nextStep = getProjectWorkflowSummary(customerId, project);
+                const StepIcon = workflowIconMap[nextStep.iconKey];
                 const nextStepStyle = stepStyle(nextStep.state);
                 const isAlbumProject = project.projectType === "album";
 
@@ -608,15 +439,15 @@ export function CustomerProjectManager({
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-ink">Következő lépés: {nextStep.title}</p>
+                        <p className="font-semibold text-ink">Most ez a következő: {nextStep.title}</p>
                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${nextStepStyle.className}`}>
-                          {nextStepStyle.label}
+                          {nextStep.stateLabel}
                         </span>
                       </div>
                       <p className="mt-1 text-sm leading-6 text-graphite/70">{nextStep.detail}</p>
                       <ButtonLink href={nextStep.href} variant="secondary" className="mt-3 h-10">
                         <ArrowRight size={16} />
-                        {nextStep.cta}
+                        {nextStep.buttonLabel}
                       </ButtonLink>
                     </div>
                   </div>
