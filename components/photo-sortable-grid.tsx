@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, Film, GripVertical, ImageIcon, Star, Trash2, Undo2 } from "lucide-react";
 import {
   deletePhotoAction,
@@ -40,6 +40,10 @@ export type SortablePhoto = {
 export type PhotoManagerSet = "all" | "raw" | "final" | "selected";
 
 const STALE_PROCESSING_BADGE_MS = 2 * 60 * 60 * 1000;
+const PHOTO_GRID_COLUMN_STORAGE_KEY = "speter.admin.photoGridColumns";
+const PHOTO_GRID_COLUMN_OPTIONS = [3, 4, 5, 6, 7] as const;
+
+type PhotoGridColumnCount = (typeof PHOTO_GRID_COLUMN_OPTIONS)[number];
 
 function getAdminPreviewUrl(photo: SortablePhoto) {
   if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
@@ -103,11 +107,13 @@ export function PhotoSortableGrid({
   const [orderedPhotos, setOrderedPhotos] = useState(() => photos);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [dropTargetPhotoId, setDropTargetPhotoId] = useState<string | null>(null);
+  const [gridColumnCount, setGridColumnCount] = useState<PhotoGridColumnCount>(3);
   const lastLiveMoveRef = useRef<{ draggedId: string; targetId: string } | null>(null);
   const proofingGallery = isProofingGallery(galleryMode);
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
   const normalizedSearch = activeSearch.trim().toLowerCase();
   const hasUnsavedOrder = photosChanged(orderedPhotos, photos);
+  const compactGrid = gridColumnCount >= 5;
   const basePhotos = useMemo(() => {
     if (!proofingGallery) {
       return orderedPhotos;
@@ -132,6 +138,19 @@ export function PhotoSortableGrid({
   const displayedPhotos = normalizedSearch
     ? basePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedSearch))
     : basePhotos;
+
+  useEffect(() => {
+    const storedColumnCount = Number(window.localStorage.getItem(PHOTO_GRID_COLUMN_STORAGE_KEY));
+
+    if (PHOTO_GRID_COLUMN_OPTIONS.includes(storedColumnCount as PhotoGridColumnCount)) {
+      setGridColumnCount(storedColumnCount as PhotoGridColumnCount);
+    }
+  }, []);
+
+  function updateGridColumnCount(columnCount: PhotoGridColumnCount) {
+    setGridColumnCount(columnCount);
+    window.localStorage.setItem(PHOTO_GRID_COLUMN_STORAGE_KEY, String(columnCount));
+  }
 
   function resetDragState() {
     setDraggedPhotoId(null);
@@ -165,7 +184,40 @@ export function PhotoSortableGrid({
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-4 flex flex-col gap-3 rounded-lg border border-ink/10 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-ink">Képek egy sorban</p>
+          <p className="mt-0.5 text-xs text-graphite/70">
+            Nagy kijelzőn most {gridColumnCount} kép látszik egy sorban.
+          </p>
+        </div>
+        <div className="inline-flex w-full rounded-md border border-ink/10 bg-mist p-1 sm:w-auto">
+          {PHOTO_GRID_COLUMN_OPTIONS.map((columnCount) => {
+            const isActive = gridColumnCount === columnCount;
+
+            return (
+              <button
+                key={columnCount}
+                type="button"
+                onClick={() => updateGridColumnCount(columnCount)}
+                className={`h-9 flex-1 rounded px-3 text-sm font-semibold transition sm:flex-none ${
+                  isActive
+                    ? "bg-ink text-white shadow-soft"
+                    : "text-graphite hover:bg-white hover:text-ink"
+                }`}
+                aria-pressed={isActive}
+              >
+                {columnCount}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        className="grid gap-4 sm:grid-cols-2 xl:[grid-template-columns:repeat(var(--photo-grid-columns),minmax(0,1fr))]"
+        style={{ "--photo-grid-columns": gridColumnCount } as CSSProperties}
+      >
         {displayedPhotos.map((photo) => {
           const currentIndex = orderedPhotos.findIndex((orderedPhoto) => orderedPhoto.id === photo.id);
           const isDragging = draggedPhotoId === photo.id;
@@ -283,7 +335,7 @@ export function PhotoSortableGrid({
                   </span>
                 ) : null}
               </div>
-              <div className="space-y-3 p-3">
+              <div className={`${compactGrid ? "space-y-2 p-2.5" : "space-y-3 p-3"}`}>
                 <div>
                   <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
                   <p className="mt-1 text-xs text-graphite/70">
@@ -309,10 +361,15 @@ export function PhotoSortableGrid({
                   <form action={setCoverPhotoAction.bind(null, galleryId, photo.id)}>
                     <button
                       disabled={coverPhotoId === photo.id}
-                      className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:bg-sage/10 disabled:text-sage"
+                      className={`flex h-9 w-full items-center justify-center gap-2 rounded-md border border-ink/10 text-sm text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:bg-sage/10 disabled:text-sage ${
+                        compactGrid ? "px-2" : "px-3"
+                      }`}
+                      title={coverPhotoId === photo.id ? "Borítókép" : "Legyen borító"}
                     >
                       <Star size={15} />
-                      {coverPhotoId === photo.id ? "Borítókép" : "Legyen borító"}
+                      <span className={compactGrid ? "sr-only" : ""}>
+                        {coverPhotoId === photo.id ? "Borítókép" : "Legyen borító"}
+                      </span>
                     </button>
                   </form>
                   <form action={deletePhotoAction.bind(null, photo.id, galleryId)}>
@@ -331,7 +388,7 @@ export function PhotoSortableGrid({
                   <form action={restoreClientHiddenPhotoAction.bind(null, galleryId, photo.id)}>
                     <button className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-3 text-sm text-brass transition hover:bg-brass/15">
                       <Eye size={15} />
-                      Visszatenni publikusba
+                      <span className={compactGrid ? "sr-only" : ""}>Visszatenni publikusba</span>
                     </button>
                   </form>
                 ) : null}
@@ -340,7 +397,7 @@ export function PhotoSortableGrid({
           );
         })}
         {displayedPhotos.length === 0 ? (
-          <div className="sm:col-span-2 lg:col-span-3">
+          <div className="col-span-full">
             <EmptyState
               icon={<ImageIcon size={22} />}
               title={normalizedSearch ? "Nincs találat" : "Még nincs fotó"}
