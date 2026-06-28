@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, UploadCloud } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, UploadCloud } from "lucide-react";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 
 const INTERRUPTED_UPLOAD_AFTER_MS = 20 * 60 * 1000;
@@ -62,25 +62,35 @@ function statusClass(session: UploadSession) {
 }
 
 export function UploadSessionLog({ sessions }: { sessions: UploadSession[] }) {
+  const interruptedCount = sessions.filter(isInterruptedSession).length;
+  const failedCount = sessions.filter((session) => session.failedCount > 0).length;
+
   return (
-    <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+    <details className="group rounded-lg border border-ink/10 bg-white shadow-soft">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-4 p-5 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
           <h2 className="text-lg font-semibold text-ink">Feltöltési előzmények</h2>
-          <p className="mt-1 text-sm text-graphite/70">Nagy feltöltések állapota és hibás fájlok ellenőrzése.</p>
+          <p className="mt-1 text-sm text-graphite/70">
+            {sessions.length === 0
+              ? "Még nincs rögzített feltöltés."
+              : `${sessions.length} feltöltés · ${failedCount + interruptedCount} figyelmet kér`}
+          </p>
         </div>
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
-          <UploadCloud size={18} />
+        <div className="flex items-center gap-2">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
+            <UploadCloud size={18} />
+          </div>
+          <ChevronDown size={18} className="text-graphite/50 transition group-open:rotate-180" />
         </div>
-      </div>
+      </summary>
 
       {sessions.length === 0 ? (
-        <div className="mt-5 rounded-md bg-paper px-4 py-3">
+        <div className="mx-5 mb-5 rounded-md bg-paper px-4 py-3">
           <p className="text-sm font-medium text-ink">Még nincs rögzített feltöltés</p>
           <p className="mt-1 text-sm text-graphite/70">A következő nagy feltöltés állapota itt is látszani fog.</p>
         </div>
       ) : (
-        <div className="mt-5 space-y-3">
+        <div className="space-y-3 border-t border-ink/10 p-5">
           {sessions.map((session) => {
             const failedItems = session.items.filter((item) => item.status === "failed");
             const uploadedProgress =
@@ -166,6 +176,6 @@ export function UploadSessionLog({ sessions }: { sessions: UploadSession[] }) {
           })}
         </div>
       )}
-    </section>
+    </details>
   );
 }

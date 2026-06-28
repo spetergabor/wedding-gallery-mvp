@@ -1,87 +1,23 @@
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Clock3, Eye, EyeOff, Film, ImageIcon, Search, Star, Trash2, X } from "lucide-react";
+import { Clock3, Search, Trash2, X } from "lucide-react";
 import {
   cleanupDuplicatePhotosAction,
-  deletePhotoAction,
-  movePhotoAction,
-  reorderGalleryPhotosAction,
-  restoreClientHiddenPhotoAction,
-  setCoverPhotoAction
+  reorderGalleryPhotosAction
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
-import { EmptyState } from "@/components/empty-state";
-import { APP_TIME_ZONE } from "@/lib/date-format";
+import { PhotoSortableGrid, type PhotoManagerSet, type SortablePhoto } from "@/components/photo-sortable-grid";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
-  isProofingGallery,
-  photoDeliveryStageLabel
+  isProofingGallery
 } from "@/lib/proofing";
 
-type Photo = {
-  id: string;
-  filename: string;
-  imageUrl: string;
-  thumbnailUrl: string;
-  previewUrl: string;
-  deliveryStage: string;
-  mediaType: string;
-  fileSize: number;
-  sortOrder: number;
-  isClientHidden: boolean;
-  clientHiddenAt: Date | null;
-  processingStatus: string;
-  processingError: string | null;
-  processingRequestedAt: Date | null;
-};
-
-export type PhotoManagerSet = "all" | "raw" | "final" | "selected";
-
-const STALE_PROCESSING_BADGE_MS = 2 * 60 * 60 * 1000;
-
-function getAdminPreviewUrl(photo: Photo) {
-  if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
-    return photo.thumbnailUrl;
-  }
-
-  if (photo.previewUrl && photo.previewUrl !== photo.imageUrl) {
-    return photo.previewUrl;
-  }
-
-  return photo.imageUrl;
-}
-
-function hasProcessedVariant(photo: Photo) {
-  return (
-    photo.mediaType !== "video" &&
-    ((photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) ||
-      (photo.previewUrl && photo.previewUrl !== photo.imageUrl))
-  );
-}
-
-function shouldShowProcessingBadge(photo: Photo) {
-  if (photo.processingStatus === "ready" || hasProcessedVariant(photo)) {
-    return false;
-  }
-
-  if (
-    photo.processingStatus !== "failed" &&
-    (!photo.processingRequestedAt ||
-      Date.now() - photo.processingRequestedAt.getTime() > STALE_PROCESSING_BADGE_MS)
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-function duplicatePhotoKey(photo: Photo) {
+function duplicatePhotoKey(photo: SortablePhoto) {
   return [photo.deliveryStage, photo.mediaType === "video" ? "video" : "image", photo.filename.trim(), photo.fileSize ?? 0].join("\u001F");
 }
 
-function countDuplicatePhotos(photos: Photo[]) {
+function countDuplicatePhotos(photos: SortablePhoto[]) {
   const groups = new Map<string, number>();
 
   for (const photo of photos) {
@@ -112,7 +48,7 @@ export function PhotoManager({
   coverPhotoId: string | null;
   galleryId: string;
   galleryMode: string;
-  photos: Photo[];
+  photos: SortablePhoto[];
   activeSet?: string | null;
   activeSearch?: string | null;
   selectedPhotoIds?: string[];
@@ -261,140 +197,16 @@ export function PhotoManager({
             : `${basePhotos.length} kép ebben a nézetben.`}
         </p>
       </form>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {displayedPhotos.map((photo, index) => (
-          <div key={photo.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white">
-            <div className="relative aspect-[4/3] bg-mist">
-              {photo.mediaType === "video" ? (
-                <div className="relative h-full w-full bg-ink">
-                  <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
-                  <span className="absolute inset-0 grid place-items-center text-white">
-                    <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
-                      <Film size={16} />
-                      Videó
-                    </span>
-                  </span>
-                </div>
-              ) : (
-                <Image
-                  src={getAdminPreviewUrl(photo)}
-                  alt={photo.filename}
-                  fill
-                  unoptimized
-                  loading="lazy"
-                  className="object-cover"
-                  sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
-                />
-              )}
-              {coverPhotoId === photo.id ? (
-                <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink">
-                  <Star size={13} />
-                  Borító
-                </span>
-              ) : null}
-              {proofingGallery ? (
-                <span className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink">
-                  {photoDeliveryStageLabel(photo.deliveryStage)}
-                </span>
-              ) : null}
-              {photo.isClientHidden ? (
-                <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-ink/85 px-2.5 py-1 text-xs font-medium text-white">
-                  <EyeOff size={13} />
-                  Ügyfél elrejtette
-                </span>
-              ) : null}
-              {shouldShowProcessingBadge(photo) ? (
-                <span className="absolute bottom-3 left-3 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-graphite">
-                  {photo.processingStatus === "failed" ? "Feldolgozás hibás" : "Feldolgozás alatt"}
-                </span>
-              ) : null}
-            </div>
-            <div className="space-y-3 p-3">
-              <div>
-                <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
-                <p className="mt-1 text-xs text-graphite/70">
-                  Sorrend: {index + 1}
-                  {proofingGallery ? ` · ${photoDeliveryStageLabel(photo.deliveryStage)}` : ""}
-                </p>
-                {photo.processingError ? (
-                  <p className="mt-1 text-xs text-red-700">{photo.processingError}</p>
-                ) : null}
-                {photo.clientHiddenAt ? (
-                  <p className="mt-1 text-xs text-brass">
-                    Elrejtve:{" "}
-                    {photo.clientHiddenAt.toLocaleString("hu-HU", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                      timeZone: APP_TIME_ZONE
-                    })}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <form action={movePhotoAction.bind(null, galleryId, photo.id, "up")}>
-                  <button
-                    title="Előrébb"
-                    disabled={index === 0}
-                    className="flex h-9 w-full items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <ArrowUp size={16} />
-                  </button>
-                </form>
-                <form action={movePhotoAction.bind(null, galleryId, photo.id, "down")}>
-                  <button
-                    title="Hátrébb"
-                    disabled={index === displayedPhotos.length - 1}
-                    className="flex h-9 w-full items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <ArrowDown size={16} />
-                  </button>
-                </form>
-              </div>
-
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <form action={setCoverPhotoAction.bind(null, galleryId, photo.id)}>
-                  <button
-                    disabled={coverPhotoId === photo.id}
-                    className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:bg-sage/10 disabled:text-sage"
-                  >
-                    <Star size={15} />
-                    {coverPhotoId === photo.id ? "Borítókép" : "Legyen borító"}
-                  </button>
-                </form>
-                <form action={deletePhotoAction.bind(null, photo.id, galleryId)}>
-                  <ConfirmSubmitButton
-                    title="Fotó törlése"
-                    message="Biztosan törlöd ezt a fotót? A feltöltött képfájl is törlődik."
-                    variant="danger"
-                    className="size-9 px-0"
-                  >
-                    <Trash2 size={16} />
-                  </ConfirmSubmitButton>
-                </form>
-              </div>
-
-              {photo.isClientHidden ? (
-                <form action={restoreClientHiddenPhotoAction.bind(null, galleryId, photo.id)}>
-                  <button className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-3 text-sm text-brass transition hover:bg-brass/15">
-                    <Eye size={15} />
-                    Visszatenni publikusba
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          </div>
-        ))}
-        {displayedPhotos.length === 0 ? (
-          <div className="sm:col-span-2 lg:col-span-3">
-            <EmptyState
-              icon={<ImageIcon size={22} />}
-              title={normalizedSearch ? "Nincs találat" : "Még nincs fotó"}
-              description={normalizedSearch ? "Próbálj teljes vagy részleges fájlnevet keresni, például SP2_4439 vagy DJI_0018." : emptyDescription}
-            />
-          </div>
-        ) : null}
-      </div>
+      <PhotoSortableGrid
+        activeSearch={normalizedSearch}
+        activeSet={normalizedActiveSet}
+        coverPhotoId={coverPhotoId}
+        emptyDescription={emptyDescription}
+        galleryId={galleryId}
+        galleryMode={galleryMode}
+        photos={photos}
+        selectedPhotoIds={selectedPhotoIds}
+      />
     </section>
   );
 }

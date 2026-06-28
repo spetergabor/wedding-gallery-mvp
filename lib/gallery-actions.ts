@@ -544,6 +544,45 @@ export async function reorderGalleryPhotosAction(galleryId: string) {
   redirect(`/admin/galleries/${galleryId}?tab=photos&ordered=1`);
 }
 
+export async function saveGalleryPhotoOrderAction(galleryId: string, formData: FormData) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const orderedPhotoIds = formData
+    .getAll("photoIds")
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  const currentPhotos = await prisma.photo.findMany({
+    where: { galleryId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: { id: true }
+  });
+  const currentPhotoIds = currentPhotos.map((photo) => photo.id);
+  const currentPhotoIdSet = new Set(currentPhotoIds);
+  const uniqueOrderedPhotoIds = [...new Set(orderedPhotoIds)].filter((photoId) => currentPhotoIdSet.has(photoId));
+
+  if (uniqueOrderedPhotoIds.length !== currentPhotoIds.length) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&orderError=1`);
+  }
+
+  const unchanged = uniqueOrderedPhotoIds.every((photoId, index) => photoId === currentPhotoIds[index]);
+
+  if (!unchanged) {
+    await prisma.$transaction(
+      uniqueOrderedPhotoIds.map((photoId, index) =>
+        prisma.photo.update({
+          where: { id: photoId },
+          data: { sortOrder: index + 1 }
+        })
+      )
+    );
+    await invalidatePublicGalleryDownloadPackages(galleryId);
+  }
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/client/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&ordered=1`);
+}
+
 export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
