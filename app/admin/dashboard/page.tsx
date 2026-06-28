@@ -31,7 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
-import { ensureLeadPipelineSchema, normalizeLeadStatus } from "@/lib/leads";
+import { ensureLeadPipelineSchema, leadEventTypeLabel, leadStatusLabel, normalizeLeadStatus } from "@/lib/leads";
 import {
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -44,6 +44,8 @@ import {
 } from "@/lib/proofing";
 
 type DashboardTaskPriority = "high" | "medium" | "low";
+type DashboardCalendarKind = "task" | "event" | "activity";
+type DashboardCalendarTone = "danger" | "brass" | "sage" | "ink";
 
 type DashboardTask = {
   key: string;
@@ -54,6 +56,18 @@ type DashboardTask = {
   priority: DashboardTaskPriority;
   icon: LucideIcon;
   createdAt: Date;
+};
+
+type DashboardCalendarEvent = {
+  key: string;
+  date: Date;
+  title: string;
+  detail: string;
+  href: string;
+  label: string;
+  kind: DashboardCalendarKind;
+  tone: DashboardCalendarTone;
+  icon: LucideIcon;
 };
 
 type DashboardStat = {
@@ -96,6 +110,35 @@ function startOfToday() {
   return date;
 }
 
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function isSameCalendarDay(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function formatShortCalendarDate(date: Date, language: AdminLanguage) {
+  return date.toLocaleDateString(dateLocaleForAdmin(language), {
+    month: "short",
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
+  });
+}
+
+function formatWeekday(date: Date, language: AdminLanguage) {
+  return date.toLocaleDateString(dateLocaleForAdmin(language), {
+    weekday: "short",
+    timeZone: APP_TIME_ZONE
+  });
+}
+
 function taskPriorityClass(priority: DashboardTaskPriority) {
   if (priority === "high") {
     return "bg-red-50 text-red-700 ring-red-200";
@@ -120,6 +163,38 @@ function taskIconClass(priority: DashboardTaskPriority) {
   return "bg-paper text-graphite";
 }
 
+function calendarToneClass(tone: DashboardCalendarTone) {
+  if (tone === "danger") {
+    return "bg-red-50 text-red-700 ring-red-200";
+  }
+
+  if (tone === "brass") {
+    return "bg-brass/10 text-brass ring-brass/25";
+  }
+
+  if (tone === "sage") {
+    return "bg-sage/12 text-sage ring-sage/25";
+  }
+
+  return "bg-ink/[0.05] text-graphite ring-ink/10";
+}
+
+function calendarDotClass(tone: DashboardCalendarTone) {
+  if (tone === "danger") {
+    return "bg-red-500";
+  }
+
+  if (tone === "brass") {
+    return "bg-brass";
+  }
+
+  if (tone === "sage") {
+    return "bg-sage";
+  }
+
+  return "bg-graphite/55";
+}
+
 function sortDashboardTasks(tasks: DashboardTask[]) {
   const priorityWeight: Record<DashboardTaskPriority, number> = {
     high: 0,
@@ -136,6 +211,23 @@ function sortDashboardTasks(tasks: DashboardTask[]) {
 
     return right.createdAt.getTime() - left.createdAt.getTime();
   });
+}
+
+function sortCalendarEvents(events: DashboardCalendarEvent[], today: Date) {
+  const kindWeight: Record<DashboardCalendarKind, number> = {
+    task: 0,
+    event: 1,
+    activity: 2
+  };
+
+  const futureEvents = events
+    .filter((event) => event.date.getTime() >= today.getTime())
+    .sort((left, right) => left.date.getTime() - right.date.getTime() || kindWeight[left.kind] - kindWeight[right.kind]);
+  const recentEvents = events
+    .filter((event) => event.date.getTime() < today.getTime())
+    .sort((left, right) => right.date.getTime() - left.date.getTime() || kindWeight[left.kind] - kindWeight[right.kind]);
+
+  return [...futureEvents, ...recentEvents];
 }
 
 function DashboardStats({ stats }: { stats: DashboardStat[] }) {
@@ -211,6 +303,31 @@ const DASHBOARD_COPY = {
     urgent: "sürgős",
     noUrgentTitle: "Nincs sürgős admin teendő",
     noUrgentDescription: "A problémás feldolgozások, leadott válogatások és várakozó ügyfélfolyamatok itt jelennek meg, ha érkeznek.",
+    calendar: {
+      eyebrow: "Munkanaptár",
+      title: "Következő 30 nap",
+      description: "Fotózások, szerződések, számlák és ügyféloldali aktivitások egy olvasható idővonalon.",
+      today: "ma",
+      next7Days: "következő 7 nap",
+      attention: "figyelmet kér",
+      agendaTitle: "Agenda",
+      noEventsTitle: "Nincs naptári esemény",
+      noEventsDescription: "Ha projekt, szerződés, számla vagy ügyfélaktivitás érkezik, itt jelenik meg időrendben.",
+      project: "Projekt",
+      lead: "Érdeklődő",
+      contractSent: "Szerződés kiküldve",
+      contractSigned: "Szerződés aláírva",
+      invoiceDue: "Számla határidő",
+      invoiceSent: "Számla kiküldve",
+      invoicePaid: "Számla fizetve",
+      selectionSubmitted: "Válogatás leadva",
+      albumComment: "Album megjegyzés",
+      albumApproved: "Album oldal rendben",
+      task: "Teendő",
+      event: "Esemény",
+      activity: "Aktivitás",
+      recent: "nemrég"
+    },
     projectsEyebrow: "Projektek",
     projectsTitle: "Következő projektek",
     openClients: "Ügyfelek megnyitása",
@@ -278,6 +395,31 @@ const DASHBOARD_COPY = {
     urgent: "dringend",
     noUrgentTitle: "Keine dringenden Admin-Aufgaben",
     noUrgentDescription: "Problematische Verarbeitungen, abgegebene Auswahlen und wartende Kundenprozesse erscheinen hier.",
+    calendar: {
+      eyebrow: "Arbeitskalender",
+      title: "Nächste 30 Tage",
+      description: "Shootings, Verträge, Rechnungen und Kundenaktivitäten in einer gut lesbaren Zeitleiste.",
+      today: "heute",
+      next7Days: "nächste 7 Tage",
+      attention: "braucht Aufmerksamkeit",
+      agendaTitle: "Agenda",
+      noEventsTitle: "Keine Kalendereinträge",
+      noEventsDescription: "Projekte, Verträge, Rechnungen und Kundenaktivitäten erscheinen hier chronologisch.",
+      project: "Projekt",
+      lead: "Anfrage",
+      contractSent: "Vertrag gesendet",
+      contractSigned: "Vertrag unterzeichnet",
+      invoiceDue: "Rechnung fällig",
+      invoiceSent: "Rechnung gesendet",
+      invoicePaid: "Rechnung bezahlt",
+      selectionSubmitted: "Auswahl abgegeben",
+      albumComment: "Albumkommentar",
+      albumApproved: "Albumseite freigegeben",
+      task: "Aufgabe",
+      event: "Termin",
+      activity: "Aktivität",
+      recent: "kürzlich"
+    },
     projectsEyebrow: "Projekte",
     projectsTitle: "Nächste Projekte",
     openClients: "Kunden öffnen",
@@ -297,6 +439,154 @@ const DASHBOARD_COPY = {
   }
 } as const;
 
+type DashboardCopy = (typeof DASHBOARD_COPY)[AdminLanguage];
+
+function DashboardWorkCalendar({
+  copy,
+  events,
+  language,
+  today
+}: {
+  copy: DashboardCopy;
+  events: DashboardCalendarEvent[];
+  language: AdminLanguage;
+  today: Date;
+}) {
+  const dayStrip = Array.from({ length: 14 }, (_, index) => addDays(today, index));
+  const orderedEvents = sortCalendarEvents(events, today).slice(0, 14);
+  const todayEventCount = events.filter((event) => isSameCalendarDay(event.date, today)).length;
+  const nextWeekEnd = addDays(today, 7);
+  const nextWeekEventCount = events.filter(
+    (event) => event.date.getTime() >= today.getTime() && event.date.getTime() < nextWeekEnd.getTime()
+  ).length;
+  const attentionCount = events.filter(
+    (event) => event.kind === "task" && event.date.getTime() < nextWeekEnd.getTime()
+  ).length;
+
+  return (
+    <section className="mt-5 rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mt-8">
+      <div className="flex flex-col justify-between gap-4 border-b border-brass/15 px-5 py-4 lg:flex-row lg:items-start">
+        <div>
+          <div className={sectionMetaClass}>
+            <CalendarClock size={15} />
+            {copy.calendar.eyebrow}
+          </div>
+          <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.calendar.title}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{copy.calendar.description}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
+          {[
+            { label: copy.calendar.today, value: todayEventCount },
+            { label: copy.calendar.next7Days, value: nextWeekEventCount },
+            { label: copy.calendar.attention, value: attentionCount }
+          ].map((item) => (
+            <div key={item.label} className="rounded-md border border-ink/8 bg-paper px-3 py-2">
+              <p className="text-lg font-semibold leading-tight text-ink">{item.value}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/60">{item.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 xl:grid-cols-2 2xl:grid-cols-7">
+          {dayStrip.map((day) => {
+            const dayEvents = events.filter((event) => isSameCalendarDay(event.date, day));
+            const isToday = isSameCalendarDay(day, today);
+
+            return (
+              <div
+                key={day.toISOString()}
+                className={`min-h-24 rounded-md border px-3 py-3 ${
+                  isToday ? "border-brass/45 bg-brass/[0.06]" : "border-ink/10 bg-paper"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
+                      {isToday ? copy.calendar.today : formatWeekday(day, language)}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-ink">{formatShortCalendarDate(day, language)}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${dayEvents.length > 0 ? "bg-white text-ink" : "bg-ink/[0.04] text-graphite/50"}`}>
+                    {dayEvents.length}
+                  </span>
+                </div>
+                {dayEvents.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {dayEvents.slice(0, 5).map((event) => (
+                      <span key={event.key} className={`size-2 rounded-full ${calendarDotClass(event.tone)}`} />
+                    ))}
+                    {dayEvents.length > 5 ? (
+                      <span className="text-[11px] font-medium leading-none text-graphite/60">+{dayEvents.length - 5}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="rounded-md border border-ink/10 bg-paper">
+          <div className="border-b border-ink/10 px-4 py-3">
+            <h3 className="text-sm font-semibold text-ink">{copy.calendar.agendaTitle}</h3>
+          </div>
+          {orderedEvents.length === 0 ? (
+            <div className="p-5">
+              <EmptyState
+                icon={<CalendarClock size={18} className="text-ink" />}
+                title={copy.calendar.noEventsTitle}
+                description={copy.calendar.noEventsDescription}
+              />
+            </div>
+          ) : (
+            <div className="divide-y divide-ink/10">
+              {orderedEvents.map((event) => {
+                const Icon = event.icon;
+                const kindLabel =
+                  event.kind === "task" ? copy.calendar.task : event.kind === "event" ? copy.calendar.event : copy.calendar.activity;
+
+                return (
+                  <Link
+                    key={event.key}
+                    href={event.href}
+                    className="group grid gap-3 px-4 py-3 transition hover:bg-brass/[0.04] sm:grid-cols-[112px_1fr_auto] sm:items-center"
+                  >
+                    <div className="text-sm">
+                      <p className="font-semibold text-ink">{formatShortCalendarDate(event.date, language)}</p>
+                      <p className="mt-0.5 text-xs text-graphite/60">
+                        {event.date.getTime() < today.getTime() ? copy.calendar.recent : formatWeekday(event.date, language)}
+                      </p>
+                    </div>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md ring-1 ${calendarToneClass(event.tone)}`}>
+                        <Icon size={17} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-ink">{event.title}</span>
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${calendarToneClass(event.tone)}`}>
+                            {event.label}
+                          </span>
+                        </span>
+                        <span className="mt-1 line-clamp-2 block text-sm text-graphite/70">{event.detail}</span>
+                      </span>
+                    </div>
+                    <div className="hidden items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-graphite/50 sm:flex">
+                      {kindLabel}
+                      <ArrowRight size={16} className="transition group-hover:translate-x-0.5 group-hover:text-brass" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function isSupersededDownloadPackageMessage(message: string | null | undefined) {
   return message?.toLowerCase().includes("superseded by") ?? false;
 }
@@ -310,6 +600,8 @@ export default async function AdminDashboardPage() {
   const projectWhere = { customer: adminOwnedWhere(admin) };
   const adminNotificationWhere = notificationWhere(admin);
   const today = startOfToday();
+  const calendarStart = addDays(today, -7);
+  const calendarEnd = addDays(today, 31);
   const staleZipCutoff = new Date(Date.now() - 15 * 60 * 1000);
   const contractWhere = { customer: adminOwnedWhere(admin) };
   const invoiceWhere = { customer: adminOwnedWhere(admin) };
@@ -324,6 +616,13 @@ export default async function AdminDashboardPage() {
     unreadNotifications,
     latestNotifications,
     upcomingProjects,
+    calendarProjects,
+    calendarLeads,
+    calendarContracts,
+    calendarInvoices,
+    calendarFavoriteLists,
+    calendarAlbumComments,
+    calendarApprovedSpreads,
     proofingInviteGalleries,
     submittedProofingGalleries,
     finishedProofingGalleries,
@@ -369,6 +668,164 @@ export default async function AdminDashboardPage() {
             invoices: true,
             albumReviews: true,
             albumDesigns: true
+          }
+        }
+      }
+    }),
+    prisma.customerProject.findMany({
+      where: {
+        ...projectWhere,
+        eventDate: { gte: today, lt: calendarEnd },
+        status: { not: "archived" }
+      },
+      orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
+      take: 30,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        }
+      }
+    }),
+    prisma.lead.findMany({
+      where: {
+        ...adminOwnedWhere(admin),
+        eventDate: { gte: today, lt: calendarEnd }
+      },
+      orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
+      take: 30,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        eventType: true,
+        eventDate: true,
+        venue: true,
+        status: true
+      }
+    }),
+    prisma.contract.findMany({
+      where: {
+        ...contractWhere,
+        OR: [
+          { sentAt: { gte: calendarStart, lt: calendarEnd } },
+          { signedAt: { gte: calendarStart, lt: calendarEnd } }
+        ]
+      },
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      take: 40,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        }
+      }
+    }),
+    prisma.customerInvoice.findMany({
+      where: {
+        ...invoiceWhere,
+        OR: [
+          { dueDate: { gte: calendarStart, lt: calendarEnd } },
+          { sentAt: { gte: calendarStart, lt: calendarEnd } },
+          { paidAt: { gte: calendarStart, lt: calendarEnd } }
+        ]
+      },
+      orderBy: [{ dueDate: "asc" }, { updatedAt: "desc" }],
+      take: 40,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        project: {
+          select: {
+            title: true
+          }
+        }
+      }
+    }),
+    prisma.galleryFavoriteList.findMany({
+      where: {
+        submittedAt: { gte: calendarStart, lt: calendarEnd },
+        gallery: adminOwnedWhere(admin)
+      },
+      orderBy: { submittedAt: "desc" },
+      take: 30,
+      include: {
+        gallery: {
+          select: {
+            id: true,
+            title: true,
+            customer: {
+              select: {
+                coupleName: true
+              }
+            }
+          }
+        },
+        _count: {
+          select: {
+            items: true
+          }
+        }
+      }
+    }),
+    prisma.albumReviewComment.findMany({
+      where: {
+        ...albumCommentWhere,
+        createdAt: { gte: calendarStart, lt: calendarEnd }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      include: {
+        spread: {
+          select: {
+            title: true,
+            review: {
+              select: {
+                id: true,
+                title: true,
+                customer: {
+                  select: {
+                    id: true,
+                    coupleName: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }),
+    prisma.albumReviewSpread.findMany({
+      where: {
+        approvedAt: { gte: calendarStart, lt: calendarEnd },
+        review: {
+          customer: adminOwnedWhere(admin)
+        }
+      },
+      orderBy: { approvedAt: "desc" },
+      take: 30,
+      include: {
+        review: {
+          select: {
+            id: true,
+            title: true,
+            customer: {
+              select: {
+                id: true,
+                coupleName: true
+              }
+            }
           }
         }
       }
@@ -709,6 +1166,184 @@ export default async function AdminDashboardPage() {
       createdAt: downloadPackage.updatedAt
     }))
   ]).slice(0, 8);
+  const calendarEvents: DashboardCalendarEvent[] = [
+    ...calendarProjects.flatMap((project): DashboardCalendarEvent[] => {
+      if (!project.eventDate) {
+        return [];
+      }
+
+      const venueText = project.venue ? ` · ${project.venue}` : "";
+
+      return [
+        {
+          key: `calendar-project-${project.id}`,
+          date: project.eventDate,
+          title: project.title,
+          detail: `${project.customer.coupleName} · ${customerProjectTypeLabel(project.projectType)}${venueText}`,
+          href: `/admin/clients/${project.customer.id}?tab=projects`,
+          label: copy.calendar.project,
+          kind: "event",
+          tone: "brass",
+          icon: Camera
+        }
+      ];
+    }),
+    ...calendarLeads.flatMap((lead): DashboardCalendarEvent[] => {
+      if (!lead.eventDate) {
+        return [];
+      }
+
+      const venueText = lead.venue ? ` · ${lead.venue}` : "";
+      const emailText = lead.email ? ` · ${lead.email}` : "";
+
+      return [
+        {
+          key: `calendar-lead-${lead.id}`,
+          date: lead.eventDate,
+          title: lead.name,
+          detail: `${leadEventTypeLabel(lead.eventType, language)} · ${leadStatusLabel(lead.status, language)}${venueText}${emailText}`,
+          href: "/admin/dashboard#lead-pipeline",
+          label: copy.calendar.lead,
+          kind: "event",
+          tone: "ink",
+          icon: FolderKanban
+        }
+      ];
+    }),
+    ...calendarContracts.flatMap((contract): DashboardCalendarEvent[] => {
+      const events: DashboardCalendarEvent[] = [];
+
+      if (contract.sentAt) {
+        events.push({
+          key: `calendar-contract-sent-${contract.id}`,
+          date: contract.sentAt,
+          title: contract.title,
+          detail: contract.customer.coupleName,
+          href: `/admin/clients/${contract.customer.id}?tab=contracts`,
+          label: copy.calendar.contractSent,
+          kind: contract.signedAt ? "activity" : "task",
+          tone: contract.signedAt ? "ink" : "brass",
+          icon: FileText
+        });
+      }
+
+      if (contract.signedAt) {
+        events.push({
+          key: `calendar-contract-signed-${contract.id}`,
+          date: contract.signedAt,
+          title: contract.title,
+          detail: contract.customer.coupleName,
+          href: `/admin/clients/${contract.customer.id}?tab=contracts`,
+          label: copy.calendar.contractSigned,
+          kind: "activity",
+          tone: "sage",
+          icon: CheckCircle2
+        });
+      }
+
+      return events;
+    }),
+    ...calendarInvoices.flatMap((invoice): DashboardCalendarEvent[] => {
+      const events: DashboardCalendarEvent[] = [];
+      const projectText = invoice.project ? ` · ${invoice.project.title}` : "";
+      const detail = `${invoice.customer.coupleName}${projectText}`;
+
+      if (invoice.dueDate && invoice.status !== "paid") {
+        events.push({
+          key: `calendar-invoice-due-${invoice.id}`,
+          date: invoice.dueDate,
+          title: invoice.title,
+          detail,
+          href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+          label: copy.calendar.invoiceDue,
+          kind: "task",
+          tone: invoice.dueDate.getTime() < today.getTime() ? "danger" : "brass",
+          icon: ReceiptText
+        });
+      }
+
+      if (invoice.sentAt) {
+        events.push({
+          key: `calendar-invoice-sent-${invoice.id}`,
+          date: invoice.sentAt,
+          title: invoice.title,
+          detail,
+          href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+          label: copy.calendar.invoiceSent,
+          kind: "activity",
+          tone: "ink",
+          icon: ReceiptText
+        });
+      }
+
+      if (invoice.paidAt) {
+        events.push({
+          key: `calendar-invoice-paid-${invoice.id}`,
+          date: invoice.paidAt,
+          title: invoice.title,
+          detail,
+          href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+          label: copy.calendar.invoicePaid,
+          kind: "activity",
+          tone: "sage",
+          icon: CheckCircle2
+        });
+      }
+
+      return events;
+    }),
+    ...calendarFavoriteLists.flatMap((list): DashboardCalendarEvent[] => {
+      if (!list.submittedAt) {
+        return [];
+      }
+
+      const customerName = list.gallery.customer?.coupleName ?? list.email;
+
+      return [
+        {
+          key: `calendar-favorite-list-${list.id}`,
+          date: list.submittedAt,
+          title: list.gallery.title,
+          detail: `${customerName} · ${list._count.items} ${copy.media}`,
+          href: `/admin/galleries/${list.gallery.id}?tab=client`,
+          label: copy.calendar.selectionSubmitted,
+          kind: "task",
+          tone: "brass",
+          icon: Heart
+        }
+      ];
+    }),
+    ...calendarAlbumComments.map((comment): DashboardCalendarEvent => ({
+      key: `calendar-album-comment-${comment.id}`,
+      date: comment.createdAt,
+      title: comment.spread.review.title,
+      detail: `${comment.spread.review.customer.coupleName}: ${comment.text}`,
+      href: `/admin/clients/${comment.spread.review.customer.id}?tab=album`,
+      label: copy.calendar.albumComment,
+      kind: "task",
+      tone: "brass",
+      icon: MessageSquare
+    })),
+    ...calendarApprovedSpreads.flatMap((spread): DashboardCalendarEvent[] => {
+      if (!spread.approvedAt) {
+        return [];
+      }
+
+      return [
+        {
+          key: `calendar-album-approved-${spread.id}`,
+          date: spread.approvedAt,
+          title: spread.review.title,
+          detail: spread.review.customer.coupleName,
+          href: `/admin/clients/${spread.review.customer.id}?tab=album`,
+          label: copy.calendar.albumApproved,
+          kind: "activity",
+          tone: "sage",
+          icon: CheckCircle2
+        }
+      ];
+    })
+  ];
   const urgentTaskCount = dashboardTasks.filter((task) => task.priority === "high").length;
 
   return (
@@ -751,6 +1386,8 @@ export default async function AdminDashboardPage() {
           status: normalizeLeadStatus(lead.status)
         }))}
       />
+
+      <DashboardWorkCalendar copy={copy} events={calendarEvents} language={language} today={today} />
 
       <div className="mt-5 grid gap-6 md:mt-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
         <section className="rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)]">

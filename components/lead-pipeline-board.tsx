@@ -243,7 +243,7 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
   }
 
   return (
-    <section className="mt-8 rounded-md border border-ink/12 bg-white">
+    <section id="lead-pipeline" className="mt-8 rounded-md border border-ink/12 bg-white">
       <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/65">
