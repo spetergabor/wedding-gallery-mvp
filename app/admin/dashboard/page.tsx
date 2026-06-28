@@ -594,7 +594,7 @@ function DashboardWorkCalendar({
   const attentionCount = monthEvents.filter((event) => event.kind === "task").length;
 
   return (
-    <section className="mt-5 overflow-hidden rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mt-8">
+    <section className="mt-5 rounded-md border border-brass/20 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)] md:mt-8">
       <div className="px-5 py-5 md:px-6">
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
@@ -623,7 +623,7 @@ function DashboardWorkCalendar({
         </div>
       </div>
 
-      <div className="grid gap-5 border-t border-brass/15 p-5 md:p-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)]">
+      <div className="grid gap-5 border-t border-brass/15 p-5 md:p-6 xl:grid-cols-[minmax(300px,0.76fr)_minmax(420px,1.24fr)]">
         <div className="rounded-md bg-paper/70 p-3 ring-1 ring-ink/8">
           <div className="mb-3 flex flex-col justify-between gap-2 px-1 sm:flex-row sm:items-center">
             <div>
@@ -632,13 +632,13 @@ function DashboardWorkCalendar({
             </div>
             <span className="text-xs font-medium text-graphite/55">{copy.calendar.eventCount(monthEvents.length)}</span>
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid grid-cols-7 gap-1">
             {weekdayHeaders.map((day) => (
-              <div key={day.toISOString()} className="px-2 pb-1 text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
+              <div key={day.toISOString()} className="px-1 pb-1 text-center text-[10px] font-medium uppercase tracking-[0.1em] text-graphite/55">
                 {formatWeekday(day, language)}
               </div>
             ))}
-            {monthCells.map((day) => {
+            {monthCells.map((day, index) => {
               const dayEvents = sortCalendarEvents(
                 monthEvents.filter((event) => isSameCalendarDay(event.date, day)),
                 today
@@ -647,13 +647,17 @@ function DashboardWorkCalendar({
               const isCurrentMonth = isSameMonth(day, monthStart);
               const hasEvents = dayEvents.length > 0;
               const CellTag = hasEvents ? "details" : "div";
+              const columnIndex = index % 7;
+              const rowIndex = Math.floor(index / 7);
+              const popupXClass = columnIndex >= 5 ? "right-0" : "left-0";
+              const popupYClass = rowIndex >= 4 ? "bottom-full mb-2" : "top-full mt-2";
 
               return (
                 <CellTag
                   key={day.toISOString()}
-                  className={`group min-h-[104px] rounded-md border px-2.5 py-2.5 ${
+                  className={`group relative min-h-[58px] rounded-md border px-2 py-2 md:min-h-[64px] ${
                     hasEvents
-                      ? "border-brass/35 bg-brass/[0.055]"
+                      ? "border-brass/35 bg-brass/[0.055] transition hover:border-brass/55 hover:bg-brass/[0.085]"
                       : isCurrentMonth
                         ? "border-ink/8 bg-white"
                         : "border-transparent bg-transparent text-graphite/35"
@@ -661,35 +665,42 @@ function DashboardWorkCalendar({
                 >
                   {hasEvents ? (
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">
-                            {isToday ? copy.calendar.today : formatWeekday(day, language)}
-                          </p>
-                          <p className="mt-1 text-lg font-semibold leading-none text-ink">{day.getDate()}</p>
-                        </div>
-                        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-brass shadow-sm">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <p className="text-base font-semibold leading-none text-ink">{day.getDate()}</p>
+                        <span className="rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold leading-none text-brass shadow-sm">
                           {dayEvents.length}
                         </span>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {dayEvents.slice(0, 5).map((event) => (
-                          <span key={event.key} className={`size-2 rounded-full ${calendarDotClass(event.tone)}`} />
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {dayEvents.slice(0, 4).map((event) => (
+                          <span key={event.key} className={`size-1.5 rounded-full ${calendarDotClass(event.tone)}`} />
                         ))}
+                        {dayEvents.length > 4 ? (
+                          <span className="text-[10px] font-semibold leading-none text-brass">+{dayEvents.length - 4}</span>
+                        ) : null}
                       </div>
                     </summary>
                   ) : (
-                    <div className="flex h-full flex-col">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/45">
-                        {isToday ? copy.calendar.today : formatWeekday(day, language)}
-                      </p>
-                      <p className={`mt-1 text-lg font-semibold leading-none ${isCurrentMonth ? "text-ink" : "text-graphite/35"}`}>
+                    <div className="flex h-full flex-col justify-start">
+                      <p className={`text-base font-semibold leading-none ${isCurrentMonth ? "text-ink" : "text-graphite/35"}`}>
                         {day.getDate()}
                       </p>
                     </div>
                   )}
                   {hasEvents ? (
-                    <div className="mt-3 space-y-2 border-t border-brass/20 pt-3">
+                    <div
+                      className={`absolute ${popupXClass} ${popupYClass} z-30 w-[min(300px,80vw)] rounded-md border border-brass/25 bg-white p-3 text-left shadow-[0_18px_50px_rgba(17,17,17,0.18)] ring-1 ring-white/70`}
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-3 border-b border-ink/8 pb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-ink">{formatShortCalendarDate(day, language)}</p>
+                          <p className="mt-0.5 text-xs text-graphite/60">{copy.calendar.eventCount(dayEvents.length)}</p>
+                        </div>
+                        <span className="rounded-full bg-brass/10 px-2 py-0.5 text-xs font-semibold text-brass">
+                          {isToday ? copy.calendar.today : formatWeekday(day, language)}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
                       {dayEvents.map((event) => {
                         const Icon = event.icon;
 
@@ -697,7 +708,7 @@ function DashboardWorkCalendar({
                           <Link
                             key={event.key}
                             href={event.href}
-                            className="flex min-w-0 items-start gap-2 rounded-md bg-white/80 px-2 py-2 text-xs transition hover:bg-white"
+                            className="flex min-w-0 items-start gap-2 rounded-md bg-paper/70 px-2 py-2 text-xs transition hover:bg-brass/[0.08]"
                           >
                             <Icon size={14} className="mt-0.5 shrink-0 text-brass" />
                             <span className="min-w-0">
@@ -707,6 +718,7 @@ function DashboardWorkCalendar({
                           </Link>
                         );
                       })}
+                      </div>
                     </div>
                   ) : null}
                 </CellTag>
