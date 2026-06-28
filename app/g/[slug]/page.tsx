@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { Lock } from "lucide-react";
+import { Facebook, Instagram, Lock, Mail, Music2, Phone, Youtube, type LucideIcon } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
 import { PublicGallery } from "@/components/public-gallery";
 import { SocialShareButtons } from "@/components/social-share-buttons";
@@ -27,6 +27,31 @@ function formatEventDate(date: Date | null, language: "de" | "hu") {
     timeZone: "UTC"
   }).format(date);
 }
+
+function mailHref(value: string | null | undefined) {
+  const email = value?.trim();
+
+  return email ? `mailto:${email}` : null;
+}
+
+function phoneHref(value: string | null | undefined) {
+  const phone = value?.trim();
+
+  if (!phone) {
+    return null;
+  }
+
+  const normalizedPhone = phone.replace(/[^\d+]/g, "");
+
+  return normalizedPhone ? `tel:${normalizedPhone}` : null;
+}
+
+type ContactQuickLink = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  external?: boolean;
+};
 
 export default async function PublicGalleryPage({
   params,
@@ -58,7 +83,17 @@ export default async function PublicGalleryPage({
         ...(gallery.adminId ? [] : [{ id: "default" }])
       ]
     },
-    select: { businessName: true, logoUrl: true, logoHeight: true }
+    select: {
+      businessName: true,
+      logoUrl: true,
+      logoHeight: true,
+      contactEmail: true,
+      contactPhone: true,
+      instagramUrl: true,
+      facebookUrl: true,
+      tiktokUrl: true,
+      youtubeUrl: true
+    }
   });
 
   const canView = await canViewGallery(slug, gallery.password);
@@ -81,6 +116,14 @@ export default async function PublicGalleryPage({
   const logoHeight = Math.min(140, Math.max(32, settings?.logoHeight ?? 80));
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
+  const contactLinks: ContactQuickLink[] = [
+    { href: mailHref(settings?.contactEmail) ?? "", label: "Email", icon: Mail },
+    { href: phoneHref(settings?.contactPhone) ?? "", label: language === "hu" ? "Telefon" : "Telefon", icon: Phone },
+    { href: settings?.instagramUrl ?? "", label: "Instagram", icon: Instagram, external: true },
+    { href: settings?.facebookUrl ?? "", label: "Facebook", icon: Facebook, external: true },
+    { href: settings?.tiktokUrl ?? "", label: "TikTok", icon: Music2, external: true },
+    { href: settings?.youtubeUrl ?? "", label: "YouTube", icon: Youtube, external: true }
+  ].filter((link) => link.href);
 
   if (!canView) {
     return (
@@ -175,6 +218,26 @@ export default async function PublicGalleryPage({
             <div className="mt-7 flex justify-center">
               <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
             </div>
+            {contactLinks.length > 0 ? (
+              <div className="mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2">
+                {contactLinks.map((link) => {
+                  const Icon = link.icon;
+
+                  return (
+                    <a
+                      key={`${link.label}-${link.href}`}
+                      href={link.href}
+                      target={link.external ? "_blank" : undefined}
+                      rel={link.external ? "noreferrer" : undefined}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-ink/10 bg-white/85 px-3.5 text-sm font-medium text-ink shadow-soft transition hover:border-ink/20 hover:bg-white"
+                    >
+                      <Icon size={15} />
+                      {link.label}
+                    </a>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         </div>
       </header>
