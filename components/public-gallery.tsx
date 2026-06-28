@@ -15,6 +15,7 @@ import {
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
+import type { GalleryDownloadQuality } from "@/lib/download-quality";
 
 const GALLERY_COPY = {
   de: {
@@ -38,6 +39,11 @@ const GALLERY_COPY = {
     zipEmail: "Herunterladen",
     downloadAlbum: "Album herunterladen",
     downloadIntro: "Gib deine E-Mail-Adresse ein. Bei großen Galerien senden wir dir eine E-Mail mit allen ZIP-Teilen.",
+    downloadQuality: "Download-Größe",
+    webQuality: "Webgröße",
+    webQualityDescription: "Kompakte JPGs bis 2400 px. Schnell, praktisch zum Teilen und meist deutlich kleiner.",
+    originalQuality: "Volle Auflösung",
+    originalQualityDescription: "Originaldateien in voller Qualität. Ideal zum Archivieren und Drucken.",
     close: "Schließen",
     email: "E-Mail-Adresse",
     zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen. Du erhältst trotzdem nur eine E-Mail mit allen Download-Links.",
@@ -101,9 +107,14 @@ const GALLERY_COPY = {
     sendSelection: "Válogatás elküldése",
     finishSelection: "Válogatás lezárása",
     zipPreparing: "ZIP előkészítése",
-    zipEmail: "ZIP e-mailben",
+    zipEmail: "Letöltés",
     downloadAlbum: "Album letöltése",
     downloadIntro: "Add meg az e-mail címed. Nagy galériáknál egy e-mailben küldjük el az összes ZIP-rész linkjét.",
+    downloadQuality: "Letöltési méret",
+    webQuality: "Webes méret",
+    webQualityDescription: "Kompakt JPG-ek max. 2400 px méretben. Gyors, megosztáshoz praktikus, sokkal kisebb.",
+    originalQuality: "Teljes felbontás",
+    originalQualityDescription: "Eredeti fájlok teljes minőségben. Archiváláshoz és nyomtatáshoz ideális.",
     close: "Bezárás",
     email: "E-mail cím",
     zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak. Ettől függetlenül csak egy e-mailt kapsz az összes letöltési linkkel.",
@@ -228,6 +239,7 @@ export function PublicGallery({
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
+  const [downloadQuality, setDownloadQuality] = useState<GalleryDownloadQuality>("web");
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isEmailOpen, setIsEmailOpen] = useState(false);
@@ -469,7 +481,7 @@ export function PublicGallery({
     setZipProgress(copy.downloadPreparing);
 
     try {
-      const result = await requestGalleryDownloadPackageAction(galleryId, email);
+      const result = await requestGalleryDownloadPackageAction(galleryId, email, downloadQuality);
 
       if (!result.ok) {
         throw new Error(result.message);
@@ -1003,6 +1015,51 @@ export function PublicGallery({
                 <X size={18} />
               </button>
             </div>
+
+            <fieldset className="mt-5">
+              <legend className="text-sm font-medium text-graphite">{copy.downloadQuality}</legend>
+              <div className="mt-2 grid gap-2">
+                {[
+                  {
+                    value: "web" as const,
+                    title: copy.webQuality,
+                    description: copy.webQualityDescription
+                  },
+                  {
+                    value: "original" as const,
+                    title: copy.originalQuality,
+                    description: copy.originalQualityDescription
+                  }
+                ].map((option) => {
+                  const isActive = downloadQuality === option.value;
+
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer gap-3 rounded-md border px-4 py-3 transition ${
+                        isActive ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+                      } ${isZipping ? "cursor-not-allowed opacity-70" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="downloadQuality"
+                        value={option.value}
+                        checked={isActive}
+                        disabled={isZipping}
+                        onChange={() => setDownloadQuality(option.value)}
+                        className="mt-1 size-4"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold">{option.title}</span>
+                        <span className={`mt-1 block text-xs leading-5 ${isActive ? "text-white/70" : "text-graphite/70"}`}>
+                          {option.description}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <label className="mt-5 block space-y-2">
               <span className="text-sm font-medium text-graphite">{copy.email}</span>

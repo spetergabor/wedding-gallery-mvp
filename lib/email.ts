@@ -590,10 +590,9 @@ function guestGalleryDownloadReadyHtml({
       <h1 style="font-size: 22px; margin: 0 0 12px;">${links.length > 1 ? copy.guestDownload.headingMulti : copy.guestDownload.heading}</h1>
       <p style="margin: 0 0 18px;">${links.length > 1 ? copy.guestDownload.bodyMulti : copy.guestDownload.bodySingle} <strong>${escapeHtml(galleryTitle)}</strong> ${links.length > 1 ? copy.guestDownload.bodySuffixMulti : copy.guestDownload.bodySuffixSingle}</p>
       <table style="border-collapse: collapse; margin-bottom: 20px;">
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Galerie</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${asEmailLanguage(language) === "hu" ? "Galéria" : "Galerie"}</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">${copy.guestDownload.mediaLabel}</td><td style="padding: 4px 0;">${photoCount}</td></tr>
-        ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">ZIP-Größe</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${copy.guestDownload.sizeLabel}</td><td style="padding: 4px 0;">${copy.guestDownload.expiresAtLabel}</td></tr>
+        ${formattedSize ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">${copy.guestDownload.sizeLabel}</td><td style="padding: 4px 0;">${escapeHtml(formattedSize)}</td></tr>` : ""}
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">${copy.guestDownload.expiresAtLabel}</td><td style="padding: 4px 0;">${expiresAt.toLocaleString(dateLocale(language), { timeZone: APP_TIME_ZONE })}</td></tr>
       </table>
       <div style="margin: 0 0 18px;">

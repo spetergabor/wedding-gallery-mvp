@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
 import { PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { galleryZipFileName } from "@/lib/jobs";
+import { publicDownloadQualityFromScope } from "@/lib/download-packages";
 
 function plainTextResponse(message: string, status: number) {
   return new NextResponse(message, {
@@ -31,6 +32,7 @@ export async function GET(
     where: { accessToken: token },
     select: {
       status: true,
+      scope: true,
       r2Key: true,
       partIndex: true,
       partCount: true,
@@ -67,7 +69,12 @@ export async function GET(
 
   const signedUrl = await createPresignedPhotoDownloadUrl({
     r2Key: downloadPackage.r2Key,
-    filename: galleryZipFileName(downloadPackage.gallery.title, downloadPackage.partIndex, downloadPackage.partCount)
+    filename: galleryZipFileName(
+      downloadPackage.gallery.title,
+      downloadPackage.partIndex,
+      downloadPackage.partCount,
+      publicDownloadQualityFromScope(downloadPackage.scope)
+    )
   });
 
   return NextResponse.redirect(signedUrl);
