@@ -6,6 +6,7 @@ import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { CoverPositionControl } from "@/components/cover-position-control";
 import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
@@ -189,6 +190,7 @@ export default async function GalleryDetailPage({
   searchParams: Promise<{
     activated?: string;
     archived?: string;
+    coverPosition?: string;
     coverSet?: string;
     deliveryEmail?: string;
     zip?: string;
@@ -440,6 +442,7 @@ export default async function GalleryDetailPage({
       updatedAt: session.updatedAt.toISOString()
     }));
   const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
+  const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
 
   return (
     <AdminShell>
@@ -505,10 +508,27 @@ export default async function GalleryDetailPage({
                 <Film size={16} />
               </div>
             ) : (
-              <Image src={coverPhoto.imageUrl} alt={coverPhoto.filename} fill unoptimized className="object-cover" sizes="100vw" />
+              <Image
+                src={coverPhoto.imageUrl}
+                alt={coverPhoto.filename}
+                fill
+                unoptimized
+                className="object-cover"
+                sizes="100vw"
+                style={{ objectPosition: coverPosition }}
+              />
             )}
           </div>
         </section>
+      ) : null}
+      {coverPhoto && coverPhoto.mediaType !== "video" ? (
+        <CoverPositionControl
+          galleryId={gallery.id}
+          imageUrl={coverPhoto.previewUrl || coverPhoto.imageUrl}
+          imageAlt={coverPhoto.filename}
+          initialX={gallery.coverPositionX ?? 50}
+          initialY={gallery.coverPositionY ?? 50}
+        />
       ) : null}
 
       <div className="mb-5 space-y-3">
@@ -529,6 +549,7 @@ export default async function GalleryDetailPage({
         {flags.zip === "not-active" ? <Alert title="Ez a galéria nem aktív." variant="error" /> : null}
         {flags.zip === "proofing-pending" ? <Alert title="A galéria még nem került átadásra." variant="error" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
+        {flags.coverPosition ? <Alert title="Borítókép pozíciója mentve." variant="success" /> : null}
         {flags.clientLink ? <Alert title="Privát kezelő link elkészítve." variant="success" /> : null}
         {flags.proofingInvite === "sent" ? <Alert title="Válogató link elküldve emailben." variant="success" /> : null}
         {flags.proofingInvite === "missing-email" ? (

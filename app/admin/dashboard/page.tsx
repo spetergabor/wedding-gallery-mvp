@@ -942,7 +942,15 @@ export default async function AdminDashboardPage() {
                             <Film size={18} />
                           </div>
                         ) : (
-                          <Image src={cover.thumbnailUrl} alt={cover.filename} fill unoptimized className="object-cover" sizes="56px" />
+                          <Image
+                            src={cover.thumbnailUrl}
+                            alt={cover.filename}
+                            fill
+                            unoptimized
+                            className="object-cover"
+                            sizes="56px"
+                            style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
+                          />
                         )
                       ) : (
                         <div className="flex h-full items-center justify-center text-graphite/50">

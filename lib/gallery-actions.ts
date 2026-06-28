@@ -73,6 +73,16 @@ function galleryModeFromForm(formData: FormData) {
   return formString(formData, "galleryMode") === GALLERY_MODE_PROOFING ? GALLERY_MODE_PROOFING : GALLERY_MODE_FULL;
 }
 
+function formPercent(formData: FormData, key: string, fallback = 50) {
+  const parsed = Number.parseInt(formString(formData, key), 10);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(100, Math.max(0, parsed));
+}
+
 async function requireGalleryAccess(galleryId: string) {
   const admin = await requireAdmin();
   const gallery = await prisma.gallery.findFirst({
@@ -2546,13 +2556,36 @@ export async function setCoverPhotoAction(galleryId: string, photoId: string) {
 
   await prisma.gallery.update({
     where: { id: galleryId },
-    data: { coverPhotoId: photoId }
+    data: {
+      coverPhotoId: photoId,
+      coverPositionX: 50,
+      coverPositionY: 50
+    }
   });
 
   revalidatePath("/admin/galleries");
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${photo.gallery.slug}`);
   redirect(`/admin/galleries/${galleryId}?coverSet=1`);
+}
+
+export async function updateCoverPositionAction(galleryId: string, formData: FormData) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const coverPositionX = formPercent(formData, "coverPositionX");
+  const coverPositionY = formPercent(formData, "coverPositionY");
+
+  await prisma.gallery.update({
+    where: { id: galleryId },
+    data: {
+      coverPositionX,
+      coverPositionY
+    }
+  });
+
+  revalidatePath("/admin/galleries");
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?coverPosition=1`);
 }
 
 export async function movePhotoAction(galleryId: string, photoId: string, direction: "up" | "down") {

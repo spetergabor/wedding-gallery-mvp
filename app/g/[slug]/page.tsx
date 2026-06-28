@@ -76,6 +76,7 @@ export default async function PublicGalleryPage({
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
+  const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
   const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage ?? flags.lang);
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
@@ -133,6 +134,7 @@ export default async function PublicGalleryPage({
               unoptimized
               className="object-cover"
               sizes="100vw"
+              style={{ objectPosition: coverPosition }}
             />
           ) : (
             <div className="absolute inset-0 bg-graphite" />

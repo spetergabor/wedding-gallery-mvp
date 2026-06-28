@@ -347,6 +347,8 @@ model Gallery {
   proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
   coverPhotoId String?
+  coverPositionX Int      @default(50)
+  coverPositionY Int      @default(50)
   clientEmail  String?
   clientAccessToken String? @unique
   proofingInviteSentAt DateTime?
