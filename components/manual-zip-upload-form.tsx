@@ -5,11 +5,39 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
+  abortManualGalleryZipMultipartUploadAction,
   completeManualGalleryZipUploadAction,
+  completeManualGalleryZipMultipartUploadAction,
+  createManualGalleryZipMultipartPartUploadUrlAction,
   createManualGalleryZipUploadTargetAction
 } from "@/lib/gallery-actions";
 
 type UploadStatus = "idle" | "preparing" | "uploading" | "saving" | "completed" | "failed";
+
+type ManualZipMultipartUploadTarget = {
+  ok: true;
+  uploadType: "multipart";
+  r2Key: string;
+  downloadUrl: string;
+  uploadId: string;
+  partSize: number;
+  partCount: number;
+};
+
+type ManualZipUploadTarget =
+  | {
+      ok: true;
+      uploadType?: "single";
+      r2Key: string;
+      downloadUrl: string;
+      uploadUrl: string;
+    }
+  | ManualZipMultipartUploadTarget;
+
+type UploadedPart = {
+  etag: string | null;
+  partNumber: number;
+};
 
 function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -44,6 +72,46 @@ function statusLabel(status: UploadStatus) {
   }
 }
 
+function uploadRequest({
+  body,
+  contentType,
+  uploadUrl,
+  totalBytes,
+  onProgress
+}: {
+  body: Blob | File;
+  contentType?: string;
+  uploadUrl: string;
+  totalBytes: number;
+  onProgress: (bytesSent: number) => void;
+}) {
+  return new Promise<{ etag: string | null }>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+
+    request.open("PUT", uploadUrl);
+    if (contentType) {
+      request.setRequestHeader("Content-Type", contentType);
+    }
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(event.loaded);
+      }
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        onProgress(totalBytes);
+        resolve({ etag: request.getResponseHeader("ETag") });
+        return;
+      }
+
+      reject(new Error(`A ZIP feltöltése nem sikerült. (${request.status})`));
+    };
+    request.onerror = () => reject(new Error("Hálózati hiba történt feltöltés közben."));
+    request.onabort = () => reject(new Error("A feltöltés megszakadt."));
+    request.send(body);
+  });
+}
+
 function uploadFile({
   file,
   uploadUrl,
@@ -53,29 +121,59 @@ function uploadFile({
   uploadUrl: string;
   onProgress: (bytesSent: number) => void;
 }) {
-  return new Promise<void>((resolve, reject) => {
-    const request = new XMLHttpRequest();
+  return uploadRequest({
+    body: file,
+    contentType: file.type || "application/zip",
+    uploadUrl,
+    totalBytes: file.size,
+    onProgress
+  }).then(() => undefined);
+}
 
-    request.open("PUT", uploadUrl);
-    request.setRequestHeader("Content-Type", file.type || "application/zip");
-    request.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress(event.loaded);
-      }
-    };
-    request.onload = () => {
-      if (request.status >= 200 && request.status < 300) {
-        onProgress(file.size);
-        resolve();
-        return;
-      }
+async function uploadMultipartFile({
+  file,
+  galleryId,
+  target,
+  onProgress
+}: {
+  file: File;
+  galleryId: string;
+  target: ManualZipMultipartUploadTarget;
+  onProgress: (bytesSent: number) => void;
+}) {
+  const uploadedParts: UploadedPart[] = [];
+  let completedBytes = 0;
 
-      reject(new Error(`A ZIP feltöltése nem sikerült. (${request.status})`));
-    };
-    request.onerror = () => reject(new Error("Hálózati hiba történt feltöltés közben."));
-    request.onabort = () => reject(new Error("A feltöltés megszakadt."));
-    request.send(file);
-  });
+  for (let partNumber = 1; partNumber <= target.partCount; partNumber += 1) {
+    const start = (partNumber - 1) * target.partSize;
+    const end = Math.min(start + target.partSize, file.size);
+    const blob = file.slice(start, end);
+    const partTarget = await createManualGalleryZipMultipartPartUploadUrlAction(galleryId, {
+      r2Key: target.r2Key,
+      uploadId: target.uploadId,
+      partNumber
+    });
+
+    if (!partTarget.ok || !partTarget.uploadUrl) {
+      throw new Error(partTarget.message ?? "Nem sikerült előkészíteni a ZIP rész feltöltését.");
+    }
+
+    const uploaded = await uploadRequest({
+      body: blob,
+      uploadUrl: partTarget.uploadUrl,
+      totalBytes: blob.size,
+      onProgress: (partBytesSent) => onProgress(completedBytes + partBytesSent)
+    });
+
+    completedBytes += blob.size;
+    onProgress(completedBytes);
+    uploadedParts.push({
+      etag: uploaded.etag,
+      partNumber
+    });
+  }
+
+  return uploadedParts;
 }
 
 export function ManualZipUploadForm({
@@ -122,6 +220,8 @@ export function ManualZipUploadForm({
       return;
     }
 
+    const multipartTargetRef: { current: ManualZipMultipartUploadTarget | null } = { current: null };
+
     try {
       setStatus("preparing");
       setErrorMessage("");
@@ -133,23 +233,62 @@ export function ManualZipUploadForm({
         fileSize: selectedFile.size
       });
 
-      if (!target.ok || !target.uploadUrl || !target.r2Key || !target.downloadUrl) {
+      if (!target.ok || !target.r2Key || !target.downloadUrl) {
         throw new Error(target.message ?? "Nem sikerült előkészíteni a ZIP feltöltést.");
       }
 
-      setStatus("uploading");
-      await uploadFile({
-        file: selectedFile,
-        uploadUrl: target.uploadUrl,
-        onProgress: setBytesSent
-      });
+      if (target.uploadType === "multipart" && (!target.uploadId || !target.partSize || !target.partCount)) {
+        throw new Error("Nem sikerült előkészíteni a nagy ZIP feltöltést.");
+      }
 
-      setStatus("saving");
-      const completed = await completeManualGalleryZipUploadAction(galleryId, {
-        r2Key: target.r2Key,
-        downloadUrl: target.downloadUrl,
-        fileSize: selectedFile.size
-      });
+      if (target.uploadType !== "multipart" && !target.uploadUrl) {
+        throw new Error("Nem sikerült előkészíteni a ZIP feltöltést.");
+      }
+
+      setStatus("uploading");
+      const completed =
+        target.uploadType === "multipart"
+          ? await (async () => {
+              const multipartUploadTarget: ManualZipMultipartUploadTarget = {
+                ok: true,
+                uploadType: "multipart",
+                r2Key: target.r2Key,
+                downloadUrl: target.downloadUrl,
+                uploadId: target.uploadId!,
+                partSize: target.partSize!,
+                partCount: target.partCount!
+              };
+              multipartTargetRef.current = multipartUploadTarget;
+              const parts = await uploadMultipartFile({
+                file: selectedFile,
+                galleryId,
+                target: multipartUploadTarget,
+                onProgress: setBytesSent
+              });
+
+              setStatus("saving");
+              return completeManualGalleryZipMultipartUploadAction(galleryId, {
+                r2Key: multipartUploadTarget.r2Key,
+                downloadUrl: multipartUploadTarget.downloadUrl,
+                uploadId: multipartUploadTarget.uploadId,
+                fileSize: selectedFile.size,
+                parts
+              });
+            })()
+          : await (async () => {
+              await uploadFile({
+                file: selectedFile,
+                uploadUrl: target.uploadUrl!,
+                onProgress: setBytesSent
+              });
+
+              setStatus("saving");
+              return completeManualGalleryZipUploadAction(galleryId, {
+                r2Key: target.r2Key,
+                downloadUrl: target.downloadUrl,
+                fileSize: selectedFile.size
+              });
+            })();
 
       if (!completed.ok) {
         throw new Error(completed.message);
@@ -159,6 +298,15 @@ export function ManualZipUploadForm({
       router.replace(`/admin/galleries/${galleryId}?tab=downloads&zip=manual-uploaded`);
       router.refresh();
     } catch (error) {
+      const multipartTarget = multipartTargetRef.current;
+
+      if (multipartTarget) {
+        await abortManualGalleryZipMultipartUploadAction(galleryId, {
+          r2Key: multipartTarget.r2Key,
+          uploadId: multipartTarget.uploadId
+        }).catch(() => undefined);
+      }
+
       setStatus("failed");
       setErrorMessage(error instanceof Error ? error.message : "A ZIP feltöltése nem sikerült.");
     }

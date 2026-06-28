@@ -31,7 +31,11 @@ import {
 import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
+  abortMultipartUpload,
+  completeMultipartUpload,
+  createMultipartUpload,
   createManualGalleryZipObjectKey,
+  createPresignedMultipartUploadPartUrl,
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
   createPhotoVariantObjectKey,
@@ -43,6 +47,9 @@ import {
   savePhotoObject
 } from "@/lib/storage";
 import { verifyTotpCode } from "@/lib/totp";
+
+const MANUAL_ZIP_MULTIPART_THRESHOLD_BYTES = 4 * 1024 * 1024 * 1024;
+const MANUAL_ZIP_MULTIPART_PART_SIZE_BYTES = 128 * 1024 * 1024;
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -2476,8 +2483,43 @@ export async function createManualGalleryZipUploadTargetAction(
   const downloadUrl = getPhotoPublicUrl(r2Key);
 
   try {
+    if (file.fileSize > MANUAL_ZIP_MULTIPART_THRESHOLD_BYTES) {
+      if (!isR2StorageEnabled()) {
+        return {
+          ok: false,
+          message: "Ekkora ZIP fájlhoz R2 multipart feltöltés szükséges."
+        };
+      }
+
+      const partCount = Math.ceil(file.fileSize / MANUAL_ZIP_MULTIPART_PART_SIZE_BYTES);
+
+      if (partCount > 10000) {
+        return {
+          ok: false,
+          message: "Ez a ZIP fájl túl nagy a feltöltéshez."
+        };
+      }
+
+      const multipart = await createMultipartUpload({
+        r2Key,
+        contentType: normalizeZipContentType(file.contentType)
+      });
+
+      return {
+        ok: true,
+        uploadType: "multipart",
+        r2Key,
+        downloadUrl,
+        photoCount: state.photoCount,
+        uploadId: multipart.uploadId,
+        partSize: MANUAL_ZIP_MULTIPART_PART_SIZE_BYTES,
+        partCount
+      };
+    }
+
     return {
       ok: true,
+      uploadType: "single",
       r2Key,
       downloadUrl,
       photoCount: state.photoCount,
@@ -2497,6 +2539,168 @@ export async function createManualGalleryZipUploadTargetAction(
       message: "Nem sikerült előkészíteni a ZIP feltöltést."
     };
   }
+}
+
+export async function createManualGalleryZipMultipartPartUploadUrlAction(
+  galleryId: string,
+  upload: {
+    r2Key: string;
+    uploadId: string;
+    partNumber: number;
+  }
+) {
+  await requireGalleryAccess(galleryId);
+  const state = await getManualZipGalleryState(galleryId);
+
+  if (!state.ok) {
+    return {
+      ok: false,
+      message: "Ehhez a galériához most nem tölthető fel ZIP csomag."
+    };
+  }
+
+  const manualPrefix = `galleries/${state.gallery.slug}/downloads/manual/`;
+
+  if (!upload.r2Key?.startsWith(manualPrefix) || !upload.uploadId) {
+    return {
+      ok: false,
+      message: "Érvénytelen ZIP feltöltési cél."
+    };
+  }
+
+  if (!Number.isInteger(upload.partNumber) || upload.partNumber < 1 || upload.partNumber > 10000) {
+    return {
+      ok: false,
+      message: "Érvénytelen ZIP rész."
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      uploadUrl: await createPresignedMultipartUploadPartUrl({
+        r2Key: upload.r2Key,
+        uploadId: upload.uploadId,
+        partNumber: upload.partNumber
+      })
+    };
+  } catch (error) {
+    console.error("Manual ZIP multipart part target creation failed", {
+      galleryId,
+      partNumber: upload.partNumber,
+      error
+    });
+
+    return {
+      ok: false,
+      message: "Nem sikerült előkészíteni a ZIP rész feltöltését."
+    };
+  }
+}
+
+export async function abortManualGalleryZipMultipartUploadAction(
+  galleryId: string,
+  upload: {
+    r2Key: string;
+    uploadId: string;
+  }
+) {
+  await requireGalleryAccess(galleryId);
+  const state = await getManualZipGalleryState(galleryId);
+
+  if (!state.ok) {
+    return {
+      ok: false,
+      message: "Ehhez a galériához most nem kezelhető ZIP csomag."
+    };
+  }
+
+  const manualPrefix = `galleries/${state.gallery.slug}/downloads/manual/`;
+
+  if (!upload.r2Key?.startsWith(manualPrefix) || !upload.uploadId) {
+    return {
+      ok: false,
+      message: "Érvénytelen ZIP feltöltési cél."
+    };
+  }
+
+  await abortMultipartUpload({
+    r2Key: upload.r2Key,
+    uploadId: upload.uploadId
+  });
+
+  return {
+    ok: true
+  };
+}
+
+export async function completeManualGalleryZipMultipartUploadAction(
+  galleryId: string,
+  upload: {
+    r2Key: string;
+    downloadUrl: string;
+    uploadId: string;
+    fileSize: number;
+    parts: Array<{ etag?: string | null; partNumber: number }>;
+  }
+) {
+  await requireGalleryAccess(galleryId);
+  const state = await getManualZipGalleryState(galleryId);
+
+  if (!state.ok) {
+    return {
+      ok: false,
+      message: "Ehhez a galériához most nem menthető ZIP csomag."
+    };
+  }
+
+  const manualPrefix = `galleries/${state.gallery.slug}/downloads/manual/`;
+
+  if (!upload.r2Key?.startsWith(manualPrefix) || !upload.downloadUrl || !upload.uploadId) {
+    return {
+      ok: false,
+      message: "Érvénytelen ZIP feltöltési cél."
+    };
+  }
+
+  if (!Number.isFinite(upload.fileSize) || upload.fileSize <= 0) {
+    return {
+      ok: false,
+      message: "A ZIP fájl mérete érvénytelen."
+    };
+  }
+
+  if (!Array.isArray(upload.parts) || upload.parts.length === 0) {
+    return {
+      ok: false,
+      message: "Hiányoznak a feltöltött ZIP részek."
+    };
+  }
+
+  try {
+    await completeMultipartUpload({
+      r2Key: upload.r2Key,
+      uploadId: upload.uploadId,
+      parts: upload.parts
+    });
+  } catch (error) {
+    console.error("Manual ZIP multipart completion failed", {
+      galleryId,
+      uploadId: upload.uploadId,
+      error
+    });
+
+    return {
+      ok: false,
+      message: "A ZIP részek lezárása nem sikerült."
+    };
+  }
+
+  return completeManualGalleryZipUploadAction(galleryId, {
+    r2Key: upload.r2Key,
+    downloadUrl: upload.downloadUrl,
+    fileSize: upload.fileSize
+  });
 }
 
 export async function completeManualGalleryZipUploadAction(

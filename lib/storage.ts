@@ -10,6 +10,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
   UploadPartCommand
@@ -591,6 +592,158 @@ export async function createPresignedPhotoUploadUrl({
   });
 
   return getSignedUrl(getR2Client(), command, { expiresIn: 60 * 10 });
+}
+
+export async function createMultipartUpload({
+  r2Key,
+  contentType
+}: {
+  r2Key: string;
+  contentType?: string;
+}) {
+  if (STORAGE_DRIVER !== "r2") {
+    throw new Error("Multipart upload is only available with R2 storage.");
+  }
+
+  const multipartUpload = await getR2Client().send(
+    new CreateMultipartUploadCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: r2Key,
+      ContentType: contentType || "application/octet-stream"
+    })
+  );
+
+  if (!multipartUpload.UploadId) {
+    throw new Error("R2 multipart upload could not be started.");
+  }
+
+  return {
+    uploadId: multipartUpload.UploadId
+  };
+}
+
+export async function createPresignedMultipartUploadPartUrl({
+  r2Key,
+  uploadId,
+  partNumber
+}: {
+  r2Key: string;
+  uploadId: string;
+  partNumber: number;
+}) {
+  if (STORAGE_DRIVER !== "r2") {
+    throw new Error("Multipart upload is only available with R2 storage.");
+  }
+
+  const command = new UploadPartCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: r2Key,
+    UploadId: uploadId,
+    PartNumber: partNumber
+  });
+
+  return getSignedUrl(getR2Client(), command, { expiresIn: 60 * 60 });
+}
+
+export async function completeMultipartUpload({
+  r2Key,
+  uploadId,
+  parts
+}: {
+  r2Key: string;
+  uploadId: string;
+  parts: Array<{ etag?: string | null; partNumber: number }>;
+}) {
+  if (STORAGE_DRIVER !== "r2") {
+    throw new Error("Multipart upload is only available with R2 storage.");
+  }
+
+  const client = getR2Client();
+  const normalizedParts = parts
+    .filter((part) => Number.isInteger(part.partNumber) && part.partNumber > 0)
+    .map((part) => ({
+      ETag: part.etag?.trim() || null,
+      PartNumber: part.partNumber
+    }))
+    .sort((left, right) => left.PartNumber - right.PartNumber);
+
+  if (normalizedParts.length === 0) {
+    throw new Error("No uploaded parts were provided.");
+  }
+
+  let completedParts = normalizedParts;
+
+  if (completedParts.some((part) => !part.ETag)) {
+    const listedParts: Array<{ ETag: string; PartNumber: number }> = [];
+    let partNumberMarker: string | undefined;
+
+    do {
+      const listed = await client.send(
+        new ListPartsCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          UploadId: uploadId,
+          PartNumberMarker: partNumberMarker
+        })
+      );
+
+      for (const part of listed.Parts ?? []) {
+        if (part.ETag && part.PartNumber) {
+          listedParts.push({
+            ETag: part.ETag,
+            PartNumber: part.PartNumber
+          });
+        }
+      }
+
+      partNumberMarker = listed.NextPartNumberMarker;
+    } while (partNumberMarker);
+
+    const expectedPartNumbers = new Set(normalizedParts.map((part) => part.PartNumber));
+    completedParts = listedParts
+      .filter((part) => expectedPartNumbers.has(part.PartNumber))
+      .sort((left, right) => left.PartNumber - right.PartNumber);
+  }
+
+  if (completedParts.length !== normalizedParts.length || completedParts.some((part) => !part.ETag)) {
+    throw new Error("R2 multipart upload parts could not be verified.");
+  }
+
+  await client.send(
+    new CompleteMultipartUploadCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: r2Key,
+      UploadId: uploadId,
+      MultipartUpload: {
+        Parts: completedParts.map((part) => ({
+          ETag: part.ETag ?? undefined,
+          PartNumber: part.PartNumber
+        }))
+      }
+    })
+  );
+}
+
+export async function abortMultipartUpload({
+  r2Key,
+  uploadId
+}: {
+  r2Key: string;
+  uploadId: string;
+}) {
+  if (STORAGE_DRIVER !== "r2") {
+    return;
+  }
+
+  await getR2Client()
+    .send(
+      new AbortMultipartUploadCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        UploadId: uploadId
+      })
+    )
+    .catch(() => undefined);
 }
 
 export async function createPresignedPhotoDownloadUrl({
