@@ -3,6 +3,7 @@ import { PassThrough, Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
+import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { ensureDownloadPackageAccessToken, publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
 import {
@@ -13,7 +14,14 @@ import {
   sendGuestGalleryDownloadReadyEmail
 } from "@/lib/email";
 import { galleryDownloadQualityLabel, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
-import { createGalleryZipObjectKey, createPhotoReadStream, deletePhotoObject, getPhotoPublicUrl, savePhotoStream } from "@/lib/storage";
+import {
+  createGalleryZipObjectKey,
+  createPhotoReadStream,
+  deletePhotoObject,
+  getPhotoPublicUrl,
+  getR2KeyFromPublicUrl,
+  savePhotoStream
+} from "@/lib/storage";
 import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 
@@ -21,6 +29,8 @@ export const ZIP_GENERATION_JOB = "zip_generation";
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 const REMOTE_FILE_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
 const WEB_DOWNLOAD_ESTIMATED_IMAGE_BYTES = 1024 * 1024;
+const WEB_DOWNLOAD_MAX_SIZE = 2400;
+const WEB_DOWNLOAD_JPEG_QUALITY = 76;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -207,6 +217,40 @@ function createRemoteFileStream(photo: { filename: string; imageUrl: string }) {
         clearTimeout(timeout);
       }
     })()
+  );
+}
+
+function createWebImageStream(photo: {
+  filename: string;
+  imageUrl: string;
+  previewUrl: string;
+  r2Key: string;
+  fileSize: number;
+}) {
+  const previewR2Key = photo.previewUrl && photo.previewUrl !== photo.imageUrl ? getR2KeyFromPublicUrl(photo.previewUrl) : null;
+  const sourceStream = previewR2Key
+    ? createPhotoReadStream({
+        r2Key: previewR2Key,
+        publicUrl: photo.previewUrl
+      })
+    : photo.r2Key
+      ? createPhotoReadStream({
+          r2Key: photo.r2Key,
+          publicUrl: photo.imageUrl,
+          byteLength: photo.fileSize
+        })
+      : createRemoteFileStream({ filename: photo.filename, imageUrl: photo.previewUrl || photo.imageUrl });
+
+  return sourceStream.pipe(
+    sharp({ failOn: "none" })
+      .rotate()
+      .resize({
+        width: WEB_DOWNLOAD_MAX_SIZE,
+        height: WEB_DOWNLOAD_MAX_SIZE,
+        fit: "inside",
+        withoutEnlargement: true
+      })
+      .jpeg({ quality: WEB_DOWNLOAD_JPEG_QUALITY, mozjpeg: true })
   );
 }
 
@@ -783,17 +827,16 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     zip.pipe(zipStream);
 
     for (const [index, photo] of gallery.photos.entries()) {
-      const sourceUrl =
-        quality === "web" && photo.mediaType !== "video" && photo.previewUrl && photo.previewUrl !== photo.imageUrl
-          ? photo.previewUrl
-          : photo.imageUrl;
-      const mediaStream = sourceUrl
-        ? createRemoteFileStream({ filename: photo.filename, imageUrl: sourceUrl })
-        : createPhotoReadStream({
-            r2Key: photo.r2Key,
-            publicUrl: photo.imageUrl,
-            byteLength: photo.fileSize
-          });
+      const mediaStream =
+        quality === "web" && photo.mediaType !== "video"
+          ? createWebImageStream(photo)
+          : photo.imageUrl
+            ? createRemoteFileStream({ filename: photo.filename, imageUrl: photo.imageUrl })
+            : createPhotoReadStream({
+                r2Key: photo.r2Key,
+                publicUrl: photo.imageUrl,
+                byteLength: photo.fileSize
+              });
 
       zip.append(mediaStream, {
         name: photoZipFileName(photo.filename, downloadPackage.photoOffset + index, quality, photo.mediaType)

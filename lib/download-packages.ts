@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
 
 export const PUBLIC_DOWNLOAD_SCOPE = "public";
-export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
-export const PUBLIC_DOWNLOAD_SCOPES = [PUBLIC_DOWNLOAD_SCOPE, PUBLIC_WEB_DOWNLOAD_SCOPE] as const;
+export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
+export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web_v2";
+export const PUBLIC_DOWNLOAD_SCOPES = [PUBLIC_DOWNLOAD_SCOPE, LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE, PUBLIC_WEB_DOWNLOAD_SCOPE] as const;
 export const DOWNLOAD_LINK_TTL_DAYS = 7;
 export const DOWNLOAD_LINK_TTL_MS = DOWNLOAD_LINK_TTL_DAYS * 24 * 60 * 60 * 1000;
 
@@ -13,7 +14,7 @@ export function publicDownloadScopeForQuality(value: string | null | undefined) 
 }
 
 export function publicDownloadQualityFromScope(scope: string | null | undefined): GalleryDownloadQuality {
-  return scope === PUBLIC_WEB_DOWNLOAD_SCOPE ? "web" : "original";
+  return scope?.startsWith("public_web") ? "web" : "original";
 }
 
 function createDownloadToken() {
