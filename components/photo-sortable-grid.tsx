@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Eye, EyeOff, Film, GripVertical, ImageIcon, Star, Trash2, Undo2 } from "lucide-react";
 import {
   deletePhotoAction,
@@ -102,6 +102,8 @@ export function PhotoSortableGrid({
 }) {
   const [orderedPhotos, setOrderedPhotos] = useState(() => photos);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
+  const [dropTargetPhotoId, setDropTargetPhotoId] = useState<string | null>(null);
+  const lastLiveMoveRef = useRef<{ draggedId: string; targetId: string } | null>(null);
   const proofingGallery = isProofingGallery(galleryMode);
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
   const normalizedSearch = activeSearch.trim().toLowerCase();
@@ -130,6 +132,12 @@ export function PhotoSortableGrid({
   const displayedPhotos = normalizedSearch
     ? basePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedSearch))
     : basePhotos;
+
+  function resetDragState() {
+    setDraggedPhotoId(null);
+    setDropTargetPhotoId(null);
+    lastLiveMoveRef.current = null;
+  }
 
   function movePhoto(draggedId: string, targetId: string) {
     if (draggedId === targetId) {
@@ -161,35 +169,66 @@ export function PhotoSortableGrid({
         {displayedPhotos.map((photo) => {
           const currentIndex = orderedPhotos.findIndex((orderedPhoto) => orderedPhoto.id === photo.id);
           const isDragging = draggedPhotoId === photo.id;
+          const isDropTarget = dropTargetPhotoId === photo.id && !isDragging;
 
           return (
             <div
               key={photo.id}
               draggable
+              aria-grabbed={isDragging}
               onDragStart={(event) => {
                 setDraggedPhotoId(photo.id);
+                setDropTargetPhotoId(null);
+                lastLiveMoveRef.current = null;
                 event.dataTransfer.effectAllowed = "move";
                 event.dataTransfer.setData("text/plain", photo.id);
+                event.dataTransfer.setDragImage(
+                  event.currentTarget,
+                  event.currentTarget.offsetWidth / 2,
+                  Math.min(event.currentTarget.offsetHeight / 2, 180)
+                );
               }}
-              onDragEnd={() => setDraggedPhotoId(null)}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-              }}
-              onDrop={(event) => {
+              onDragEnter={(event) => {
                 event.preventDefault();
                 const draggedId = event.dataTransfer.getData("text/plain") || draggedPhotoId;
 
-                if (draggedId) {
-                  movePhoto(draggedId, photo.id);
+                if (!draggedId || draggedId === photo.id) {
+                  return;
                 }
 
-                setDraggedPhotoId(null);
+                setDropTargetPhotoId(photo.id);
+
+                const lastLiveMove = lastLiveMoveRef.current;
+                if (lastLiveMove?.draggedId === draggedId && lastLiveMove.targetId === photo.id) {
+                  return;
+                }
+
+                lastLiveMoveRef.current = { draggedId, targetId: photo.id };
+                movePhoto(draggedId, photo.id);
               }}
-              className={`overflow-hidden rounded-lg border bg-white transition ${
-                isDragging ? "border-brass/60 opacity-60 ring-2 ring-brass/25" : "border-ink/10"
+              onDragEnd={resetDragState}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                if (dropTargetPhotoId !== photo.id) {
+                  setDropTargetPhotoId(photo.id);
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                resetDragState();
+              }}
+              className={`group relative transform-gpu cursor-grab overflow-hidden rounded-lg border bg-white shadow-sm transition-[transform,box-shadow,border-color,opacity] duration-200 ease-out active:cursor-grabbing ${
+                isDragging
+                  ? "scale-[1.02] rotate-[0.35deg] border-brass/70 opacity-85 shadow-[0_18px_45px_rgba(17,17,17,0.16)] ring-2 ring-brass/25"
+                  : isDropTarget
+                    ? "-translate-y-0.5 border-brass/45 shadow-[0_12px_30px_rgba(178,139,78,0.16)]"
+                    : "border-ink/10 hover:-translate-y-0.5 hover:border-brass/25 hover:shadow-soft"
               }`}
             >
+              {isDropTarget ? (
+                <span className="pointer-events-none absolute inset-2 z-10 rounded-md border border-dashed border-brass/45" />
+              ) : null}
               <div className="relative aspect-[4/3] bg-mist">
                 {photo.mediaType === "video" ? (
                   <div className="relative h-full w-full bg-ink">
@@ -206,13 +245,18 @@ export function PhotoSortableGrid({
                     src={getAdminPreviewUrl(photo)}
                     alt={photo.filename}
                     fill
+                    draggable={false}
                     unoptimized
                     loading="lazy"
                     className="object-cover"
                     sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                   />
                 )}
-                <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink">
+                <span
+                  className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                    isDragging ? "bg-ink text-white" : "bg-white/90 text-ink"
+                  }`}
+                >
                   <GripVertical size={13} />
                   Húzd
                 </span>
