@@ -32,14 +32,8 @@ const WEB_DOWNLOAD_ESTIMATED_IMAGE_BYTES = 1024 * 1024;
 const WEB_DOWNLOAD_MAX_SIZE = 2400;
 const WEB_DOWNLOAD_JPEG_QUALITY = 76;
 const ZIP_TRIGGER_DISPATCH_CONCURRENCY = readPositiveInteger(process.env.ZIP_TRIGGER_DISPATCH_CONCURRENCY, 8, 1);
-const ZIP_CLEANUP_BATCH_SIZE = readPositiveInteger(process.env.ZIP_CLEANUP_BATCH_SIZE, 25, 1);
 const ZIP_STUCK_PROCESSING_HOURS = readPositiveInteger(process.env.ZIP_STUCK_PROCESSING_HOURS, 3, 1);
-const ZIP_STALE_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_STALE_RETENTION_DAYS, 1, 0);
-const ZIP_COMPLETED_WEB_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_COMPLETED_WEB_RETENTION_DAYS, 14, 1);
-const ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS, 14, 1);
-const ZIP_MANUAL_RETENTION_DAYS = readPositiveInteger(process.env.ZIP_MANUAL_RETENTION_DAYS, 30, 1);
 const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
 
 type ZipGenerationPayload = {
   galleryId: string;
@@ -1355,55 +1349,9 @@ async function processBackgroundJob(job: {
   throw new Error(`Unknown background job type: ${job.type}`);
 }
 
-function zipPackageAgeDate(downloadPackage: { generatedAt: Date | null; linkCreatedAt: Date | null; updatedAt: Date; createdAt: Date }) {
-  return downloadPackage.linkCreatedAt ?? downloadPackage.generatedAt ?? downloadPackage.updatedAt ?? downloadPackage.createdAt;
-}
-
-function shouldExpireZipPackage(
-  downloadPackage: {
-    status: string;
-    scope: string;
-    r2Key: string | null;
-    generatedAt: Date | null;
-    linkCreatedAt: Date | null;
-    accessTokenExpiresAt: Date | null;
-    updatedAt: Date;
-    createdAt: Date;
-  },
-  now: Date
-) {
-  if (!downloadPackage.r2Key) {
-    return false;
-  }
-
-  if (["stale", "failed"].includes(downloadPackage.status)) {
-    return downloadPackage.updatedAt.getTime() <= now.getTime() - ZIP_STALE_RETENTION_DAYS * DAY_MS;
-  }
-
-  if (downloadPackage.status !== "completed") {
-    return false;
-  }
-
-  if (downloadPackage.accessTokenExpiresAt && downloadPackage.accessTokenExpiresAt > now) {
-    return false;
-  }
-
-  const ageDate = zipPackageAgeDate(downloadPackage);
-  const isManualUpload = downloadPackage.r2Key.includes("/downloads/manual/");
-  const retentionDays = isManualUpload
-    ? ZIP_MANUAL_RETENTION_DAYS
-    : publicDownloadQualityFromScope(downloadPackage.scope) === "web"
-      ? ZIP_COMPLETED_WEB_RETENTION_DAYS
-      : ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS;
-
-  return ageDate.getTime() <= now.getTime() - retentionDays * DAY_MS;
-}
-
-export async function cleanupExpiredGalleryZipPackages({ limit = ZIP_CLEANUP_BATCH_SIZE } = {}) {
+export async function cleanupStuckGalleryZipWork() {
   const now = new Date();
   const stuckCutoff = new Date(now.getTime() - ZIP_STUCK_PROCESSING_HOURS * HOUR_MS);
-  const completedCutoff = new Date(now.getTime() - Math.min(ZIP_COMPLETED_WEB_RETENTION_DAYS, ZIP_COMPLETED_ORIGINAL_RETENTION_DAYS, ZIP_MANUAL_RETENTION_DAYS) * DAY_MS);
-  const staleCutoff = new Date(now.getTime() - ZIP_STALE_RETENTION_DAYS * DAY_MS);
   const [stuckPackages, stuckJobs] = await Promise.all([
     prisma.galleryDownloadPackage.updateMany({
       where: {
@@ -1428,79 +1376,8 @@ export async function cleanupExpiredGalleryZipPackages({ limit = ZIP_CLEANUP_BAT
       }
     })
   ]);
-  const candidates = await prisma.galleryDownloadPackage.findMany({
-    where: {
-      r2Key: { not: null },
-      OR: [
-        {
-          status: { in: ["stale", "failed"] },
-          updatedAt: { lt: staleCutoff }
-        },
-        {
-          status: "completed",
-          OR: [{ generatedAt: { lt: completedCutoff } }, { linkCreatedAt: { lt: completedCutoff } }, { createdAt: { lt: completedCutoff } }]
-        }
-      ]
-    },
-    orderBy: { updatedAt: "asc" },
-    take: Math.max(limit * 3, limit),
-    select: {
-      id: true,
-      galleryId: true,
-      status: true,
-      scope: true,
-      r2Key: true,
-      generatedAt: true,
-      linkCreatedAt: true,
-      accessTokenExpiresAt: true,
-      updatedAt: true,
-      createdAt: true
-    }
-  });
-  const expiredPackages = candidates.filter((downloadPackage) => shouldExpireZipPackage(downloadPackage, now)).slice(0, limit);
-  let deletedObjects = 0;
-  const affectedGalleryIds = new Set<string>();
-
-  for (const downloadPackage of expiredPackages) {
-    if (downloadPackage.r2Key) {
-      await deletePhotoObject(downloadPackage.r2Key);
-      deletedObjects += 1;
-    }
-
-    affectedGalleryIds.add(downloadPackage.galleryId);
-
-    await prisma.$transaction([
-      prisma.galleryDownloadPackage.update({
-        where: { id: downloadPackage.id },
-        data: {
-          status: "expired",
-          r2Key: null,
-          downloadUrl: null,
-          accessToken: null,
-          accessTokenExpiresAt: null,
-          errorMessage: "A ZIP retention szabály alapján törölve lett az R2 tárhelyről."
-        }
-      }),
-      prisma.galleryDownload.updateMany({
-        where: {
-          packageId: downloadPackage.id,
-          status: { in: ["waiting", "email_failed", "recorded"] }
-        },
-        data: {
-          status: "expired",
-          downloadLinkEmailError: "A ZIP csomag lejárt, új letöltési linket kell kérni."
-        }
-      })
-    ]);
-  }
-
-  for (const galleryId of affectedGalleryIds) {
-    safeRevalidatePath(`/admin/galleries/${galleryId}`);
-  }
 
   return {
-    expiredPackages: expiredPackages.length,
-    deletedObjects,
     stuckPackages: stuckPackages.count,
     stuckJobs: stuckJobs.count
   };

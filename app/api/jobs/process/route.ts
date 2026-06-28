@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cleanupExpiredGalleryZipPackages, processPendingJobs } from "@/lib/jobs";
+import { cleanupStuckGalleryZipWork, processPendingJobs } from "@/lib/jobs";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -25,13 +25,13 @@ async function processJobs(request: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const cleanup = await cleanupExpiredGalleryZipPackages();
+  const zipMaintenance = await cleanupStuckGalleryZipWork();
 
   if (process.env.ZIP_WORKER_DRIVER === "trigger") {
     return NextResponse.json({
       ok: true,
       skipped: true,
-      cleanup,
+      zipMaintenance,
       message: "ZIP processing is handled by the external Trigger.dev worker."
     });
   }
@@ -40,7 +40,7 @@ async function processJobs(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    cleanup,
+    zipMaintenance,
     ...results
   });
 }

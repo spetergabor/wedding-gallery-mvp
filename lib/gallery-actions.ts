@@ -1057,6 +1057,9 @@ export async function deleteGalleryAction(id: string) {
       slug: true,
       photos: {
         select: { r2Key: true, thumbnailUrl: true, previewUrl: true }
+      },
+      downloadPackages: {
+        select: { r2Key: true }
       }
     }
   });
@@ -1071,11 +1074,14 @@ export async function deleteGalleryAction(id: string) {
 
   await deleteGalleryObjects(
     gallery.slug,
-    gallery.photos.flatMap((photo) => [
-      photo.r2Key,
-      getR2KeyFromPublicUrl(photo.thumbnailUrl),
-      getR2KeyFromPublicUrl(photo.previewUrl)
-    ])
+    [
+      ...gallery.photos.flatMap((photo) => [
+        photo.r2Key,
+        getR2KeyFromPublicUrl(photo.thumbnailUrl),
+        getR2KeyFromPublicUrl(photo.previewUrl)
+      ]),
+      ...gallery.downloadPackages.map((downloadPackage) => downloadPackage.r2Key)
+    ]
   );
 
   revalidatePath("/admin/galleries");
