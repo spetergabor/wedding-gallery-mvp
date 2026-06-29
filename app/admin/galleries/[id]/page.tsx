@@ -410,24 +410,13 @@ export default async function GalleryDetailPage({
       <div className="space-y-6">
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
-            {!proofingGallery ? (
-              <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
-                <PhotoUploadForm
-                  galleryId={gallery.id}
-                  galleryMode={gallery.galleryMode}
-                  defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
-                  resumableSessions={resumableUploadSessions}
-                />
-                <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} />
-              </div>
-            ) : (
-              <PhotoUploadForm
-                galleryId={gallery.id}
-                galleryMode={gallery.galleryMode}
-                defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
-                resumableSessions={resumableUploadSessions}
-              />
-            )}
+            <PhotoUploadForm
+              galleryId={gallery.id}
+              galleryMode={gallery.galleryMode}
+              defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+              resumableSessions={resumableUploadSessions}
+            />
+            {!proofingGallery ? <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} /> : null}
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
               coverPhotoId={gallery.coverPhotoId}
