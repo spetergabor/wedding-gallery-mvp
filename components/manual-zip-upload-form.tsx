@@ -313,7 +313,7 @@ export function ManualZipUploadForm({
   }
 
   return (
-    <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+    <section className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
@@ -322,7 +322,7 @@ export function ManualZipUploadForm({
               Letöltési átadás
             </div>
             <h2 className="mt-2 text-xl font-semibold text-ink">Kész ZIP feltöltése</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">
               Ha a Macen elkészített ZIP-et töltöd fel, a pár azonnal letöltheti a kész csomagot. A rendszer közben automatikusan elkészíti a
               kompakt, webes méretű vendég ZIP-et is.
             </p>
@@ -333,23 +333,12 @@ export function ManualZipUploadForm({
           </span>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-md border border-brass/25 bg-brass/10 px-3 py-3">
-            <p className="text-sm font-semibold text-ink">Saját ZIP</p>
-            <p className="mt-1 text-sm leading-5 text-graphite/70">Azonnal letölthető, nem kell megvárni a mérettől függő ZIP-készítési időt.</p>
-          </div>
-          <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
-            <p className="text-sm font-semibold text-ink">Webes ZIP</p>
-            <p className="mt-1 text-sm leading-5 text-graphite/70">Automatikusan készül kompakt vendégletöltéshez.</p>
-          </div>
-        </div>
-
-        <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-ink/20 bg-paper px-4 py-6 text-center transition hover:border-ink/35">
-          <UploadCloud size={24} className="text-graphite/70" />
-          <span className="mt-2 text-sm font-medium text-ink">
+        <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-ink/20 bg-paper px-4 py-4 text-center transition hover:border-ink/35 sm:flex-row sm:gap-3 sm:text-left">
+          <UploadCloud size={22} className="text-graphite/70" />
+          <span className="mt-2 text-sm font-medium text-ink sm:mt-0">
             {selectedFile ? selectedFile.name : "ZIP fájl kiválasztása"}
           </span>
-          <span className="mt-1 text-xs text-graphite/60">
+          <span className="mt-1 text-xs text-graphite/60 sm:ml-auto sm:mt-0">
             {selectedFile ? formatBytes(selectedFile.size) : ".zip fájl, közvetlen R2 feltöltéssel"}
           </span>
           <input
