@@ -128,26 +128,6 @@ function WorkflowPanel({
   );
 }
 
-type CompactStat = {
-  label: string;
-  value: string | number;
-  detail: string;
-};
-
-function CompactStatsGrid({ items }: { items: CompactStat[] }) {
-  return (
-    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      {items.map((item) => (
-        <div key={item.label} className="rounded-md border border-ink/10 bg-paper px-3 py-2.5">
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-graphite/65">{item.label}</p>
-          <p className="mt-1.5 text-xl font-semibold leading-tight text-ink">{item.value}</p>
-          <p className="mt-1 text-xs text-graphite/75">{item.detail}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function getActiveTab(flags: {
   activated?: string;
   archived?: string;
@@ -291,12 +271,6 @@ export default async function GalleryDetailPage({
       views: {
         orderBy: { createdAt: "desc" },
         take: 25
-      },
-      _count: {
-        select: {
-          favoriteLists: true,
-          views: true
-        }
       }
     }
   });
@@ -336,11 +310,6 @@ export default async function GalleryDetailPage({
     }
   });
 
-  const latestView = gallery.views[0];
-  const latestLocation = latestView
-    ? [latestView.city, latestView.region, latestView.country].filter(Boolean).join(", ") || "Ismeretlen hely"
-    : "Nincs adat";
-  const hiddenByClientCount = gallery.photos.filter((photo) => photo.isClientHidden).length;
   const activeTab = getActiveTab(flags);
   const locationPoints = createViewLocationPoints(gallery.views);
   const proofingGallery = isProofingGallery(gallery.galleryMode);
@@ -348,7 +317,6 @@ export default async function GalleryDetailPage({
     ...tab,
     label: tab.key === "client" ? (proofingGallery ? "Válogatás" : "Kedvenc listák") : tab.label
   }));
-  const galleryModeLabel = proofingGallery ? "Nyers válogatás" : "Teljes galéria";
   const rawPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "raw").length;
   const finalPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "final").length;
   const selectedPhotoIds = Array.from(
@@ -584,25 +552,6 @@ export default async function GalleryDetailPage({
           steps={workflowSteps}
         />
 
-        <CompactStatsGrid
-          items={[
-            {
-              label: "Fotók",
-              value: gallery.photos.length,
-              detail: proofingGallery ? `Nyers: ${rawPhotoCount} · Kész: ${finalPhotoCount}` : "Feltöltött képek száma"
-            },
-            {
-              label: "Típus",
-              value: galleryModeLabel,
-              detail: proofingGallery ? proofingStatusLabel(gallery.proofingStatus) : "Kész galéria átadásra"
-            },
-            { label: "Megtekintések", value: gallery._count.views, detail: `Legutóbbi: ${latestLocation}` },
-            { label: "Kedvenc listák", value: gallery._count.favoriteLists, detail: "Emailhez mentett válogatások" },
-            { label: "Elrejtve", value: hiddenByClientCount, detail: "Ügyfél által publikusból kivéve" },
-            { label: "Állapot", value: gallery.isActive ? "Aktív" : "Archivált", detail: "Publikus elérhetőség" }
-          ]}
-        />
-
         <GalleryTabController tabs={renderedGalleryTabs} initialTab={activeTab} />
 
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
@@ -614,35 +563,6 @@ export default async function GalleryDetailPage({
               resumableSessions={resumableUploadSessions}
             />
             {!proofingGallery ? <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} /> : null}
-            {!proofingGallery ? (
-              <section className="rounded-md border border-ink/12 bg-white p-4">
-                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                  <div>
-                    <div className={sectionMetaClass}>
-                      <KeyRound size={15} />
-                      Privát kezelő link
-                    </div>
-                    <h2 className="mt-2 text-lg font-semibold text-ink">Képek elrejtése az ügyfélnek</h2>
-                    <p className="mt-1 text-sm text-graphite/70">
-                      Ezen a linken az ügyfél végig tudja nézni a kész galériát, és elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    {gallery.clientAccessToken ? (
-                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
-                    ) : (
-                      <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                        <FormSubmitButton variant="secondary" pendingLabel="Link készítése...">
-                          <KeyRound size={16} />
-                          Privát kezelő link generálása
-                        </FormSubmitButton>
-                      </form>
-                    )}
-                  </div>
-                </div>
-              </section>
-            ) : null}
-            <UploadSessionLog sessions={gallery.uploadSessions} />
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
               coverPhotoId={gallery.coverPhotoId}
@@ -842,6 +762,35 @@ export default async function GalleryDetailPage({
         <div data-gallery-tab-panel="settings" hidden={activeTab !== "settings"}>
           <div className="space-y-8">
             <GalleryForm gallery={gallery} customers={customers} projects={projects} selectedCustomerId={gallery.customerId} selectedProjectId={gallery.projectId} />
+            {!proofingGallery ? (
+              <section className="rounded-md border border-ink/12 bg-white p-4">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                  <div>
+                    <div className={sectionMetaClass}>
+                      <KeyRound size={15} />
+                      Privát kezelő link
+                    </div>
+                    <h2 className="mt-2 text-lg font-semibold text-ink">Képek elrejtése az ügyfélnek</h2>
+                    <p className="mt-1 text-sm text-graphite/70">
+                      Ezen a linken az ügyfél végig tudja nézni a kész galériát, és elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {gallery.clientAccessToken ? (
+                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
+                    ) : (
+                      <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                        <FormSubmitButton variant="secondary" pendingLabel="Link készítése...">
+                          <KeyRound size={16} />
+                          Privát kezelő link generálása
+                        </FormSubmitButton>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              </section>
+            ) : null}
+            <UploadSessionLog sessions={gallery.uploadSessions} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
           </div>
         </div>
