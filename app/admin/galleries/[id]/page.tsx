@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
+import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -37,8 +37,7 @@ import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
   defaultPhotoDeliveryStageForGalleryMode,
-  isProofingGallery,
-  proofingStatusLabel
+  isProofingGallery
 } from "@/lib/proofing";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
@@ -56,77 +55,7 @@ const galleryTabs: Array<{
   { key: "settings", label: "Beállítások", icon: "Settings" }
 ];
 
-type WorkflowStep = {
-  label: string;
-  detail: string;
-  done: boolean;
-  href: string;
-};
-
 const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
-
-function galleryTabTargetFromHref(href: string): GalleryTab | undefined {
-  const match = href.match(/[?&]tab=(photos|client|views|downloads|settings)\b/);
-  return match?.[1] as GalleryTab | undefined;
-}
-
-function WorkflowPanel({
-  title,
-  description,
-  steps
-}: {
-  title: string;
-  description: string;
-  steps: WorkflowStep[];
-}) {
-  const nextStep = steps.find((step) => !step.done) ?? steps[steps.length - 1];
-  const nextStepTab = nextStep ? galleryTabTargetFromHref(nextStep.href) : undefined;
-
-  return (
-    <section className="rounded-lg border border-ink/10 bg-paper/70 p-4">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-        <div>
-          <p className={sectionMetaClass}>Munkafolyamat</p>
-          <h2 className="mt-2 text-lg font-semibold text-ink">{title}</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{description}</p>
-        </div>
-        {nextStep ? (
-          <Link
-            href={nextStep.href}
-            data-gallery-tab-target={nextStepTab}
-            className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium transition ${
-              nextStep.done ? "bg-paper text-graphite hover:border-ink/30" : "bg-ink text-white hover:bg-graphite"
-            }`}
-          >
-            {nextStep.done ? <CheckCircle2 size={16} /> : null}
-            {nextStep.done ? "Workflow kész" : nextStep.label}
-          </Link>
-        ) : null}
-      </div>
-
-      <div className="mt-4 grid gap-2 md:grid-cols-5">
-        {steps.map((step, index) => (
-          <Link
-            key={step.label}
-            href={step.href}
-            data-gallery-tab-target={galleryTabTargetFromHref(step.href)}
-            className={`rounded-md border border-ink/8 bg-white/70 px-3 py-2.5 transition hover:border-ink/25 ${
-              step.done ? "border-sage/25 bg-sage/8" : ""
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className={`grid size-6 place-items-center rounded-full text-xs font-semibold ${step.done ? "bg-sage text-white" : "bg-white text-graphite"}`}>
-                {step.done ? <CheckCircle2 size={14} /> : index + 1}
-              </span>
-              <span className="text-sm font-medium text-ink">{step.label}</span>
-            </div>
-            <p className="mt-2 text-xs leading-5 text-graphite/70">{step.detail}</p>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 function getActiveTab(flags: {
   activated?: string;
@@ -327,72 +256,6 @@ export default async function GalleryDetailPage({
     gallery.downloadsEnabled &&
     gallery.photos.length > 0 &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
-  const hasReadyDownloadPackage = gallery.downloadPackages.some((downloadPackage) => downloadPackage.status === "ready");
-  const workflowSteps: WorkflowStep[] = proofingGallery
-    ? [
-        {
-          label: "Nyers képek feltöltése",
-          detail: rawPhotoCount > 0 ? `${rawPhotoCount} nyers kép feltöltve.` : "Elsőként töltsd fel a válogatásra szánt nyers képeket.",
-          done: rawPhotoCount > 0,
-          href: `/admin/galleries/${gallery.id}?tab=photos`
-        },
-        {
-          label: "Válogató link küldése",
-          detail: gallery.proofingInviteSentAt ? "Az ügyfél már megkapta a válogató linket." : "Küldd ki az ügyfélnek a válogató linket.",
-          done: Boolean(gallery.proofingInviteSentAt),
-          href: `/admin/galleries/${gallery.id}?tab=client`
-        },
-        {
-          label: "Ügyfél leadása",
-          detail: submittedListCount > 0 ? `${submittedListCount} leadott válogatás.` : "Itt látod majd, amikor az ügyfél lezárja a választást.",
-          done: submittedListCount > 0,
-          href: `/admin/galleries/${gallery.id}?tab=client`
-        },
-        {
-          label: "Kész képek feltöltése",
-          detail: finalPhotoCount > 0 ? `${finalPhotoCount} kész kép feltöltve.` : "A kiválasztott, kidolgozott képek külön kész képként kerülnek fel.",
-          done: finalPhotoCount > 0,
-          href: `/admin/galleries/${gallery.id}?tab=client`
-        },
-        {
-          label: "Kész galéria átadása",
-          detail: gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "A végleges anyag átadva." : "Az átadás után indulhatnak a vendégoldali letöltések.",
-          done: gallery.proofingStatus === PROOFING_STATUS_DELIVERED,
-          href: `/admin/galleries/${gallery.id}?tab=client`
-        }
-      ]
-    : [
-        {
-          label: "Kész képek feltöltése",
-          detail: finalPhotoCount > 0 ? `${finalPhotoCount} kész kép feltöltve.` : "Töltsd fel a végleges, átadásra szánt képeket.",
-          done: finalPhotoCount > 0,
-          href: `/admin/galleries/${gallery.id}?tab=photos`
-        },
-        {
-          label: "Galéria aktiválása",
-          detail: gallery.isActive ? "A publikus link elérhető." : "Aktiváld, amikor már ellenőrizted a galériát.",
-          done: gallery.isActive,
-          href: `/admin/galleries/${gallery.id}?tab=settings`
-        },
-        {
-          label: "Letöltések előkészítése",
-          detail: hasReadyDownloadPackage ? "Van kész letöltési csomag." : "Tölts fel kész ZIP-et, ha azonnali teljes csomagot szeretnél.",
-          done: !gallery.downloadsEnabled || hasReadyDownloadPackage,
-          href: `/admin/galleries/${gallery.id}?tab=downloads`
-        },
-        {
-          label: "Link ellenőrzése",
-          detail: "Nyisd meg a publikus nézetet és ellenőrizd vendégként.",
-          done: gallery.isActive && finalPhotoCount > 0,
-          href: `/g/${gallery.slug}`
-        },
-        {
-          label: "Átadás",
-          detail: "Másold ki a publikus linket vagy küldd tovább az ügyfélnek.",
-          done: gallery.isActive && finalPhotoCount > 0,
-          href: `/admin/galleries/${gallery.id}?tab=downloads`
-        }
-      ];
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({
@@ -463,6 +326,9 @@ export default async function GalleryDetailPage({
             Publikus nézet
           </ButtonLink>
         </div>
+      </div>
+      <div className="mb-6">
+        <GalleryTabController tabs={renderedGalleryTabs} initialTab={activeTab} />
       </div>
       {coverPhoto && coverPhoto.mediaType !== "video" ? (
         <CoverPositionControl
@@ -542,18 +408,6 @@ export default async function GalleryDetailPage({
       </div>
 
       <div className="space-y-6">
-        <WorkflowPanel
-          title={proofingGallery ? "Nyers válogatás útvonala" : "Kész galéria átadási útvonala"}
-          description={
-            proofingGallery
-              ? "A nyers képekből először ügyfélválogatás készül, majd a leadott választás után jönnek a kidolgozott képek és a végleges átadás."
-              : "A kész galériánál a fő cél a végleges képek feltöltése, ellenőrzése, letöltések előkészítése és a publikus link átadása."
-          }
-          steps={workflowSteps}
-        />
-
-        <GalleryTabController tabs={renderedGalleryTabs} initialTab={activeTab} />
-
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
             <PhotoUploadForm

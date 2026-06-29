@@ -179,23 +179,36 @@ export function MediaProcessingStatus({
   const sampleProblems = imagePhotos
     .filter((photo) => !hasLightweightVariant(photo) || photo.processingStatus === "failed" || stalePhotoIds.has(photo.id))
     .slice(0, 3);
+  const hasAttention = staleCount > 0 || failedCount > 0;
+  const hasActiveWork = pendingCount > 0 || processingCount > 0;
 
   return (
-    <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-        <div>
-          <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-            <ImageIcon size={15} />
-            Előnézet feldolgozás
-          </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">{meta.label}</h2>
-          <p className="mt-1 max-w-2xl text-sm text-graphite/70">{meta.description}</p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row lg:items-center">
-          <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${meta.className}`}>
-            <Icon size={16} />
-            {meta.label}
+    <section className="rounded-md border border-ink/10 bg-white px-4 py-3">
+      <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+        <div className="flex gap-3">
+          <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${meta.className}`}>
+            <Icon size={17} />
           </span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/65">Előnézet feldolgozás</p>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${meta.className}`}>{meta.label}</span>
+            </div>
+            <p className="mt-1 text-sm leading-5 text-graphite/70">{meta.description}</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-graphite/65">
+              <span>Könnyített: {readyVariantCount}/{imagePhotos.length}</span>
+              {missingVariantPhotos.length > 0 ? <span>Eredetivel: {missingVariantPhotos.length}</span> : null}
+              {hasActiveWork ? (
+                <span>
+                  Sorban: {pendingCount} · fut: {processingCount}
+                </span>
+              ) : null}
+              {hasAttention ? <span>Hibás/beragadt: {failedCount + staleCount}</span> : null}
+              {latestJob ? <span>Frissítve: {formatDate(latestJob.updatedAt)}</span> : null}
+            </div>
+          </div>
+        </div>
+        {requeueableCount > 0 ? (
           <form action={requeueGalleryMediaProcessingAction.bind(null, galleryId)}>
             <FormSubmitButton
               type="submit"
@@ -205,45 +218,15 @@ export function MediaProcessingStatus({
               pendingLabel="Újragenerálás..."
             >
               <RefreshCw size={16} />
-              Hiányzó előnézetek újragenerálása
+              Előnézetek újragenerálása
             </FormSubmitButton>
           </form>
-        </div>
+        ) : null}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Könnyített</p>
-          <p className="mt-1 text-lg font-semibold text-ink">
-            {readyVariantCount}/{imagePhotos.length}
-          </p>
-        </div>
-        <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Eredetivel</p>
-          <p className="mt-1 text-lg font-semibold text-ink">{missingVariantPhotos.length}</p>
-        </div>
-        <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Sorban</p>
-          <p className="mt-1 text-lg font-semibold text-ink">{pendingCount}</p>
-        </div>
-        <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Fut</p>
-          <p className="mt-1 text-lg font-semibold text-ink">{processingCount}</p>
-        </div>
-        <div className="rounded-md bg-paper px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Hibás/beragadt</p>
-          <p className="mt-1 text-lg font-semibold text-ink">{failedCount + staleCount}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-col gap-2 text-sm text-graphite/70 md:flex-row md:items-center md:justify-between">
-        <p>Utolsó feldolgozási frissítés: {formatDate(latestJob?.updatedAt ?? null)}</p>
-        <p>Optimalizálható képek: {requeueableCount}</p>
-      </div>
-
-      {sampleProblems.length > 0 ? (
+      {hasAttention && sampleProblems.length > 0 ? (
         <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm text-graphite">
-          <p className="font-medium text-ink">Példák optimalizálható képekre</p>
+          <p className="font-medium text-ink">Figyelmet igénylő előnézetek</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {sampleProblems.map((photo) => {
               const latestJobForPhoto = latestJobByPhotoId.get(photo.id);
