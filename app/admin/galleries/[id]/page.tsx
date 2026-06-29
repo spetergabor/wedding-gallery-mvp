@@ -613,6 +613,7 @@ export default async function GalleryDetailPage({
               defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
               resumableSessions={resumableUploadSessions}
             />
+            {!proofingGallery ? <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} /> : null}
             {!proofingGallery ? (
               <section className="rounded-md border border-ink/12 bg-white p-4">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -656,7 +657,7 @@ export default async function GalleryDetailPage({
         </div>
 
         <div data-gallery-tab-panel="client" hidden={activeTab !== "client"}>
-          <div className="max-w-4xl space-y-6">
+          <div className="space-y-6">
             {proofingGallery ? (
               <ProofingStatusPanel
                 galleryId={gallery.id}
@@ -832,8 +833,7 @@ export default async function GalleryDetailPage({
         </div>
 
         <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
-          <div className="max-w-3xl space-y-6">
-            <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} />
+          <div className="space-y-6">
             <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
           </div>
