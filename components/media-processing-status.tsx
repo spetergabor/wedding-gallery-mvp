@@ -182,6 +182,10 @@ export function MediaProcessingStatus({
   const hasAttention = staleCount > 0 || failedCount > 0;
   const hasActiveWork = pendingCount > 0 || processingCount > 0;
 
+  if (!hasActiveWork && !hasAttention) {
+    return null;
+  }
+
   return (
     <section className="rounded-md border border-ink/10 bg-white px-4 py-3">
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
