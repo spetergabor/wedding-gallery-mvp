@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, Info, KeyRound, Landmark, Mail, UploadCloud, UserRound } from "lucide-react";
+import { Camera, CheckCircle2, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -28,7 +28,6 @@ import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   generateClientAccessLinkAction,
-  queueGalleryZipPackageAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
   updateGalleryProofingStatusAction
@@ -409,7 +408,7 @@ export default async function GalleryDetailPage({
         },
         {
           label: "Letöltések előkészítése",
-          detail: hasReadyDownloadPackage ? "Van kész letöltési csomag." : "Tölts fel kézi ZIP-et vagy készíts elő letöltési csomagot.",
+          detail: hasReadyDownloadPackage ? "Van kész letöltési csomag." : "Tölts fel kész ZIP-et, ha azonnali teljes csomagot szeretnél.",
           done: !gallery.downloadsEnabled || hasReadyDownloadPackage,
           href: `/admin/galleries/${gallery.id}?tab=downloads`
         },
@@ -426,7 +425,6 @@ export default async function GalleryDetailPage({
           href: `/admin/galleries/${gallery.id}?tab=downloads`
         }
       ];
-  const hasStaleZipPackages = gallery.downloadPackages.some((downloadPackage) => downloadPackage.status === "stale");
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({
@@ -835,45 +833,6 @@ export default async function GalleryDetailPage({
 
         <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
           <div className="max-w-3xl space-y-6">
-            <section className="rounded-md border border-ink/12 bg-white p-4">
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                  <h2 className="text-lg font-semibold text-ink">Webes vendég ZIP részek</h2>
-                  <p className="mt-1 text-sm text-graphite/70">Alapból kompakt, webes méretű ZIP készül. Teljes felbontás csak külön letöltési kérésre indul.</p>
-                </div>
-                <form action={queueGalleryZipPackageAction.bind(null, gallery.id)}>
-                  <FormSubmitButton
-                    disabled={!canPrepareZip}
-                    className={`whitespace-nowrap ${!canPrepareZip ? "opacity-60" : ""}`}
-                    pendingLabel="Előkészítés..."
-                  >
-                    <Download size={16} />
-                    {hasStaleZipPackages ? "Webes ZIP újragenerálása" : "Webes ZIP előkészítése"}
-                  </FormSubmitButton>
-                </form>
-              </div>
-            </section>
-            <section className="rounded-md border border-brass/30 bg-brass/10 p-4">
-              <div className="flex gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-brass shadow-sm">
-                  <Info size={18} />
-                </div>
-                <div>
-                  <div className={sectionMetaClass}>
-                    <UploadCloud size={15} />
-                    Gyors átadás
-                  </div>
-                  <h2 className="mt-2 text-lg font-semibold text-ink">Saját ZIP feltöltésével nincs várakozási idő</h2>
-                  <p className="mt-2 text-sm leading-6 text-graphite/75">
-                    Ha feltöltesz egy kész ZIP fájlt a párnak, azt azonnal le tudják tölteni. Ilyenkor nem kell számolni az automatikus
-                    ZIP-készítés és képkonvertálás idejével, ami a galéria méretétől függően változhat.
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-graphite/75">
-                    A kompakt, webes méretű ZIP galériát a rendszer továbbra is automatikusan generálja, így vendégletöltéshez marad egy könnyebb csomag is.
-                  </p>
-                </div>
-              </div>
-            </section>
             <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} />
             <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />

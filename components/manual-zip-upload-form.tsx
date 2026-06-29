@@ -68,7 +68,7 @@ function statusLabel(status: UploadStatus) {
     case "failed":
       return "Feltöltés sikertelen";
     default:
-      return "Kész ZIP feltöltése";
+      return "Készen áll";
   }
 }
 
@@ -319,17 +319,29 @@ export function ManualZipUploadForm({
           <div>
             <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
               <UploadCloud size={15} />
-              Manuális ZIP
+              Letöltési átadás
             </div>
             <h2 className="mt-2 text-xl font-semibold text-ink">Kész ZIP feltöltése</h2>
-            <p className="mt-1 text-sm text-graphite/70">
-              A Macen elkészített ZIP kerül ki vendég letöltésként.
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
+              Ha a Macen elkészített ZIP-et töltöd fel, a pár azonnal letöltheti a kész csomagot. A rendszer közben automatikusan elkészíti a
+              kompakt, webes méretű vendég ZIP-et is.
             </p>
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full bg-ink/5 px-3 py-1.5 text-sm font-medium text-graphite">
             <StatusIcon size={16} className={isWorking ? "animate-spin" : ""} />
             {statusLabel(status)}
           </span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-md border border-brass/25 bg-brass/10 px-3 py-3">
+            <p className="text-sm font-semibold text-ink">Saját ZIP</p>
+            <p className="mt-1 text-sm leading-5 text-graphite/70">Azonnal letölthető, nem kell megvárni a mérettől függő ZIP-készítési időt.</p>
+          </div>
+          <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
+            <p className="text-sm font-semibold text-ink">Webes ZIP</p>
+            <p className="mt-1 text-sm leading-5 text-graphite/70">Automatikusan készül kompakt vendégletöltéshez.</p>
+          </div>
         </div>
 
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-ink/20 bg-paper px-4 py-6 text-center transition hover:border-ink/35">
