@@ -23,7 +23,7 @@ export default async function AlbumReviewPage({
         }
       },
       spreads: {
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        orderBy: [{ filename: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
         include: {
           comments: {
             orderBy: { createdAt: "asc" },

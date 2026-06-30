@@ -309,18 +309,6 @@ export default async function GalleryDetailPage({
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <CopyPublicLinkButton slug={gallery.slug} variant="primary" />
-          {!proofingGallery ? (
-            gallery.clientAccessToken ? (
-              <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
-            ) : (
-              <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                <FormSubmitButton variant="secondary" pendingLabel="Link készítése...">
-                  <KeyRound size={16} />
-                  Privát kezelő link generálása
-                </FormSubmitButton>
-              </form>
-            )
-          ) : null}
           <ButtonLink href={`/g/${gallery.slug}`} variant="secondary">
             <ExternalLink size={16} />
             Publikus nézet

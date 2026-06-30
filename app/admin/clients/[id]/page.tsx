@@ -825,7 +825,7 @@ export default async function AdminClientDetailPage({
         orderBy: { createdAt: "desc" },
         include: {
           spreads: {
-            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            orderBy: [{ filename: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
             include: {
               comments: {
                 orderBy: { createdAt: "asc" }

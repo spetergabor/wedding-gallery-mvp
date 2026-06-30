@@ -127,13 +127,17 @@ function isImageUploadRequest(file: AlbumSpreadUploadRequest) {
   );
 }
 
+function compareAlbumSpreadFilenames(left: { filename: string }, right: { filename: string }) {
+  return left.filename.localeCompare(right.filename, "hu", { numeric: true, sensitivity: "base" });
+}
+
 export async function createAlbumReviewSpreadUploadTargetsAction(
   customerId: string,
   reviewId: string,
   files: AlbumSpreadUploadRequest[]
 ) {
   const { review } = await requireAlbumReviewAccess(customerId, reviewId);
-  const normalizedFiles = files.filter(isImageUploadRequest).slice(0, 50);
+  const normalizedFiles = files.filter(isImageUploadRequest).sort(compareAlbumSpreadFilenames).slice(0, 50);
 
   if (!isR2StorageEnabled()) {
     return {
@@ -210,6 +214,7 @@ export async function completeAlbumReviewSpreadUploadsAction(
   const keyPrefix = `album-reviews/${customerId}/${review.id}/`;
   const spreads = uploads
     .filter((upload) => upload.r2Key.startsWith(keyPrefix) && upload.filename && upload.imageUrl)
+    .sort(compareAlbumSpreadFilenames)
     .map((upload) => ({
       filename: upload.filename,
       title: upload.title,

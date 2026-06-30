@@ -43,6 +43,10 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function compareAlbumSpreadFiles(left: File, right: File) {
+  return left.name.localeCompare(right.name, "hu", { numeric: true, sensitivity: "base" });
+}
+
 function uploadFile({
   file,
   target,
@@ -103,7 +107,7 @@ export function AlbumSpreadUploadForm({
   }
 
   function handleFilesChange(event: ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = Array.from(event.target.files ?? []).filter((file) => file.size > 0);
+    const selectedFiles = Array.from(event.target.files ?? []).filter((file) => file.size > 0).sort(compareAlbumSpreadFiles);
 
     setFiles(
       selectedFiles.map((file, index) => ({
