@@ -45,6 +45,14 @@ function formatDate(date: Date) {
   });
 }
 
+function compareAlbumSpreadFilenames(left: AlbumReview["spreads"][number], right: AlbumReview["spreads"][number]) {
+  return left.filename.localeCompare(right.filename, "hu", { numeric: true, sensitivity: "base" }) || left.sortOrder - right.sortOrder;
+}
+
+function displayAlbumSpreadTitle(title: string | null, index: number) {
+  return !title || /^Oldalpár \d+$/i.test(title) ? `Oldalpár ${index + 1}` : title;
+}
+
 function albumLink(token: string) {
   return `/album/${token}`;
 }
@@ -90,8 +98,9 @@ export function AlbumReviewManager({
       ) : (
         <div className="mt-5 space-y-6">
           {reviews.map((review) => {
-            const commentCount = review.spreads.reduce((total, spread) => total + spread.comments.length, 0);
-            const approvedCount = review.spreads.filter((spread) => spread.approvedAt).length;
+            const orderedSpreads = [...review.spreads].sort(compareAlbumSpreadFilenames);
+            const commentCount = orderedSpreads.reduce((total, spread) => total + spread.comments.length, 0);
+            const approvedCount = orderedSpreads.filter((spread) => spread.approvedAt).length;
 
             return (
               <article key={review.id} className="rounded-lg border border-ink/10 bg-paper p-4">
@@ -103,11 +112,11 @@ export function AlbumReviewManager({
                         {statusLabels[review.status] ?? review.status}
                       </span>
                       <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                        {review.spreads.length} oldalpár · {commentCount} címke
+                        {orderedSpreads.length} oldalpár · {commentCount} címke
                       </span>
-                      {review.spreads.length > 0 ? (
+                      {orderedSpreads.length > 0 ? (
                         <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
-                          {approvedCount}/{review.spreads.length} rendben
+                          {approvedCount}/{orderedSpreads.length} rendben
                         </span>
                       ) : null}
                     </div>
@@ -137,9 +146,9 @@ export function AlbumReviewManager({
                   <AlbumSpreadUploadForm customerId={customerId} reviewId={review.id} />
                 </div>
 
-                {review.spreads.length > 0 ? (
+                {orderedSpreads.length > 0 ? (
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
-                    {review.spreads.map((spread) => (
+                    {orderedSpreads.map((spread, spreadIndex) => (
                       <div key={spread.id} className="overflow-hidden rounded-md border border-ink/10 bg-white">
                         <div className="relative aspect-[3/2] bg-mist">
                           <Image
@@ -164,7 +173,7 @@ export function AlbumReviewManager({
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-medium text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
+                                <p className="font-medium text-ink">{displayAlbumSpreadTitle(spread.title, spreadIndex)}</p>
                                 {spread.approvedAt ? (
                                   <span className="inline-flex items-center gap-1.5 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
                                     <CheckCircle2 size={13} />

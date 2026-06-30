@@ -6,6 +6,14 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+function compareAlbumSpreadFilenames(left: { filename: string; sortOrder: number }, right: { filename: string; sortOrder: number }) {
+  return left.filename.localeCompare(right.filename, "hu", { numeric: true, sensitivity: "base" }) || left.sortOrder - right.sortOrder;
+}
+
+function displayAlbumSpreadTitle(title: string | null, index: number) {
+  return !title || /^Oldalpár \d+$/i.test(title) ? `Oldalpár ${index + 1}` : title;
+}
+
 export default async function AlbumReviewPage({
   params
 }: {
@@ -52,12 +60,12 @@ export default async function AlbumReviewPage({
     });
   }
 
-  const spreads = review.spreads.map((spread) => ({
+  const spreads = [...review.spreads].sort(compareAlbumSpreadFilenames).map((spread, index) => ({
     id: spread.id,
-    title: spread.title,
+    title: displayAlbumSpreadTitle(spread.title, index),
     filename: spread.filename,
     imageUrl: spread.imageUrl,
-    sortOrder: spread.sortOrder,
+    sortOrder: index + 1,
     approvedAt: spread.approvedAt?.toISOString() ?? null,
     comments: spread.comments.map((comment) => ({
       ...comment,
