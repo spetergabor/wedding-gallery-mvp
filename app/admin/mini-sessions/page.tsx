@@ -19,7 +19,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 const fieldClass =
-  "h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
+  "h-12 w-full min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 const textAreaClass =
   "min-h-24 w-full rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 
