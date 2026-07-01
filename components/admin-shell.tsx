@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, Camera, ChevronDown, LayoutDashboard, LogOut, Menu, Plus, Settings, Users } from "lucide-react";
+import { Bell, CalendarClock, Camera, ChevronDown, LayoutDashboard, LogOut, Menu, Plus, Settings, Users } from "lucide-react";
 import { AdminLanguageSwitch } from "@/components/admin-language-switch";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
 import { logoutAction } from "@/lib/gallery-actions";
@@ -60,6 +60,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
             <Camera size={17} />
             {copy.galleries}
+          </Link>
+          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/mini-sessions">
+            <CalendarClock size={17} />
+            Mini session
           </Link>
           {admin?.role === "super_admin" ? (
             <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
@@ -126,6 +130,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
                     <Camera size={17} />
                     {copy.galleries}
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/mini-sessions">
+                    <CalendarClock size={17} />
+                    Mini session
                   </Link>
                   {admin?.role === "super_admin" ? (
                     <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">

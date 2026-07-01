@@ -69,6 +69,33 @@ type GuestGalleryDownloadReadyEmail = {
   language?: CustomerLanguage;
 };
 
+type MiniSessionBookingEmail = {
+  to: string;
+  sessionTitle: string;
+  sessionDate: Date;
+  location: string;
+  startsAt: Date;
+  endsAt: Date;
+  name: string;
+  attendeeCount: number;
+  cancelUrl: string;
+};
+
+type AdminMiniSessionBookingEmail = {
+  to?: string;
+  sessionTitle: string;
+  sessionDate: Date;
+  location: string;
+  startsAt: Date;
+  endsAt: Date;
+  name: string;
+  email: string;
+  phone: string;
+  attendeeCount: number;
+  adminUrl: string;
+  publicUrl?: string;
+};
+
 const CUSTOMER_EMAIL_COPY = {
   de: {
     proofingInvite: {
@@ -377,6 +404,210 @@ export function publicGalleryUrl(slug: string, language?: CustomerLanguage) {
 
 export function galleryDownloadUrl(token: string) {
   return `${appBaseUrl()}/download/${token}`;
+}
+
+export function miniSessionPublicUrl(slug: string) {
+  return `${appBaseUrl()}/mini-session/${slug}`;
+}
+
+export function miniSessionBookingCancelUrl(slug: string, token: string) {
+  return `${appBaseUrl()}/mini-session/${slug}/cancel/${token}`;
+}
+
+export function adminMiniSessionUrl(miniSessionId: string) {
+  return `${appBaseUrl()}/admin/mini-sessions#mini-session-${miniSessionId}`;
+}
+
+function formatMiniSessionEmailDate(date: Date) {
+  return date.toLocaleDateString("hu-HU", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: APP_TIME_ZONE
+  });
+}
+
+function formatMiniSessionEmailTime(date: Date) {
+  return date.toLocaleTimeString("hu-HU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: APP_TIME_ZONE
+  });
+}
+
+function miniSessionSlotLabel(startsAt: Date, endsAt: Date) {
+  return `${formatMiniSessionEmailTime(startsAt)}-${formatMiniSessionEmailTime(endsAt)}`;
+}
+
+function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Időpont foglalás megerősítve</h1>
+      <p style="margin: 0 0 18px;">Szia ${escapeHtml(payload.name)}, a mini session időpontod rögzítve lett.</p>
+      <table style="border-collapse: collapse; margin-bottom: 20px;">
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Session</td><td style="padding: 4px 0;"><strong>${escapeHtml(payload.sessionTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Dátum</td><td style="padding: 4px 0;">${formatMiniSessionEmailDate(payload.sessionDate)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Időpont</td><td style="padding: 4px 0;">${miniSessionSlotLabel(payload.startsAt, payload.endsAt)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Helyszín</td><td style="padding: 4px 0;">${escapeHtml(payload.location)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Létszám</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
+      </table>
+      <p style="margin: 0 0 16px;">Ha mégsem jó az időpont, ezen a linken tudod törölni a foglalást:</p>
+      <p style="margin: 0 0 16px;">
+        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Időpont törlése</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Ha nem működik a gomb, ezt másold be a böngészőbe:<br>${escapeHtml(payload.cancelUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessionBookingEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Mini session booking confirmation skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject: `Foglalás megerősítve: ${payload.sessionTitle}`,
+      html: miniSessionBookingConfirmationHtml(payload),
+      text: [
+        "Időpont foglalás megerősítve",
+        "",
+        `Session: ${payload.sessionTitle}`,
+        `Dátum: ${formatMiniSessionEmailDate(payload.sessionDate)}`,
+        `Időpont: ${miniSessionSlotLabel(payload.startsAt, payload.endsAt)}`,
+        `Helyszín: ${payload.location}`,
+        `Létszám: ${payload.attendeeCount}`,
+        "",
+        `Időpont törlése: ${payload.cancelUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Mini session booking confirmation failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+}
+
+function adminMiniSessionBookingHtml(payload: AdminMiniSessionBookingEmail, title: string) {
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(title)}</h1>
+      <table style="border-collapse: collapse; margin-bottom: 20px;">
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Session</td><td style="padding: 4px 0;"><strong>${escapeHtml(payload.sessionTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Dátum</td><td style="padding: 4px 0;">${formatMiniSessionEmailDate(payload.sessionDate)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Időpont</td><td style="padding: 4px 0;">${miniSessionSlotLabel(payload.startsAt, payload.endsAt)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Helyszín</td><td style="padding: 4px 0;">${escapeHtml(payload.location)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Név</td><td style="padding: 4px 0;">${escapeHtml(payload.name)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Email</td><td style="padding: 4px 0;">${escapeHtml(payload.email)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Telefon</td><td style="padding: 4px 0;">${escapeHtml(payload.phone)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Létszám</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
+      </table>
+      <p style="margin: 0 0 12px;">
+        <a href="${escapeHtml(payload.adminUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Mini session megnyitása</a>
+      </p>
+      ${payload.publicUrl ? `<p style="margin: 0; color: #777; font-size: 13px;">Publikus oldal:<br>${escapeHtml(payload.publicUrl)}</p>` : ""}
+    </div>
+  `;
+}
+
+export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSessionBookingEmail) {
+  const { apiKey, from, adminEmail } = emailConfig();
+  const recipient = payload.to ?? adminEmail;
+
+  if (!apiKey || !recipient) {
+    console.warn("Mini session admin booking email skipped. Missing RESEND_API_KEY or recipient.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: recipient,
+      subject: `Új mini session foglalás: ${payload.sessionTitle}`,
+      html: adminMiniSessionBookingHtml(payload, "Új mini session foglalás"),
+      text: [
+        "Új mini session foglalás",
+        "",
+        `Session: ${payload.sessionTitle}`,
+        `Dátum: ${formatMiniSessionEmailDate(payload.sessionDate)}`,
+        `Időpont: ${miniSessionSlotLabel(payload.startsAt, payload.endsAt)}`,
+        `Helyszín: ${payload.location}`,
+        `Név: ${payload.name}`,
+        `Email: ${payload.email}`,
+        `Telefon: ${payload.phone}`,
+        `Létszám: ${payload.attendeeCount}`,
+        `Admin: ${payload.adminUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Mini session admin booking email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+}
+
+export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSessionBookingEmail) {
+  const { apiKey, from, adminEmail } = emailConfig();
+  const recipient = payload.to ?? adminEmail;
+
+  if (!apiKey || !recipient) {
+    console.warn("Mini session cancellation email skipped. Missing RESEND_API_KEY or recipient.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: recipient,
+      subject: `Mini session foglalás törölve: ${payload.sessionTitle}`,
+      html: adminMiniSessionBookingHtml(payload, "Mini session foglalás törölve"),
+      text: [
+        "Mini session foglalás törölve",
+        "",
+        `Session: ${payload.sessionTitle}`,
+        `Dátum: ${formatMiniSessionEmailDate(payload.sessionDate)}`,
+        `Időpont: ${miniSessionSlotLabel(payload.startsAt, payload.endsAt)}`,
+        `Név: ${payload.name}`,
+        `Email: ${payload.email}`,
+        `Telefon: ${payload.phone}`,
+        `Létszám: ${payload.attendeeCount}`,
+        `Admin: ${payload.adminUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Mini session cancellation email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
 }
 
 function clientProofingInviteHtml({

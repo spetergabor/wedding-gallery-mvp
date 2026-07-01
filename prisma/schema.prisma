@@ -37,6 +37,7 @@ model Admin {
   notifications AdminNotification[]
   siteSettings SiteSettings?
   leads        Lead[]
+  miniSessions MiniSession[]
 }
 
 model AdminNotification {
@@ -129,6 +130,56 @@ model Lead {
   @@index([sortOrder])
   @@index([eventDate])
   @@index([email])
+}
+
+model MiniSession {
+  id              String   @id @default(cuid())
+  adminId         String
+  title           String
+  slug            String   @unique
+  location        String
+  sessionDate     DateTime
+  startsAt        DateTime
+  endsAt          DateTime
+  durationMinutes Int
+  isActive        Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  admin           Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  bookings        MiniSessionBooking[]
+
+  @@index([adminId])
+  @@index([slug])
+  @@index([sessionDate])
+  @@index([startsAt])
+  @@index([isActive])
+}
+
+model MiniSessionBooking {
+  id              String   @id @default(cuid())
+  miniSessionId   String
+  name            String
+  email           String
+  phone           String
+  attendeeCount   Int
+  startsAt        DateTime
+  endsAt          DateTime
+  status          String   @default("booked")
+  cancelToken     String   @unique
+  customerEmailSentAt DateTime?
+  adminEmailSentAt    DateTime?
+  cancelledAt     DateTime?
+  cancellationEmailSentAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  miniSession     MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+
+  @@index([miniSessionId])
+  @@index([miniSessionId, startsAt])
+  @@index([status])
+  @@index([email])
+  @@index([cancelToken])
 }
 
 model CustomerProject {
