@@ -83,16 +83,19 @@ export default async function AdminMiniSessionsPage({
         {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
       </div>
 
-      <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
-        <div className="flex items-center gap-3 border-b border-ink/10 pb-5">
-          <div className="flex size-10 items-center justify-center rounded-md bg-ink text-white">
-            <Plus size={18} />
+      <details className="group rounded-lg border border-ink/10 bg-white p-4 shadow-soft sm:p-5">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 [&::-webkit-details-marker]:hidden">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ink text-white">
+              <Plus size={18} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-ink">Új mini session</h2>
+              <p className="mt-1 text-sm text-graphite/70">Új foglalható nap létrehozása</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-ink">Új mini session</h2>
-            <p className="mt-1 text-sm text-graphite/70">A dátumból, kezdésből, befejezésből és időtartamból készülnek a foglalható idősávok.</p>
-          </div>
-        </div>
+          <ChevronDown size={18} className="shrink-0 text-graphite/60 transition group-open:rotate-180" />
+        </summary>
         <form action={createMiniSessionAction} className="mt-6 grid gap-5 lg:grid-cols-2">
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Session neve</span>
@@ -136,7 +139,7 @@ export default async function AdminMiniSessionsPage({
             <FormSubmitButton>Mini session létrehozása</FormSubmitButton>
           </div>
         </form>
-      </section>
+      </details>
 
       <div className="mt-8 space-y-5">
         {sessions.length === 0 ? (
