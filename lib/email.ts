@@ -79,6 +79,10 @@ type MiniSessionBookingEmail = {
   name: string;
   attendeeCount: number;
   cancelUrl: string;
+  calendarUrl?: string;
+  calendarIcs?: string;
+  calendarFilename?: string;
+  calendarButtonLabel?: string;
 };
 
 type AdminMiniSessionBookingEmail = {
@@ -94,6 +98,10 @@ type AdminMiniSessionBookingEmail = {
   attendeeCount: number;
   adminUrl: string;
   publicUrl?: string;
+  calendarUrl?: string;
+  calendarIcs?: string;
+  calendarFilename?: string;
+  calendarButtonLabel?: string;
 };
 
 const CUSTOMER_EMAIL_COPY = {
@@ -414,6 +422,10 @@ export function miniSessionBookingCancelUrl(slug: string, token: string) {
   return `${appBaseUrl()}/mini-session/${slug}/cancel/${token}`;
 }
 
+export function miniSessionBookingCalendarUrl(slug: string, token: string) {
+  return `${appBaseUrl()}/mini-session/${slug}/calendar/${token}`;
+}
+
 export function adminMiniSessionUrl(miniSessionId: string) {
   return `${appBaseUrl()}/admin/mini-sessions#mini-session-${miniSessionId}`;
 }
@@ -439,7 +451,22 @@ function miniSessionSlotLabel(startsAt: Date, endsAt: Date) {
   return `${formatMiniSessionEmailTime(startsAt)}-${formatMiniSessionEmailTime(endsAt)}`;
 }
 
+function miniSessionCalendarAttachments(payload: { calendarIcs?: string; calendarFilename?: string }) {
+  if (!payload.calendarIcs) {
+    return undefined;
+  }
+
+  return [
+    {
+      filename: payload.calendarFilename ?? "mini-session.ics",
+      content: Buffer.from(payload.calendarIcs, "utf8").toString("base64")
+    }
+  ];
+}
+
 function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
+  const calendarLabel = payload.calendarButtonLabel ?? "Naptárhoz adás";
+
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">Időpont foglalás megerősítve</h1>
@@ -451,6 +478,13 @@ function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Helyszín</td><td style="padding: 4px 0;">${escapeHtml(payload.location)}</td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Létszám</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
       </table>
+      ${
+        payload.calendarUrl
+          ? `<p style="margin: 0 0 16px;">
+        <a href="${escapeHtml(payload.calendarUrl)}" style="display: inline-block; background: #8a6f3d; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(calendarLabel)}</a>
+      </p>`
+          : ""
+      }
       <p style="margin: 0 0 16px;">Ha mégsem jó az időpont, ezen a linken tudod törölni a foglalást:</p>
       <p style="margin: 0 0 16px;">
         <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Időpont törlése</a>
@@ -462,6 +496,7 @@ function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
 
 export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessionBookingEmail) {
   const { apiKey, from } = emailConfig();
+  const attachments = miniSessionCalendarAttachments(payload);
 
   if (!apiKey) {
     console.warn("Mini session booking confirmation skipped. Missing RESEND_API_KEY.");
@@ -488,8 +523,10 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
         `Helyszín: ${payload.location}`,
         `Létszám: ${payload.attendeeCount}`,
         "",
+        ...(payload.calendarUrl ? [`Naptárhoz adás: ${payload.calendarUrl}`, ""] : []),
         `Időpont törlése: ${payload.cancelUrl}`
-      ].join("\n")
+      ].join("\n"),
+      ...(attachments ? { attachments } : {})
     })
   });
 
@@ -502,6 +539,8 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
 }
 
 function adminMiniSessionBookingHtml(payload: AdminMiniSessionBookingEmail, title: string) {
+  const calendarLabel = payload.calendarButtonLabel ?? "Naptárhoz adás";
+
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(title)}</h1>
@@ -518,6 +557,13 @@ function adminMiniSessionBookingHtml(payload: AdminMiniSessionBookingEmail, titl
       <p style="margin: 0 0 12px;">
         <a href="${escapeHtml(payload.adminUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Mini session megnyitása</a>
       </p>
+      ${
+        payload.calendarUrl
+          ? `<p style="margin: 0 0 12px;">
+        <a href="${escapeHtml(payload.calendarUrl)}" style="display: inline-block; background: #8a6f3d; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(calendarLabel)}</a>
+      </p>`
+          : ""
+      }
       ${payload.publicUrl ? `<p style="margin: 0; color: #777; font-size: 13px;">Publikus oldal:<br>${escapeHtml(payload.publicUrl)}</p>` : ""}
     </div>
   `;
@@ -526,6 +572,7 @@ function adminMiniSessionBookingHtml(payload: AdminMiniSessionBookingEmail, titl
 export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSessionBookingEmail) {
   const { apiKey, from, adminEmail } = emailConfig();
   const recipient = payload.to ?? adminEmail;
+  const attachments = miniSessionCalendarAttachments(payload);
 
   if (!apiKey || !recipient) {
     console.warn("Mini session admin booking email skipped. Missing RESEND_API_KEY or recipient.");
@@ -554,8 +601,10 @@ export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSession
         `Email: ${payload.email}`,
         `Telefon: ${payload.phone}`,
         `Létszám: ${payload.attendeeCount}`,
+        ...(payload.calendarUrl ? [`Naptárhoz adás: ${payload.calendarUrl}`] : []),
         `Admin: ${payload.adminUrl}`
-      ].join("\n")
+      ].join("\n"),
+      ...(attachments ? { attachments } : {})
     })
   });
 
@@ -570,6 +619,7 @@ export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSession
 export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSessionBookingEmail) {
   const { apiKey, from, adminEmail } = emailConfig();
   const recipient = payload.to ?? adminEmail;
+  const attachments = miniSessionCalendarAttachments(payload);
 
   if (!apiKey || !recipient) {
     console.warn("Mini session cancellation email skipped. Missing RESEND_API_KEY or recipient.");
@@ -597,8 +647,10 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
         `Email: ${payload.email}`,
         `Telefon: ${payload.phone}`,
         `Létszám: ${payload.attendeeCount}`,
+        ...(payload.calendarUrl ? [`Naptárból eltávolítás: ${payload.calendarUrl}`] : []),
         `Admin: ${payload.adminUrl}`
-      ].join("\n")
+      ].join("\n"),
+      ...(attachments ? { attachments } : {})
     })
   });
 

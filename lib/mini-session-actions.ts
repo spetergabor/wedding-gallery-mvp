@@ -9,12 +9,14 @@ import { requireAdmin } from "@/lib/auth";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   adminMiniSessionUrl,
+  miniSessionBookingCalendarUrl,
   miniSessionBookingCancelUrl,
   miniSessionPublicUrl,
   sendMiniSessionAdminBookingEmail,
   sendMiniSessionBookingCancelledEmail,
   sendMiniSessionBookingConfirmationEmail
 } from "@/lib/email";
+import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/mini-session-calendar";
 import {
   createMiniSessionSlots,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
@@ -87,6 +89,41 @@ function timeZoneOffsetMs(date: Date, timeZone: string) {
 
 function createCancelToken() {
   return randomBytes(32).toString("base64url");
+}
+
+function miniSessionCalendarUid(bookingId: string) {
+  return `mini-session-${bookingId}@gallery.hochzeitsfotografgraz.at`;
+}
+
+function miniSessionCalendarDescription({
+  location,
+  name,
+  email,
+  phone,
+  attendeeCount,
+  cancelUrl,
+  adminUrl,
+  status
+}: {
+  location: string;
+  name: string;
+  email: string;
+  phone: string;
+  attendeeCount: number;
+  cancelUrl?: string;
+  adminUrl?: string;
+  status?: "booked" | "cancelled";
+}) {
+  return [
+    status === "cancelled" ? "A mini session foglalás törölve lett." : "Mini session foglalás.",
+    `Helyszín: ${location}`,
+    `Név: ${name}`,
+    `Email: ${email}`,
+    `Telefon: ${phone}`,
+    `Létszám: ${attendeeCount}`,
+    cancelUrl ? `Időpont törlése: ${cancelUrl}` : null,
+    adminUrl ? `Admin: ${adminUrl}` : null
+  ].filter(Boolean).join("\n");
 }
 
 export async function createMiniSessionAction(formData: FormData) {
@@ -280,8 +317,46 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   }
 
   const cancelUrl = miniSessionBookingCancelUrl(slug, cancelToken);
+  const calendarUrl = miniSessionBookingCalendarUrl(slug, cancelToken);
   const adminUrl = adminMiniSessionUrl(session.id);
   const publicUrl = miniSessionPublicUrl(session.slug);
+  const calendarFilename = miniSessionCalendarFilename(session.title);
+  const customerCalendarIcs = buildMiniSessionCalendarIcs({
+    uid: miniSessionCalendarUid(booking.id),
+    sessionTitle: session.title,
+    location: session.location,
+    startsAt: booking.startsAt,
+    endsAt: booking.endsAt,
+    createdAt: booking.createdAt,
+    updatedAt: booking.updatedAt,
+    url: calendarUrl,
+    description: miniSessionCalendarDescription({
+      location: session.location,
+      name,
+      email,
+      phone,
+      attendeeCount,
+      cancelUrl
+    })
+  });
+  const adminCalendarIcs = buildMiniSessionCalendarIcs({
+    uid: miniSessionCalendarUid(booking.id),
+    sessionTitle: session.title,
+    location: session.location,
+    startsAt: booking.startsAt,
+    endsAt: booking.endsAt,
+    createdAt: booking.createdAt,
+    updatedAt: booking.updatedAt,
+    url: adminUrl,
+    description: miniSessionCalendarDescription({
+      location: session.location,
+      name,
+      email,
+      phone,
+      attendeeCount,
+      adminUrl
+    })
+  });
   let customerEmailSentAt: Date | null = null;
   let adminEmailSentAt: Date | null = null;
 
@@ -295,7 +370,10 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       endsAt: booking.endsAt,
       name,
       attendeeCount,
-      cancelUrl
+      cancelUrl,
+      calendarUrl,
+      calendarIcs: customerCalendarIcs,
+      calendarFilename
     });
     customerEmailSentAt = sent ? new Date() : null;
   } catch (error) {
@@ -315,7 +393,10 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       phone,
       attendeeCount,
       adminUrl,
-      publicUrl
+      publicUrl,
+      calendarUrl,
+      calendarIcs: adminCalendarIcs,
+      calendarFilename
     });
     adminEmailSentAt = sent ? new Date() : null;
   } catch (error) {
@@ -331,7 +412,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
 
   revalidatePath(`/mini-session/${slug}`);
   revalidatePath("/admin/mini-sessions");
-  redirect(`/mini-session/${slug}?booked=1`);
+  redirect(`/mini-session/${slug}?booked=1&calendar=${cancelToken}`);
 }
 
 export async function cancelMiniSessionBookingAction(token: string) {
@@ -355,15 +436,41 @@ export async function cancelMiniSessionBookingAction(token: string) {
   }
 
   if (booking.status !== MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    const cancelledAt = new Date();
+
     await prisma.miniSessionBooking.update({
       where: { id: booking.id },
       data: {
         status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
-        cancelledAt: new Date()
+        cancelledAt
       }
     });
 
     try {
+      const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
+      const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
+      const cancellationIcs = buildMiniSessionCalendarIcs({
+        uid: miniSessionCalendarUid(booking.id),
+        sessionTitle: booking.miniSession.title,
+        location: booking.miniSession.location,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        createdAt: booking.createdAt,
+        updatedAt: cancelledAt,
+        url: adminUrl,
+        status: "CANCELLED",
+        method: "CANCEL",
+        sequence: 1,
+        description: miniSessionCalendarDescription({
+          location: booking.miniSession.location,
+          name: booking.name,
+          email: booking.email,
+          phone: booking.phone,
+          attendeeCount: booking.attendeeCount,
+          adminUrl,
+          status: "cancelled"
+        })
+      });
       const sent = await sendMiniSessionBookingCancelledEmail({
         to: booking.miniSession.admin.email,
         sessionTitle: booking.miniSession.title,
@@ -375,7 +482,11 @@ export async function cancelMiniSessionBookingAction(token: string) {
         email: booking.email,
         phone: booking.phone,
         attendeeCount: booking.attendeeCount,
-        adminUrl: adminMiniSessionUrl(booking.miniSession.id)
+        adminUrl,
+        calendarUrl,
+        calendarIcs: cancellationIcs,
+        calendarFilename: miniSessionCalendarFilename(booking.miniSession.title, "CANCELLED"),
+        calendarButtonLabel: "Naptárból eltávolítás"
       });
 
       if (sent) {
@@ -391,7 +502,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
 
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
   revalidatePath("/admin/mini-sessions");
-  redirect(`/mini-session/${booking.miniSession.slug}?cancelled=1`);
+  redirect(`/mini-session/${booking.miniSession.slug}?cancelled=1&calendar=${booking.cancelToken}`);
 }
 
 export async function cancelMiniSessionBookingByAdminAction(bookingId: string) {

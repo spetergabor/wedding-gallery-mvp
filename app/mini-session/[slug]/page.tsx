@@ -1,4 +1,5 @@
-import { CalendarClock, CheckCircle2, MapPin, UserRound, Users } from "lucide-react";
+import { CalendarClock, CalendarPlus, CheckCircle2, MapPin, UserRound, Users } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -19,7 +20,7 @@ export default async function PublicMiniSessionPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ booked?: string; cancelled?: string; error?: string }>;
+  searchParams: Promise<{ booked?: string; cancelled?: string; error?: string; calendar?: string }>;
 }) {
   const { slug } = await params;
   const flags = await searchParams;
@@ -51,6 +52,7 @@ export default async function PublicMiniSessionPage({
   const bookedTokens = new Set(session.bookings.map((booking) => booking.startsAt.toISOString()));
   const availableSlots = createMiniSessionSlots(session).filter((slot) => !bookedTokens.has(slot.token));
   const brandName = session.admin.siteSettings?.businessName || "Wedding Gallery";
+  const calendarHref = flags.calendar ? `/mini-session/${session.slug}/calendar/${encodeURIComponent(flags.calendar)}` : null;
 
   return (
     <main className="min-h-screen bg-paper text-ink">
@@ -82,8 +84,29 @@ export default async function PublicMiniSessionPage({
 
       <section className="mx-auto max-w-6xl px-5 py-8 lg:px-10">
         <div className="mb-5 space-y-3">
-          {flags.booked ? <Alert title="Köszönöm, a foglalásod rögzítve lett." variant="success">A megerősítő e-mail hamarosan megérkezik.</Alert> : null}
-          {flags.cancelled ? <Alert title="A foglalás törölve lett." variant="success" /> : null}
+          {flags.booked ? (
+            <Alert title="Köszönöm, a foglalásod rögzítve lett." variant="success">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>A megerősítő e-mail hamarosan megérkezik.</span>
+                {calendarHref ? (
+                  <Link className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink shadow-sm transition hover:bg-paper" href={calendarHref}>
+                    <CalendarPlus size={15} />
+                    Naptárhoz adás
+                  </Link>
+                ) : null}
+              </div>
+            </Alert>
+          ) : null}
+          {flags.cancelled ? (
+            <Alert title="A foglalás törölve lett." variant="success">
+              {calendarHref ? (
+                <Link className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink shadow-sm transition hover:bg-paper" href={calendarHref}>
+                  <CalendarPlus size={15} />
+                  Naptárból eltávolítás
+                </Link>
+              ) : null}
+            </Alert>
+          ) : null}
           {flags.error === "missing" ? <Alert title="Kérlek tölts ki minden kötelező mezőt." variant="error" /> : null}
           {flags.error === "taken" ? <Alert title="Ez az időpont közben betelt." variant="error">Válassz egy másik szabad idősávot.</Alert> : null}
           {flags.error === "slot" ? <Alert title="Érvénytelen időpont." variant="error" /> : null}
