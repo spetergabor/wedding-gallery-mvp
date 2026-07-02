@@ -65,7 +65,6 @@ export default async function AdminR2StoragePage({
   const flags = await searchParams;
   const includeObjects = flags.objects === "1";
   const audit = await getR2StorageAudit({ includeObjects });
-  const multipartBytes = audit.multipartUploads.reduce((sum, upload) => sum + upload.partBytes, 0);
 
   return (
     <AdminShell>
@@ -105,8 +104,8 @@ export default async function AdminR2StoragePage({
         <StatCard
           icon={<PackageX size={15} />}
           label="Félbemaradt upload"
-          value={formatBytes(multipartBytes)}
-          detail={`${audit.multipartUploads.length.toLocaleString("hu-HU")} ongoing multipart upload`}
+          value={audit.multipartUploads.length.toLocaleString("hu-HU")}
+          detail="ongoing multipart upload · gyors cleanup nézet"
         />
         <StatCard
           icon={<Database size={15} />}
@@ -157,7 +156,7 @@ export default async function AdminR2StoragePage({
                   <div className="min-w-0">
                     <p className="break-all text-sm font-semibold text-ink">{upload.key}</p>
                     <p className="mt-2 text-xs text-graphite/65">
-                      {formatBytes(upload.partBytes)} · {upload.partCount.toLocaleString("hu-HU")} part · indítva: {formatDate(upload.initiated)}
+                      Partméret nincs számolva a gyors nézetben · indítva: {formatDate(upload.initiated)}
                     </p>
                   </div>
                   <form action={abortR2MultipartUploadAction.bind(null, upload.key, upload.uploadId)}>

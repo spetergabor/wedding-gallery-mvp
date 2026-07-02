@@ -106,7 +106,7 @@ function summaryRows(map: Map<string, R2ObjectSummary>, limit: number) {
     .slice(0, limit);
 }
 
-async function listMultipartUploads(client: S3Client, bucket: string) {
+async function listMultipartUploads(client: S3Client, bucket: string, { includeParts = false }: { includeParts?: boolean } = {}) {
   const uploads: R2MultipartUploadAudit[] = [];
   let KeyMarker: string | undefined;
   let UploadIdMarker: string | undefined;
@@ -125,7 +125,9 @@ async function listMultipartUploads(client: S3Client, bucket: string) {
         continue;
       }
 
-      const parts = await listMultipartUploadParts(client, bucket, upload.Key, upload.UploadId);
+      const parts = includeParts
+        ? await listMultipartUploadParts(client, bucket, upload.Key, upload.UploadId)
+        : { count: 0, bytes: 0 };
 
       uploads.push({
         key: upload.Key,
