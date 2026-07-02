@@ -267,6 +267,12 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
         cancelToken
       }
     });
+  }).catch((error) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirect(`/mini-session/${slug}?error=taken`);
+    }
+
+    throw error;
   });
 
   if (!booking) {
@@ -386,4 +392,42 @@ export async function cancelMiniSessionBookingAction(token: string) {
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
   revalidatePath("/admin/mini-sessions");
   redirect(`/mini-session/${booking.miniSession.slug}?cancelled=1`);
+}
+
+export async function cancelMiniSessionBookingByAdminAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      miniSession: adminOwnedWhere(admin)
+    },
+    select: {
+      id: true,
+      status: true,
+      miniSession: {
+        select: {
+          id: true,
+          slug: true
+        }
+      }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  if (booking.status !== MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    await prisma.miniSessionBooking.update({
+      where: { id: booking.id },
+      data: {
+        status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
+        cancelledAt: new Date()
+      }
+    });
+  }
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/mini-session/${booking.miniSession.slug}`);
+  redirect(`/admin/mini-sessions?bookingCancelled=1#mini-session-${booking.miniSession.id}`);
 }

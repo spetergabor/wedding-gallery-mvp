@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, Copy, ExternalLink, MapPin, Plus, Trash2, Users } from "lucide-react";
+import { CalendarClock, CheckCircle2, Copy, ExternalLink, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
@@ -8,26 +8,33 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { miniSessionPublicUrl } from "@/lib/email";
-import { createMiniSessionAction, deleteMiniSessionAction, updateMiniSessionAction } from "@/lib/mini-session-actions";
 import {
+  cancelMiniSessionBookingByAdminAction,
+  createMiniSessionAction,
+  deleteMiniSessionAction,
+  updateMiniSessionAction
+} from "@/lib/mini-session-actions";
+import {
+  createMiniSessionSlots,
   formatMiniSessionDate,
   formatMiniSessionSlot,
   formatMiniSessionTime,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
+  MINI_SESSION_BOOKING_STATUS_CANCELLED,
   miniSessionDateInput,
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
 const fieldClass =
-  "h-12 w-full min-w-0 rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
+  "h-12 w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 const textAreaClass =
-  "min-h-24 w-full rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
+  "min-h-24 w-full min-w-0 rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 
 export default async function AdminMiniSessionsPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string; created?: string; updated?: string; deleted?: string }>;
+  searchParams: Promise<{ error?: string; created?: string; updated?: string; deleted?: string; bookingCancelled?: string }>;
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
@@ -59,6 +66,7 @@ export default async function AdminMiniSessionsPage({
         {flags.created ? <Alert title="Mini session létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Mini session frissítve." variant="success" /> : null}
         {flags.deleted ? <Alert title="Mini session törölve." variant="success" /> : null}
+        {flags.bookingCancelled ? <Alert title="Foglalás törölve, az idősáv újra szabad." variant="success" /> : null}
       </div>
 
       <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -126,6 +134,10 @@ export default async function AdminMiniSessionsPage({
         ) : (
           sessions.map((session) => {
             const booked = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
+            const cancelled = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
+            const slots = createMiniSessionSlots(session);
+            const bookedSlotTokens = new Set(booked.map((booking) => booking.startsAt.toISOString()));
+            const freeSlotCount = slots.filter((slot) => !bookedSlotTokens.has(slot.token)).length;
             const publicUrl = miniSessionPublicUrl(session.slug);
             return (
               <section id={`mini-session-${session.id}`} key={session.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -141,6 +153,8 @@ export default async function AdminMiniSessionsPage({
                       <span className="inline-flex items-center gap-1.5"><CalendarClock size={15} /> {formatMiniSessionDate(session.sessionDate)} · {formatMiniSessionTime(session.startsAt)}-{formatMiniSessionTime(session.endsAt)}</span>
                       <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
                       <span className="inline-flex items-center gap-1.5"><Users size={15} /> {booked.length} foglalás</span>
+                      <span className="inline-flex items-center gap-1.5"><CheckCircle2 size={15} /> {freeSlotCount}/{slots.length} szabad</span>
+                      {cancelled.length > 0 ? <span className="inline-flex items-center gap-1.5"><XCircle size={15} /> {cancelled.length} törölt</span> : null}
                     </div>
                     <p className="mt-2 text-sm text-graphite/60">Publikus oldal: /mini-session/{session.slug}</p>
                   </div>
@@ -216,6 +230,20 @@ export default async function AdminMiniSessionsPage({
                       <CheckCircle2 size={15} />
                       Foglalt időpontok
                     </h3>
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-md bg-white px-2 py-3">
+                        <p className="text-lg font-semibold text-ink">{slots.length}</p>
+                        <p className="text-[11px] uppercase tracking-[0.12em] text-graphite/55">Összes</p>
+                      </div>
+                      <div className="rounded-md bg-white px-2 py-3">
+                        <p className="text-lg font-semibold text-sage">{freeSlotCount}</p>
+                        <p className="text-[11px] uppercase tracking-[0.12em] text-graphite/55">Szabad</p>
+                      </div>
+                      <div className="rounded-md bg-white px-2 py-3">
+                        <p className="text-lg font-semibold text-ink">{booked.length}</p>
+                        <p className="text-[11px] uppercase tracking-[0.12em] text-graphite/55">Foglalt</p>
+                      </div>
+                    </div>
                     <div className="mt-4 space-y-3">
                       {booked.length === 0 ? (
                         <p className="text-sm text-graphite/70">Még nincs foglalás erre a mini sessionre.</p>
@@ -225,10 +253,33 @@ export default async function AdminMiniSessionsPage({
                             <p className="text-sm font-semibold text-ink">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
                             <p className="mt-1 text-sm text-graphite/70">{booking.email} · {booking.phone}</p>
                             <p className="mt-1 text-xs text-graphite/60">Létszám: {booking.attendeeCount}</p>
+                            <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)} className="mt-3">
+                              <ConfirmSubmitButton
+                                variant="danger"
+                                message={`Biztosan törlöd ${booking.name} foglalását? Az idősáv újra foglalható lesz.`}
+                                className="h-9 px-3 text-xs"
+                              >
+                                <XCircle size={14} />
+                                Foglalás törlése
+                              </ConfirmSubmitButton>
+                            </form>
                           </div>
                         ))
                       )}
                     </div>
+                    {cancelled.length > 0 ? (
+                      <div className="mt-5 border-t border-ink/10 pt-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">Törölt foglalások</p>
+                        <div className="mt-3 space-y-2">
+                          {cancelled.map((booking) => (
+                            <div key={booking.id} className="rounded-md border border-ink/10 bg-white/70 p-3">
+                              <p className="text-sm font-medium text-graphite">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
+                              <p className="mt-1 text-xs text-graphite/55">{booking.email} · {booking.phone}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </section>

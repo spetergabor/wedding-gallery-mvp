@@ -12,7 +12,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 const fieldClass =
-  "h-12 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
+  "h-12 w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 
 export default async function PublicMiniSessionPage({
   params,
