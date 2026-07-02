@@ -1,8 +1,9 @@
-import { CalendarClock, CheckCircle2, ChevronDown, Copy, ExternalLink, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronDown, ExternalLink, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { adminOwnedWhere } from "@/lib/admin-scope";
@@ -163,10 +164,7 @@ export default async function AdminMiniSessionsPage({
                       <ExternalLink size={15} />
                       Megnyitás
                     </Link>
-                    <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink hover:bg-ink/5" href={`mailto:?subject=${encodeURIComponent(session.title)}&body=${encodeURIComponent(publicUrl)}`}>
-                      <Copy size={15} />
-                      Link küldése
-                    </Link>
+                    <CopyLinkButton url={publicUrl} label="Link másolása" className="h-10 px-3" />
                     <form action={deleteMiniSessionAction.bind(null, session.id)}>
                       <ConfirmSubmitButton
                         variant="danger"
