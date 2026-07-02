@@ -187,6 +187,26 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   }
 }
 
+export async function deleteMiniSessionAction(id: string) {
+  const admin = await requireAdmin();
+  const miniSession = await prisma.miniSession.findFirst({
+    where: { id, ...adminOwnedWhere(admin) },
+    select: { id: true, slug: true }
+  });
+
+  if (!miniSession) {
+    redirect("/admin/mini-sessions");
+  }
+
+  await prisma.miniSession.delete({
+    where: { id: miniSession.id }
+  });
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/mini-session/${miniSession.slug}`);
+  redirect("/admin/mini-sessions?deleted=1");
+}
+
 export async function bookMiniSessionAction(slug: string, formData: FormData) {
   const selectedSlot = formString(formData, "slot");
   const name = formString(formData, "name");

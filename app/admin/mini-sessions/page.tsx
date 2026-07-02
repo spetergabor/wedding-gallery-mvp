@@ -1,13 +1,14 @@
-import { CalendarClock, CheckCircle2, Copy, ExternalLink, MapPin, Plus, Users } from "lucide-react";
+import { CalendarClock, CheckCircle2, Copy, ExternalLink, MapPin, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { miniSessionPublicUrl } from "@/lib/email";
-import { createMiniSessionAction, updateMiniSessionAction } from "@/lib/mini-session-actions";
+import { createMiniSessionAction, deleteMiniSessionAction, updateMiniSessionAction } from "@/lib/mini-session-actions";
 import {
   formatMiniSessionDate,
   formatMiniSessionSlot,
@@ -26,7 +27,7 @@ const textAreaClass =
 export default async function AdminMiniSessionsPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string; created?: string; updated?: string }>;
+  searchParams: Promise<{ error?: string; created?: string; updated?: string; deleted?: string }>;
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
@@ -57,6 +58,7 @@ export default async function AdminMiniSessionsPage({
         {flags.error === "slug" ? <Alert title="Ez a publikus link már foglalt." variant="error">Adj meg egy egyedi slugot.</Alert> : null}
         {flags.created ? <Alert title="Mini session létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Mini session frissítve." variant="success" /> : null}
+        {flags.deleted ? <Alert title="Mini session törölve." variant="success" /> : null}
       </div>
 
       <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -151,6 +153,16 @@ export default async function AdminMiniSessionsPage({
                       <Copy size={15} />
                       Link küldése
                     </Link>
+                    <form action={deleteMiniSessionAction.bind(null, session.id)}>
+                      <ConfirmSubmitButton
+                        variant="danger"
+                        message={`Biztosan törlöd ezt a mini sessiont? A hozzá tartozó ${booked.length} foglalás is törlődik.`}
+                        className="h-10 px-3"
+                      >
+                        <Trash2 size={15} />
+                        Törlés
+                      </ConfirmSubmitButton>
+                    </form>
                   </div>
                 </div>
 
