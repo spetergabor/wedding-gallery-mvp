@@ -195,8 +195,8 @@ export default async function AdminMiniSessionsPage({
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-                  <form action={updateMiniSessionAction.bind(null, session.id)} className="grid gap-4 sm:grid-cols-2">
+                <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+                  <form action={updateMiniSessionAction.bind(null, session.id)} className="grid content-start gap-4 sm:grid-cols-2">
                     <label className="block space-y-2">
                       <span className="text-sm font-medium text-graphite">Session neve</span>
                       <input name="title" defaultValue={session.title} required className={fieldClass} />
