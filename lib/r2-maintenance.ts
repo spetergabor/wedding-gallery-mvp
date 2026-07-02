@@ -43,6 +43,33 @@ export type R2StorageAudit = {
   };
 };
 
+const R2_MULTIPART_CLEANUP_JOB_TYPE = "r2-multipart-cleanup";
+const DEFAULT_R2_MULTIPART_CLEANUP_MIN_AGE_HOURS = 24;
+
+export type R2MultipartCleanupResult = {
+  bucket: string;
+  minAgeHours: number;
+  cutoff: Date;
+  scannedUploads: number;
+  abortedUploads: number;
+  skippedRecentUploads: number;
+  skippedUnknownAgeUploads: number;
+  aborted: Array<{ key: string; uploadId: string; initiated: Date | null }>;
+};
+
+export type R2CleanupRunSummary = {
+  status: string;
+  createdAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  errorMessage: string | null;
+  minAgeHours: number | null;
+  scannedUploads: number | null;
+  abortedUploads: number | null;
+  skippedRecentUploads: number | null;
+  skippedUnknownAgeUploads: number | null;
+};
+
 function r2Endpoint() {
   const explicit = process.env.R2_ENDPOINT?.trim();
 
@@ -106,6 +133,16 @@ function summaryRows(map: Map<string, R2ObjectSummary>, limit: number) {
     .slice(0, limit);
 }
 
+function readPositiveInteger(value: string | undefined, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  if (!Number.isFinite(parsed) || parsed < minimum) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 async function listMultipartUploads(client: S3Client, bucket: string, { includeParts = false }: { includeParts?: boolean } = {}) {
   const uploads: R2MultipartUploadAudit[] = [];
   let KeyMarker: string | undefined;
@@ -142,7 +179,15 @@ async function listMultipartUploads(client: S3Client, bucket: string, { includeP
     UploadIdMarker = response.NextUploadIdMarker;
   } while (KeyMarker || UploadIdMarker);
 
-  return uploads.sort((left, right) => right.partBytes - left.partBytes);
+  return uploads.sort((left, right) => {
+    const sizeSort = right.partBytes - left.partBytes;
+
+    if (sizeSort !== 0) {
+      return sizeSort;
+    }
+
+    return (left.initiated?.getTime() ?? Number.MAX_SAFE_INTEGER) - (right.initiated?.getTime() ?? Number.MAX_SAFE_INTEGER);
+  });
 }
 
 async function listMultipartUploadParts(client: S3Client, bucket: string, key: string, uploadId: string) {
@@ -308,4 +353,170 @@ export async function abortAllR2MultipartUploads() {
   }
 
   return uploads.length;
+}
+
+export async function abortStaleR2MultipartUploads({ minAgeHours }: { minAgeHours?: number } = {}): Promise<R2MultipartCleanupResult> {
+  const config = r2Config();
+
+  if (config.missingConfig.length > 0) {
+    throw new Error(`Missing R2 configuration: ${config.missingConfig.join(", ")}`);
+  }
+
+  const effectiveMinAgeHours =
+    minAgeHours ?? readPositiveInteger(process.env.R2_MULTIPART_CLEANUP_MIN_AGE_HOURS, DEFAULT_R2_MULTIPART_CLEANUP_MIN_AGE_HOURS, 1);
+  const cutoff = new Date(Date.now() - effectiveMinAgeHours * 60 * 60 * 1000);
+  const client = r2Client(config);
+  const uploads = await listMultipartUploads(client, config.bucket);
+  const result: R2MultipartCleanupResult = {
+    bucket: config.bucket,
+    minAgeHours: effectiveMinAgeHours,
+    cutoff,
+    scannedUploads: uploads.length,
+    abortedUploads: 0,
+    skippedRecentUploads: 0,
+    skippedUnknownAgeUploads: 0,
+    aborted: []
+  };
+
+  for (const upload of uploads) {
+    if (!upload.initiated) {
+      result.skippedUnknownAgeUploads += 1;
+      continue;
+    }
+
+    if (upload.initiated.getTime() > cutoff.getTime()) {
+      result.skippedRecentUploads += 1;
+      continue;
+    }
+
+    await client.send(
+      new AbortMultipartUploadCommand({
+        Bucket: config.bucket,
+        Key: upload.key,
+        UploadId: upload.uploadId
+      })
+    );
+
+    result.abortedUploads += 1;
+    result.aborted.push({
+      key: upload.key,
+      uploadId: upload.uploadId,
+      initiated: upload.initiated
+    });
+  }
+
+  return result;
+}
+
+function cleanupResultToJson(result: R2MultipartCleanupResult) {
+  return {
+    bucket: result.bucket,
+    minAgeHours: result.minAgeHours,
+    cutoff: result.cutoff.toISOString(),
+    scannedUploads: result.scannedUploads,
+    abortedUploads: result.abortedUploads,
+    skippedRecentUploads: result.skippedRecentUploads,
+    skippedUnknownAgeUploads: result.skippedUnknownAgeUploads,
+    aborted: result.aborted.map((upload) => ({
+      key: upload.key,
+      uploadId: upload.uploadId,
+      initiated: upload.initiated?.toISOString() ?? null
+    }))
+  };
+}
+
+function payloadRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function payloadNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export async function runR2MultipartCleanupJob({ minAgeHours }: { minAgeHours?: number } = {}) {
+  const effectiveMinAgeHours =
+    minAgeHours ?? readPositiveInteger(process.env.R2_MULTIPART_CLEANUP_MIN_AGE_HOURS, DEFAULT_R2_MULTIPART_CLEANUP_MIN_AGE_HOURS, 1);
+  const startedAt = new Date();
+  const job = await prisma.backgroundJob.create({
+    data: {
+      type: R2_MULTIPART_CLEANUP_JOB_TYPE,
+      status: "processing",
+      payload: {
+        minAgeHours: effectiveMinAgeHours,
+        startedAt: startedAt.toISOString()
+      },
+      attempts: 1,
+      maxAttempts: 1,
+      lockedAt: startedAt,
+      startedAt
+    }
+  });
+
+  try {
+    const result = await abortStaleR2MultipartUploads({ minAgeHours: effectiveMinAgeHours });
+
+    await prisma.backgroundJob.update({
+      where: { id: job.id },
+      data: {
+        status: "completed",
+        lockedAt: null,
+        completedAt: new Date(),
+        payload: {
+          minAgeHours: effectiveMinAgeHours,
+          result: cleanupResultToJson(result)
+        }
+      }
+    });
+
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "R2 multipart cleanup failed.";
+
+    await prisma.backgroundJob.update({
+      where: { id: job.id },
+      data: {
+        status: "failed",
+        lockedAt: null,
+        completedAt: new Date(),
+        errorMessage: message.slice(0, 500)
+      }
+    });
+
+    throw error;
+  }
+}
+
+export async function getLatestR2CleanupRun(): Promise<R2CleanupRunSummary | null> {
+  const job = await prisma.backgroundJob.findFirst({
+    where: { type: R2_MULTIPART_CLEANUP_JOB_TYPE },
+    orderBy: { createdAt: "desc" },
+    select: {
+      status: true,
+      createdAt: true,
+      startedAt: true,
+      completedAt: true,
+      errorMessage: true,
+      payload: true
+    }
+  });
+
+  if (!job) {
+    return null;
+  }
+
+  const payload = payloadRecord(job.payload);
+  const result = payloadRecord(payload.result);
+
+  return {
+    status: job.status,
+    createdAt: job.createdAt,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    errorMessage: job.errorMessage,
+    minAgeHours: payloadNumber(payload.minAgeHours),
+    scannedUploads: payloadNumber(result.scannedUploads),
+    abortedUploads: payloadNumber(result.abortedUploads),
+    skippedRecentUploads: payloadNumber(result.skippedRecentUploads),
+    skippedUnknownAgeUploads: payloadNumber(result.skippedUnknownAgeUploads)
+  };
 }

@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { AlertTriangle, Database, HardDrive, PackageX, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Clock3, Database, HardDrive, PackageX, Search, Trash2 } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { requireSuperAdmin } from "@/lib/auth";
 import { abortAllR2MultipartUploadsAction, abortR2MultipartUploadAction } from "@/lib/r2-maintenance-actions";
-import { getR2StorageAudit } from "@/lib/r2-maintenance";
+import { getLatestR2CleanupRun, getR2StorageAudit, type R2CleanupRunSummary } from "@/lib/r2-maintenance";
 
 function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -56,6 +56,29 @@ function StatCard({ icon, label, value, detail }: { icon: React.ReactNode; label
   );
 }
 
+function cleanupStatus(run: R2CleanupRunSummary | null) {
+  if (!run) {
+    return {
+      value: "még nincs",
+      detail: "az első automata futásra vár"
+    };
+  }
+
+  const statusLabels: Record<string, string> = {
+    completed: "sikeres",
+    failed: "hibás",
+    processing: "fut"
+  };
+  const timestamp = run.completedAt ?? run.startedAt ?? run.createdAt;
+  const aborted = run.abortedUploads ?? 0;
+  const scanned = run.scannedUploads ?? 0;
+
+  return {
+    value: statusLabels[run.status] ?? run.status,
+    detail: `${formatDate(timestamp)} · ${aborted.toLocaleString("hu-HU")} abort · ${scanned.toLocaleString("hu-HU")} vizsgált`
+  };
+}
+
 export default async function AdminR2StoragePage({
   searchParams
 }: {
@@ -64,7 +87,8 @@ export default async function AdminR2StoragePage({
   await requireSuperAdmin();
   const flags = await searchParams;
   const includeObjects = flags.objects === "1";
-  const audit = await getR2StorageAudit({ includeObjects });
+  const [audit, latestCleanupRun] = await Promise.all([getR2StorageAudit({ includeObjects }), getLatestR2CleanupRun()]);
+  const latestCleanupStatus = cleanupStatus(latestCleanupRun);
 
   return (
     <AdminShell>
@@ -86,6 +110,9 @@ export default async function AdminR2StoragePage({
       </div>
 
       <div className="mb-5 space-y-3">
+        <Alert title="Automata R2 cleanup aktív.">
+          Naponta lefut, és megszakítja a 24 óránál régebbi félbemaradt multipart feltöltéseket.
+        </Alert>
         {flags.aborted ? <Alert title={`${flags.aborted} félbemaradt feltöltés megszakítva.`} variant="success" /> : null}
         {!audit.configured ? (
           <Alert title="Hiányos R2 konfiguráció." variant="error">
@@ -94,7 +121,7 @@ export default async function AdminR2StoragePage({
         ) : null}
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={<HardDrive size={15} />}
           label="R2 objektumok"
@@ -118,6 +145,12 @@ export default async function AdminR2StoragePage({
           label="DB ZIP-ek"
           value={formatBytes(audit.database.downloadPackageBytes)}
           detail={`${audit.database.staleDownloadPackageCount.toLocaleString("hu-HU")} stale ZIP sor`}
+        />
+        <StatCard
+          icon={<Clock3 size={15} />}
+          label="Automata cleanup"
+          value={latestCleanupStatus.value}
+          detail={latestCleanupRun?.errorMessage ?? latestCleanupStatus.detail}
         />
       </section>
 

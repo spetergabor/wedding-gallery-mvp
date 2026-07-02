@@ -4,6 +4,10 @@
     {
       "path": "/api/jobs/process",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/jobs/r2-cleanup",
+      "schedule": "30 3 * * *"
     }
   ]
 }
