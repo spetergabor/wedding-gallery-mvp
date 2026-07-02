@@ -19,6 +19,9 @@ import {
 import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/mini-session-calendar";
 import {
   createMiniSessionSlots,
+  MINI_SESSION_BOOKING_SOURCE_BLOCKED,
+  MINI_SESSION_BOOKING_SOURCE_CLIENT,
+  MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED
 } from "@/lib/mini-sessions";
@@ -244,6 +247,102 @@ export async function deleteMiniSessionAction(id: string) {
   redirect("/admin/mini-sessions?deleted=1");
 }
 
+export async function createAdminMiniSessionBookingAction(id: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const selectedSlot = formString(formData, "slot");
+  const source =
+    formString(formData, "source") === MINI_SESSION_BOOKING_SOURCE_BLOCKED
+      ? MINI_SESSION_BOOKING_SOURCE_BLOCKED
+      : MINI_SESSION_BOOKING_SOURCE_MANUAL;
+  const rawName = formString(formData, "name");
+  const rawEmail = normalizeEmail(formString(formData, "email"));
+  const rawPhone = formString(formData, "phone");
+  const attendeeCount = Math.max(1, parseInteger(formString(formData, "attendeeCount"), 1));
+  const adminNote = formString(formData, "adminNote");
+
+  const session = await prisma.miniSession.findFirst({
+    where: { id, ...adminOwnedWhere(admin) },
+    include: {
+      admin: {
+        select: {
+          email: true
+        }
+      }
+    }
+  });
+
+  if (!session) {
+    redirect("/admin/mini-sessions");
+  }
+
+  const slot = createMiniSessionSlots(session).find((candidate) => candidate.token === selectedSlot);
+
+  if (!slot) {
+    redirect(`/admin/mini-sessions?error=slot#mini-session-${session.id}`);
+  }
+
+  if (source === MINI_SESSION_BOOKING_SOURCE_MANUAL && !rawName) {
+    redirect(`/admin/mini-sessions?error=missing#mini-session-${session.id}`);
+  }
+
+  if (rawEmail && !isValidEmail(rawEmail)) {
+    redirect(`/admin/mini-sessions?error=missing#mini-session-${session.id}`);
+  }
+
+  const name =
+    source === MINI_SESSION_BOOKING_SOURCE_BLOCKED
+      ? adminNote || "Blokkolt idősáv"
+      : rawName;
+  const email = rawEmail || session.admin.email;
+  const phone = rawPhone || "-";
+  const cancelToken = createCancelToken();
+
+  const booking = await prisma.$transaction(async (tx) => {
+    const existing = await tx.miniSessionBooking.findFirst({
+      where: {
+        miniSessionId: session.id,
+        startsAt: slot.startsAt,
+        status: MINI_SESSION_BOOKING_STATUS_BOOKED
+      },
+      select: { id: true }
+    });
+
+    if (existing) {
+      return null;
+    }
+
+    return tx.miniSessionBooking.create({
+      data: {
+        miniSessionId: session.id,
+        name,
+        email,
+        phone,
+        attendeeCount: source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ? 0 : attendeeCount,
+        startsAt: slot.startsAt,
+        endsAt: slot.endsAt,
+        status: MINI_SESSION_BOOKING_STATUS_BOOKED,
+        source,
+        adminNote: adminNote || null,
+        cancelToken
+      }
+    });
+  }).catch((error) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirect(`/admin/mini-sessions?error=taken#mini-session-${session.id}`);
+    }
+
+    throw error;
+  });
+
+  if (!booking) {
+    redirect(`/admin/mini-sessions?error=taken#mini-session-${session.id}`);
+  }
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/mini-session/${session.slug}`);
+  redirect(`/admin/mini-sessions?adminBooking=1#mini-session-${session.id}`);
+}
+
 export async function bookMiniSessionAction(slug: string, formData: FormData) {
   const selectedSlot = formString(formData, "slot");
   const name = formString(formData, "name");
@@ -301,6 +400,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
         attendeeCount,
         startsAt: slot.startsAt,
         endsAt: slot.endsAt,
+        source: MINI_SESSION_BOOKING_SOURCE_CLIENT,
         cancelToken
       }
     });

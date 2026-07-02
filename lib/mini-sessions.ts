@@ -2,6 +2,9 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 
 export const MINI_SESSION_BOOKING_STATUS_BOOKED = "booked";
 export const MINI_SESSION_BOOKING_STATUS_CANCELLED = "cancelled";
+export const MINI_SESSION_BOOKING_SOURCE_CLIENT = "client";
+export const MINI_SESSION_BOOKING_SOURCE_MANUAL = "manual";
+export const MINI_SESSION_BOOKING_SOURCE_BLOCKED = "blocked";
 
 type MiniSessionLike = {
   startsAt: Date;

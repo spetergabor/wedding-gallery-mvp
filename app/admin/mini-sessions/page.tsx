@@ -11,6 +11,7 @@ import { requireAdmin } from "@/lib/auth";
 import { miniSessionPublicUrl } from "@/lib/email";
 import {
   cancelMiniSessionBookingByAdminAction,
+  createAdminMiniSessionBookingAction,
   createMiniSessionAction,
   deleteMiniSessionAction,
   updateMiniSessionAction
@@ -20,6 +21,8 @@ import {
   formatMiniSessionDate,
   formatMiniSessionSlot,
   formatMiniSessionTime,
+  MINI_SESSION_BOOKING_SOURCE_BLOCKED,
+  MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   miniSessionDateInput,
@@ -35,7 +38,14 @@ const textAreaClass =
 export default async function AdminMiniSessionsPage({
   searchParams
 }: {
-  searchParams: Promise<{ error?: string; created?: string; updated?: string; deleted?: string; bookingCancelled?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    created?: string;
+    updated?: string;
+    deleted?: string;
+    bookingCancelled?: string;
+    adminBooking?: string;
+  }>;
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
@@ -64,10 +74,13 @@ export default async function AdminMiniSessionsPage({
       <div className="mb-5 space-y-3">
         {flags.error === "missing" ? <Alert title="Hiányzó vagy hibás adat." variant="error" /> : null}
         {flags.error === "slug" ? <Alert title="Ez a publikus link már foglalt." variant="error">Adj meg egy egyedi slugot.</Alert> : null}
+        {flags.error === "slot" ? <Alert title="Érvénytelen idősáv." variant="error">Válassz egy szabad idősávot.</Alert> : null}
+        {flags.error === "taken" ? <Alert title="Ez az idősáv már foglalt." variant="error">Frissítsd a listát vagy válassz másik idősávot.</Alert> : null}
         {flags.created ? <Alert title="Mini session létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Mini session frissítve." variant="success" /> : null}
         {flags.deleted ? <Alert title="Mini session törölve." variant="success" /> : null}
         {flags.bookingCancelled ? <Alert title="Foglalás törölve, az idősáv újra szabad." variant="success" /> : null}
+        {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
       </div>
 
       <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -138,7 +151,8 @@ export default async function AdminMiniSessionsPage({
             const cancelled = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
             const slots = createMiniSessionSlots(session);
             const bookedSlotTokens = new Set(booked.map((booking) => booking.startsAt.toISOString()));
-            const freeSlotCount = slots.filter((slot) => !bookedSlotTokens.has(slot.token)).length;
+            const freeSlots = slots.filter((slot) => !bookedSlotTokens.has(slot.token));
+            const freeSlotCount = freeSlots.length;
             const publicUrl = miniSessionPublicUrl(session.slug);
             return (
               <section id={`mini-session-${session.id}`} key={session.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -242,23 +256,97 @@ export default async function AdminMiniSessionsPage({
                         <p className="text-[11px] uppercase tracking-[0.12em] text-graphite/55">Foglalt</p>
                       </div>
                     </div>
+                    <div className="mt-4 rounded-md border border-ink/10 bg-white p-3">
+                      <p className="text-sm font-semibold text-ink">Idősáv rögzítése</p>
+                      {freeSlots.length === 0 ? (
+                        <p className="mt-2 text-sm text-graphite/70">Nincs szabad idősáv kézi foglaláshoz vagy blokkoláshoz.</p>
+                      ) : (
+                        <form action={createAdminMiniSessionBookingAction.bind(null, session.id)} className="mt-3 grid gap-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block space-y-2">
+                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Idősáv</span>
+                              <select name="slot" required className={fieldClass}>
+                                {freeSlots.map((slot) => (
+                                  <option key={slot.token} value={slot.token}>
+                                    {formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="block space-y-2">
+                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Típus</span>
+                              <select name="source" required className={fieldClass} defaultValue={MINI_SESSION_BOOKING_SOURCE_MANUAL}>
+                                <option value={MINI_SESSION_BOOKING_SOURCE_MANUAL}>Kézi foglalás</option>
+                                <option value={MINI_SESSION_BOOKING_SOURCE_BLOCKED}>Blokkolt idősáv</option>
+                              </select>
+                            </label>
+                          </div>
+                          <label className="block space-y-2">
+                            <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Név</span>
+                            <input name="name" className={fieldClass} placeholder="Ügyfél neve" />
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block space-y-2">
+                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">E-mail</span>
+                              <input name="email" type="email" className={fieldClass} placeholder="opcionális" />
+                            </label>
+                            <label className="block space-y-2">
+                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Telefon</span>
+                              <input name="phone" type="tel" className={fieldClass} placeholder="opcionális" />
+                            </label>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
+                            <label className="block space-y-2">
+                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Létszám</span>
+                              <input name="attendeeCount" type="number" min="1" defaultValue="1" className={fieldClass} />
+                            </label>
+                            <label className="block space-y-2">
+                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Megjegyzés</span>
+                              <input name="adminNote" className={fieldClass} placeholder="pl. ebédszünet, Instagram foglalás" />
+                            </label>
+                          </div>
+                          <p className="text-xs leading-5 text-graphite/60">Blokkolt idősávnál elég a megjegyzés; az ügyfelek ezt az idősávot már nem látják szabadként.</p>
+                          <FormSubmitButton pendingLabel="Rögzítés...">Idősáv rögzítése</FormSubmitButton>
+                        </form>
+                      )}
+                    </div>
                     <div className="mt-4 space-y-3">
                       {booked.length === 0 ? (
                         <p className="text-sm text-graphite/70">Még nincs foglalás erre a mini sessionre.</p>
                       ) : (
                         booked.map((booking) => (
                           <div key={booking.id} className="rounded-md border border-ink/10 bg-white p-3">
-                            <p className="text-sm font-semibold text-ink">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
-                            <p className="mt-1 text-sm text-graphite/70">{booking.email} · {booking.phone}</p>
-                            <p className="mt-1 text-xs text-graphite/60">Létszám: {booking.attendeeCount}</p>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-ink">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
+                              <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${
+                                booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED
+                                  ? "bg-red-50 text-red-700"
+                                  : booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL
+                                    ? "bg-brass/10 text-brass"
+                                    : "bg-sage/10 text-sage"
+                              }`}>
+                                {booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED
+                                  ? "Blokkolt"
+                                  : booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL
+                                    ? "Kézi"
+                                    : "Ügyfél"}
+                              </span>
+                            </div>
+                            {booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED ? (
+                              <>
+                                <p className="mt-1 text-sm text-graphite/70">{booking.email} · {booking.phone}</p>
+                                <p className="mt-1 text-xs text-graphite/60">Létszám: {booking.attendeeCount}</p>
+                              </>
+                            ) : null}
+                            {booking.adminNote ? <p className="mt-2 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
                             <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)} className="mt-3">
                               <ConfirmSubmitButton
                                 variant="danger"
-                                message={`Biztosan törlöd ${booking.name} foglalását? Az idősáv újra foglalható lesz.`}
+                                message="Biztosan törlöd ezt az idősávot? Az időpont újra foglalható lesz."
                                 className="h-9 px-3 text-xs"
                               >
                                 <XCircle size={14} />
-                                Foglalás törlése
+                                {booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ? "Blokkolás törlése" : "Foglalás törlése"}
                               </ConfirmSubmitButton>
                             </form>
                           </div>
@@ -275,7 +363,7 @@ export default async function AdminMiniSessionsPage({
                           {cancelled.map((booking) => (
                             <div key={booking.id} className="rounded-md border border-ink/10 bg-white/70 p-3">
                               <p className="text-sm font-medium text-graphite">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
-                              <p className="mt-1 text-xs text-graphite/55">{booking.email} · {booking.phone}</p>
+                              {booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED ? <p className="mt-1 text-xs text-graphite/55">{booking.email} · {booking.phone}</p> : null}
                             </div>
                           ))}
                         </div>

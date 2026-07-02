@@ -166,6 +166,8 @@ model MiniSessionBooking {
   startsAt        DateTime
   endsAt          DateTime
   status          String   @default("booked")
+  source          String   @default("client")
+  adminNote       String?
   cancelToken     String   @unique
   customerEmailSentAt DateTime?
   adminEmailSentAt    DateTime?
@@ -178,6 +180,7 @@ model MiniSessionBooking {
   @@index([miniSessionId])
   @@index([miniSessionId, startsAt])
   @@index([status])
+  @@index([source])
   @@index([email])
   @@index([cancelToken])
 }
