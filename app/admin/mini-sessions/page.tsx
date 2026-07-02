@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, Copy, ExternalLink, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronDown, Copy, ExternalLink, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
@@ -268,8 +268,11 @@ export default async function AdminMiniSessionsPage({
                       )}
                     </div>
                     {cancelled.length > 0 ? (
-                      <div className="mt-5 border-t border-ink/10 pt-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">Törölt foglalások</p>
+                      <details className="group mt-5 border-t border-ink/10 pt-4">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md bg-white/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-graphite/60 transition hover:bg-white [&::-webkit-details-marker]:hidden">
+                          <span>Törölt foglalások ({cancelled.length})</span>
+                          <ChevronDown size={15} className="shrink-0 transition group-open:rotate-180" />
+                        </summary>
                         <div className="mt-3 space-y-2">
                           {cancelled.map((booking) => (
                             <div key={booking.id} className="rounded-md border border-ink/10 bg-white/70 p-3">
@@ -278,7 +281,7 @@ export default async function AdminMiniSessionsPage({
                             </div>
                           ))}
                         </div>
-                      </div>
+                      </details>
                     ) : null}
                   </div>
                 </div>
