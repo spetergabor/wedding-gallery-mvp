@@ -1,4 +1,4 @@
-import { Check, Clock, UserCheck, UserRound, X } from "lucide-react";
+import { Check, Clock, HardDrive, UserCheck, UserRound, X } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -28,6 +28,19 @@ function formatDate(date: Date | null) {
   });
 }
 
+function formatStorageGb(bytes: bigint | number) {
+  const value = typeof bytes === "bigint" ? Number(bytes) : bytes;
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 GB";
+  }
+
+  return `${(value / 1024 ** 3).toLocaleString("hu-HU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })} GB`;
+}
+
 export default async function AdminPhotographersPage({
   searchParams
 }: {
@@ -43,6 +56,24 @@ export default async function AdminPhotographersPage({
       }
     }
   });
+  const storageRows = await prisma.$queryRaw<Array<{ adminId: string; storageBytes: bigint | null; photoCount: bigint | null }>>`
+    SELECT
+      g."adminId" as "adminId",
+      COALESCE(SUM(p."fileSize"), 0)::bigint as "storageBytes",
+      COUNT(p."id")::bigint as "photoCount"
+    FROM "Gallery" g
+    LEFT JOIN "Photo" p ON p."galleryId" = g."id"
+    GROUP BY g."adminId"
+  `;
+  const storageByAdminId = new Map(
+    storageRows.map((row) => [
+      row.adminId,
+      {
+        storageBytes: row.storageBytes ?? BigInt(0),
+        photoCount: row.photoCount ?? BigInt(0)
+      }
+    ])
+  );
 
   const pendingCount = photographers.filter((photographer) => photographer.status === "pending").length;
 
@@ -75,60 +106,73 @@ export default async function AdminPhotographersPage({
       ) : (
         <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
           <div className="divide-y divide-ink/10">
-            {photographers.map((photographer) => (
-              <article
-                key={photographer.id}
-                className="grid gap-4 px-5 py-5 md:grid-cols-[1fr_auto] md:items-center"
-              >
-                <div className="flex gap-4">
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
-                    {photographer.status === "pending" ? <Clock size={18} /> : <UserCheck size={18} />}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-ink">{photographer.name}</p>
-                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                        {statusLabels[photographer.status] ?? photographer.status}
-                      </span>
-                      {photographer.role === "super_admin" ? (
-                        <span className="rounded-full bg-brass/15 px-2.5 py-1 text-xs font-medium text-brass">
-                          Főadmin
+            {photographers.map((photographer) => {
+              const storage = storageByAdminId.get(photographer.id) ?? {
+                storageBytes: BigInt(0),
+                photoCount: BigInt(0)
+              };
+
+              return (
+                <article
+                  key={photographer.id}
+                  className="grid gap-4 px-5 py-5 md:grid-cols-[1fr_auto] md:items-center"
+                >
+                  <div className="flex gap-4">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
+                      {photographer.status === "pending" ? <Clock size={18} /> : <UserCheck size={18} />}
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-base font-semibold text-ink">{photographer.name}</p>
+                        <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          {statusLabels[photographer.status] ?? photographer.status}
                         </span>
+                        {photographer.role === "super_admin" ? (
+                          <span className="rounded-full bg-brass/15 px-2.5 py-1 text-xs font-medium text-brass">
+                            Főadmin
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm text-graphite/70">{photographer.email}</p>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-graphite/55">
+                        <span>Regisztrált: {formatDate(photographer.createdAt)}</span>
+                        <span>{photographer._count.galleries} galéria</span>
+                        <span className="inline-flex items-center gap-1">
+                          <HardDrive size={13} />
+                          {formatStorageGb(storage.storageBytes)} feltöltve
+                        </span>
+                        <span>{storage.photoCount.toLocaleString("hu-HU")} média</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {photographer.role !== "super_admin" ? (
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      {photographer.status !== "approved" ? (
+                        <form action={approvePhotographerAction.bind(null, photographer.id)}>
+                          <FormSubmitButton type="submit" variant="secondary" className="w-full sm:w-auto" pendingLabel="Jóváhagyás...">
+                            <Check size={16} />
+                            Jóváhagyás
+                          </FormSubmitButton>
+                        </form>
+                      ) : null}
+                      {photographer.status !== "rejected" ? (
+                        <form action={rejectPhotographerAction.bind(null, photographer.id)}>
+                          <ConfirmSubmitButton
+                            variant="danger"
+                            message={`Biztosan elutasítod ezt a fotóst: ${photographer.name}?`}
+                            className="w-full sm:w-auto"
+                          >
+                            <X size={16} />
+                            Elutasítás
+                          </ConfirmSubmitButton>
+                        </form>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-sm text-graphite/70">{photographer.email}</p>
-                    <p className="mt-1 text-xs text-graphite/55">
-                      Regisztrált: {formatDate(photographer.createdAt)} · {photographer._count.galleries} galéria
-                    </p>
-                  </div>
-                </div>
-
-                {photographer.role !== "super_admin" ? (
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    {photographer.status !== "approved" ? (
-                      <form action={approvePhotographerAction.bind(null, photographer.id)}>
-                        <FormSubmitButton type="submit" variant="secondary" className="w-full sm:w-auto" pendingLabel="Jóváhagyás...">
-                          <Check size={16} />
-                          Jóváhagyás
-                        </FormSubmitButton>
-                      </form>
-                    ) : null}
-                    {photographer.status !== "rejected" ? (
-                      <form action={rejectPhotographerAction.bind(null, photographer.id)}>
-                        <ConfirmSubmitButton
-                          variant="danger"
-                          message={`Biztosan elutasítod ezt a fotóst: ${photographer.name}?`}
-                          className="w-full sm:w-auto"
-                        >
-                          <X size={16} />
-                          Elutasítás
-                        </ConfirmSubmitButton>
-                      </form>
-                    ) : null}
-                  </div>
-                ) : null}
-              </article>
-            ))}
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}
