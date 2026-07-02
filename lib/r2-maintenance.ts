@@ -234,7 +234,7 @@ async function getDatabaseAudit() {
   };
 }
 
-export async function getR2StorageAudit(): Promise<R2StorageAudit> {
+export async function getR2StorageAudit({ includeObjects = false }: { includeObjects?: boolean } = {}): Promise<R2StorageAudit> {
   const config = r2Config();
   const database = await getDatabaseAudit();
 
@@ -253,7 +253,7 @@ export async function getR2StorageAudit(): Promise<R2StorageAudit> {
   const client = r2Client(config);
   const [multipartUploads, objects] = await Promise.all([
     listMultipartUploads(client, config.bucket),
-    listObjectAudit(client, config.bucket)
+    includeObjects ? listObjectAudit(client, config.bucket) : Promise.resolve(null)
   ]);
 
   return {

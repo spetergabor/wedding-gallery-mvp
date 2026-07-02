@@ -1,4 +1,5 @@
-import { AlertTriangle, Database, HardDrive, PackageX, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Database, HardDrive, PackageX, Search, Trash2 } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -58,11 +59,12 @@ function StatCard({ icon, label, value, detail }: { icon: React.ReactNode; label
 export default async function AdminR2StoragePage({
   searchParams
 }: {
-  searchParams: Promise<{ aborted?: string }>;
+  searchParams: Promise<{ aborted?: string; objects?: string }>;
 }) {
   await requireSuperAdmin();
   const flags = await searchParams;
-  const audit = await getR2StorageAudit();
+  const includeObjects = flags.objects === "1";
+  const audit = await getR2StorageAudit({ includeObjects });
   const multipartBytes = audit.multipartUploads.reduce((sum, upload) => sum + upload.partBytes, 0);
 
   return (
@@ -72,9 +74,16 @@ export default async function AdminR2StoragePage({
           <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Főadmin</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">R2 tárhely</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-graphite/70">
-            Itt tudod ellenőrizni a Cloudflare R2 bucketben lévő félbemaradt feltöltéseket és a nagyobb objektumcsoportokat.
+            Itt tudod ellenőrizni és megszakítani a Cloudflare R2 bucketben lévő félbemaradt multipart feltöltéseket.
           </p>
         </div>
+        <Link
+          href={includeObjects ? "/admin/r2-storage" : "/admin/r2-storage?objects=1"}
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-paper"
+        >
+          <Search size={16} />
+          {includeObjects ? "Gyors nézet" : "Teljes objektumaudit"}
+        </Link>
       </div>
 
       <div className="mb-5 space-y-3">
@@ -90,8 +99,8 @@ export default async function AdminR2StoragePage({
         <StatCard
           icon={<HardDrive size={15} />}
           label="R2 objektumok"
-          value={audit.objects ? formatBytes(audit.objects.total.bytes) : "nincs adat"}
-          detail={audit.objects ? `${audit.objects.total.count.toLocaleString("hu-HU")} objektum listázva` : audit.bucket}
+          value={audit.objects ? formatBytes(audit.objects.total.bytes) : "külön audit"}
+          detail={audit.objects ? `${audit.objects.total.count.toLocaleString("hu-HU")} objektum listázva` : `${audit.bucket} · gyors nézet`}
         />
         <StatCard
           icon={<PackageX size={15} />}
@@ -180,7 +189,7 @@ export default async function AdminR2StoragePage({
                 </div>
               ))
             ) : (
-              <EmptyState icon={<HardDrive size={22} />} title="Nincs prefix adat" description="Az R2 objektumlista nem elérhető." />
+              <EmptyState icon={<HardDrive size={22} />} title="Gyors nézet aktív" description="A teljes objektumaudithoz kattints fent a Teljes objektumaudit gombra." />
             )}
           </div>
         </div>
@@ -196,7 +205,7 @@ export default async function AdminR2StoragePage({
                 </div>
               ))
             ) : (
-              <EmptyState icon={<HardDrive size={22} />} title="Nincs objektum adat" description="Az R2 objektumlista nem elérhető." />
+              <EmptyState icon={<HardDrive size={22} />} title="Gyors nézet aktív" description="A teljes objektumaudithoz kattints fent a Teljes objektumaudit gombra." />
             )}
           </div>
         </div>
