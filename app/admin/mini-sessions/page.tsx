@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, ChevronDown, ExternalLink, ImageIcon, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronDown, ExternalLink, ImageIcon, MapPin, Plus, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
@@ -102,7 +102,7 @@ export default async function AdminMiniSessionsPage({
           </div>
           <ChevronDown size={18} className="shrink-0 text-graphite/60 transition group-open:rotate-180" />
         </summary>
-        <form action={createMiniSessionAction} className="mt-6 grid gap-5 lg:grid-cols-2">
+        <form action={createMiniSessionAction} encType="multipart/form-data" className="mt-6 grid gap-5 lg:grid-cols-2">
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Session neve</span>
             <input name="title" required className={fieldClass} placeholder="pl. Őszi mini session" />
@@ -210,7 +210,7 @@ export default async function AdminMiniSessionsPage({
                 </div>
 
                 <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-                  <form action={updateMiniSessionAction.bind(null, session.id)} className="grid content-start gap-4 sm:grid-cols-2">
+                  <form action={updateMiniSessionAction.bind(null, session.id)} encType="multipart/form-data" className="grid content-start gap-4 sm:grid-cols-2">
                     <label className="block space-y-2">
                       <span className="text-sm font-medium text-graphite">Session neve</span>
                       <input name="title" defaultValue={session.title} required className={fieldClass} />
@@ -242,14 +242,20 @@ export default async function AdminMiniSessionsPage({
                       </label>
                     </div>
                     <div className="space-y-3 sm:col-span-2">
-                      <label className="block space-y-2">
-                        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                          <ImageIcon size={15} />
-                          Borítókép az érkező oldalra
-                        </span>
-                        <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
-                        <span className="block text-xs text-graphite/60">Új kép feltöltése lecseréli a jelenlegi borítót.</span>
-                      </label>
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                        <label className="block min-w-0 space-y-2">
+                          <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                            <ImageIcon size={15} />
+                            Borítókép az érkező oldalra
+                          </span>
+                          <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
+                        </label>
+                        <FormSubmitButton pendingLabel="Feltöltés..." className="h-12 px-4">
+                          <UploadCloud size={16} />
+                          Borítókép feltöltése
+                        </FormSubmitButton>
+                      </div>
+                      <span className="block text-xs text-graphite/60">Új kép feltöltése lecseréli a jelenlegi borítót. A gomb az esemény többi módosítását is menti.</span>
                       {session.coverImageUrl ? (
                         <div className="grid gap-3 rounded-md border border-ink/10 bg-paper p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
                           <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
