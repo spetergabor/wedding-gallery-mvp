@@ -1,4 +1,5 @@
 import { CalendarClock, CalendarPlus, CheckCircle2, MapPin, UserRound, Users } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
@@ -53,27 +54,49 @@ export default async function PublicMiniSessionPage({
   const availableSlots = createMiniSessionSlots(session).filter((slot) => !bookedTokens.has(slot.token));
   const brandName = session.admin.siteSettings?.businessName || "Wedding Gallery";
   const calendarHref = flags.calendar ? `/mini-session/${session.slug}/calendar/${encodeURIComponent(flags.calendar)}` : null;
+  const hasCoverImage = Boolean(session.coverImageUrl);
+  const eyebrowClass = hasCoverImage ? "text-white/80" : "text-brass";
+  const headingClass = hasCoverImage ? "text-white drop-shadow-sm" : "text-ink";
+  const metaClass = hasCoverImage ? "text-white/85" : "text-graphite/75";
+  const metaPillClass = hasCoverImage ? "border-white/25 bg-white/15 text-white backdrop-blur" : "border-ink/10 bg-paper";
+  const noteClass = hasCoverImage ? "text-white/85 drop-shadow-sm" : "text-graphite/75";
+  const infoPanelClass = hasCoverImage ? "border-white/20 bg-white/90 text-ink shadow-soft backdrop-blur" : "border-ink/10 bg-paper";
 
   return (
     <main className="min-h-screen bg-paper text-ink">
-      <section className="border-b border-ink/10 bg-white">
-        <div className="mx-auto grid min-h-[58vh] max-w-6xl gap-8 px-5 py-10 md:grid-cols-[minmax(0,1fr)_380px] md:items-end lg:px-10">
+      <section className={`relative overflow-hidden border-b border-ink/10 ${hasCoverImage ? "bg-ink text-white" : "bg-white"}`}>
+        {session.coverImageUrl ? (
+          <div className="absolute inset-0">
+            <Image
+              src={session.coverImageUrl}
+              alt={`${session.title} borítókép`}
+              fill
+              priority
+              unoptimized
+              className="object-cover"
+              sizes="100vw"
+            />
+            <div className="absolute inset-0 bg-ink/45" />
+            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-ink/45 to-transparent" />
+          </div>
+        ) : null}
+        <div className="relative mx-auto grid min-h-[58vh] max-w-6xl gap-8 px-5 py-10 md:grid-cols-[minmax(0,1fr)_380px] md:items-end lg:px-10">
           <div className="pb-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brass">{brandName}</p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-normal text-ink md:text-6xl">{session.title}</h1>
-            <div className="mt-6 flex flex-wrap gap-3 text-sm text-graphite/75">
-              <span className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-paper px-3 py-2">
+            <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${eyebrowClass}`}>{brandName}</p>
+            <h1 className={`mt-4 max-w-3xl text-4xl font-semibold tracking-normal md:text-6xl ${headingClass}`}>{session.title}</h1>
+            <div className={`mt-6 flex flex-wrap gap-3 text-sm ${metaClass}`}>
+              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${metaPillClass}`}>
                 <CalendarClock size={16} />
                 {formatMiniSessionDate(session.sessionDate)}
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-paper px-3 py-2">
+              <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${metaPillClass}`}>
                 <MapPin size={16} />
                 {session.location}
               </span>
             </div>
-            {session.notes ? <p className="mt-6 max-w-2xl text-base leading-7 text-graphite/75">{session.notes}</p> : null}
+            {session.notes ? <p className={`mt-6 max-w-2xl text-base leading-7 ${noteClass}`}>{session.notes}</p> : null}
           </div>
-          <div className="rounded-md border border-ink/10 bg-paper p-5">
+          <div className={`rounded-md border p-5 ${infoPanelClass}`}>
             <p className="text-sm font-semibold text-ink">Foglalható időpontok</p>
             <p className="mt-2 text-sm leading-6 text-graphite/70">
               Válassz egy szabad idősávot, add meg az adataidat, és e-mailben küldjük a megerősítést.

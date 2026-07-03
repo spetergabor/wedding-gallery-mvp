@@ -1,4 +1,5 @@
-import { CalendarClock, CheckCircle2, ChevronDown, ExternalLink, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronDown, ExternalLink, ImageIcon, MapPin, Plus, Trash2, Users, XCircle } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
@@ -32,6 +33,8 @@ import { prisma } from "@/lib/prisma";
 
 const fieldClass =
   "h-12 w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
+const fileInputClass =
+  "block w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 py-2.5 text-sm text-ink outline-none transition file:mr-4 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-graphite focus:border-ink/50";
 const textAreaClass =
   "min-h-24 w-full min-w-0 rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 
@@ -74,6 +77,9 @@ export default async function AdminMiniSessionsPage({
       <div className="mb-5 space-y-3">
         {flags.error === "missing" ? <Alert title="Hiányzó vagy hibás adat." variant="error" /> : null}
         {flags.error === "slug" ? <Alert title="Ez a publikus link már foglalt." variant="error">Adj meg egy egyedi slugot.</Alert> : null}
+        {flags.error === "cover" ? <Alert title="A borítóképnek képfájlnak kell lennie." variant="error" /> : null}
+        {flags.error === "cover_size" ? <Alert title="A borítókép túl nagy." variant="error">Maximum 12 MB-os képet tölts fel.</Alert> : null}
+        {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
         {flags.error === "slot" ? <Alert title="Érvénytelen idősáv." variant="error">Válassz egy szabad idősávot.</Alert> : null}
         {flags.error === "taken" ? <Alert title="Ez az idősáv már foglalt." variant="error">Frissítsd a listát vagy válassz másik idősávot.</Alert> : null}
         {flags.created ? <Alert title="Mini session létrehozva." variant="success" /> : null}
@@ -127,6 +133,14 @@ export default async function AdminMiniSessionsPage({
               <input name="durationMinutes" type="number" min="5" step="5" defaultValue="20" required className={fieldClass} />
             </label>
           </div>
+          <label className="block space-y-2 lg:col-span-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+              <ImageIcon size={15} />
+              Borítókép az érkező oldalra
+            </span>
+            <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
+            <span className="block text-xs text-graphite/60">Opcionális, JPG/PNG/WebP kép. Maximum 12 MB.</span>
+          </label>
           <label className="block space-y-2 lg:col-span-2">
             <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
             <textarea name="notes" className={textAreaClass} placeholder="Opcionális rövid infó az ügyfeleknek." />
@@ -226,6 +240,37 @@ export default async function AdminMiniSessionsPage({
                         <span className="text-sm font-medium text-graphite">Időtartam</span>
                         <input name="durationMinutes" type="number" min="5" step="5" defaultValue={session.durationMinutes} required className={fieldClass} />
                       </label>
+                    </div>
+                    <div className="space-y-3 sm:col-span-2">
+                      <label className="block space-y-2">
+                        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                          <ImageIcon size={15} />
+                          Borítókép az érkező oldalra
+                        </span>
+                        <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
+                        <span className="block text-xs text-graphite/60">Új kép feltöltése lecseréli a jelenlegi borítót.</span>
+                      </label>
+                      {session.coverImageUrl ? (
+                        <div className="grid gap-3 rounded-md border border-ink/10 bg-paper p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+                          <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
+                            <Image
+                              src={session.coverImageUrl}
+                              alt={`${session.title} borítókép`}
+                              fill
+                              unoptimized
+                              className="object-cover"
+                              sizes="150px"
+                            />
+                          </div>
+                          <div className="flex min-w-0 flex-col justify-center gap-3">
+                            <p className="truncate text-sm font-medium text-ink">Jelenlegi borítókép</p>
+                            <label className="flex items-center gap-2 text-sm text-graphite">
+                              <input name="removeCoverImage" type="checkbox" className="size-4 rounded border-ink/20" />
+                              Borítókép törlése
+                            </label>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                     <label className="block space-y-2 sm:col-span-2">
                       <span className="text-sm font-medium text-graphite">Megjegyzés</span>

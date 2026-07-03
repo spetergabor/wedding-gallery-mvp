@@ -159,6 +159,20 @@ export function createBrandAssetObjectKey({
   return `brand/${uniqueName}`;
 }
 
+export function createMiniSessionCoverObjectKey({
+  adminId,
+  originalFilename
+}: {
+  adminId: string;
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".jpg";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "cover";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `mini-sessions/${adminId}/covers/${uniqueName}`;
+}
+
 export function createContractObjectKey({
   customerId,
   originalFilename

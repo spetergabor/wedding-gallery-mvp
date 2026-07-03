@@ -27,6 +27,14 @@ import {
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
+import {
+  createMiniSessionCoverObjectKey,
+  deletePhotoObject,
+  getPhotoPublicUrl,
+  savePhotoObject
+} from "@/lib/storage";
+
+const MINI_SESSION_COVER_MAX_BYTES = 12 * 1024 * 1024;
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -94,6 +102,47 @@ function createCancelToken() {
   return randomBytes(32).toString("base64url");
 }
 
+async function uploadMiniSessionCover(adminId: string, file: FormDataEntryValue | null) {
+  if (!(file instanceof File) || file.size === 0) {
+    return null;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    redirect("/admin/mini-sessions?error=cover");
+  }
+
+  if (file.size > MINI_SESSION_COVER_MAX_BYTES) {
+    redirect("/admin/mini-sessions?error=cover_size");
+  }
+
+  const r2Key = createMiniSessionCoverObjectKey({
+    adminId,
+    originalFilename: file.name
+  });
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  try {
+    await savePhotoObject({
+      r2Key,
+      bytes,
+      contentType: file.type
+    });
+  } catch (error) {
+    console.error("Mini session cover upload failed", {
+      adminId,
+      r2Key,
+      storageDriver: process.env.STORAGE_DRIVER,
+      error
+    });
+    redirect("/admin/mini-sessions?error=cover_upload");
+  }
+
+  return {
+    r2Key,
+    url: getPhotoPublicUrl(r2Key)
+  };
+}
+
 function miniSessionCalendarUid(bookingId: string) {
   return `mini-session-${bookingId}@gallery.hochzeitsfotografgraz.at`;
 }
@@ -146,8 +195,11 @@ export async function createMiniSessionAction(formData: FormData) {
     redirect("/admin/mini-sessions?error=missing");
   }
 
+  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"));
+  let miniSession: { id: string };
+
   try {
-    const miniSession = await prisma.miniSession.create({
+    miniSession = await prisma.miniSession.create({
       data: {
         adminId: admin.id,
         title,
@@ -158,26 +210,32 @@ export async function createMiniSessionAction(formData: FormData) {
         endsAt,
         durationMinutes,
         isActive: formData.get("isActive") === "on",
-        notes: notes || null
+        notes: notes || null,
+        coverImageUrl: uploadedCover?.url ?? null,
+        coverImageR2Key: uploadedCover?.r2Key ?? null
       }
     });
-
-    revalidatePath("/admin/mini-sessions");
-    redirect(`/admin/mini-sessions?created=${miniSession.id}`);
   } catch (error) {
+    if (uploadedCover) {
+      await deletePhotoObject(uploadedCover.r2Key);
+    }
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       redirect("/admin/mini-sessions?error=slug");
     }
 
     throw error;
   }
+
+  revalidatePath("/admin/mini-sessions");
+  redirect(`/admin/mini-sessions?created=${miniSession.id}`);
 }
 
 export async function updateMiniSessionAction(id: string, formData: FormData) {
   const admin = await requireAdmin();
   const current = await prisma.miniSession.findFirst({
     where: { id, ...adminOwnedWhere(admin) },
-    select: { id: true }
+    select: { id: true, slug: true, coverImageR2Key: true }
   });
 
   if (!current) {
@@ -199,8 +257,23 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
     redirect("/admin/mini-sessions?error=missing");
   }
 
+  const shouldRemoveCover = formData.get("removeCoverImage") === "on";
+  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"));
+  const coverData = uploadedCover
+    ? {
+        coverImageUrl: uploadedCover.url,
+        coverImageR2Key: uploadedCover.r2Key
+      }
+    : shouldRemoveCover
+      ? {
+          coverImageUrl: null,
+          coverImageR2Key: null
+        }
+      : {};
+  let updated: { coverImageR2Key: string | null };
+
   try {
-    await prisma.miniSession.update({
+    updated = await prisma.miniSession.update({
       where: { id },
       data: {
         title,
@@ -211,27 +284,38 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         endsAt,
         durationMinutes,
         isActive: formData.get("isActive") === "on",
-        notes: notes || null
-      }
+        notes: notes || null,
+        ...coverData
+      },
+      select: { coverImageR2Key: true }
     });
-
-    revalidatePath("/admin/mini-sessions");
-    revalidatePath(`/mini-session/${slug}`);
-    redirect(`/admin/mini-sessions?updated=${id}`);
   } catch (error) {
+    if (uploadedCover) {
+      await deletePhotoObject(uploadedCover.r2Key);
+    }
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       redirect("/admin/mini-sessions?error=slug");
     }
 
     throw error;
   }
+
+  if (current.coverImageR2Key && current.coverImageR2Key !== updated.coverImageR2Key && (shouldRemoveCover || uploadedCover)) {
+    await deletePhotoObject(current.coverImageR2Key);
+  }
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/mini-session/${current.slug}`);
+  revalidatePath(`/mini-session/${slug}`);
+  redirect(`/admin/mini-sessions?updated=${id}`);
 }
 
 export async function deleteMiniSessionAction(id: string) {
   const admin = await requireAdmin();
   const miniSession = await prisma.miniSession.findFirst({
     where: { id, ...adminOwnedWhere(admin) },
-    select: { id: true, slug: true }
+    select: { id: true, slug: true, coverImageR2Key: true }
   });
 
   if (!miniSession) {
@@ -241,6 +325,10 @@ export async function deleteMiniSessionAction(id: string) {
   await prisma.miniSession.delete({
     where: { id: miniSession.id }
   });
+
+  if (miniSession.coverImageR2Key) {
+    await deletePhotoObject(miniSession.coverImageR2Key);
+  }
 
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/mini-session/${miniSession.slug}`);
