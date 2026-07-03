@@ -18,6 +18,7 @@ export function SocialShareButtons({
 }) {
   const [copied, setCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [canNativeShare, setCanNativeShare] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const copy =
     language === "hu"
@@ -47,6 +48,10 @@ export function SocialShareButtons({
     variant === "light"
       ? "border-white/25 bg-white/95 text-ink shadow-soft"
       : "border-ink/10 bg-white text-ink shadow-soft";
+
+  useEffect(() => {
+    setCanNativeShare(Boolean(navigator.share));
+  }, []);
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -119,15 +124,17 @@ export function SocialShareButtons({
           role="menu"
           className={`absolute left-1/2 top-full z-30 mt-2 w-56 -translate-x-1/2 overflow-hidden rounded-lg border p-1 ${menuClass}`}
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={nativeShare}
-            className="flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium transition hover:bg-ink/5"
-          >
-            <Share2 size={16} />
-            {copy.system}
-          </button>
+          {canNativeShare ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={nativeShare}
+              className="flex h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium transition hover:bg-ink/5"
+            >
+              <Share2 size={16} />
+              {copy.system}
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
