@@ -235,7 +235,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const admin = await requireAdmin();
   const current = await prisma.miniSession.findFirst({
     where: { id, ...adminOwnedWhere(admin) },
-    select: { id: true, slug: true, coverImageR2Key: true }
+    select: { id: true, slug: true }
   });
 
   if (!current) {
@@ -257,23 +257,8 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
     redirect("/admin/mini-sessions?error=missing");
   }
 
-  const shouldRemoveCover = formData.get("removeCoverImage") === "on";
-  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"));
-  const coverData = uploadedCover
-    ? {
-        coverImageUrl: uploadedCover.url,
-        coverImageR2Key: uploadedCover.r2Key
-      }
-    : shouldRemoveCover
-      ? {
-          coverImageUrl: null,
-          coverImageR2Key: null
-        }
-      : {};
-  let updated: { coverImageR2Key: string | null };
-
   try {
-    updated = await prisma.miniSession.update({
+    await prisma.miniSession.update({
       where: { id },
       data: {
         title,
@@ -284,16 +269,10 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         endsAt,
         durationMinutes,
         isActive: formData.get("isActive") === "on",
-        notes: notes || null,
-        ...coverData
-      },
-      select: { coverImageR2Key: true }
+        notes: notes || null
+      }
     });
   } catch (error) {
-    if (uploadedCover) {
-      await deletePhotoObject(uploadedCover.r2Key);
-    }
-
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       redirect("/admin/mini-sessions?error=slug");
     }
@@ -301,14 +280,77 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
     throw error;
   }
 
-  if (current.coverImageR2Key && current.coverImageR2Key !== updated.coverImageR2Key && (shouldRemoveCover || uploadedCover)) {
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/mini-session/${current.slug}`);
+  revalidatePath(`/mini-session/${slug}`);
+  redirect(`/admin/mini-sessions?updated=${id}`);
+}
+
+export async function updateMiniSessionCoverAction(id: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const current = await prisma.miniSession.findFirst({
+    where: { id, ...adminOwnedWhere(admin) },
+    select: { id: true, slug: true, coverImageR2Key: true }
+  });
+
+  if (!current) {
+    redirect("/admin/mini-sessions");
+  }
+
+  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"));
+
+  if (!uploadedCover) {
+    redirect(`/admin/mini-sessions?error=cover_missing#mini-session-${id}`);
+  }
+
+  try {
+    await prisma.miniSession.update({
+      where: { id },
+      data: {
+        coverImageUrl: uploadedCover.url,
+        coverImageR2Key: uploadedCover.r2Key
+      }
+    });
+  } catch (error) {
+    await deletePhotoObject(uploadedCover.r2Key);
+    throw error;
+  }
+
+  if (current.coverImageR2Key && current.coverImageR2Key !== uploadedCover.r2Key) {
     await deletePhotoObject(current.coverImageR2Key);
   }
 
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/mini-session/${current.slug}`);
-  revalidatePath(`/mini-session/${slug}`);
-  redirect(`/admin/mini-sessions?updated=${id}`);
+  redirect(`/admin/mini-sessions?coverUpdated=${id}#mini-session-${id}`);
+}
+
+export async function deleteMiniSessionCoverAction(id: string) {
+  const admin = await requireAdmin();
+  const current = await prisma.miniSession.findFirst({
+    where: { id, ...adminOwnedWhere(admin) },
+    select: { id: true, slug: true, coverImageR2Key: true }
+  });
+
+  if (!current) {
+    redirect("/admin/mini-sessions");
+  }
+
+  await prisma.miniSession.update({
+    where: { id },
+    data: {
+      coverImageUrl: null,
+      coverImageR2Key: null
+    }
+  });
+
+  if (current.coverImageR2Key) {
+    await deletePhotoObject(current.coverImageR2Key);
+  }
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/mini-session/${current.slug}`);
+  redirect(`/admin/mini-sessions?coverDeleted=${id}#mini-session-${id}`);
 }
 
 export async function deleteMiniSessionAction(id: string) {

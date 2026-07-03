@@ -14,7 +14,9 @@ import {
   cancelMiniSessionBookingByAdminAction,
   createAdminMiniSessionBookingAction,
   createMiniSessionAction,
+  deleteMiniSessionCoverAction,
   deleteMiniSessionAction,
+  updateMiniSessionCoverAction,
   updateMiniSessionAction
 } from "@/lib/mini-session-actions";
 import {
@@ -48,6 +50,8 @@ export default async function AdminMiniSessionsPage({
     deleted?: string;
     bookingCancelled?: string;
     adminBooking?: string;
+    coverUpdated?: string;
+    coverDeleted?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -78,6 +82,7 @@ export default async function AdminMiniSessionsPage({
         {flags.error === "missing" ? <Alert title="Hiányzó vagy hibás adat." variant="error" /> : null}
         {flags.error === "slug" ? <Alert title="Ez a publikus link már foglalt." variant="error">Adj meg egy egyedi slugot.</Alert> : null}
         {flags.error === "cover" ? <Alert title="A borítóképnek képfájlnak kell lennie." variant="error" /> : null}
+        {flags.error === "cover_missing" ? <Alert title="Válassz ki egy borítóképet a feltöltéshez." variant="error" /> : null}
         {flags.error === "cover_size" ? <Alert title="A borítókép túl nagy." variant="error">Maximum 12 MB-os képet tölts fel.</Alert> : null}
         {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
         {flags.error === "slot" ? <Alert title="Érvénytelen idősáv." variant="error">Válassz egy szabad idősávot.</Alert> : null}
@@ -87,6 +92,8 @@ export default async function AdminMiniSessionsPage({
         {flags.deleted ? <Alert title="Mini session törölve." variant="success" /> : null}
         {flags.bookingCancelled ? <Alert title="Foglalás törölve, az idősáv újra szabad." variant="success" /> : null}
         {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
+        {flags.coverUpdated ? <Alert title="Borítókép frissítve." variant="success" /> : null}
+        {flags.coverDeleted ? <Alert title="Borítókép törölve." variant="success" /> : null}
       </div>
 
       <details className="group rounded-lg border border-ink/10 bg-white p-4 shadow-soft sm:p-5">
@@ -210,55 +217,74 @@ export default async function AdminMiniSessionsPage({
                 </div>
 
                 <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-                  <form action={updateMiniSessionAction.bind(null, session.id)} encType="multipart/form-data" className="grid content-start gap-4 sm:grid-cols-2">
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-graphite">Session neve</span>
-                      <input name="title" defaultValue={session.title} required className={fieldClass} />
-                    </label>
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-graphite">Publikus slug</span>
-                      <input name="slug" defaultValue={session.slug} required className={fieldClass} />
-                    </label>
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-graphite">Mikor</span>
-                      <input name="date" type="date" defaultValue={miniSessionDateInput(session)} required className={fieldClass} />
-                    </label>
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-graphite">Hol</span>
-                      <input name="location" defaultValue={session.location} required className={fieldClass} />
-                    </label>
-                    <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+                  <div className="grid content-start gap-5">
+                    <form action={updateMiniSessionAction.bind(null, session.id)} className="grid content-start gap-4 sm:grid-cols-2">
                       <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Mettől</span>
-                        <input name="startTime" type="time" defaultValue={miniSessionTimeInput(session.startsAt)} required className={fieldClass} />
+                        <span className="text-sm font-medium text-graphite">Session neve</span>
+                        <input name="title" defaultValue={session.title} required className={fieldClass} />
                       </label>
                       <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Meddig</span>
-                        <input name="endTime" type="time" defaultValue={miniSessionTimeInput(session.endsAt)} required className={fieldClass} />
+                        <span className="text-sm font-medium text-graphite">Publikus slug</span>
+                        <input name="slug" defaultValue={session.slug} required className={fieldClass} />
                       </label>
                       <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Időtartam</span>
-                        <input name="durationMinutes" type="number" min="5" step="5" defaultValue={session.durationMinutes} required className={fieldClass} />
+                        <span className="text-sm font-medium text-graphite">Mikor</span>
+                        <input name="date" type="date" defaultValue={miniSessionDateInput(session)} required className={fieldClass} />
                       </label>
-                    </div>
-                    <div className="space-y-3 sm:col-span-2">
-                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-graphite">Hol</span>
+                        <input name="location" defaultValue={session.location} required className={fieldClass} />
+                      </label>
+                      <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-graphite">Mettől</span>
+                          <input name="startTime" type="time" defaultValue={miniSessionTimeInput(session.startsAt)} required className={fieldClass} />
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-graphite">Meddig</span>
+                          <input name="endTime" type="time" defaultValue={miniSessionTimeInput(session.endsAt)} required className={fieldClass} />
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-graphite">Időtartam</span>
+                          <input name="durationMinutes" type="number" min="5" step="5" defaultValue={session.durationMinutes} required className={fieldClass} />
+                        </label>
+                      </div>
+                      <label className="block space-y-2 sm:col-span-2">
+                        <span className="text-sm font-medium text-graphite">Megjegyzés</span>
+                        <textarea name="notes" defaultValue={session.notes ?? ""} className={textAreaClass} />
+                      </label>
+                      <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:col-span-2 sm:flex-row sm:items-center">
+                        <label className="flex items-center gap-2 text-sm text-graphite">
+                          <input name="isActive" type="checkbox" defaultChecked={session.isActive} className="size-4 rounded border-ink/20" />
+                          Publikusan foglalható
+                        </label>
+                        <FormSubmitButton>Módosítások mentése</FormSubmitButton>
+                      </div>
+                    </form>
+
+                    <div className="rounded-md border border-ink/10 bg-paper p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-white text-ink">
+                          <ImageIcon size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold text-ink">Borítókép</h3>
+                          <p className="mt-1 text-sm leading-6 text-graphite/70">Ez csak a publikus érkező oldal borítóképét módosítja.</p>
+                        </div>
+                      </div>
+                      <form action={updateMiniSessionCoverAction.bind(null, session.id)} encType="multipart/form-data" className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                         <label className="block min-w-0 space-y-2">
-                          <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                            <ImageIcon size={15} />
-                            Borítókép az érkező oldalra
-                          </span>
-                          <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
+                          <span className="text-sm font-medium text-graphite">Új borítókép</span>
+                          <input name="coverImage" type="file" accept="image/*" required className={fileInputClass} />
                         </label>
                         <FormSubmitButton pendingLabel="Feltöltés..." className="h-12 px-4">
                           <UploadCloud size={16} />
-                          Borítókép feltöltése
+                          Feltöltés
                         </FormSubmitButton>
-                      </div>
-                      <span className="block text-xs text-graphite/60">Új kép feltöltése lecseréli a jelenlegi borítót. A gomb az esemény többi módosítását is menti.</span>
+                      </form>
                       {session.coverImageUrl ? (
-                        <div className="grid gap-3 rounded-md border border-ink/10 bg-paper p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
-                          <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-white">
+                        <div className="mt-4 grid gap-3 rounded-md border border-ink/10 bg-white p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
+                          <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-paper">
                             <Image
                               src={session.coverImageUrl}
                               alt={`${session.title} borítókép`}
@@ -269,27 +295,27 @@ export default async function AdminMiniSessionsPage({
                             />
                           </div>
                           <div className="flex min-w-0 flex-col justify-center gap-3">
-                            <p className="truncate text-sm font-medium text-ink">Jelenlegi borítókép</p>
-                            <label className="flex items-center gap-2 text-sm text-graphite">
-                              <input name="removeCoverImage" type="checkbox" className="size-4 rounded border-ink/20" />
-                              Borítókép törlése
-                            </label>
+                            <div>
+                              <p className="truncate text-sm font-medium text-ink">Jelenlegi borítókép</p>
+                              <p className="mt-1 text-xs leading-5 text-graphite/60">A törlés után a publikus oldalon nem lesz hero borítókép.</p>
+                            </div>
+                            <form action={deleteMiniSessionCoverAction.bind(null, session.id)}>
+                              <ConfirmSubmitButton
+                                variant="danger"
+                                message="Biztosan törlöd a borítóképet? A publikus oldalon nem lesz hero kép."
+                                className="h-10 px-3"
+                              >
+                                <Trash2 size={15} />
+                                Borítókép törlése
+                              </ConfirmSubmitButton>
+                            </form>
                           </div>
                         </div>
-                      ) : null}
+                      ) : (
+                        <p className="mt-4 rounded-md border border-dashed border-ink/15 bg-white px-3 py-4 text-sm text-graphite/70">Még nincs borítókép beállítva.</p>
+                      )}
                     </div>
-                    <label className="block space-y-2 sm:col-span-2">
-                      <span className="text-sm font-medium text-graphite">Megjegyzés</span>
-                      <textarea name="notes" defaultValue={session.notes ?? ""} className={textAreaClass} />
-                    </label>
-                    <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:col-span-2 sm:flex-row sm:items-center">
-                      <label className="flex items-center gap-2 text-sm text-graphite">
-                        <input name="isActive" type="checkbox" defaultChecked={session.isActive} className="size-4 rounded border-ink/20" />
-                        Publikusan foglalható
-                      </label>
-                      <FormSubmitButton>Módosítások mentése</FormSubmitButton>
-                    </div>
-                  </form>
+                  </div>
 
                   <div className="rounded-md border border-ink/10 bg-paper p-4">
                     <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-brass">
