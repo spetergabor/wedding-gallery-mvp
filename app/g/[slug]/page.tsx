@@ -116,6 +116,8 @@ export default async function PublicGalleryPage({
   const logoHeight = Math.min(140, Math.max(32, settings?.logoHeight ?? 80));
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
+  const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
+  const contactText = language === "hu" ? "Kérdésed van a galériával kapcsolatban?" : "Fragen zur Galerie?";
   const contactLinks: ContactQuickLink[] = [
     { href: mailHref(settings?.contactEmail) ?? "", label: "Email", icon: Mail },
     { href: phoneHref(settings?.contactPhone) ?? "", label: language === "hu" ? "Telefon" : "Telefon", icon: Phone },
@@ -219,23 +221,27 @@ export default async function PublicGalleryPage({
               <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
             </div>
             {contactLinks.length > 0 ? (
-              <div className="mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2">
-                {contactLinks.map((link) => {
-                  const Icon = link.icon;
+              <div className="mt-5 w-full max-w-2xl rounded-lg border border-ink/10 bg-white/80 px-4 py-4 text-center shadow-soft backdrop-blur">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-graphite/65">{contactTitle}</p>
+                <p className="mt-1 text-sm text-graphite/75">{contactText}</p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  {contactLinks.map((link) => {
+                    const Icon = link.icon;
 
-                  return (
-                    <a
-                      key={`${link.label}-${link.href}`}
-                      href={link.href}
-                      target={link.external ? "_blank" : undefined}
-                      rel={link.external ? "noreferrer" : undefined}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-ink/10 bg-white/85 px-3.5 text-sm font-medium text-ink shadow-soft transition hover:border-ink/20 hover:bg-white"
-                    >
-                      <Icon size={15} />
-                      {link.label}
-                    </a>
-                  );
-                })}
+                    return (
+                      <a
+                        key={`${link.label}-${link.href}`}
+                        href={link.href}
+                        target={link.external ? "_blank" : undefined}
+                        rel={link.external ? "noreferrer" : undefined}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+                      >
+                        <Icon size={15} />
+                        {link.label}
+                      </a>
+                    );
+                  })}
+                </div>
               </div>
             ) : null}
           </div>
