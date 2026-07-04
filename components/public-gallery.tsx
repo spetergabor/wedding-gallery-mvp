@@ -228,7 +228,7 @@ export function PublicGallery({
   favoritesEnabled = true,
   favoriteMode = "favorites",
   language = "de",
-  maxColumns = 3
+  mobileColumns = 1
 }: {
   galleryId: string;
   title: string;
@@ -237,7 +237,7 @@ export function PublicGallery({
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
   language?: CustomerLanguage;
-  maxColumns?: number;
+  mobileColumns?: number;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -267,13 +267,9 @@ export function PublicGallery({
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
   const copy = GALLERY_COPY[language];
   const proofingSelection = favoritesEnabled && favoriteMode === "proofing";
-  const safeMaxColumns = Math.min(3, Math.max(1, maxColumns));
-  const imageSizes =
-    safeMaxColumns === 1
-      ? "100vw"
-      : safeMaxColumns === 2
-        ? "(min-width: 640px) 50vw, 100vw"
-        : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw";
+  const safeMobileColumns = Math.min(3, Math.max(1, mobileColumns));
+  const mobileImageSize = safeMobileColumns === 1 ? "100vw" : safeMobileColumns === 2 ? "50vw" : "33vw";
+  const imageSizes = `(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, ${mobileImageSize}`;
   const activeFavoriteList = favoriteLists.find((list) => list.id === activeFavoriteListId) ?? favoriteLists[0] ?? null;
   const favoriteIds = useMemo(
     () => new Set(favoritesEnabled ? activeFavoriteList?.photoIds ?? [] : []),
@@ -339,14 +335,14 @@ export function PublicGallery({
 
   useEffect(() => {
     function updateColumnCount() {
-      setColumnCount(Math.min(safeMaxColumns, getColumnCount(window.innerWidth)));
+      setColumnCount(window.innerWidth < 640 ? safeMobileColumns : getColumnCount(window.innerWidth));
     }
 
     updateColumnCount();
     window.addEventListener("resize", updateColumnCount);
 
     return () => window.removeEventListener("resize", updateColumnCount);
-  }, [safeMaxColumns]);
+  }, [safeMobileColumns]);
 
   useEffect(() => {
     if (!favoritesEnabled) {

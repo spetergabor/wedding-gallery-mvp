@@ -417,7 +417,7 @@ model Gallery {
   coverPhotoId String?
   coverPositionX Int      @default(50)
   coverPositionY Int      @default(50)
-  publicColumnCount Int    @default(3)
+  publicColumnCount Int    @default(1)
   clientEmail  String?
   clientAccessToken String? @unique
   proofingInviteSentAt DateTime?

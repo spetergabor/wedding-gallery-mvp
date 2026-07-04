@@ -80,7 +80,7 @@ function galleryModeFromForm(formData: FormData) {
   return formString(formData, "galleryMode") === GALLERY_MODE_PROOFING ? GALLERY_MODE_PROOFING : GALLERY_MODE_FULL;
 }
 
-function publicColumnCountFromForm(formData: FormData) {
+function mobileColumnCountFromForm(formData: FormData) {
   const parsed = Number.parseInt(formString(formData, "publicColumnCount"), 10);
 
   if (!Number.isFinite(parsed)) {
@@ -839,7 +839,7 @@ export async function createGalleryAction(formData: FormData) {
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
-  const publicColumnCount = publicColumnCountFromForm(formData);
+  const publicColumnCount = mobileColumnCountFromForm(formData);
 
   if (!title || !slug) {
     redirect("/admin/galleries/new?error=missing");
@@ -933,7 +933,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
-  const publicColumnCount = publicColumnCountFromForm(formData);
+  const publicColumnCount = mobileColumnCountFromForm(formData);
 
   if (!title || !slug) {
     redirect(`/admin/galleries/${id}?error=missing`);

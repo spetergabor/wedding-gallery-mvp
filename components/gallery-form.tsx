@@ -122,7 +122,7 @@ export function GalleryForm({
   const selectedProject = projects.find((project) => project.id === defaultProjectId) ?? null;
   const defaultEventDate = gallery?.eventDate ?? selectedProject?.eventDate ?? selectedCustomer?.weddingDate ?? null;
   const defaultGalleryMode = gallery?.galleryMode ?? initialGalleryMode;
-  const defaultPublicColumnCount = Math.min(3, Math.max(1, gallery?.publicColumnCount ?? 3));
+  const defaultMobileColumnCount = Math.min(3, Math.max(1, gallery?.publicColumnCount ?? 1));
   const proofingMode = defaultGalleryMode === GALLERY_MODE_PROOFING;
 
   return (
@@ -284,15 +284,15 @@ export function GalleryForm({
             <label className="block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">
                 <Columns3 size={15} />
-                Vendégoldali fotórács
+                Mobil fotórács
               </span>
-              <select name="publicColumnCount" defaultValue={defaultPublicColumnCount} className={fieldClass}>
+              <select name="publicColumnCount" defaultValue={defaultMobileColumnCount} className={fieldClass}>
                 <option value="1">1 oszlopos nézet</option>
                 <option value="2">2 oszlopos nézet</option>
                 <option value="3">3 oszlopos nézet</option>
               </select>
               <span className="block text-xs leading-5 text-graphite/70">
-                A publikus vendéggaléria maximum ennyi oszlopban jeleníti meg a fotókat. Mobilon továbbra is egy oszlopos marad.
+                Csak telefonos nézetben hat. Az asztali galéria marad a megszokott automatikus oszlopos elrendezésben.
               </span>
             </label>
           </section>
