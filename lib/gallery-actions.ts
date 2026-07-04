@@ -80,6 +80,16 @@ function galleryModeFromForm(formData: FormData) {
   return formString(formData, "galleryMode") === GALLERY_MODE_PROOFING ? GALLERY_MODE_PROOFING : GALLERY_MODE_FULL;
 }
 
+function publicColumnCountFromForm(formData: FormData) {
+  const parsed = Number.parseInt(formString(formData, "publicColumnCount"), 10);
+
+  if (!Number.isFinite(parsed)) {
+    return 3;
+  }
+
+  return Math.min(3, Math.max(1, parsed));
+}
+
 function formPercent(formData: FormData, key: string, fallback = 50) {
   const parsed = Number.parseInt(formString(formData, key), 10);
 
@@ -829,6 +839,7 @@ export async function createGalleryAction(formData: FormData) {
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
+  const publicColumnCount = publicColumnCountFromForm(formData);
 
   if (!title || !slug) {
     redirect("/admin/galleries/new?error=missing");
@@ -888,6 +899,7 @@ export async function createGalleryAction(formData: FormData) {
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
+        publicColumnCount,
         clientEmail: customer ? normalizeEmail(customer.primaryEmail) : null,
         clientAccessToken: createClientAccessToken()
       }
@@ -921,6 +933,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
   const downloadsEnabled = formData.get("downloadsEnabled") === "on";
+  const publicColumnCount = publicColumnCountFromForm(formData);
 
   if (!title || !slug) {
     redirect(`/admin/galleries/${id}?error=missing`);
@@ -993,7 +1006,8 @@ export async function updateGalleryAction(id: string, formData: FormData) {
               proofingStatusUpdatedAt: new Date()
             }
           : {}),
-        downloadsEnabled
+        downloadsEnabled,
+        publicColumnCount
       }
     });
   } catch (error) {

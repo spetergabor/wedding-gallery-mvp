@@ -258,6 +258,7 @@ export default async function PublicGalleryPage({
             favoritesEnabled={favoritesEnabled}
             favoriteMode={proofingSelection ? "proofing" : "favorites"}
             language={language}
+            maxColumns={gallery.publicColumnCount}
           />
         ) : (
           <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">

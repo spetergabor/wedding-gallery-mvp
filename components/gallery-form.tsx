@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Download, Eye, Images, LockKeyhole, UserRound } from "lucide-react";
+import { CalendarDays, Check, Columns3, Download, Eye, Images, LockKeyhole, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
@@ -40,6 +40,7 @@ type GalleryFormProps = {
     isActive: boolean;
     galleryMode: string;
     downloadsEnabled: boolean;
+    publicColumnCount: number;
     clientEmail: string | null;
   };
   customers?: CustomerOption[];
@@ -121,6 +122,7 @@ export function GalleryForm({
   const selectedProject = projects.find((project) => project.id === defaultProjectId) ?? null;
   const defaultEventDate = gallery?.eventDate ?? selectedProject?.eventDate ?? selectedCustomer?.weddingDate ?? null;
   const defaultGalleryMode = gallery?.galleryMode ?? initialGalleryMode;
+  const defaultPublicColumnCount = Math.min(3, Math.max(1, gallery?.publicColumnCount ?? 3));
   const proofingMode = defaultGalleryMode === GALLERY_MODE_PROOFING;
 
   return (
@@ -278,6 +280,21 @@ export function GalleryForm({
                 description="A ZIP és az egyedi képletöltés vendégoldali elérése."
               />
             </div>
+
+            <label className="block space-y-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                <Columns3 size={15} />
+                Vendégoldali fotórács
+              </span>
+              <select name="publicColumnCount" defaultValue={defaultPublicColumnCount} className={fieldClass}>
+                <option value="1">1 oszlopos nézet</option>
+                <option value="2">2 oszlopos nézet</option>
+                <option value="3">3 oszlopos nézet</option>
+              </select>
+              <span className="block text-xs leading-5 text-graphite/70">
+                A publikus vendéggaléria maximum ennyi oszlopban jeleníti meg a fotókat. Mobilon továbbra is egy oszlopos marad.
+              </span>
+            </label>
           </section>
         </div>
 
