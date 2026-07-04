@@ -298,6 +298,9 @@ export function PublicGallery({
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
+  const galleryGridStyle = {
+    gridTemplateColumns: `repeat(${Math.max(1, columnCount)}, minmax(0, 1fr))`
+  };
   const photoColumns = useMemo(() => {
     const safeColumnCount = Math.max(1, columnCount);
     const columns = Array.from({ length: safeColumnCount }, () => [] as Array<{ photo: PublicPhoto; index: number }>);
@@ -808,7 +811,7 @@ export function PublicGallery({
 
   return (
     <>
-      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <section className="grid gap-2" style={galleryGridStyle}>
         {favoritesEnabled && favoriteEmail ? (
           <div className="col-span-full mb-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
