@@ -1575,56 +1575,56 @@ export default async function AdminDashboardPage() {
         <div className="border-b border-ink/10 px-5 py-4">
           <h2 className={sectionTitleClass}>{copy.latestGalleriesTitle}</h2>
         </div>
-        <div className="divide-y divide-ink/10">
+        <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
           {latestGalleries.map((gallery) => (
             <a
               key={gallery.id}
               href={`/admin/galleries/${gallery.id}`}
-              className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-ink/[0.03]"
+              className="group overflow-hidden rounded-md border border-ink/10 bg-white transition hover:-translate-y-0.5 hover:border-ink/20 hover:shadow-sm"
             >
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-paper">
-                  {(() => {
-                    const cover =
-                      gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
-                      gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
+              <div className="relative aspect-[4/3] overflow-hidden bg-paper">
+                {(() => {
+                  const cover =
+                    gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
+                    gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
 
-                    return cover ? (
-                      cover.mediaType === "video" ? (
-                        <div className="grid h-full place-items-center bg-ink text-white">
-                          <Film size={18} />
-                        </div>
-                      ) : (
-                        <Image
-                          src={cover.thumbnailUrl}
-                          alt={cover.filename}
-                          fill
-                          unoptimized
-                          className="object-cover"
-                          sizes="56px"
-                          style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
-                        />
-                      )
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-graphite/50">
-                        <Camera size={18} />
+                  return cover ? (
+                    cover.mediaType === "video" ? (
+                      <div className="grid h-full place-items-center bg-ink text-white">
+                        <Film size={22} />
                       </div>
-                    );
-                  })()}
-                </div>
+                    ) : (
+                      <Image
+                        src={cover.thumbnailUrl}
+                        alt={cover.filename}
+                        fill
+                        unoptimized
+                        className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                        sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
+                        style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
+                      />
+                    )
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-graphite/50">
+                      <Camera size={22} />
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="space-y-3 p-4">
                 <div className="min-w-0">
                   <p className="truncate font-medium text-ink">{gallery.title}</p>
-                  <p className="truncate text-sm text-graphite/70">/g/{gallery.slug}</p>
+                  <p className="mt-1 truncate text-sm text-graphite/70">/g/{gallery.slug}</p>
                 </div>
-              </div>
-              <div className="text-right text-sm text-graphite/70">
-                <p>{gallery._count.photos} {copy.media}</p>
-                <p>{gallery.isActive ? copy.active : copy.inactive}</p>
+                <div className="flex items-center justify-between gap-3 text-sm text-graphite/70">
+                  <span>{gallery._count.photos} {copy.media}</span>
+                  <span className={gallery.isActive ? "font-medium text-ink" : ""}>{gallery.isActive ? copy.active : copy.inactive}</span>
+                </div>
               </div>
             </a>
           ))}
           {latestGalleries.length === 0 ? (
-            <div className="px-5 pb-4">
+            <div className="sm:col-span-2 xl:col-span-4">
               <EmptyState
                 icon={<Camera size={18} className="text-ink" />}
                 title={copy.noGalleriesTitle}
