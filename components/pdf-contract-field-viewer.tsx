@@ -1,12 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { PdfPreviewCanvas, usePdfPreviewPages } from "@/components/pdf-preview";
 import { contractFieldInputName } from "@/lib/contract-fields";
 import type { ContractPdfField } from "@/lib/contract-pdf-fields";
-
-function pdfUrlForPage(fileUrl: string, page: number) {
-  return `${fileUrl}#toolbar=0&navpanes=0&scrollbar=0&page=${page}&view=FitH`;
-}
 
 export function PdfContractFieldViewer({
   fileUrl,
@@ -23,86 +19,86 @@ export function PdfContractFieldViewer({
   formId: string;
   disabled?: boolean;
 }) {
-  const pages = useMemo(() => [...new Set(fields.map((field) => field.page))].sort((left, right) => left - right), [fields]);
-  const [activePage, setActivePage] = useState(pages[0] ?? 1);
-  const activeFields = fields.filter((field) => field.page === activePage);
+  const { pages, isLoading, error } = usePdfPreviewPages(fileUrl);
 
   return (
-    <div className="space-y-3">
-      {pages.length > 1 ? (
-        <div className="flex flex-wrap gap-2">
-          {pages.map((page) => (
-            <button
-              key={page}
-              type="button"
-              onClick={() => setActivePage(page)}
-              className={`h-9 rounded-md border px-3 text-sm font-medium transition ${
-                activePage === page
-                  ? "border-ink bg-ink text-white"
-                  : "border-ink/10 bg-white text-graphite hover:bg-ink/5"
-              }`}
-            >
-              {page}. oldal
-            </button>
-          ))}
+    <div className="max-h-[72vh] overflow-y-auto rounded-md border border-ink/10 bg-paper p-3">
+      {isLoading ? (
+        <div className="grid min-h-[420px] place-items-center rounded-md bg-white text-sm text-graphite/65">
+          PDF betöltése...
         </div>
       ) : null}
 
-      <div className="relative mx-auto aspect-[1/1.414] w-full max-w-3xl overflow-hidden rounded-md border border-ink/10 bg-white shadow-soft">
-        <object
-          title={title}
-          data={pdfUrlForPage(fileUrl, activePage)}
-          type="application/pdf"
-          className="absolute inset-0 h-full w-full pointer-events-none"
-        >
-          <iframe title={title} src={pdfUrlForPage(fileUrl, activePage)} className="h-full w-full" />
-        </object>
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
+          A PDF előnézet nem tölthető be. Nyissátok meg a PDF-et külön ablakban, majd töltsétek ki az adatokat.
+        </div>
+      ) : null}
 
-        <div className="absolute inset-0">
-          {activeFields.map((field) => {
-            const commonClass =
-              "h-full w-full rounded border border-brass/60 bg-white/92 px-2 text-[11px] font-medium text-ink shadow-sm outline-none transition focus:border-ink focus:bg-white";
+      {!isLoading && !error ? (
+        <div className="space-y-5">
+          {pages.map((pdfPage) => {
+            const pageFields = fields.filter((field) => field.page === pdfPage.pageNumber);
 
             return (
-              <label
-                key={field.id}
-                className="absolute block"
-                style={{
-                  left: `${field.x}%`,
-                  top: `${field.y}%`,
-                  width: `${field.width}%`,
-                  height: `${field.height}%`
-                }}
-                title={field.label}
-              >
-                <span className="sr-only">{field.label}</span>
-                {field.type === "textarea" ? (
-                  <textarea
-                    form={formId}
-                    name={contractFieldInputName(field.key)}
-                    defaultValue={values[field.key] ?? ""}
-                    required
-                    disabled={disabled}
-                    placeholder={field.label}
-                    className={`${commonClass} resize-none py-1 leading-4`}
-                  />
-                ) : (
-                  <input
-                    form={formId}
-                    name={contractFieldInputName(field.key)}
-                    type={field.type}
-                    defaultValue={values[field.key] ?? ""}
-                    required
-                    disabled={disabled}
-                    placeholder={field.label}
-                    className={commonClass}
-                  />
-                )}
-              </label>
+              <section key={pdfPage.pageNumber} className="mx-auto w-full max-w-3xl">
+                <div className="mb-2 text-xs font-medium text-graphite/65">{pdfPage.pageNumber}. oldal</div>
+                <div
+                  className="relative overflow-hidden rounded-md border border-ink/10 bg-white shadow-soft"
+                  style={{ aspectRatio: `${pdfPage.width} / ${pdfPage.height}` }}
+                >
+                  <PdfPreviewCanvas page={pdfPage} className="absolute inset-0 h-full w-full select-none" />
+
+                  <div className="absolute inset-0">
+                    {pageFields.map((field) => {
+                      const commonClass =
+                        "h-full w-full rounded border border-brass/60 bg-white/92 px-2 text-[11px] font-medium text-ink shadow-sm outline-none transition focus:border-ink focus:bg-white";
+
+                      return (
+                        <label
+                          key={field.id}
+                          className="absolute block"
+                          style={{
+                            left: `${field.x}%`,
+                            top: `${field.y}%`,
+                            width: `${field.width}%`,
+                            height: `${field.height}%`
+                          }}
+                          title={field.label}
+                        >
+                          <span className="sr-only">{field.label}</span>
+                          {field.type === "textarea" ? (
+                            <textarea
+                              form={formId}
+                              name={contractFieldInputName(field.key)}
+                              defaultValue={values[field.key] ?? ""}
+                              required
+                              disabled={disabled}
+                              placeholder={field.label}
+                              className={`${commonClass} resize-none py-1 leading-4`}
+                            />
+                          ) : (
+                            <input
+                              form={formId}
+                              name={contractFieldInputName(field.key)}
+                              type={field.type}
+                              defaultValue={values[field.key] ?? ""}
+                              required
+                              disabled={disabled}
+                              placeholder={field.label}
+                              className={commonClass}
+                            />
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
             );
           })}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
