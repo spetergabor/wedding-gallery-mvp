@@ -28,6 +28,25 @@ type Contract = {
   createdAt: Date;
 };
 
+type ContractCustomer = {
+  coupleName: string;
+  primaryEmail: string;
+  secondaryEmail: string | null;
+  wifeName: string | null;
+  wifeEmail: string | null;
+  husbandName: string | null;
+  husbandEmail: string | null;
+  partnerName: string | null;
+  partnerEmail: string | null;
+};
+
+type RecipientOption = {
+  key: string;
+  label: string;
+  email: string;
+  defaultChecked: boolean;
+};
+
 const statusLabels: Record<string, string> = {
   draft: "Vázlat",
   sent: "Elküldve",
@@ -63,13 +82,72 @@ function shortHash(value: string | null) {
   return value ? `${value.slice(0, 12)}...${value.slice(-8)}` : "nincs";
 }
 
+function addRecipientOption(options: RecipientOption[], option: RecipientOption) {
+  const normalized = option.email.trim().toLowerCase();
+
+  if (!normalized || options.some((item) => item.email.trim().toLowerCase() === normalized)) {
+    return;
+  }
+
+  options.push({ ...option, email: normalized });
+}
+
+function recipientOptions(customer: ContractCustomer, admin: { name: string | null; email: string }) {
+  const options: RecipientOption[] = [];
+
+  addRecipientOption(options, {
+    key: "wife",
+    label: customer.wifeName ? `Feleség: ${customer.wifeName}` : "Feleség",
+    email: customer.wifeEmail ?? "",
+    defaultChecked: true
+  });
+  addRecipientOption(options, {
+    key: "husband",
+    label: customer.husbandName ? `Férj: ${customer.husbandName}` : "Férj",
+    email: customer.husbandEmail ?? "",
+    defaultChecked: true
+  });
+  addRecipientOption(options, {
+    key: "partner",
+    label: customer.partnerName ? `Partner: ${customer.partnerName}` : "Partner",
+    email: customer.partnerEmail ?? "",
+    defaultChecked: true
+  });
+  addRecipientOption(options, {
+    key: "primary",
+    label: "Elsődleges e-mail",
+    email: customer.primaryEmail,
+    defaultChecked: true
+  });
+  addRecipientOption(options, {
+    key: "secondary",
+    label: "Másodlagos e-mail",
+    email: customer.secondaryEmail ?? "",
+    defaultChecked: true
+  });
+  addRecipientOption(options, {
+    key: "admin",
+    label: admin.name ? `Saját másolat: ${admin.name}` : "Saját másolat",
+    email: admin.email,
+    defaultChecked: false
+  });
+
+  return options;
+}
+
 export function ContractManager({
   customerId,
+  customer,
+  admin,
   contracts
 }: {
   customerId: string;
+  customer: ContractCustomer;
+  admin: { name: string | null; email: string };
   contracts: Contract[];
 }) {
+  const recipients = recipientOptions(customer, admin);
+
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
       <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-start">
@@ -145,17 +223,6 @@ export function ContractManager({
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <form action={sendContractAction.bind(null, customerId, contract.id)}>
-                    <FormSubmitButton
-                      variant="secondary"
-                      className="h-10 border-ink/10 px-3 text-graphite hover:bg-ink/5"
-                      pendingLabel="Küldés..."
-                      title="Szerződés kiküldése emailben"
-                    >
-                      <Mail size={16} />
-                      Küldés
-                    </FormSubmitButton>
-                  </form>
                   {contract.fileUrl ? (
                     <>
                       <a
@@ -188,6 +255,80 @@ export function ContractManager({
                   </form>
                 </div>
               </div>
+              <details className="mt-4 rounded-md border border-ink/10 bg-paper p-3">
+                <summary className="cursor-pointer text-sm font-semibold text-ink">
+                  Email beállítások és küldés
+                </summary>
+                <form action={sendContractAction.bind(null, customerId, contract.id)} className="mt-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-graphite">Címzettek</p>
+                    {recipients.length > 0 ? (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {recipients.map((recipient) => (
+                          <label
+                            key={`${recipient.key}-${recipient.email}`}
+                            className="flex items-start gap-2 rounded-md border border-ink/10 bg-white px-3 py-2 text-sm text-graphite"
+                          >
+                            <input
+                              type="checkbox"
+                              name="recipients"
+                              value={recipient.email}
+                              defaultChecked={recipient.defaultChecked}
+                              className="mt-1 size-4 accent-ink"
+                            />
+                            <span className="min-w-0">
+                              <span className="block font-medium text-ink">{recipient.label}</span>
+                              <span className="block break-all text-xs text-graphite/60">{recipient.email}</span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-2 rounded-md bg-white px-3 py-2 text-sm text-graphite/70">
+                        Nincs mentett e-mail cím ehhez az ügyfélhez.
+                      </p>
+                    )}
+                  </div>
+
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">További címzettek</span>
+                    <input
+                      name="additionalRecipients"
+                      placeholder="pl. masolat@email.com, planner@email.com"
+                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Email tárgya</span>
+                    <input
+                      name="emailSubject"
+                      placeholder={`Üresen hagyva automatikus: ${contract.title}`}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Rövid üzenet</span>
+                    <textarea
+                      name="emailMessage"
+                      rows={4}
+                      placeholder="pl. Sziasztok, itt találjátok a szerződést aláírásra. Köszönöm!"
+                      className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm leading-6 text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+
+                  <FormSubmitButton
+                    variant="primary"
+                    className="w-full sm:w-auto"
+                    pendingLabel="Küldés..."
+                    title="Szerződés kiküldése emailben"
+                  >
+                    <Mail size={16} />
+                    Email küldése
+                  </FormSubmitButton>
+                </form>
+              </details>
               <div className="mt-3 grid gap-2 text-xs text-graphite/60">
                 <p>Elküldve: {formatDate(contract.sentAt) ?? "még nincs"}</p>
                 <p>Megnyitva: {formatDate(contract.openedAt) ?? "még nincs"}</p>

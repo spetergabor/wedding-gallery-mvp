@@ -16,6 +16,8 @@ type ContractSignatureRequestEmail = {
   coupleName: string;
   contractTitle: string;
   contractUrl: string;
+  subject?: string;
+  message?: string;
   language?: CustomerLanguage;
 };
 
@@ -303,6 +305,10 @@ function escapeHtml(value: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function multilineHtml(value: string) {
+  return escapeHtml(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "<br>");
 }
 
 function filenamesText(filenames: string[]) {
@@ -1107,13 +1113,21 @@ function contractSignatureRequestHtml({
   coupleName,
   contractTitle,
   contractUrl,
+  message,
   language
 }: ContractSignatureRequestEmail) {
   const copy = copyForLanguage(language);
+  const customMessage = message?.trim();
+
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.contract.heading}</h1>
       <p style="margin: 0 0 18px;">Hallo ${escapeHtml(coupleName)},</p>
+      ${
+        customMessage
+          ? `<div style="margin: 0 0 18px; padding: 14px 16px; background: #f8f7f4; border: 1px solid #e7e3da; border-radius: 6px;">${multilineHtml(customMessage)}</div>`
+          : ""
+      }
       <p style="margin: 0 0 18px;">${copy.contract.body} <strong>${escapeHtml(contractTitle)}</strong>.</p>
       <p style="margin: 0 0 20px;">
         <a href="${escapeHtml(contractUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${copy.contract.cta}</a>
@@ -1147,11 +1161,12 @@ export async function sendContractSignatureRequestEmail(payload: ContractSignatu
     body: JSON.stringify({
       from,
       to: recipients,
-      subject: `${copy.contract.subjectPrefix}: ${payload.contractTitle}`,
+      subject: payload.subject?.trim() || `${copy.contract.subjectPrefix}: ${payload.contractTitle}`,
       html: contractSignatureRequestHtml(payload),
       text: [
         `Hallo ${payload.coupleName}, ${copy.contract.intro}`,
         "",
+        ...(payload.message?.trim() ? [payload.message.trim(), ""] : []),
         `${copy.contract.body} ${payload.contractTitle}`,
         `${copy.contract.cta}: ${payload.contractUrl}`
       ].join("\n")

@@ -23,6 +23,25 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function emailListFromForm(formData: FormData) {
+  const selectedRecipients = formData
+    .getAll("recipients")
+    .filter((value): value is string => typeof value === "string");
+  const additionalRecipients = formString(formData, "additionalRecipients")
+    .split(/[\s,;]+/)
+    .filter(Boolean);
+
+  return [...new Set([...selectedRecipients, ...additionalRecipients].map(normalizeEmail).filter(isValidEmail))];
+}
+
 function createContractAccessToken() {
   return randomBytes(32).toString("base64url");
 }
@@ -127,7 +146,7 @@ export async function createWrittenContractAction(customerId: string, formData: 
   redirect(`/admin/clients/${customerId}?contractWritten=1`);
 }
 
-export async function sendContractAction(customerId: string, contractId: string) {
+export async function sendContractAction(customerId: string, contractId: string, formData: FormData) {
   const admin = await requireAdmin();
 
   const contract = await prisma.contract.findFirst({
@@ -138,6 +157,9 @@ export async function sendContractAction(customerId: string, contractId: string)
           coupleName: true,
           primaryEmail: true,
           secondaryEmail: true,
+          wifeEmail: true,
+          husbandEmail: true,
+          partnerEmail: true,
           preferredLanguage: true
         }
       }
@@ -148,9 +170,17 @@ export async function sendContractAction(customerId: string, contractId: string)
     redirect(`/admin/clients/${customerId}?contractError=not-found`);
   }
 
+  const recipients = emailListFromForm(formData);
+
+  if (recipients.length === 0) {
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractError=no-recipient`);
+  }
+
   const accessToken = contract.accessToken ?? createContractAccessToken();
   const expiresAt = contract.accessTokenExpiresAt ?? new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
   const contractUrl = contractPublicUrl(accessToken);
+  const subject = formString(formData, "emailSubject");
+  const message = formString(formData, "emailMessage");
 
   await prisma.contract.update({
     where: { id: contract.id },
@@ -161,10 +191,12 @@ export async function sendContractAction(customerId: string, contractId: string)
   });
 
   await sendContractSignatureRequestEmail({
-    to: [contract.customer.primaryEmail, contract.customer.secondaryEmail].filter((email): email is string => Boolean(email)),
+    to: recipients,
     coupleName: contract.customer.coupleName,
     contractTitle: contract.title,
     contractUrl,
+    subject,
+    message,
     language: normalizeCustomerLanguage(contract.customer.preferredLanguage)
   });
 

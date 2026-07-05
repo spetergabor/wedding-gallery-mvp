@@ -1079,6 +1079,11 @@ export default async function AdminClientDetailPage({
             Frissítsd az oldalt, és próbáld újra.
           </Alert>
         ) : null}
+        {flags.contractError === "no-recipient" ? (
+          <Alert title="Nincs kiválasztott címzett." variant="error">
+            Válassz legalább egy e-mail címet, vagy adj meg további címzettet.
+          </Alert>
+        ) : null}
         {flags.invoiceError === "missing" ? (
           <Alert title="Hiányzó számla adat." variant="error">
             Adj meg címet és válassz ki egy PDF fájlt.
@@ -1440,7 +1445,22 @@ export default async function AdminClientDetailPage({
       </div>
 
       <div data-customer-tab-panel="contracts" hidden={activeTab !== "contracts"}>
-        <ContractManager customerId={customer.id} contracts={customer.contracts} />
+        <ContractManager
+          customerId={customer.id}
+          customer={{
+            coupleName: customer.coupleName,
+            primaryEmail: customer.primaryEmail,
+            secondaryEmail: customer.secondaryEmail,
+            wifeName: customer.wifeName,
+            wifeEmail: customer.wifeEmail,
+            husbandName: customer.husbandName,
+            husbandEmail: customer.husbandEmail,
+            partnerName: customer.partnerName,
+            partnerEmail: customer.partnerEmail
+          }}
+          admin={{ name: admin.name, email: admin.email }}
+          contracts={customer.contracts}
+        />
       </div>
 
       <div data-customer-tab-panel="invoices" hidden={activeTab !== "invoices"}>
