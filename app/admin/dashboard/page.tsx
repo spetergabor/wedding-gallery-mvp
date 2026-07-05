@@ -31,6 +31,12 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { ensureLeadPipelineSchema, leadEventTypeLabel, leadStatusLabel, normalizeLeadStatus } from "@/lib/leads";
 import {
+  formatMiniSessionSlot,
+  MINI_SESSION_BOOKING_SOURCE_BLOCKED,
+  MINI_SESSION_BOOKING_SOURCE_MANUAL,
+  MINI_SESSION_BOOKING_STATUS_BOOKED
+} from "@/lib/mini-sessions";
+import {
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -436,6 +442,10 @@ const DASHBOARD_COPY = {
       invoiceSent: "Számla kiküldve",
       invoicePaid: "Számla fizetve",
       selectionSubmitted: "Válogatás leadva",
+      miniSessionBooking: "Mini session foglalás",
+      miniSessionManualBooking: "Kézi mini session foglalás",
+      miniSessionBlockedSlot: "Blokkolt mini session idősáv",
+      miniSessionAttendees: (count: number) => `${count} fő`,
       albumComment: "Album megjegyzés",
       albumCommentCount: (count: number) => `${count} megjegyzés`,
       albumApproved: "Album oldal rendben",
@@ -538,6 +548,10 @@ const DASHBOARD_COPY = {
       invoiceSent: "Rechnung gesendet",
       invoicePaid: "Rechnung bezahlt",
       selectionSubmitted: "Auswahl abgegeben",
+      miniSessionBooking: "Mini-Session-Buchung",
+      miniSessionManualBooking: "Manuelle Mini-Session-Buchung",
+      miniSessionBlockedSlot: "Blockierter Mini-Session-Slot",
+      miniSessionAttendees: (count: number) => `${count} Personen`,
       albumComment: "Albumkommentar",
       albumCommentCount: (count: number) => `${count} Kommentare`,
       albumApproved: "Albumseite freigegeben",
@@ -823,6 +837,7 @@ export default async function AdminDashboardPage() {
     calendarContracts,
     calendarInvoices,
     calendarFavoriteLists,
+    calendarMiniSessionBookings,
     calendarApprovedSpreads,
     proofingInviteGalleries,
     submittedProofingGalleries,
@@ -949,6 +964,31 @@ export default async function AdminDashboardPage() {
         _count: {
           select: {
             items: true
+          }
+        }
+      }
+    }),
+    prisma.miniSessionBooking.findMany({
+      where: {
+        status: MINI_SESSION_BOOKING_STATUS_BOOKED,
+        startsAt: { gte: calendarStart, lt: calendarEnd },
+        miniSession: adminOwnedWhere(admin)
+      },
+      orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+      take: 200,
+      select: {
+        id: true,
+        name: true,
+        attendeeCount: true,
+        startsAt: true,
+        endsAt: true,
+        source: true,
+        adminNote: true,
+        miniSession: {
+          select: {
+            id: true,
+            title: true,
+            location: true
           }
         }
       }
@@ -1472,6 +1512,29 @@ export default async function AdminDashboardPage() {
           icon: Heart
         }
       ];
+    }),
+    ...calendarMiniSessionBookings.map((booking): DashboardCalendarEvent => {
+      const isBlocked = booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED;
+      const isManual = booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL;
+      const slotLabel = formatMiniSessionSlot(booking.startsAt, booking.endsAt, language);
+      const bookingLabel = isBlocked
+        ? copy.calendar.miniSessionBlockedSlot
+        : isManual
+          ? copy.calendar.miniSessionManualBooking
+          : copy.calendar.miniSessionBooking;
+      const personDetail = isBlocked ? booking.adminNote || booking.name : `${booking.name} · ${copy.calendar.miniSessionAttendees(booking.attendeeCount)}`;
+
+      return {
+        key: `calendar-mini-session-booking-${booking.id}`,
+        date: booking.startsAt,
+        title: booking.miniSession.title,
+        detail: `${slotLabel} · ${booking.miniSession.location} · ${personDetail}`,
+        href: `/admin/mini-sessions#mini-session-${booking.miniSession.id}`,
+        label: bookingLabel,
+        kind: "event",
+        tone: isBlocked ? "ink" : "sage",
+        icon: CalendarClock
+      };
     }),
     ...calendarApprovedSpreadGroups.map((group): DashboardCalendarEvent => ({
       key: `calendar-album-approved-${group.reviewId}`,
