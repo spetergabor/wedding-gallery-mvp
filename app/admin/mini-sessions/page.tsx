@@ -1,4 +1,4 @@
-import { CalendarClock, CheckCircle2, ChevronDown, ExternalLink, ImageIcon, MapPin, Plus, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronDown, Download, ExternalLink, ImageIcon, MapPin, Plus, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
@@ -216,6 +216,10 @@ export default async function AdminMiniSessionsPage({
                       Megnyitás
                     </Link>
                     <CopyLinkButton url={publicUrl} label="Link másolása" className="h-10 px-3" />
+                    <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink hover:bg-ink/5" href={`/admin/mini-sessions/${session.id}/export`}>
+                      <Download size={15} />
+                      CSV export
+                    </Link>
                     <form action={deleteMiniSessionAction.bind(null, session.id)}>
                       <ConfirmSubmitButton
                         variant="danger"
