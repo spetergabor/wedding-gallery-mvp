@@ -41,6 +41,10 @@ const fileInputClass =
   "block w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 py-2.5 text-sm text-ink outline-none transition file:mr-4 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-graphite focus:border-ink/50";
 const textAreaClass =
   "min-h-24 w-full min-w-0 rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
+const sessionActionLinkClass =
+  "inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-ink/10 px-2.5 text-xs font-medium text-ink transition hover:bg-ink/5 sm:px-3 sm:text-sm md:w-auto";
+const sessionActionButtonClass =
+  "h-9 w-full min-w-0 whitespace-nowrap px-2.5 text-xs sm:px-3 sm:text-sm md:w-auto";
 
 export default async function AdminMiniSessionsPage({
   searchParams
@@ -193,7 +197,7 @@ export default async function AdminMiniSessionsPage({
             return (
               <section id={`mini-session-${session.id}`} key={session.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
                 <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-start">
-                  <div>
+                  <div className="min-w-0 md:flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-semibold text-ink">{session.title}</h2>
                       <span className={`rounded-full px-3 py-1 text-xs font-medium ${session.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
@@ -210,23 +214,23 @@ export default async function AdminMiniSessionsPage({
                     </div>
                     <p className="mt-2 text-sm text-graphite/60">Publikus oldal: /mini-session/{session.slug}</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink hover:bg-ink/5" href={publicUrl} target="_blank">
-                      <ExternalLink size={15} />
+                  <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 md:w-auto md:flex md:flex-nowrap md:justify-end">
+                    <Link className={sessionActionLinkClass} href={publicUrl} target="_blank">
+                      <ExternalLink size={14} />
                       Megnyitás
                     </Link>
-                    <CopyLinkButton url={publicUrl} label="Link másolása" className="h-10 px-3" />
-                    <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink hover:bg-ink/5" href={`/admin/mini-sessions/${session.id}/export`}>
-                      <Download size={15} />
+                    <CopyLinkButton url={publicUrl} label="Link másolása" className={sessionActionButtonClass} />
+                    <Link className={sessionActionLinkClass} href={`/admin/mini-sessions/${session.id}/export`}>
+                      <Download size={14} />
                       CSV export
                     </Link>
-                    <form action={deleteMiniSessionAction.bind(null, session.id)}>
+                    <form action={deleteMiniSessionAction.bind(null, session.id)} className="min-w-0">
                       <ConfirmSubmitButton
                         variant="danger"
                         message={`Biztosan törlöd ezt a mini sessiont? A hozzá tartozó ${booked.length} foglalás is törlődik.`}
-                        className="h-10 px-3"
+                        className={sessionActionButtonClass}
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                         Törlés
                       </ConfirmSubmitButton>
                     </form>
