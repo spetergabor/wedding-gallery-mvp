@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarClock, CheckCircle2, ChevronDown, Download, ExternalLink, ImageIcon, Mail, MapPin, Phone, PlusCircle, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarClock, CalendarPlus, CheckCircle2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,15 +8,17 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MiniSessionBookingFilters } from "@/components/mini-session-booking-filters";
 import { MiniSessionTabController } from "@/components/mini-session-tab-controller";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { miniSessionPublicUrl } from "@/lib/email";
+import { miniSessionBookingCalendarUrl, miniSessionBookingCancelUrl, miniSessionPublicUrl } from "@/lib/email";
 import {
   cancelMiniSessionBookingByAdminAction,
   createAdminMiniSessionBookingAction,
   deleteMiniSessionAction,
   deleteMiniSessionCoverAction,
+  resendMiniSessionBookingConfirmationAction,
   updateMiniSessionAction,
   updateMiniSessionCoverAction
 } from "@/lib/mini-session-actions";
@@ -48,6 +50,10 @@ const headerActionLinkClass =
   "inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-ink/10 px-2.5 text-xs font-medium text-ink transition hover:bg-ink/5 sm:px-3 sm:text-sm md:w-auto";
 const headerActionButtonClass =
   "h-9 w-full min-w-0 whitespace-nowrap px-2.5 text-xs sm:px-3 sm:text-sm md:w-auto";
+const smallActionLinkClass =
+  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-ink/10 bg-white px-2.5 text-xs font-medium text-ink transition hover:bg-ink/5";
+const smallActionButtonClass =
+  "h-8 whitespace-nowrap px-2.5 text-xs";
 
 function activeTab(value: string | undefined): MiniSessionTab {
   if (value === "bookings" || value === "slots" || value === "settings") {
@@ -81,6 +87,16 @@ function sourceBadgeClass(source: string) {
   return "bg-sage/10 text-sage";
 }
 
+function statusLabel(status: string) {
+  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED ? "Törölt" : "Aktív";
+}
+
+function statusBadgeClass(status: string) {
+  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED
+    ? "bg-red-50 text-red-700"
+    : "bg-sage/10 text-sage";
+}
+
 function tabHref(id: string, tab: MiniSessionTab) {
   return `/admin/mini-sessions/${id}${tab === "overview" ? "" : `?tab=${tab}`}`;
 }
@@ -97,6 +113,7 @@ export default async function AdminMiniSessionDetailPage({
     updated?: string;
     bookingCancelled?: string;
     adminBooking?: string;
+    confirmationSent?: string;
     coverUpdated?: string;
     coverDeleted?: string;
   }>;
@@ -120,13 +137,23 @@ export default async function AdminMiniSessionDetailPage({
 
   const booked = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
   const cancelled = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
-  const contactBookings = booked.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED);
+  const activeContactBookings = booked.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED);
+  const cancelledContactBookings = cancelled.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED);
+  const contactBookings = [...activeContactBookings, ...cancelledContactBookings];
   const blockedBookings = booked.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED);
   const slots = createMiniSessionSlots(session);
   const bookedBySlot = new Map(booked.map((booking) => [booking.startsAt.toISOString(), booking]));
   const freeSlots = slots.filter((slot) => !bookedBySlot.has(slot.token));
   const freeSlotCount = freeSlots.length;
   const publicUrl = miniSessionPublicUrl(session.slug);
+  const publicChecklist = [
+    { label: "Publikusan aktív", ok: session.isActive },
+    { label: "Van szabad idősáv", ok: freeSlotCount > 0 },
+    { label: "Borítókép beállítva", ok: Boolean(session.coverImageUrl) },
+    { label: "Publikus megjegyzés", ok: Boolean(session.notes?.trim()) }
+  ];
+  const clientContactCount = contactBookings.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_MANUAL).length;
+  const manualContactCount = contactBookings.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL).length;
   const tabs: Array<{ key: MiniSessionTab; label: string; icon: "CalendarClock" | "Users" | "CheckCircle2" | "Settings2" }> = [
     { key: "overview", label: "Áttekintés", icon: "CalendarClock" },
     { key: "bookings", label: "Foglalók", icon: "Users" },
@@ -156,8 +183,15 @@ export default async function AdminMiniSessionDetailPage({
         {flags.updated ? <Alert title="Mini session frissítve." variant="success" /> : null}
         {flags.bookingCancelled ? <Alert title="Idősáv törölve, újra foglalható." variant="success" /> : null}
         {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
+        {flags.confirmationSent ? <Alert title="Megerősítő e-mail újraküldve." variant="success" /> : null}
         {flags.coverUpdated ? <Alert title="Borítókép frissítve." variant="success" /> : null}
         {flags.coverDeleted ? <Alert title="Borítókép törölve." variant="success" /> : null}
+        {flags.error === "email_send" ? (
+          <Alert title="Az e-mail küldése nem sikerült." variant="error">
+            Ellenőrizd a Resend beállítást és az ügyfél e-mail címét, majd próbáld újra.
+          </Alert>
+        ) : null}
+        {flags.error === "email_unavailable" ? <Alert title="Ehhez a foglaláshoz nem küldhető ügyfél visszaigazolás." variant="error" /> : null}
       </div>
 
       <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
@@ -211,7 +245,7 @@ export default async function AdminMiniSessionDetailPage({
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Szabad</p>
               </Link>
               <Link href={tabHref(session.id, "bookings")} data-mini-session-tab-target="bookings" className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
-                <p className="text-2xl font-semibold text-ink">{contactBookings.length}</p>
+                <p className="text-2xl font-semibold text-ink">{activeContactBookings.length}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Foglaló</p>
               </Link>
               <Link href={tabHref(session.id, "slots")} data-mini-session-tab-target="slots" className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
@@ -232,10 +266,10 @@ export default async function AdminMiniSessionDetailPage({
                 </Link>
               </div>
               <div className="mt-4 space-y-3">
-                {contactBookings.length === 0 ? (
+                {activeContactBookings.length === 0 ? (
                   <p className="rounded-md border border-dashed border-ink/15 bg-paper px-3 py-4 text-sm text-graphite/70">Még nincs ügyfélfoglalás ennél az eseménynél.</p>
                 ) : (
-                  contactBookings.slice(0, 5).map((booking) => (
+                  activeContactBookings.slice(0, 5).map((booking) => (
                     <div key={booking.id} className="flex flex-col justify-between gap-2 rounded-md border border-ink/10 bg-paper px-3 py-3 sm:flex-row sm:items-center">
                       <div>
                         <p className="text-sm font-semibold text-ink">{booking.name}</p>
@@ -263,14 +297,39 @@ export default async function AdminMiniSessionDetailPage({
             </section>
 
             <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-              <h2 className="text-lg font-semibold text-ink">Borítókép</h2>
-              {session.coverImageUrl ? (
-                <div className="relative mt-4 aspect-[4/3] overflow-hidden rounded-md bg-paper">
-                  <Image src={session.coverImageUrl} alt={`${session.title} borítókép`} fill unoptimized className="object-cover" sizes="360px" />
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-ink">Landing page ellenőrzés</h2>
+                  <p className="mt-1 text-sm text-graphite/65">Gyors előnézet és publikálási checklist.</p>
                 </div>
-              ) : (
-                <p className="mt-4 rounded-md border border-dashed border-ink/15 bg-paper px-3 py-4 text-sm text-graphite/70">Nincs borítókép beállítva.</p>
-              )}
+                <Link href={publicUrl} target="_blank" className="inline-flex size-9 items-center justify-center rounded-md border border-ink/10 text-ink transition hover:bg-ink/5" aria-label="Publikus oldal megnyitása">
+                  <Eye size={15} />
+                </Link>
+              </div>
+              <div className={`relative mt-4 min-h-40 overflow-hidden rounded-md border ${session.coverImageUrl ? "border-ink/10 bg-ink text-white" : "border-ink/10 bg-paper text-ink"}`}>
+                {session.coverImageUrl ? (
+                  <>
+                    <Image src={session.coverImageUrl} alt={`${session.title} borítókép`} fill unoptimized className="object-cover" sizes="360px" />
+                    <div className="absolute inset-0 bg-ink/45" />
+                  </>
+                ) : null}
+                <div className="relative flex min-h-40 flex-col justify-end p-4">
+                  <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${session.coverImageUrl ? "text-white/75" : "text-brass"}`}>{miniSessionLanguageLabel(session.language)}</p>
+                  <p className="mt-2 text-xl font-semibold">{session.title}</p>
+                  <p className={`mt-2 text-xs ${session.coverImageUrl ? "text-white/80" : "text-graphite/70"}`}>{formatMiniSessionDate(session.sessionDate)} · {session.location}</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-2">
+                {publicChecklist.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between gap-3 rounded-md bg-paper px-3 py-2 text-sm">
+                    <span className="text-graphite/75">{item.label}</span>
+                    <span className={`inline-flex items-center gap-1.5 font-medium ${item.ok ? "text-sage" : "text-red-700"}`}>
+                      {item.ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                      {item.ok ? "OK" : "Hiányzik"}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </section>
           </aside>
         </div>
@@ -295,31 +354,87 @@ export default async function AdminMiniSessionDetailPage({
             </div>
           ) : (
             <>
+              <MiniSessionBookingFilters
+                totalCount={contactBookings.length}
+                activeCount={activeContactBookings.length}
+                cancelledCount={cancelledContactBookings.length}
+                clientCount={clientContactCount}
+                manualCount={manualContactCount}
+              />
+              <div data-mini-session-booking-empty hidden={activeContactBookings.length > 0} className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">
+                Nincs találat a jelenlegi szűrésre.
+              </div>
+
               <div className="mt-5 space-y-3 md:hidden">
-                {contactBookings.map((booking) => (
-                  <div key={booking.id} className="rounded-md border border-ink/10 bg-paper p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-ink">{booking.name}</p>
-                        <p className="mt-1 text-sm text-graphite/65">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)}</p>
+                {contactBookings.map((booking) => {
+                  const slotLabel = formatMiniSessionSlot(booking.startsAt, booking.endsAt);
+                  const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
+                  const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
+                  const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
+                  const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
+
+                  return (
+                    <div
+                      key={booking.id}
+                      data-mini-session-booking-item
+                      data-mini-session-booking-record={booking.id}
+                      data-mini-session-booking-status={booking.status}
+                      data-mini-session-booking-source={booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL ? "manual" : "client"}
+                      data-mini-session-booking-search={searchText}
+                      hidden={!isActive}
+                      className="rounded-md border border-ink/10 bg-paper p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-ink">{booking.name}</p>
+                          <p className="mt-1 text-sm text-graphite/65">{slotLabel}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${statusBadgeClass(booking.status)}`}>{statusLabel(booking.status)}</span>
+                          <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
+                        </div>
                       </div>
-                      <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
+                      <div className="mt-3 space-y-1 text-sm text-graphite/70">
+                        <a className="flex items-center gap-2 hover:text-ink" href={`mailto:${booking.email}`}><Mail size={14} /> {booking.email}</a>
+                        <a className="flex items-center gap-2 hover:text-ink" href={`tel:${booking.phone}`}><Phone size={14} /> {booking.phone}</a>
+                        <p className="flex items-center gap-2"><Users size={14} /> {booking.attendeeCount} fő</p>
+                      </div>
+                      {booking.adminNote ? <p className="mt-3 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <a className={smallActionLinkClass} href={`mailto:${booking.email}`}>
+                          <Mail size={13} />
+                          E-mail
+                        </a>
+                        <a className={smallActionLinkClass} href={`tel:${booking.phone}`}>
+                          <Phone size={13} />
+                          Telefon
+                        </a>
+                        <Link className={smallActionLinkClass} href={calendarUrl} target="_blank">
+                          <CalendarPlus size={13} />
+                          Naptár
+                        </Link>
+                        <CopyLinkButton url={cancelUrl} label="Törlő link" className={smallActionButtonClass} />
+                        {isActive ? (
+                          <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
+                            <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
+                              <Send size={13} />
+                              Újraküldés
+                            </FormSubmitButton>
+                          </form>
+                        ) : null}
+                        {isActive ? (
+                          <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)}>
+                            <input type="hidden" name="returnTab" value="bookings" />
+                            <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className={smallActionButtonClass}>
+                              <XCircle size={13} />
+                              Törlés
+                            </ConfirmSubmitButton>
+                          </form>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="mt-3 space-y-1 text-sm text-graphite/70">
-                      <p className="flex items-center gap-2"><Mail size={14} /> {booking.email}</p>
-                      <p className="flex items-center gap-2"><Phone size={14} /> {booking.phone}</p>
-                      <p className="flex items-center gap-2"><Users size={14} /> {booking.attendeeCount} fő</p>
-                    </div>
-                    {booking.adminNote ? <p className="mt-3 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
-                    <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)} className="mt-4">
-                      <input type="hidden" name="returnTab" value="bookings" />
-                      <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className="h-9 px-3 text-xs">
-                        <XCircle size={14} />
-                        Foglalás törlése
-                      </ConfirmSubmitButton>
-                    </form>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="mt-5 hidden overflow-hidden rounded-md border border-ink/10 md:block">
@@ -329,60 +444,86 @@ export default async function AdminMiniSessionDetailPage({
                       <th className="px-4 py-3 font-medium">Idősáv</th>
                       <th className="px-4 py-3 font-medium">Név</th>
                       <th className="px-4 py-3 font-medium">Elérhetőség</th>
-                      <th className="px-4 py-3 font-medium">Létszám</th>
-                      <th className="px-4 py-3 font-medium">Típus</th>
-                      <th className="px-4 py-3 font-medium"></th>
+                      <th className="px-4 py-3 font-medium">Állapot</th>
+                      <th className="px-4 py-3 font-medium">Műveletek</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-ink/10">
-                    {contactBookings.map((booking) => (
-                      <tr key={booking.id}>
-                        <td className="px-4 py-3 font-medium text-ink">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)}</td>
-                        <td className="px-4 py-3 text-ink">
-                          {booking.name}
-                          {booking.adminNote ? <p className="mt-1 text-xs text-graphite/55">{booking.adminNote}</p> : null}
-                        </td>
-                        <td className="px-4 py-3 text-graphite/70">
-                          <p>{booking.email}</p>
-                          <p className="mt-1">{booking.phone}</p>
-                        </td>
-                        <td className="px-4 py-3 text-graphite/70">{booking.attendeeCount} fő</td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)}>
-                            <input type="hidden" name="returnTab" value="bookings" />
-                            <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className="h-8 px-2 text-xs">
-                              <XCircle size={13} />
-                              Törlés
-                            </ConfirmSubmitButton>
-                          </form>
-                        </td>
-                      </tr>
-                    ))}
+                    {contactBookings.map((booking) => {
+                      const slotLabel = formatMiniSessionSlot(booking.startsAt, booking.endsAt);
+                      const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
+                      const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
+                      const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
+                      const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
+
+                      return (
+                        <tr
+                          key={booking.id}
+                          data-mini-session-booking-item
+                          data-mini-session-booking-record={booking.id}
+                          data-mini-session-booking-status={booking.status}
+                          data-mini-session-booking-source={booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL ? "manual" : "client"}
+                          data-mini-session-booking-search={searchText}
+                          hidden={!isActive}
+                        >
+                          <td className="px-4 py-3 font-medium text-ink">{slotLabel}</td>
+                          <td className="px-4 py-3 text-ink">
+                            {booking.name}
+                            {booking.adminNote ? <p className="mt-1 text-xs text-graphite/55">{booking.adminNote}</p> : null}
+                          </td>
+                          <td className="px-4 py-3 text-graphite/70">
+                            <a className="block hover:text-ink" href={`mailto:${booking.email}`}>{booking.email}</a>
+                            <a className="mt-1 block hover:text-ink" href={`tel:${booking.phone}`}>{booking.phone}</a>
+                            <p className="mt-1 text-xs">{booking.attendeeCount} fő</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col items-start gap-1">
+                              <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${statusBadgeClass(booking.status)}`}>{statusLabel(booking.status)}</span>
+                              <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <a className={smallActionLinkClass} href={`mailto:${booking.email}`}>
+                                <Mail size={13} />
+                                E-mail
+                              </a>
+                              <a className={smallActionLinkClass} href={`tel:${booking.phone}`}>
+                                <Phone size={13} />
+                                Telefon
+                              </a>
+                              <Link className={smallActionLinkClass} href={calendarUrl} target="_blank">
+                                <CalendarPlus size={13} />
+                                Naptár
+                              </Link>
+                              <CopyLinkButton url={cancelUrl} label="Törlő link" className={smallActionButtonClass} />
+                              {isActive ? (
+                                <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
+                                  <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
+                                    <Send size={13} />
+                                    Újraküldés
+                                  </FormSubmitButton>
+                                </form>
+                              ) : null}
+                              {isActive ? (
+                                <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)}>
+                                  <input type="hidden" name="returnTab" value="bookings" />
+                                  <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className={smallActionButtonClass}>
+                                    <XCircle size={13} />
+                                    Törlés
+                                  </ConfirmSubmitButton>
+                                </form>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </>
           )}
-
-          {cancelled.length > 0 ? (
-            <details className="group mt-6 border-t border-ink/10 pt-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md bg-paper px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-graphite/60 transition hover:bg-ink/5 [&::-webkit-details-marker]:hidden">
-                <span>Törölt foglalások ({cancelled.length})</span>
-                <ChevronDown size={15} className="shrink-0 transition group-open:rotate-180" />
-              </summary>
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {cancelled.map((booking) => (
-                  <div key={booking.id} className="rounded-md border border-ink/10 bg-paper p-3">
-                    <p className="text-sm font-medium text-graphite">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
-                    {booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED ? <p className="mt-1 text-xs text-graphite/55">{booking.email} · {booking.phone}</p> : null}
-                  </div>
-                ))}
-              </div>
-            </details>
-          ) : null}
         </section>
       </div>
 
@@ -463,40 +604,64 @@ export default async function AdminMiniSessionDetailPage({
                 </div>
               </div>
             </div>
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {slots.map((slot) => {
+            <div className="mt-5 space-y-3">
+              {slots.map((slot, index) => {
                 const booking = bookedBySlot.get(slot.token);
+                const isBlocked = booking?.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED;
+                const isManual = booking?.source === MINI_SESSION_BOOKING_SOURCE_MANUAL;
+                const stateLabel = booking ? sourceLabel(booking.source) : "Szabad";
+                const lineClass = !booking
+                  ? "bg-sage"
+                  : isBlocked
+                    ? "bg-red-500"
+                    : isManual
+                      ? "bg-brass"
+                      : "bg-ink";
+                const cardClass = !booking
+                  ? "border-sage/25 bg-sage/5"
+                  : isBlocked
+                    ? "border-red-200 bg-red-50"
+                    : isManual
+                      ? "border-brass/20 bg-brass/5"
+                      : "border-ink/10 bg-paper";
+
                 return (
-                  <div key={slot.token} className={`rounded-md border p-3 ${booking ? "border-ink/10 bg-paper" : "border-sage/20 bg-sage/5"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-ink">{formatMiniSessionSlot(slot.startsAt, slot.endsAt)}</p>
-                        {booking ? (
-                          <p className="mt-1 text-xs text-graphite/60">{booking.name}</p>
-                        ) : (
-                          <p className="mt-1 text-xs text-sage">Szabad</p>
-                        )}
-                      </div>
-                      {booking ? (
-                        <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
-                      ) : (
-                        <span className="rounded-full bg-sage/10 px-2 py-1 text-[11px] font-medium text-sage">Szabad</span>
-                      )}
+                  <div key={slot.token} className="grid gap-3 sm:grid-cols-[96px_24px_minmax(0,1fr)]">
+                    <div className="text-sm font-semibold text-ink sm:pt-3">
+                      {formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
                     </div>
-                    {booking?.adminNote ? <p className="mt-2 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
-                    {booking ? (
-                      <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)} className="mt-3">
-                        <input type="hidden" name="returnTab" value="slots" />
-                        <ConfirmSubmitButton
-                          variant="danger"
-                          message="Biztosan törlöd ezt az idősávot? Az időpont újra foglalható lesz."
-                          className="h-8 px-2 text-xs"
-                        >
-                          <XCircle size={13} />
-                          {booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ? "Blokkolás törlése" : "Foglalás törlése"}
-                        </ConfirmSubmitButton>
-                      </form>
-                    ) : null}
+                    <div className="relative hidden justify-center sm:flex">
+                      <span className={`mt-4 size-3 rounded-full ${lineClass}`} />
+                      {index < slots.length - 1 ? <span className="absolute bottom-[-18px] top-8 w-px bg-ink/10" /> : null}
+                    </div>
+                    <div className={`rounded-md border p-3 ${cardClass}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-ink">{booking ? booking.name : "Szabad idősáv"}</p>
+                          <p className={`mt-1 text-xs ${booking ? "text-graphite/60" : "text-sage"}`}>{stateLabel}</p>
+                        </div>
+                        <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${booking ? sourceBadgeClass(booking.source) : "bg-sage/10 text-sage"}`}>
+                          {stateLabel}
+                        </span>
+                      </div>
+                      {booking && booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED ? (
+                        <p className="mt-2 text-xs text-graphite/60">{booking.email} · {booking.phone} · {booking.attendeeCount} fő</p>
+                      ) : null}
+                      {booking?.adminNote ? <p className="mt-2 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
+                      {booking ? (
+                        <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)} className="mt-3">
+                          <input type="hidden" name="returnTab" value="slots" />
+                          <ConfirmSubmitButton
+                            variant="danger"
+                            message="Biztosan törlöd ezt az idősávot? Az időpont újra foglalható lesz."
+                            className="h-8 px-2 text-xs"
+                          >
+                            <XCircle size={13} />
+                            {booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ? "Blokkolás törlése" : "Foglalás törlése"}
+                          </ConfirmSubmitButton>
+                        </form>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}

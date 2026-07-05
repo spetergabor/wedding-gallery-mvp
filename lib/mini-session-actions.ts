@@ -838,3 +838,80 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
   redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&bookingCancelled=1`);
 }
+
+export async function resendMiniSessionBookingConfirmationAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      miniSession: adminOwnedWhere(admin)
+    },
+    include: {
+      miniSession: true
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  if (booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED || booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_unavailable`);
+  }
+
+  const language = normalizeMiniSessionLanguage(booking.miniSession.language);
+  const cancelUrl = miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken);
+  const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
+  const calendarFilename = miniSessionCalendarFilename(booking.miniSession.title);
+  const calendarIcs = buildMiniSessionCalendarIcs({
+    uid: miniSessionCalendarUid(booking.id),
+    sessionTitle: booking.miniSession.title,
+    location: booking.miniSession.location,
+    startsAt: booking.startsAt,
+    endsAt: booking.endsAt,
+    createdAt: booking.createdAt,
+    updatedAt: booking.updatedAt,
+    url: calendarUrl,
+    description: miniSessionCalendarDescription({
+      location: booking.miniSession.location,
+      name: booking.name,
+      email: booking.email,
+      phone: booking.phone,
+      attendeeCount: booking.attendeeCount,
+      cancelUrl,
+      language
+    })
+  });
+
+  try {
+    const sent = await sendMiniSessionBookingConfirmationEmail({
+      to: booking.email,
+      sessionTitle: booking.miniSession.title,
+      sessionDate: booking.miniSession.sessionDate,
+      location: booking.miniSession.location,
+      startsAt: booking.startsAt,
+      endsAt: booking.endsAt,
+      name: booking.name,
+      attendeeCount: booking.attendeeCount,
+      cancelUrl,
+      calendarUrl,
+      calendarIcs,
+      calendarFilename,
+      calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
+      language
+    });
+
+    if (sent) {
+      await prisma.miniSessionBooking.update({
+        where: { id: booking.id },
+        data: { customerEmailSentAt: new Date() }
+      });
+    }
+  } catch (error) {
+    console.error("Mini session confirmation resend failed", error);
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_send`);
+  }
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&confirmationSent=1`);
+}
