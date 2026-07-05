@@ -596,6 +596,8 @@ function getActiveTab(flags: {
   contractSent?: string;
   contractDeleted?: string;
   contractFieldsSaved?: string;
+  contractFlow?: string;
+  contractId?: string;
   invoiceUploaded?: string;
   invoiceSent?: string;
   invoiceStatusUpdated?: string;
@@ -609,7 +611,14 @@ function getActiveTab(flags: {
     return "invoices";
   }
 
-  if (flags.contractUploaded || flags.contractWritten || flags.contractSent || flags.contractDeleted || flags.contractFieldsSaved) {
+  if (
+    flags.contractUploaded ||
+    flags.contractWritten ||
+    flags.contractSent ||
+    flags.contractDeleted ||
+    flags.contractFieldsSaved ||
+    flags.contractFlow
+  ) {
     return "contracts";
   }
 
@@ -642,6 +651,8 @@ export default async function AdminClientDetailPage({
     contractSent?: string;
     contractDeleted?: string;
     contractFieldsSaved?: string;
+    contractFlow?: string;
+    contractId?: string;
     contractError?: string;
     invoiceUploaded?: string;
     invoiceSent?: string;
@@ -1468,6 +1479,8 @@ export default async function AdminClientDetailPage({
           }}
           admin={{ name: admin.name, email: admin.email }}
           contracts={customer.contracts}
+          initialFlow={flags.contractFlow}
+          selectedContractId={flags.contractId}
         />
       </div>
 

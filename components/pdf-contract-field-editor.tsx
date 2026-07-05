@@ -54,13 +54,15 @@ export function PdfContractFieldEditor({
   contractId,
   fileUrl,
   title,
-  initialFields
+  initialFields,
+  defaultOpen = false
 }: {
   customerId: string;
   contractId: string;
   fileUrl: string;
   title: string;
   initialFields: ContractPdfField[];
+  defaultOpen?: boolean;
 }) {
   const [fields, setFields] = useState<ContractPdfField[]>(initialFields);
   const [activeKey, setActiveKey] = useState(CONTRACT_FIELD_OPTIONS[0]?.key ?? "");
@@ -235,7 +237,7 @@ export function PdfContractFieldEditor({
   }
 
   return (
-    <details className="mt-4 rounded-md border border-ink/10 bg-paper p-3">
+    <details open={defaultOpen} className="mt-4 rounded-md border border-ink/10 bg-paper p-3">
       <summary className="cursor-pointer text-sm font-semibold text-ink">PDF kitöltendő mezők</summary>
 
       <form action={saveContractPdfFieldsAction.bind(null, customerId, contractId)} className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">

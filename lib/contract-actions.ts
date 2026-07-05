@@ -67,14 +67,14 @@ export async function uploadContractAction(customerId: string, formData: FormDat
   const title = formString(formData, "title");
 
   if (!(file instanceof File) || file.size === 0 || !title) {
-    redirect(`/admin/clients/${customerId}?contractError=missing`);
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=upload&contractError=missing`);
   }
 
   const fileName = file.name || "contract.pdf";
   const isPdf = file.type === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
 
   if (!isPdf) {
-    redirect(`/admin/clients/${customerId}?contractError=type`);
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=upload&contractError=type`);
   }
 
   const r2Key = createContractObjectKey({
@@ -89,7 +89,7 @@ export async function uploadContractAction(customerId: string, formData: FormDat
     contentType: "application/pdf"
   });
 
-  await prisma.contract.create({
+  const contract = await prisma.contract.create({
     data: {
       customerId,
       title,
@@ -103,7 +103,7 @@ export async function uploadContractAction(customerId: string, formData: FormDat
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?contractUploaded=1`);
+  redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=fields&contractId=${contract.id}&contractUploaded=1`);
 }
 
 export async function createWrittenContractAction(customerId: string, formData: FormData) {
@@ -124,10 +124,10 @@ export async function createWrittenContractAction(customerId: string, formData: 
   const clientFields = mergeContractFieldsFromTemplate(bodyText, selectedKeys);
 
   if (!title || !contractBodyToPlainText(bodyText)) {
-    redirect(`/admin/clients/${customerId}?contractError=written-missing`);
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=write&contractError=written-missing`);
   }
 
-  await prisma.contract.create({
+  const contract = await prisma.contract.create({
     data: {
       customerId,
       title,
@@ -144,7 +144,7 @@ export async function createWrittenContractAction(customerId: string, formData: 
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?contractWritten=1`);
+  redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}&contractWritten=1`);
 }
 
 export async function sendContractAction(customerId: string, contractId: string, formData: FormData) {
@@ -168,13 +168,13 @@ export async function sendContractAction(customerId: string, contractId: string,
   });
 
   if (!contract) {
-    redirect(`/admin/clients/${customerId}?contractError=not-found`);
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractError=not-found`);
   }
 
   const recipients = emailListFromForm(formData);
 
   if (recipients.length === 0) {
-    redirect(`/admin/clients/${customerId}?tab=contracts&contractError=no-recipient`);
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}&contractError=no-recipient`);
   }
 
   const accessToken = contract.accessToken ?? createContractAccessToken();
@@ -210,7 +210,7 @@ export async function sendContractAction(customerId: string, contractId: string,
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?contractSent=1`);
+  redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}&contractSent=1`);
 }
 
 export async function saveContractPdfFieldsAction(customerId: string, contractId: string, formData: FormData) {
@@ -240,7 +240,7 @@ export async function saveContractPdfFieldsAction(customerId: string, contractId
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=contracts&contractFieldsSaved=1`);
+  redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}&contractFieldsSaved=1`);
 }
 
 export async function deleteContractAction(customerId: string, contractId: string) {
