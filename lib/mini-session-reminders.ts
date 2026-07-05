@@ -12,7 +12,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 const HOUR_MS = 60 * 60 * 1000;
-const REMINDER_LOOKAHEAD_HOURS = 25;
+const REMINDER_LOOKAHEAD_HOURS = 36;
 const DEFAULT_REMINDER_LIMIT = 50;
 
 function isValidEmail(email: string) {
