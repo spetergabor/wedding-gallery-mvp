@@ -40,7 +40,7 @@ export function parseContractPdfFields(value: unknown): ContractPdfField[] {
       }
 
       const width = clamp(normalizePercent(raw.width, 24), 4, 100);
-      const height = clamp(normalizePercent(raw.height, field.type === "textarea" ? 9 : 5), 3, 100);
+      const height = clamp(normalizePercent(raw.height, 5), 3, 100);
       const x = normalizePercent(raw.x, 8);
       const y = normalizePercent(raw.y, 8);
 

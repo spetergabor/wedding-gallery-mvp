@@ -33,16 +33,16 @@ function pointerPercent(event: PointerEvent<HTMLElement>, element: HTMLElement) 
   };
 }
 
-function fieldDefaultHeight(type: ContractPdfField["type"]) {
-  return type === "textarea" ? 9 : 5;
+function fieldDefaultHeight() {
+  return 5;
 }
 
 function minFieldWidth(type: ContractPdfField["type"]) {
   return type === "textarea" ? 14 : 9;
 }
 
-function minFieldHeight(type: ContractPdfField["type"]) {
-  return type === "textarea" ? 5 : 3.5;
+function minFieldHeight() {
+  return 3.5;
 }
 
 function findPageOverlay(event: PointerEvent<HTMLElement>) {
@@ -111,7 +111,7 @@ export function PdfContractFieldEditor({
     }
 
     const width = Math.max(minFieldWidth(activeField.type), draft.width || 24);
-    const height = Math.max(minFieldHeight(activeField.type), draft.height || fieldDefaultHeight(activeField.type));
+    const height = Math.max(minFieldHeight(), draft.height || fieldDefaultHeight());
     const nextField: ContractPdfField = {
       id: `${activeField.key}-${Date.now()}`,
       key: activeField.key,
@@ -223,7 +223,7 @@ export function PdfContractFieldEditor({
         return {
           ...field,
           width: roundPercent(clamp(interaction.original.width + deltaX, minFieldWidth(field.type), maxWidth)),
-          height: roundPercent(clamp(interaction.original.height + deltaY, minFieldHeight(field.type), maxHeight))
+          height: roundPercent(clamp(interaction.original.height + deltaY, minFieldHeight(), maxHeight))
         };
       })
     );
