@@ -820,6 +820,26 @@ export async function signContractAction(token: string, formData: FormData) {
         auditTrail
       }
     });
+
+    if (contract.customer.adminId) {
+      await prisma.adminNotification
+        .create({
+          data: {
+            adminId: contract.customer.adminId,
+            type: "contract_signed",
+            title: "Szerződés aláírva",
+            message: `${contract.customer.coupleName} aláírta a(z) ${contract.title} szerződést.`,
+            href: `/admin/clients/${contract.customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}`
+          }
+        })
+        .catch((notificationError) => {
+          console.error("Contract signed admin notification failed", {
+            contractId: contract.id,
+            customerId: contract.customerId,
+            error: notificationError
+          });
+        });
+    }
   } catch (error) {
     console.error("Contract signing failed", {
       contractId: contract.id,
@@ -831,5 +851,8 @@ export async function signContractAction(token: string, formData: FormData) {
   }
 
   revalidatePath(`/contracts/${token}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/notifications");
+  revalidatePath(`/admin/clients/${contract.customerId}`);
   redirect(`/contracts/${token}?signed=1`);
 }

@@ -27,7 +27,7 @@ export default async function AdminNotificationsPage() {
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Admin</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Értesítések</h1>
-          <p className="mt-3 text-graphite/70">Kedvenc listák és későbbi ügyfél aktivitások admin jelzései.</p>
+          <p className="mt-3 text-graphite/70">Ügyfél aktivitások, szerződések és rendszerfolyamatok admin jelzései.</p>
         </div>
         {unreadCount > 0 ? (
           <form action={markAllNotificationsReadAction}>
@@ -80,7 +80,7 @@ export default async function AdminNotificationsPage() {
                 <Bell size={20} />
               </div>
               <p className="mt-4 font-medium text-ink">Még nincs értesítés</p>
-              <p className="mt-1 text-sm text-graphite/70">Ha egy ügyfél kedvenc listát kezd, itt fog megjelenni.</p>
+              <p className="mt-1 text-sm text-graphite/70">Ha egy ügyfél aktivitás történik, itt fog megjelenni.</p>
             </div>
           ) : null}
         </div>
