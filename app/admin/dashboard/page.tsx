@@ -1530,7 +1530,7 @@ export default async function AdminDashboardPage() {
         date: booking.startsAt,
         title: booking.miniSession.title,
         detail: `${slotLabel} · ${booking.miniSession.location} · ${personDetail}`,
-        href: `/admin/mini-sessions#mini-session-${booking.miniSession.id}`,
+        href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
         label: bookingLabel,
         kind: "event",
         tone: isBlocked ? "ink" : "sage",

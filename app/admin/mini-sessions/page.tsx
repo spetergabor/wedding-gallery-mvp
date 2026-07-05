@@ -1,37 +1,22 @@
-import { CalendarClock, CheckCircle2, ChevronDown, Download, ExternalLink, ImageIcon, MapPin, Plus, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
-import Image from "next/image";
+import { CalendarClock, CheckCircle2, ChevronDown, Download, ExternalLink, ImageIcon, MapPin, Plus, Settings2, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { miniSessionPublicUrl } from "@/lib/email";
-import {
-  cancelMiniSessionBookingByAdminAction,
-  createAdminMiniSessionBookingAction,
-  createMiniSessionAction,
-  deleteMiniSessionCoverAction,
-  deleteMiniSessionAction,
-  updateMiniSessionCoverAction,
-  updateMiniSessionAction
-} from "@/lib/mini-session-actions";
+import { createMiniSessionAction } from "@/lib/mini-session-actions";
 import {
   createMiniSessionSlots,
   formatMiniSessionDate,
-  formatMiniSessionSlot,
   formatMiniSessionTime,
   miniSessionLanguageLabel,
-  MINI_SESSION_LANGUAGES,
-  MINI_SESSION_BOOKING_SOURCE_BLOCKED,
-  MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
-  miniSessionDateInput,
-  miniSessionTimeInput
+  MINI_SESSION_LANGUAGES
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
@@ -51,13 +36,7 @@ export default async function AdminMiniSessionsPage({
 }: {
   searchParams: Promise<{
     error?: string;
-    created?: string;
-    updated?: string;
     deleted?: string;
-    bookingCancelled?: string;
-    adminBooking?: string;
-    coverUpdated?: string;
-    coverDeleted?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -79,7 +58,7 @@ export default async function AdminMiniSessionsPage({
           <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Mini session</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Időpont foglaló</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-graphite/70">
-            Hozz létre egy mini session napot, oszd meg a publikus linket, és a vendégek a szabad idősávokból foglalnak.
+            A mini sessionök áttekintése. Az esemény részleteinél külön füleken kezeled a foglalókat, idősávokat és beállításokat.
           </p>
         </div>
       </div>
@@ -88,18 +67,9 @@ export default async function AdminMiniSessionsPage({
         {flags.error === "missing" ? <Alert title="Hiányzó vagy hibás adat." variant="error" /> : null}
         {flags.error === "slug" ? <Alert title="Ez a publikus link már foglalt." variant="error">Adj meg egy egyedi slugot.</Alert> : null}
         {flags.error === "cover" ? <Alert title="A borítóképnek képfájlnak kell lennie." variant="error" /> : null}
-        {flags.error === "cover_missing" ? <Alert title="Válassz ki egy borítóképet a feltöltéshez." variant="error" /> : null}
         {flags.error === "cover_size" ? <Alert title="A borítókép túl nagy." variant="error">Maximum 12 MB-os képet tölts fel.</Alert> : null}
         {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
-        {flags.error === "slot" ? <Alert title="Érvénytelen idősáv." variant="error">Válassz egy szabad idősávot.</Alert> : null}
-        {flags.error === "taken" ? <Alert title="Ez az idősáv már foglalt." variant="error">Frissítsd a listát vagy válassz másik idősávot.</Alert> : null}
-        {flags.created ? <Alert title="Mini session létrehozva." variant="success" /> : null}
-        {flags.updated ? <Alert title="Mini session frissítve." variant="success" /> : null}
         {flags.deleted ? <Alert title="Mini session törölve." variant="success" /> : null}
-        {flags.bookingCancelled ? <Alert title="Foglalás törölve, az idősáv újra szabad." variant="success" /> : null}
-        {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
-        {flags.coverUpdated ? <Alert title="Borítókép frissítve." variant="success" /> : null}
-        {flags.coverDeleted ? <Alert title="Borítókép törölve." variant="success" /> : null}
       </div>
 
       <details className="group rounded-lg border border-ink/10 bg-white p-4 shadow-soft sm:p-5">
@@ -178,7 +148,7 @@ export default async function AdminMiniSessionsPage({
         </form>
       </details>
 
-      <div className="mt-8 space-y-5">
+      <div className="mt-8 space-y-4">
         {sessions.length === 0 ? (
           <EmptyState
             icon={<CalendarClock size={22} />}
@@ -191,13 +161,12 @@ export default async function AdminMiniSessionsPage({
             const cancelled = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
             const slots = createMiniSessionSlots(session);
             const bookedSlotTokens = new Set(booked.map((booking) => booking.startsAt.toISOString()));
-            const freeSlots = slots.filter((slot) => !bookedSlotTokens.has(slot.token));
-            const freeSlotCount = freeSlots.length;
+            const freeSlotCount = slots.filter((slot) => !bookedSlotTokens.has(slot.token)).length;
             const publicUrl = miniSessionPublicUrl(session.slug);
             return (
-              <section id={`mini-session-${session.id}`} key={session.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
-                <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-start">
-                  <div className="min-w-0 md:flex-1">
+              <section id={`mini-session-${session.id}`} key={session.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-semibold text-ink">{session.title}</h2>
                       <span className={`rounded-full px-3 py-1 text-xs font-medium ${session.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
@@ -207,14 +176,15 @@ export default async function AdminMiniSessionsPage({
                     <div className="mt-3 flex flex-wrap gap-3 text-sm text-graphite/70">
                       <span className="inline-flex items-center gap-1.5"><CalendarClock size={15} /> {formatMiniSessionDate(session.sessionDate)} · {formatMiniSessionTime(session.startsAt)}-{formatMiniSessionTime(session.endsAt)}</span>
                       <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
-                      <span className="inline-flex items-center gap-1.5"><Users size={15} /> {booked.length} foglalás</span>
-                      <span className="inline-flex items-center gap-1.5"><CheckCircle2 size={15} /> {freeSlotCount}/{slots.length} szabad</span>
                       <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
-                      {cancelled.length > 0 ? <span className="inline-flex items-center gap-1.5"><XCircle size={15} /> {cancelled.length} törölt</span> : null}
                     </div>
-                    <p className="mt-2 text-sm text-graphite/60">Publikus oldal: /mini-session/{session.slug}</p>
+                    <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
                   </div>
-                  <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 md:w-auto md:flex md:flex-nowrap md:justify-end">
+                  <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 xl:w-auto xl:flex xl:flex-nowrap">
+                    <Link className="inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-ink px-2.5 text-xs font-medium text-white transition hover:bg-graphite sm:px-3 sm:text-sm xl:w-auto" href={`/admin/mini-sessions/${session.id}`}>
+                      <Settings2 size={14} />
+                      Kezelés
+                    </Link>
                     <Link className={sessionActionLinkClass} href={publicUrl} target="_blank">
                       <ExternalLink size={14} />
                       Megnyitás
@@ -224,263 +194,26 @@ export default async function AdminMiniSessionsPage({
                       <Download size={14} />
                       CSV export
                     </Link>
-                    <form action={deleteMiniSessionAction.bind(null, session.id)} className="min-w-0">
-                      <ConfirmSubmitButton
-                        variant="danger"
-                        message={`Biztosan törlöd ezt a mini sessiont? A hozzá tartozó ${booked.length} foglalás is törlődik.`}
-                        className={sessionActionButtonClass}
-                      >
-                        <Trash2 size={14} />
-                        Törlés
-                      </ConfirmSubmitButton>
-                    </form>
                   </div>
                 </div>
 
-                <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-                  <div className="grid content-start gap-5">
-                    <form action={updateMiniSessionAction.bind(null, session.id)} className="grid content-start gap-4 sm:grid-cols-2">
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Session neve</span>
-                        <input name="title" defaultValue={session.title} required className={fieldClass} />
-                      </label>
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Publikus slug</span>
-                        <input name="slug" defaultValue={session.slug} required className={fieldClass} />
-                      </label>
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Landing page nyelve</span>
-                        <select name="language" defaultValue={session.language} className={fieldClass}>
-                          {MINI_SESSION_LANGUAGES.map((language) => (
-                            <option key={language.value} value={language.value}>
-                              {language.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Mikor</span>
-                        <input name="date" type="date" defaultValue={miniSessionDateInput(session)} required className={fieldClass} />
-                      </label>
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">Hol</span>
-                        <input name="location" defaultValue={session.location} required className={fieldClass} />
-                      </label>
-                      <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
-                        <label className="block space-y-2">
-                          <span className="text-sm font-medium text-graphite">Mettől</span>
-                          <input name="startTime" type="time" defaultValue={miniSessionTimeInput(session.startsAt)} required className={fieldClass} />
-                        </label>
-                        <label className="block space-y-2">
-                          <span className="text-sm font-medium text-graphite">Meddig</span>
-                          <input name="endTime" type="time" defaultValue={miniSessionTimeInput(session.endsAt)} required className={fieldClass} />
-                        </label>
-                        <label className="block space-y-2">
-                          <span className="text-sm font-medium text-graphite">Időtartam</span>
-                          <input name="durationMinutes" type="number" min="5" step="5" defaultValue={session.durationMinutes} required className={fieldClass} />
-                        </label>
-                      </div>
-                      <label className="block space-y-2 sm:col-span-2">
-                        <span className="text-sm font-medium text-graphite">Megjegyzés</span>
-                        <textarea name="notes" defaultValue={session.notes ?? ""} className={textAreaClass} />
-                      </label>
-                      <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:col-span-2 sm:flex-row sm:items-center">
-                        <label className="flex items-center gap-2 text-sm text-graphite">
-                          <input name="isActive" type="checkbox" defaultChecked={session.isActive} className="size-4 rounded border-ink/20" />
-                          Publikusan foglalható
-                        </label>
-                        <FormSubmitButton>Módosítások mentése</FormSubmitButton>
-                      </div>
-                    </form>
-
-                    <div className="rounded-md border border-ink/10 bg-paper p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-white text-ink">
-                          <ImageIcon size={18} />
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold text-ink">Borítókép</h3>
-                          <p className="mt-1 text-sm leading-6 text-graphite/70">Ez csak a publikus érkező oldal borítóképét módosítja.</p>
-                        </div>
-                      </div>
-                      <form action={updateMiniSessionCoverAction.bind(null, session.id)} encType="multipart/form-data" className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                        <label className="block min-w-0 space-y-2">
-                          <span className="text-sm font-medium text-graphite">Új borítókép</span>
-                          <input name="coverImage" type="file" accept="image/*" required className={fileInputClass} />
-                        </label>
-                        <FormSubmitButton pendingLabel="Feltöltés..." className="h-12 px-4">
-                          <UploadCloud size={16} />
-                          Feltöltés
-                        </FormSubmitButton>
-                      </form>
-                      {session.coverImageUrl ? (
-                        <div className="mt-4 grid gap-3 rounded-md border border-ink/10 bg-white p-3 sm:grid-cols-[150px_minmax(0,1fr)]">
-                          <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-paper">
-                            <Image
-                              src={session.coverImageUrl}
-                              alt={`${session.title} borítókép`}
-                              fill
-                              unoptimized
-                              className="object-cover"
-                              sizes="150px"
-                            />
-                          </div>
-                          <div className="flex min-w-0 flex-col justify-center gap-3">
-                            <div>
-                              <p className="truncate text-sm font-medium text-ink">Jelenlegi borítókép</p>
-                              <p className="mt-1 text-xs leading-5 text-graphite/60">A törlés után a publikus oldalon nem lesz hero borítókép.</p>
-                            </div>
-                            <form action={deleteMiniSessionCoverAction.bind(null, session.id)}>
-                              <ConfirmSubmitButton
-                                variant="danger"
-                                message="Biztosan törlöd a borítóképet? A publikus oldalon nem lesz hero kép."
-                                className="h-10 px-3"
-                              >
-                                <Trash2 size={15} />
-                                Borítókép törlése
-                              </ConfirmSubmitButton>
-                            </form>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="mt-4 rounded-md border border-dashed border-ink/15 bg-white px-3 py-4 text-sm text-graphite/70">Még nincs borítókép beállítva.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border border-ink/10 bg-paper p-4">
-                    <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-brass">
-                      <CheckCircle2 size={15} />
-                      Foglalt időpontok
-                    </h3>
-                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                      <div className="rounded-md bg-white px-2 py-3">
-                        <p className="text-lg font-semibold text-ink">{slots.length}</p>
-                        <p className="text-[11px] uppercase tracking-[0.12em] text-graphite/55">Összes</p>
-                      </div>
-                      <div className="rounded-md bg-white px-2 py-3">
-                        <p className="text-lg font-semibold text-sage">{freeSlotCount}</p>
-                        <p className="text-[11px] uppercase tracking-[0.12em] text-graphite/55">Szabad</p>
-                      </div>
-                      <div className="rounded-md bg-white px-2 py-3">
-                        <p className="text-lg font-semibold text-ink">{booked.length}</p>
-                        <p className="text-[11px] uppercase tracking-[0.12em] text-graphite/55">Foglalt</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 rounded-md border border-ink/10 bg-white p-3">
-                      <p className="text-sm font-semibold text-ink">Idősáv rögzítése</p>
-                      {freeSlots.length === 0 ? (
-                        <p className="mt-2 text-sm text-graphite/70">Nincs szabad idősáv kézi foglaláshoz vagy blokkoláshoz.</p>
-                      ) : (
-                        <form action={createAdminMiniSessionBookingAction.bind(null, session.id)} className="mt-3 grid gap-3">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block space-y-2">
-                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Idősáv</span>
-                              <select name="slot" required className={fieldClass}>
-                                {freeSlots.map((slot) => (
-                                  <option key={slot.token} value={slot.token}>
-                                    {formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="block space-y-2">
-                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Típus</span>
-                              <select name="source" required className={fieldClass} defaultValue={MINI_SESSION_BOOKING_SOURCE_MANUAL}>
-                                <option value={MINI_SESSION_BOOKING_SOURCE_MANUAL}>Kézi foglalás</option>
-                                <option value={MINI_SESSION_BOOKING_SOURCE_BLOCKED}>Blokkolt idősáv</option>
-                              </select>
-                            </label>
-                          </div>
-                          <label className="block space-y-2">
-                            <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Név</span>
-                            <input name="name" className={fieldClass} placeholder="Ügyfél neve" />
-                          </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block space-y-2">
-                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">E-mail</span>
-                              <input name="email" type="email" className={fieldClass} placeholder="opcionális" />
-                            </label>
-                            <label className="block space-y-2">
-                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Telefon</span>
-                              <input name="phone" type="tel" className={fieldClass} placeholder="opcionális" />
-                            </label>
-                          </div>
-                          <div className="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)]">
-                            <label className="block space-y-2">
-                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Létszám</span>
-                              <input name="attendeeCount" type="number" min="1" defaultValue="1" className={fieldClass} />
-                            </label>
-                            <label className="block space-y-2">
-                              <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Megjegyzés</span>
-                              <input name="adminNote" className={fieldClass} placeholder="pl. ebédszünet, Instagram foglalás" />
-                            </label>
-                          </div>
-                          <p className="text-xs leading-5 text-graphite/60">Blokkolt idősávnál elég a megjegyzés; az ügyfelek ezt az idősávot már nem látják szabadként.</p>
-                          <FormSubmitButton pendingLabel="Rögzítés...">Idősáv rögzítése</FormSubmitButton>
-                        </form>
-                      )}
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      {booked.length === 0 ? (
-                        <p className="text-sm text-graphite/70">Még nincs foglalás erre a mini sessionre.</p>
-                      ) : (
-                        booked.map((booking) => (
-                          <div key={booking.id} className="rounded-md border border-ink/10 bg-white p-3">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <p className="text-sm font-semibold text-ink">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
-                              <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${
-                                booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED
-                                  ? "bg-red-50 text-red-700"
-                                  : booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL
-                                    ? "bg-brass/10 text-brass"
-                                    : "bg-sage/10 text-sage"
-                              }`}>
-                                {booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED
-                                  ? "Blokkolt"
-                                  : booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL
-                                    ? "Kézi"
-                                    : "Ügyfél"}
-                              </span>
-                            </div>
-                            {booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED ? (
-                              <>
-                                <p className="mt-1 text-sm text-graphite/70">{booking.email} · {booking.phone}</p>
-                                <p className="mt-1 text-xs text-graphite/60">Létszám: {booking.attendeeCount}</p>
-                              </>
-                            ) : null}
-                            {booking.adminNote ? <p className="mt-2 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
-                            <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)} className="mt-3">
-                              <ConfirmSubmitButton
-                                variant="danger"
-                                message="Biztosan törlöd ezt az idősávot? Az időpont újra foglalható lesz."
-                                className="h-9 px-3 text-xs"
-                              >
-                                <XCircle size={14} />
-                                {booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ? "Blokkolás törlése" : "Foglalás törlése"}
-                              </ConfirmSubmitButton>
-                            </form>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    {cancelled.length > 0 ? (
-                      <details className="group mt-5 border-t border-ink/10 pt-4">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md bg-white/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-graphite/60 transition hover:bg-white [&::-webkit-details-marker]:hidden">
-                          <span>Törölt foglalások ({cancelled.length})</span>
-                          <ChevronDown size={15} className="shrink-0 transition group-open:rotate-180" />
-                        </summary>
-                        <div className="mt-3 space-y-2">
-                          {cancelled.map((booking) => (
-                            <div key={booking.id} className="rounded-md border border-ink/10 bg-white/70 p-3">
-                              <p className="text-sm font-medium text-graphite">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.name}</p>
-                              {booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED ? <p className="mt-1 text-xs text-graphite/55">{booking.email} · {booking.phone}</p> : null}
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    ) : null}
-                  </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-4">
+                  <Link href={`/admin/mini-sessions/${session.id}?tab=slots`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
+                    <p className="text-lg font-semibold text-ink">{slots.length}</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><CalendarClock size={13} /> Összes idősáv</p>
+                  </Link>
+                  <Link href={`/admin/mini-sessions/${session.id}?tab=slots`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
+                    <p className="text-lg font-semibold text-sage">{freeSlotCount}</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><CheckCircle2 size={13} /> Szabad</p>
+                  </Link>
+                  <Link href={`/admin/mini-sessions/${session.id}?tab=bookings`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
+                    <p className="text-lg font-semibold text-ink">{booked.length}</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><Users size={13} /> Foglalt</p>
+                  </Link>
+                  <Link href={`/admin/mini-sessions/${session.id}?tab=bookings`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
+                    <p className="text-lg font-semibold text-graphite">{cancelled.length}</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><XCircle size={13} /> Törölt</p>
+                  </Link>
                 </div>
               </section>
             );

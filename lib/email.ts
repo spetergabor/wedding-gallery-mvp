@@ -430,7 +430,7 @@ export function miniSessionBookingCalendarUrl(slug: string, token: string) {
 }
 
 export function adminMiniSessionUrl(miniSessionId: string) {
-  return `${appBaseUrl()}/admin/mini-sessions#mini-session-${miniSessionId}`;
+  return `${appBaseUrl()}/admin/mini-sessions/${miniSessionId}`;
 }
 
 function miniSessionEmailLanguage(language?: CustomerLanguage) {

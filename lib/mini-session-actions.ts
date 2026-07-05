@@ -109,17 +109,19 @@ function createCancelToken() {
   return randomBytes(32).toString("base64url");
 }
 
-async function uploadMiniSessionCover(adminId: string, file: FormDataEntryValue | null) {
+async function uploadMiniSessionCover(adminId: string, file: FormDataEntryValue | null, errorPath = "/admin/mini-sessions") {
+  const errorUrl = (code: string) => `${errorPath}${errorPath.includes("?") ? "&" : "?"}error=${code}`;
+
   if (!(file instanceof File) || file.size === 0) {
     return null;
   }
 
   if (!file.type.startsWith("image/")) {
-    redirect("/admin/mini-sessions?error=cover");
+    redirect(errorUrl("cover"));
   }
 
   if (file.size > MINI_SESSION_COVER_MAX_BYTES) {
-    redirect("/admin/mini-sessions?error=cover_size");
+    redirect(errorUrl("cover_size"));
   }
 
   const r2Key = createMiniSessionCoverObjectKey({
@@ -141,7 +143,7 @@ async function uploadMiniSessionCover(adminId: string, file: FormDataEntryValue 
       storageDriver: process.env.STORAGE_DRIVER,
       error
     });
-    redirect("/admin/mini-sessions?error=cover_upload");
+    redirect(errorUrl("cover_upload"));
   }
 
   return {
@@ -264,7 +266,7 @@ export async function createMiniSessionAction(formData: FormData) {
   }
 
   revalidatePath("/admin/mini-sessions");
-  redirect(`/admin/mini-sessions?created=${miniSession.id}`);
+  redirect(`/admin/mini-sessions/${miniSession.id}?created=1`);
 }
 
 export async function updateMiniSessionAction(id: string, formData: FormData) {
@@ -291,7 +293,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const endsAt = parseLocalDateTime(date, endTime);
 
   if (!title || !location || !slug || !startsAt || !endsAt || endsAt <= startsAt) {
-    redirect("/admin/mini-sessions?error=missing");
+    redirect(`/admin/mini-sessions/${id}?tab=settings&error=missing`);
   }
 
   try {
@@ -312,16 +314,17 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirect("/admin/mini-sessions?error=slug");
+      redirect(`/admin/mini-sessions/${id}?tab=settings&error=slug`);
     }
 
     throw error;
   }
 
   revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${id}`);
   revalidatePath(`/mini-session/${current.slug}`);
   revalidatePath(`/mini-session/${slug}`);
-  redirect(`/admin/mini-sessions?updated=${id}`);
+  redirect(`/admin/mini-sessions/${id}?tab=settings&updated=1`);
 }
 
 export async function updateMiniSessionCoverAction(id: string, formData: FormData) {
@@ -335,10 +338,10 @@ export async function updateMiniSessionCoverAction(id: string, formData: FormDat
     redirect("/admin/mini-sessions");
   }
 
-  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"));
+  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"), `/admin/mini-sessions/${id}?tab=settings`);
 
   if (!uploadedCover) {
-    redirect(`/admin/mini-sessions?error=cover_missing#mini-session-${id}`);
+    redirect(`/admin/mini-sessions/${id}?tab=settings&error=cover_missing`);
   }
 
   try {
@@ -359,8 +362,9 @@ export async function updateMiniSessionCoverAction(id: string, formData: FormDat
   }
 
   revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${id}`);
   revalidatePath(`/mini-session/${current.slug}`);
-  redirect(`/admin/mini-sessions?coverUpdated=${id}#mini-session-${id}`);
+  redirect(`/admin/mini-sessions/${id}?tab=settings&coverUpdated=1`);
 }
 
 export async function deleteMiniSessionCoverAction(id: string) {
@@ -387,8 +391,9 @@ export async function deleteMiniSessionCoverAction(id: string) {
   }
 
   revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${id}`);
   revalidatePath(`/mini-session/${current.slug}`);
-  redirect(`/admin/mini-sessions?coverDeleted=${id}#mini-session-${id}`);
+  redirect(`/admin/mini-sessions/${id}?tab=settings&coverDeleted=1`);
 }
 
 export async function deleteMiniSessionAction(id: string) {
@@ -446,15 +451,15 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
   const slot = createMiniSessionSlots(session).find((candidate) => candidate.token === selectedSlot);
 
   if (!slot) {
-    redirect(`/admin/mini-sessions?error=slot#mini-session-${session.id}`);
+    redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=slot`);
   }
 
   if (source === MINI_SESSION_BOOKING_SOURCE_MANUAL && !rawName) {
-    redirect(`/admin/mini-sessions?error=missing#mini-session-${session.id}`);
+    redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=missing`);
   }
 
   if (rawEmail && !isValidEmail(rawEmail)) {
-    redirect(`/admin/mini-sessions?error=missing#mini-session-${session.id}`);
+    redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=missing`);
   }
 
   const name =
@@ -496,14 +501,14 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     });
   }).catch((error) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirect(`/admin/mini-sessions?error=taken#mini-session-${session.id}`);
+      redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=taken`);
     }
 
     throw error;
   });
 
   if (!booking) {
-    redirect(`/admin/mini-sessions?error=taken#mini-session-${session.id}`);
+    redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=taken`);
   }
 
   try {
@@ -514,8 +519,9 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
   }
 
   revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${session.id}`);
   revalidatePath(`/mini-session/${session.slug}`);
-  redirect(`/admin/mini-sessions?adminBooking=1#mini-session-${session.id}`);
+  redirect(`/admin/mini-sessions/${session.id}?tab=slots&adminBooking=1`);
 }
 
 export async function bookMiniSessionAction(slug: string, formData: FormData) {
@@ -698,6 +704,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
 
   revalidatePath(`/mini-session/${slug}`);
   revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${session.id}`);
   redirect(`/mini-session/${slug}?booked=1&calendar=${cancelToken}`);
 }
 
@@ -788,11 +795,13 @@ export async function cancelMiniSessionBookingAction(token: string) {
 
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
   revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
   redirect(`/mini-session/${booking.miniSession.slug}?cancelled=1&calendar=${booking.cancelToken}`);
 }
 
-export async function cancelMiniSessionBookingByAdminAction(bookingId: string) {
+export async function cancelMiniSessionBookingByAdminAction(bookingId: string, formData?: FormData) {
   const admin = await requireAdmin();
+  const returnTab = formData?.get("returnTab") === "slots" ? "slots" : "bookings";
   const booking = await prisma.miniSessionBooking.findFirst({
     where: {
       id: bookingId,
@@ -825,6 +834,7 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string) {
   }
 
   revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
-  redirect(`/admin/mini-sessions?bookingCancelled=1#mini-session-${booking.miniSession.id}`);
+  redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&bookingCancelled=1`);
 }
