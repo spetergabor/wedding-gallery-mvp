@@ -150,7 +150,8 @@ export default async function AdminMiniSessionDetailPage({
     { label: "Publikusan aktív", ok: session.isActive },
     { label: "Van szabad idősáv", ok: freeSlotCount > 0 },
     { label: "Borítókép beállítva", ok: Boolean(session.coverImageUrl) },
-    { label: "Publikus megjegyzés", ok: Boolean(session.notes?.trim()) }
+    { label: "Publikus megjegyzés", ok: Boolean(session.notes?.trim()) },
+    { label: "Styling infó", ok: Boolean(session.stylingNotes?.trim()) }
   ];
   const clientContactCount = contactBookings.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_MANUAL).length;
   const manualContactCount = contactBookings.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL).length;
@@ -718,6 +719,16 @@ export default async function AdminMiniSessionDetailPage({
               <label className="block space-y-2 sm:col-span-2">
                 <span className="text-sm font-medium text-graphite">Megjegyzés</span>
                 <textarea name="notes" defaultValue={session.notes ?? ""} className={textAreaClass} />
+              </label>
+              <label className="block space-y-2 sm:col-span-2">
+                <span className="text-sm font-medium text-graphite">Styling / előkészület a landing page-re</span>
+                <textarea
+                  name="stylingNotes"
+                  defaultValue={session.stylingNotes ?? ""}
+                  className={textAreaClass}
+                  placeholder="pl. világos ruhák, natúr színek, réteges öltözet, kényelmes cipő..."
+                />
+                <span className="block text-xs text-graphite/60">Külön információs blokkban jelenik meg a publikus foglaló oldalon.</span>
               </label>
               <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:col-span-2 sm:flex-row sm:items-center">
                 <label className="flex items-center gap-2 text-sm text-graphite">

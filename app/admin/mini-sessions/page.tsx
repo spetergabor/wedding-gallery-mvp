@@ -138,6 +138,15 @@ export default async function AdminMiniSessionsPage({
             <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
             <textarea name="notes" className={textAreaClass} placeholder="Opcionális rövid infó az ügyfeleknek." />
           </label>
+          <label className="block space-y-2 lg:col-span-2">
+            <span className="text-sm font-medium text-graphite">Styling / előkészület a landing page-re</span>
+            <textarea
+              name="stylingNotes"
+              className={textAreaClass}
+              placeholder="pl. világos ruhák, natúr színek, réteges öltözet, kényelmes cipő..."
+            />
+            <span className="block text-xs text-graphite/60">Ez külön információs blokkban jelenik meg a publikus foglaló oldalon.</span>
+          </label>
           <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:flex-row sm:items-center lg:col-span-2">
             <label className="flex items-center gap-2 text-sm text-graphite">
               <input name="isActive" type="checkbox" defaultChecked className="size-4 rounded border-ink/20" />

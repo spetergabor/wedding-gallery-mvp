@@ -224,6 +224,7 @@ export async function createMiniSessionAction(formData: FormData) {
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
+  const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseLocalDateTime(date, startTime);
   const endsAt = parseLocalDateTime(date, endTime);
@@ -249,6 +250,7 @@ export async function createMiniSessionAction(formData: FormData) {
         language,
         isActive: formData.get("isActive") === "on",
         notes: notes || null,
+        stylingNotes: stylingNotes || null,
         coverImageUrl: uploadedCover?.url ?? null,
         coverImageR2Key: uploadedCover?.r2Key ?? null
       }
@@ -288,6 +290,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
+  const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseLocalDateTime(date, startTime);
   const endsAt = parseLocalDateTime(date, endTime);
@@ -309,7 +312,8 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         durationMinutes,
         language,
         isActive: formData.get("isActive") === "on",
-        notes: notes || null
+        notes: notes || null,
+        stylingNotes: stylingNotes || null
       }
     });
   } catch (error) {

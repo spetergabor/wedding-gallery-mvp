@@ -145,6 +145,7 @@ model MiniSession {
   language        String   @default("hu")
   isActive        Boolean  @default(true)
   notes           String?
+  stylingNotes    String?
   coverImageUrl   String?
   coverImageR2Key String?
   createdAt       DateTime @default(now())

@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarPlus, CheckCircle2, MapPin, UserRound, Users } from "lucide-react";
+import { CalendarClock, CalendarPlus, CheckCircle2, MapPin, Sparkles, UserRound, Users } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -32,6 +32,8 @@ const MINI_SESSION_PAGE_COPY = {
     invalidSlot: "Érvénytelen időpont.",
     inactive: "Ez a mini session jelenleg nem foglalható.",
     soldOut: "Minden időpont betelt.",
+    stylingTitle: "Styling és előkészület",
+    stylingIntro: "Pár praktikus infó a fotózás hangulatához.",
     chooseSlot: "Időpont kiválasztása",
     yourData: "Adataid",
     name: "Név",
@@ -55,6 +57,8 @@ const MINI_SESSION_PAGE_COPY = {
     invalidSlot: "Ungültiger Termin.",
     inactive: "Diese Mini Session ist derzeit nicht buchbar.",
     soldOut: "Alle Termine sind ausgebucht.",
+    stylingTitle: "Styling und Vorbereitung",
+    stylingIntro: "Ein paar praktische Hinweise für Stimmung und Styling.",
     chooseSlot: "Termin auswählen",
     yourData: "Deine Daten",
     name: "Name",
@@ -187,6 +191,17 @@ export default async function PublicMiniSessionPage({
           {flags.error === "slot" ? <Alert title={copy.invalidSlot} variant="error" /> : null}
           {flags.error === "inactive" ? <Alert title={copy.inactive} variant="error" /> : null}
         </div>
+
+        {session.stylingNotes ? (
+          <div className="mb-6 rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
+              <Sparkles size={19} />
+              {copy.stylingTitle}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-graphite/65">{copy.stylingIntro}</p>
+            <p className="mt-4 whitespace-pre-line text-base leading-7 text-graphite/80">{session.stylingNotes}</p>
+          </div>
+        ) : null}
 
         {!session.isActive ? (
           <Alert title={copy.inactive} />
