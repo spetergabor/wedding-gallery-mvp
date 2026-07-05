@@ -3,7 +3,6 @@ import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
-  Bell,
   CalendarClock,
   Camera,
   CheckCircle2,
@@ -22,7 +21,7 @@ import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { LeadPipelineBoard } from "@/components/lead-pipeline-board";
 import { ViewLocationMap } from "@/components/view-location-map";
-import { adminOwnedWhere, notificationWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere } from "@/lib/admin-scope";
 import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -815,7 +814,6 @@ export default async function AdminDashboardPage() {
   const galleryWhere = adminOwnedWhere(admin);
   const photoWhere = { gallery: adminOwnedWhere(admin) };
   const projectWhere = { customer: adminOwnedWhere(admin) };
-  const adminNotificationWhere = notificationWhere(admin);
   const today = startOfToday();
   const calendarStart = startOfMonth(today);
   const calendarEnd = addMonths(calendarStart, 1);
@@ -830,8 +828,6 @@ export default async function AdminDashboardPage() {
     activeCount,
     photoCount,
     photoStorage,
-    unreadNotifications,
-    latestNotifications,
     calendarProjects,
     calendarLeads,
     calendarContracts,
@@ -855,12 +851,6 @@ export default async function AdminDashboardPage() {
     prisma.gallery.count({ where: { ...galleryWhere, isActive: true } }),
     prisma.photo.count({ where: photoWhere }),
     prisma.photo.aggregate({ where: photoWhere, _sum: { fileSize: true } }),
-    prisma.adminNotification.count({ where: { ...adminNotificationWhere, readAt: null } }),
-    prisma.adminNotification.findMany({
-      where: adminNotificationWhere,
-      orderBy: { createdAt: "desc" },
-      take: 4
-    }),
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
@@ -1577,10 +1567,73 @@ export default async function AdminDashboardPage() {
           { label: copy.stats.galleries[0], value: galleryCount, detail: copy.stats.galleries[1] },
           { label: copy.stats.active[0], value: activeCount, detail: copy.stats.active[1] },
           { label: copy.stats.media[0], value: photoCount, detail: copy.stats.media[1] },
-          { label: copy.stats.storage[0], value: formatStorageSize(totalStorageBytes), detail: copy.stats.storage[1] },
-          { label: copy.stats.notifications[0], value: unreadNotifications, detail: copy.stats.notifications[1] }
+          { label: copy.stats.storage[0], value: formatStorageSize(totalStorageBytes), detail: copy.stats.storage[1] }
         ]}
       />
+
+      <section className="mt-8 rounded-md border border-ink/12 bg-white">
+        <div className="border-b border-ink/10 px-5 py-4">
+          <h2 className={sectionTitleClass}>{copy.latestGalleriesTitle}</h2>
+        </div>
+        <div className="divide-y divide-ink/10">
+          {latestGalleries.map((gallery) => (
+            <a
+              key={gallery.id}
+              href={`/admin/galleries/${gallery.id}`}
+              className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-ink/[0.03]"
+            >
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-paper">
+                  {(() => {
+                    const cover =
+                      gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
+                      gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
+
+                    return cover ? (
+                      cover.mediaType === "video" ? (
+                        <div className="grid h-full place-items-center bg-ink text-white">
+                          <Film size={18} />
+                        </div>
+                      ) : (
+                        <Image
+                          src={cover.thumbnailUrl}
+                          alt={cover.filename}
+                          fill
+                          unoptimized
+                          className="object-cover"
+                          sizes="56px"
+                          style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
+                        />
+                      )
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-graphite/50">
+                        <Camera size={18} />
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ink">{gallery.title}</p>
+                  <p className="truncate text-sm text-graphite/70">/g/{gallery.slug}</p>
+                </div>
+              </div>
+              <div className="text-right text-sm text-graphite/70">
+                <p>{gallery._count.photos} {copy.media}</p>
+                <p>{gallery.isActive ? copy.active : copy.inactive}</p>
+              </div>
+            </a>
+          ))}
+          {latestGalleries.length === 0 ? (
+            <div className="px-5 pb-4">
+              <EmptyState
+                icon={<Camera size={18} className="text-ink" />}
+                title={copy.noGalleriesTitle}
+                description={copy.noGalleriesDescription}
+              />
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       <LeadPipelineBoard
         language={language}
@@ -1592,114 +1645,6 @@ export default async function AdminDashboardPage() {
       />
 
       <DashboardWorkCalendar copy={copy} events={calendarEvents} language={language} today={today} />
-
-      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-        <section className="rounded-md border border-ink/12 bg-white">
-          <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
-            <h2 className={sectionTitleClass}>{copy.notificationsTitle}</h2>
-            <Link href="/admin/notifications" className="text-sm font-medium text-ink hover:underline">
-              {copy.all}
-            </Link>
-          </div>
-          <div className="divide-y divide-ink/10">
-            {latestNotifications.map((notification) => (
-              <Link
-                key={notification.id}
-                href={notification.href ?? "/admin/notifications"}
-                className="flex items-start gap-4 px-5 py-4 hover:bg-ink/[0.03]"
-              >
-                <span className={`mt-1 flex size-9 shrink-0 items-center justify-center rounded-md ${notification.readAt ? "bg-paper text-graphite" : "bg-brass/15 text-brass"}`}>
-                  <Bell size={17} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-medium text-ink">{notification.title}</span>
-                  <span className="mt-1 block text-sm text-graphite/70">{notification.message}</span>
-                  <span className="mt-2 block text-xs text-graphite/60">
-                    {notification.createdAt.toLocaleString(dateLocaleForAdmin(language), {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                      timeZone: APP_TIME_ZONE
-                    })}
-                  </span>
-                </span>
-              </Link>
-            ))}
-            {latestNotifications.length === 0 ? (
-              <div className="px-5 py-4">
-                <EmptyState
-                  icon={<Bell size={18} className="text-ink" />}
-                  title={copy.noNotificationsTitle}
-                  description={copy.noNotificationsDescription}
-                />
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="rounded-md border border-ink/12 bg-white">
-          <div className="border-b border-ink/10 px-5 py-4">
-            <h2 className={sectionTitleClass}>{copy.latestGalleriesTitle}</h2>
-          </div>
-          <div className="divide-y divide-ink/10">
-            {latestGalleries.map((gallery) => (
-              <a
-                key={gallery.id}
-                href={`/admin/galleries/${gallery.id}`}
-                className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-ink/[0.03]"
-              >
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-paper">
-                    {(() => {
-                      const cover =
-                        gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
-                        gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
-
-                      return cover ? (
-                        cover.mediaType === "video" ? (
-                          <div className="grid h-full place-items-center bg-ink text-white">
-                            <Film size={18} />
-                          </div>
-                        ) : (
-                          <Image
-                            src={cover.thumbnailUrl}
-                            alt={cover.filename}
-                            fill
-                            unoptimized
-                            className="object-cover"
-                            sizes="56px"
-                            style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
-                          />
-                        )
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-graphite/50">
-                          <Camera size={18} />
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-ink">{gallery.title}</p>
-                    <p className="truncate text-sm text-graphite/70">/g/{gallery.slug}</p>
-                  </div>
-                </div>
-                <div className="text-right text-sm text-graphite/70">
-                  <p>{gallery._count.photos} {copy.media}</p>
-                  <p>{gallery.isActive ? copy.active : copy.inactive}</p>
-                </div>
-              </a>
-            ))}
-            {latestGalleries.length === 0 ? (
-              <div className="px-5 pb-4">
-                <EmptyState
-                  icon={<Camera size={18} className="text-ink" />}
-                  title={copy.noGalleriesTitle}
-                  description={copy.noGalleriesDescription}
-                />
-              </div>
-            ) : null}
-          </div>
-        </section>
-      </div>
 
       <ViewLocationMap points={locationPoints} />
     </AdminShell>
