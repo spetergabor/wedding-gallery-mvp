@@ -70,6 +70,8 @@ input[type="time"] {
 .contract-rich-editor,
 .contract-rich-text {
   overflow-wrap: anywhere;
+  tab-size: 4;
+  white-space: pre-wrap;
 }
 
 .contract-rich-editor p,

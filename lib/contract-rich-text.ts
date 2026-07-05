@@ -199,9 +199,9 @@ export function plainTextToContractHtml(value: string) {
   return value
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
+    .replace(/^\n+|\n+$/g, "")
     .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
+    .filter((paragraph) => Boolean(paragraph.trim()))
     .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
     .join("");
 }

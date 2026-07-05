@@ -3,12 +3,12 @@
 import { type ClipboardEvent, useRef, useState } from "react";
 import { Bold, Italic, List, ListOrdered, PenLine, Plus, Quote, Underline } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { clipboardHtmlToContractHtml } from "@/lib/contract-clipboard";
 import {
   CONTRACT_FIELD_OPTIONS,
   contractFieldToken,
   type ContractFieldDefinition
 } from "@/lib/contract-fields";
-import { normalizeContractBodyHtml, plainTextToContractHtml } from "@/lib/contract-rich-text";
 import { createWrittenContractAction } from "@/lib/contract-actions";
 
 const defaultFieldKeys = ["coupleName", "primaryEmail", "phone", "weddingDate", "venue"];
@@ -100,7 +100,7 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
 
     event.preventDefault();
     restoreSelection();
-    document.execCommand("insertHTML", false, html ? normalizeContractBodyHtml(html) : plainTextToContractHtml(text));
+    document.execCommand("insertHTML", false, clipboardHtmlToContractHtml(html, text));
     syncEditorValue();
     saveSelection();
   }
