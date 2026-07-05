@@ -12,6 +12,7 @@ import {
   parseContractFields,
   renderContractTemplateText
 } from "@/lib/contract-fields";
+import { parseContractPdfFields, type ContractPdfField } from "@/lib/contract-pdf-fields";
 import { contractBodyToPlainText } from "@/lib/contract-rich-text";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { prisma } from "@/lib/prisma";
@@ -254,6 +255,8 @@ async function fetchSignaturePngBytes(signatureUrl: string | null | undefined) {
 
 async function createSignedUploadedPdf({
   sourcePdfUrl,
+  pdfFields,
+  completedFields,
   photographerSignatureBytes,
   photographerName,
   signatureBytes,
@@ -263,6 +266,8 @@ async function createSignedUploadedPdf({
   evidence
 }: {
   sourcePdfUrl: string;
+  pdfFields: ContractPdfField[];
+  completedFields: Record<string, string>;
   photographerSignatureBytes: Buffer | null;
   photographerName: string;
   signatureBytes: Buffer;
@@ -282,6 +287,45 @@ async function createSignedUploadedPdf({
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
   const signatureImage = await pdf.embedPng(signatureBytes);
+
+  for (const field of pdfFields) {
+    const value = completedFields[field.key]?.trim();
+
+    if (!value) {
+      continue;
+    }
+
+    if (field.page < 1 || field.page > pdf.getPageCount()) {
+      continue;
+    }
+
+    const targetPage = pdf.getPage(field.page - 1);
+    const { width: pageWidth, height: pageHeight } = targetPage.getSize();
+    const x = (field.x / 100) * pageWidth;
+    const boxWidth = Math.max(24, (field.width / 100) * pageWidth);
+    const boxHeight = Math.max(16, (field.height / 100) * pageHeight);
+    const topY = (field.y / 100) * pageHeight;
+    const boxBottomY = pageHeight - topY - boxHeight;
+    const fontSize = Math.max(8, Math.min(12, boxHeight * 0.42));
+    const lineHeight = fontSize + 3;
+    let cursorY = boxBottomY + boxHeight - fontSize - 3;
+
+    for (const line of wrapText(value, font, fontSize, boxWidth - 6)) {
+      if (cursorY < boxBottomY + 3) {
+        break;
+      }
+
+      targetPage.drawText(line, {
+        x: x + 3,
+        y: cursorY,
+        size: fontSize,
+        font,
+        color: rgb(0.09, 0.09, 0.09)
+      });
+      cursorY -= lineHeight;
+    }
+  }
+
   const signaturePage = pdf.addPage([595.28, 841.89]);
   const { width, height } = signaturePage.getSize();
   const signatureSize = signatureImage.scaleToFit(360, 130);
@@ -672,14 +716,24 @@ export async function signContractAction(token: string, formData: FormData) {
     });
     const photographerSignatureBytes = await fetchSignaturePngBytes(settings?.signatureUrl);
     const photographerName = contract.customer.admin?.name?.trim() || settings?.businessName?.trim() || "Fotograf";
-    const clientFields = parseContractFields(contract.clientFields);
-    const completedFields = contract.sourceType === "written" ? readClientFieldAnswers(formData, clientFields) : {};
+    const pdfFields = contract.sourceType === "written" ? [] : parseContractPdfFields(contract.clientFields);
+    const clientFields = contract.sourceType === "written" ? parseContractFields(contract.clientFields) : pdfFields;
+    const completedFields =
+      contract.sourceType === "written" || pdfFields.length > 0 ? readClientFieldAnswers(formData, clientFields) : {};
     const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
     const renderedBodyText = renderContractTemplateText(contract.bodyText ?? "", completedFields);
     const renderedPlainText = contract.sourceType === "written" ? contractBodyToPlainText(renderedBodyText) : renderedBodyText;
     const documentHash =
       contract.sourceType === "written"
         ? sha256Hex(canonicalJson({ title: contract.title, renderedBodyText, renderedPlainText, completedFields }))
+        : pdfFields.length > 0
+          ? sha256Hex(
+              canonicalJson({
+                originalDocumentHash: contract.documentHash,
+                pdfFields,
+                completedFields
+              })
+            )
         : contract.documentHash ??
           sha256Hex(
             canonicalJson({
@@ -722,6 +776,8 @@ export async function signContractAction(token: string, formData: FormData) {
           })
         : await createSignedUploadedPdf({
             sourcePdfUrl: contract.fileUrl,
+            pdfFields,
+            completedFields,
             photographerSignatureBytes,
             photographerName,
             signatureBytes,

@@ -1,5 +1,6 @@
 import { Download, ExternalLink, FileText, PenLine } from "lucide-react";
 import { ContractSignaturePad } from "@/components/contract-signature-pad";
+import { PdfContractFieldViewer } from "@/components/pdf-contract-field-viewer";
 import {
   contractFieldDisplayLabel,
   contractFieldInputName,
@@ -7,6 +8,7 @@ import {
   parseContractAnswers,
   parseContractFields
 } from "@/lib/contract-fields";
+import { parseContractPdfFields } from "@/lib/contract-pdf-fields";
 import { renderContractTemplateHtml } from "@/lib/contract-rich-text";
 import { dateLocaleForCustomer, normalizeCustomerLanguage, type CustomerLanguage } from "@/lib/customer-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -76,6 +78,7 @@ const CONTRACT_PAGE_COPY = {
     server: "Beim Speichern der Unterschrift ist ein Fehler aufgetreten. Bitte versucht es erneut oder kontaktiert den Fotografen.",
     writtenIntro: "Füllt die erforderlichen Angaben aus und unterschreibt anschließend. Nach dem Speichern wird ein signiertes PDF erstellt.",
     pdfIntro: "Unterschreibt den Vertrag mit Finger oder Maus. Nach dem Speichern wird eine signierte PDF-Kopie erstellt.",
+    pdfFieldIntro: "Füllt die markierten Felder direkt im PDF aus und unterschreibt anschließend. Nach dem Speichern wird eine signierte PDF-Kopie erstellt.",
     writtenHint: "Die auszufüllenden Felder erscheinen im Vertragstext. Prüft die Angaben und unterschreibt anschließend.",
     extraFields: "Weitere auszufüllende Angaben"
   },
@@ -99,6 +102,7 @@ const CONTRACT_PAGE_COPY = {
     server: "Az aláírás mentése közben hiba történt. Próbáljátok újra, vagy vegyétek fel a kapcsolatot a fotóssal.",
     writtenIntro: "Töltsétek ki a szükséges adatokat, majd írjátok alá. Mentés után aláírt PDF készül.",
     pdfIntro: "Írjátok alá a szerződést ujjal vagy egérrel. Mentés után aláírt PDF-másolat készül.",
+    pdfFieldIntro: "Töltsétek ki a PDF-en kijelölt mezőket, majd írjátok alá. Mentés után aláírt PDF-másolat készül.",
     writtenHint: "A kitöltendő mezők a szerződésszövegben jelennek meg. Ellenőrizzétek az adatokat, majd írjátok alá.",
     extraFields: "További kitöltendő adatok"
   }
@@ -139,7 +143,8 @@ export default async function ContractPublicPage({
     ? `signed-${contract.originalFilename}`
     : contract.originalFilename;
   const isWrittenContract = contract.sourceType === "written";
-  const contractFields = parseContractFields(contract.clientFields);
+  const pdfFields = isWrittenContract ? [] : parseContractPdfFields(contract.clientFields);
+  const contractFields = isWrittenContract ? parseContractFields(contract.clientFields) : pdfFields;
   const completedFields = parseContractAnswers(contract.completedFields);
   const signatureFormId = `contract-signature-form-${contract.id}`;
   const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
@@ -214,11 +219,29 @@ export default async function ContractPublicPage({
           <div className="grid gap-6 p-4 md:p-6 lg:grid-cols-[1fr_320px]">
             <div className="overflow-hidden rounded-md border border-ink/10 bg-paper">
               {currentPdfUrl ? (
-                <iframe
-                  title={contract.title}
-                  src={currentPdfUrl}
-                  className="h-[68vh] min-h-[520px] w-full bg-white"
-                />
+                !contract.signedFileUrl && pdfFields.length > 0 ? (
+                  <div className="bg-paper p-3">
+                    <PdfContractFieldViewer
+                      fileUrl={currentPdfUrl}
+                      title={contract.title}
+                      fields={pdfFields}
+                      values={Object.fromEntries(
+                        pdfFields.map((field) => [
+                          field.key,
+                          completedFields[field.key] ?? customerDefaults[field.key] ?? ""
+                        ])
+                      )}
+                      formId={signatureFormId}
+                      disabled={Boolean(contract.signedAt && contract.signedFileUrl)}
+                    />
+                  </div>
+                ) : (
+                  <iframe
+                    title={contract.title}
+                    src={currentPdfUrl}
+                    className="h-[68vh] min-h-[520px] w-full bg-white"
+                  />
+                )
               ) : (
                 <div className="min-h-[520px] bg-white p-6 md:p-8">
                   <h2 className="text-2xl font-semibold text-ink">{contract.title}</h2>
@@ -261,7 +284,7 @@ export default async function ContractPublicPage({
                 </div>
               ) : null}
               <p className="mt-2 text-sm leading-6 text-graphite/70">
-                {isWrittenContract ? copy.writtenIntro : copy.pdfIntro}
+                {isWrittenContract ? copy.writtenIntro : pdfFields.length > 0 ? copy.pdfFieldIntro : copy.pdfIntro}
               </p>
               <ContractSignaturePad
                 token={token}

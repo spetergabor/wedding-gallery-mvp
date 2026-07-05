@@ -595,6 +595,7 @@ function getActiveTab(flags: {
   contractWritten?: string;
   contractSent?: string;
   contractDeleted?: string;
+  contractFieldsSaved?: string;
   invoiceUploaded?: string;
   invoiceSent?: string;
   invoiceStatusUpdated?: string;
@@ -608,7 +609,7 @@ function getActiveTab(flags: {
     return "invoices";
   }
 
-  if (flags.contractUploaded || flags.contractWritten || flags.contractSent || flags.contractDeleted) {
+  if (flags.contractUploaded || flags.contractWritten || flags.contractSent || flags.contractDeleted || flags.contractFieldsSaved) {
     return "contracts";
   }
 
@@ -640,6 +641,7 @@ export default async function AdminClientDetailPage({
     contractWritten?: string;
     contractSent?: string;
     contractDeleted?: string;
+    contractFieldsSaved?: string;
     contractError?: string;
     invoiceUploaded?: string;
     invoiceSent?: string;
@@ -1026,6 +1028,7 @@ export default async function AdminClientDetailPage({
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
         {flags.contractDeleted ? <Alert title="Szerződés törölve." variant="success" /> : null}
+        {flags.contractFieldsSaved ? <Alert title="PDF kitöltendő mezők mentve." variant="success" /> : null}
         {flags.invoiceUploaded ? <Alert title="Számla feltöltve." variant="success" /> : null}
         {flags.invoiceSent ? <Alert title="Számla elküldve emailben." variant="success" /> : null}
         {flags.invoiceStatusUpdated ? <Alert title="Számla státusz frissítve." variant="success" /> : null}
@@ -1082,6 +1085,11 @@ export default async function AdminClientDetailPage({
         {flags.contractError === "no-recipient" ? (
           <Alert title="Nincs kiválasztott címzett." variant="error">
             Válassz legalább egy e-mail címet, vagy adj meg további címzettet.
+          </Alert>
+        ) : null}
+        {flags.contractError === "pdf-fields" ? (
+          <Alert title="A PDF mezők nem menthetők." variant="error">
+            Frissítsd az oldalt, és rajzold fel újra a mezőket.
           </Alert>
         ) : null}
         {flags.invoiceError === "missing" ? (

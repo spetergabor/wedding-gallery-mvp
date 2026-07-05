@@ -6,6 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere, customerContractAccessWhere } from "@/lib/admin-scope";
 import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
+import { parseContractPdfFieldsJson } from "@/lib/contract-pdf-fields";
 import { contractBodyToPlainText, normalizeContractBodyHtml } from "@/lib/contract-rich-text";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
@@ -210,6 +211,36 @@ export async function sendContractAction(customerId: string, contractId: string,
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?contractSent=1`);
+}
+
+export async function saveContractPdfFieldsAction(customerId: string, contractId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const contract = await prisma.contract.findFirst({
+    where: customerContractAccessWhere(admin, customerId, contractId),
+    select: {
+      id: true,
+      sourceType: true
+    }
+  });
+
+  if (!contract || contract.sourceType === "written") {
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractError=not-found`);
+  }
+
+  const fieldsJson = formString(formData, "pdfFields");
+  const fields = parseContractPdfFieldsJson(fieldsJson);
+
+  if (!fields) {
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractError=pdf-fields`);
+  }
+
+  await prisma.contract.update({
+    where: { id: contract.id },
+    data: { clientFields: fields }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=contracts&contractFieldsSaved=1`);
 }
 
 export async function deleteContractAction(customerId: string, contractId: string) {

@@ -1,8 +1,10 @@
 import { Download, ExternalLink, FileText, Mail, Trash2, UploadCloud } from "lucide-react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { PdfContractFieldEditor } from "@/components/pdf-contract-field-editor";
 import { WrittenContractEditor } from "@/components/written-contract-editor";
 import { deleteContractAction, sendContractAction, uploadContractAction } from "@/lib/contract-actions";
+import { parseContractPdfFields } from "@/lib/contract-pdf-fields";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 
 type Contract = {
@@ -13,6 +15,7 @@ type Contract = {
   originalFilename: string;
   fileUrl: string;
   fileSize: number;
+  clientFields: unknown;
   accessToken: string | null;
   accessTokenExpiresAt: Date | null;
   sentAt: Date | null;
@@ -255,6 +258,15 @@ export function ContractManager({
                   </form>
                 </div>
               </div>
+              {contract.sourceType !== "written" && contract.fileUrl ? (
+                <PdfContractFieldEditor
+                  customerId={customerId}
+                  contractId={contract.id}
+                  fileUrl={contract.fileUrl}
+                  title={contract.title}
+                  initialFields={parseContractPdfFields(contract.clientFields)}
+                />
+              ) : null}
               <details className="mt-4 rounded-md border border-ink/10 bg-paper p-3">
                 <summary className="cursor-pointer text-sm font-semibold text-ink">
                   Email beállítások és küldés
