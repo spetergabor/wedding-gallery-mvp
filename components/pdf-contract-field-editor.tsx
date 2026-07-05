@@ -34,7 +34,7 @@ function pointerPercent(event: PointerEvent<HTMLElement>, element: HTMLElement) 
 }
 
 function fieldDefaultHeight() {
-  return 5;
+  return 4.2;
 }
 
 function minFieldWidth(type: ContractPdfField["type"]) {
@@ -42,7 +42,7 @@ function minFieldWidth(type: ContractPdfField["type"]) {
 }
 
 function minFieldHeight() {
-  return 3.5;
+  return 3;
 }
 
 function findPageOverlay(event: PointerEvent<HTMLElement>) {
