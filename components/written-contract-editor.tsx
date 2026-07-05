@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { type ClipboardEvent, useRef, useState } from "react";
 import { Bold, Italic, List, ListOrdered, PenLine, Plus, Quote, Underline } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
@@ -8,6 +8,7 @@ import {
   contractFieldToken,
   type ContractFieldDefinition
 } from "@/lib/contract-fields";
+import { normalizeContractBodyHtml, plainTextToContractHtml } from "@/lib/contract-rich-text";
 import { createWrittenContractAction } from "@/lib/contract-actions";
 
 const defaultFieldKeys = ["coupleName", "primaryEmail", "phone", "weddingDate", "venue"];
@@ -85,6 +86,21 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
     setSelectedFields((current) => ({ ...current, [field.key]: true }));
     restoreSelection();
     document.execCommand("insertText", false, token);
+    syncEditorValue();
+    saveSelection();
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLDivElement>) {
+    const html = event.clipboardData.getData("text/html");
+    const text = event.clipboardData.getData("text/plain");
+
+    if (!html && !text) {
+      return;
+    }
+
+    event.preventDefault();
+    restoreSelection();
+    document.execCommand("insertHTML", false, html ? normalizeContractBodyHtml(html) : plainTextToContractHtml(text));
     syncEditorValue();
     saveSelection();
   }
@@ -228,6 +244,7 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
             contentEditable
             suppressContentEditableWarning
             onInput={syncEditorValue}
+            onPaste={handlePaste}
             onKeyUp={saveSelection}
             onMouseUp={saveSelection}
             onBlur={saveSelection}

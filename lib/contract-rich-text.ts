@@ -159,16 +159,39 @@ function sanitizeTag(tagName: string, attrs: string, closing: boolean) {
   return `<${tag}${sanitizedAttrs.length ? ` ${sanitizedAttrs.join(" ")}` : ""}>`;
 }
 
-export function sanitizeContractHtml(value: string) {
+function preserveTextLineBreaks(value: string) {
   return value
+    .split(/(<[^>]+>)/g)
+    .map((part) => {
+      if (part.startsWith("<") && part.endsWith(">")) {
+        return part;
+      }
+
+      if (/^[\t\n\r ]+$/.test(part) && /[\n\r]/.test(part)) {
+        return "";
+      }
+
+      return part
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/\n/g, "<br>");
+    })
+    .join("");
+}
+
+export function sanitizeContractHtml(value: string) {
+  const sanitized = value
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<\s*(script|style|iframe|object|embed|form|input|button|select|textarea|svg|math)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
     .replace(/<\s*(script|style|iframe|object|embed|form|input|button|select|textarea|svg|math)[^>]*\/?\s*>/gi, "")
     .replace(/<\s*\/?\s*([a-zA-Z][\w:-]*)([^>]*)>/g, (match, tagName: string, attrs: string) =>
       sanitizeTag(tagName, attrs ?? "", /^<\s*\//.test(match))
-    )
-    .replace(/\s+/g, " ")
+    );
+
+  return preserveTextLineBreaks(sanitized)
     .replace(/>\s+</g, "><")
+    .replace(/(?:<br>){3,}/g, "<br><br>")
     .trim();
 }
 
