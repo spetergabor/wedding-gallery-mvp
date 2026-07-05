@@ -86,6 +86,8 @@ type MiniSessionBookingEmail = {
   language?: CustomerLanguage;
 };
 
+type MiniSessionReminderEmail = MiniSessionBookingEmail;
+
 type AdminMiniSessionBookingEmail = {
   to?: string;
   sessionTitle: string;
@@ -506,6 +508,43 @@ function miniSessionBookingEmailCopy(language?: CustomerLanguage) {
   return MINI_SESSION_BOOKING_EMAIL_COPY[miniSessionEmailLanguage(language)];
 }
 
+const MINI_SESSION_REMINDER_EMAIL_COPY = {
+  hu: {
+    subject: "Emlékeztető: mini session időpont",
+    heading: "Emlékeztető a mini session időpontodra",
+    greeting: "Szia",
+    body: "közeleg a mini session fotózásod időpontja.",
+    sessionLabel: "Session",
+    dateLabel: "Dátum",
+    timeLabel: "Időpont",
+    locationLabel: "Helyszín",
+    attendeeCountLabel: "Létszám",
+    addCalendar: "Naptárhoz adás",
+    cancelIntro: "Ha mégsem tudsz jönni, ezen a linken tudod törölni a foglalást:",
+    cancelButton: "Időpont törlése",
+    fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
+  },
+  de: {
+    subject: "Erinnerung: Mini-Session-Termin",
+    heading: "Erinnerung an deinen Mini-Session-Termin",
+    greeting: "Hallo",
+    body: "dein Mini-Session-Termin steht bald an.",
+    sessionLabel: "Session",
+    dateLabel: "Datum",
+    timeLabel: "Termin",
+    locationLabel: "Ort",
+    attendeeCountLabel: "Personen",
+    addCalendar: "Zum Kalender hinzufügen",
+    cancelIntro: "Falls du doch nicht kommen kannst, kannst du deine Buchung über diesen Link stornieren:",
+    cancelButton: "Termin stornieren",
+    fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
+  }
+} as const;
+
+function miniSessionReminderEmailCopy(language?: CustomerLanguage) {
+  return MINI_SESSION_REMINDER_EMAIL_COPY[miniSessionEmailLanguage(language)];
+}
+
 function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
   const copy = miniSessionBookingEmailCopy(payload.language);
   const calendarLabel = payload.calendarButtonLabel ?? copy.addCalendar;
@@ -578,6 +617,81 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     throw new Error(`Mini session booking confirmation failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+}
+
+function miniSessionReminderHtml(payload: MiniSessionReminderEmail) {
+  const copy = miniSessionReminderEmailCopy(payload.language);
+  const calendarLabel = payload.calendarButtonLabel ?? copy.addCalendar;
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(copy.heading)}</h1>
+      <p style="margin: 0 0 18px;">${escapeHtml(copy.greeting)} ${escapeHtml(payload.name)}, ${escapeHtml(copy.body)}</p>
+      <table style="border-collapse: collapse; margin-bottom: 20px;">
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.sessionLabel)}</td><td style="padding: 4px 0;"><strong>${escapeHtml(payload.sessionTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.dateLabel)}</td><td style="padding: 4px 0;">${formatMiniSessionEmailDate(payload.sessionDate, payload.language)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.timeLabel)}</td><td style="padding: 4px 0;">${miniSessionSlotLabel(payload.startsAt, payload.endsAt, payload.language)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.locationLabel)}</td><td style="padding: 4px 0;">${escapeHtml(payload.location)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.attendeeCountLabel)}</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
+      </table>
+      ${
+        payload.calendarUrl
+          ? `<p style="margin: 0 0 16px;">
+        <a href="${escapeHtml(payload.calendarUrl)}" style="display: inline-block; background: #8a6f3d; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(calendarLabel)}</a>
+      </p>`
+          : ""
+      }
+      <p style="margin: 0 0 16px;">${escapeHtml(copy.cancelIntro)}</p>
+      <p style="margin: 0 0 16px;">
+        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(copy.cancelButton)}</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${escapeHtml(copy.fallback)}<br>${escapeHtml(payload.cancelUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendMiniSessionReminderEmail(payload: MiniSessionReminderEmail) {
+  const { apiKey, from } = emailConfig();
+  const copy = miniSessionReminderEmailCopy(payload.language);
+  const calendarLabel = payload.calendarButtonLabel ?? copy.addCalendar;
+
+  if (!apiKey) {
+    console.warn("Mini session reminder skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject: `${copy.subject}: ${payload.sessionTitle}`,
+      html: miniSessionReminderHtml(payload),
+      text: [
+        copy.heading,
+        "",
+        `${copy.sessionLabel}: ${payload.sessionTitle}`,
+        `${copy.dateLabel}: ${formatMiniSessionEmailDate(payload.sessionDate, payload.language)}`,
+        `${copy.timeLabel}: ${miniSessionSlotLabel(payload.startsAt, payload.endsAt, payload.language)}`,
+        `${copy.locationLabel}: ${payload.location}`,
+        `${copy.attendeeCountLabel}: ${payload.attendeeCount}`,
+        "",
+        ...(payload.calendarUrl ? [`${calendarLabel}: ${payload.calendarUrl}`, ""] : []),
+        `${copy.cancelButton}: ${payload.cancelUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Mini session reminder failed: ${response.status} ${errorText}`);
   }
 
   return true;
