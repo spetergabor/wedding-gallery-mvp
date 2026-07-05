@@ -6,6 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere, customerContractAccessWhere } from "@/lib/admin-scope";
 import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
+import { contractBodyToPlainText, normalizeContractBodyHtml } from "@/lib/contract-rich-text";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { prisma } from "@/lib/prisma";
@@ -98,11 +99,11 @@ export async function createWrittenContractAction(customerId: string, formData: 
   }
 
   const title = formString(formData, "title");
-  const bodyText = formString(formData, "bodyText");
+  const bodyText = normalizeContractBodyHtml(formString(formData, "bodyText"));
   const selectedKeys = formData.getAll("clientFields").filter((value): value is string => typeof value === "string");
   const clientFields = mergeContractFieldsFromTemplate(bodyText, selectedKeys);
 
-  if (!title || !bodyText) {
+  if (!title || !contractBodyToPlainText(bodyText)) {
     redirect(`/admin/clients/${customerId}?contractError=written-missing`);
   }
 

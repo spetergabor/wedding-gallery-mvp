@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { PenLine, Plus } from "lucide-react";
+import { Bold, Italic, List, ListOrdered, PenLine, Plus, Quote, Underline } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   CONTRACT_FIELD_OPTIONS,
@@ -13,38 +13,92 @@ import { createWrittenContractAction } from "@/lib/contract-actions";
 const defaultFieldKeys = ["coupleName", "primaryEmail", "phone", "weddingDate", "venue"];
 
 export function WrittenContractEditor({ customerId }: { customerId: string }) {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const hiddenInputRef = useRef<HTMLInputElement | null>(null);
+  const selectionRef = useRef<Range | null>(null);
+  const [bodyHtml, setBodyHtml] = useState("");
   const [selectedFields, setSelectedFields] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CONTRACT_FIELD_OPTIONS.map((field) => [field.key, defaultFieldKeys.includes(field.key)]))
   );
 
-  function insertField(field: ContractFieldDefinition) {
-    const textarea = textareaRef.current;
-    const token = contractFieldToken(field.key);
+  function syncEditorValue() {
+    const html = editorRef.current?.innerHTML ?? "";
+    setBodyHtml(html);
 
-    setSelectedFields((current) => ({ ...current, [field.key]: true }));
+    if (hiddenInputRef.current) {
+      hiddenInputRef.current.value = html;
+    }
+  }
 
-    if (!textarea) {
+  function saveSelection() {
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+
+    if (!editor || !selection || selection.rangeCount === 0 || !selection.anchorNode || !editor.contains(selection.anchorNode)) {
       return;
     }
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const before = textarea.value.slice(0, start);
-    const after = textarea.value.slice(end);
-    const prefix = before && !before.endsWith(" ") && !before.endsWith("\n") ? " " : "";
-    const suffix = after && !after.startsWith(" ") && !after.startsWith("\n") ? " " : "";
-    const inserted = `${prefix}${token}${suffix}`;
+    selectionRef.current = selection.getRangeAt(0).cloneRange();
+  }
 
-    textarea.value = `${before}${inserted}${after}`;
-    textarea.focus();
-    textarea.selectionStart = start + inserted.length;
-    textarea.selectionEnd = start + inserted.length;
+  function placeCaretAtEnd(editor: HTMLDivElement) {
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  function restoreSelection() {
+    const editor = editorRef.current;
+
+    if (!editor) {
+      return;
+    }
+
+    editor.focus();
+
+    const selection = window.getSelection();
+    const range = selectionRef.current;
+
+    if (!selection || !range || !editor.contains(range.commonAncestorContainer)) {
+      placeCaretAtEnd(editor);
+      return;
+    }
+
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function runCommand(command: string, value?: string) {
+    restoreSelection();
+    document.execCommand(command, false, value);
+    syncEditorValue();
+    saveSelection();
+  }
+
+  function insertField(field: ContractFieldDefinition) {
+    const token = contractFieldToken(field.key);
+
+    setSelectedFields((current) => ({ ...current, [field.key]: true }));
+    restoreSelection();
+    document.execCommand("insertText", false, token);
+    syncEditorValue();
+    saveSelection();
   }
 
   return (
     <form
       action={createWrittenContractAction.bind(null, customerId)}
+      onSubmit={() => {
+        const html = editorRef.current?.innerHTML ?? "";
+
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.value = html;
+        }
+      }}
       className="space-y-4 rounded-md border border-ink/10 bg-paper p-5"
     >
       <div>
@@ -86,14 +140,102 @@ export function WrittenContractEditor({ customerId }: { customerId: string }) {
 
       <label className="block space-y-2">
         <span className="text-sm font-medium text-graphite">Szerződés szövege</span>
-        <textarea
-          ref={textareaRef}
+        <input
+          ref={hiddenInputRef}
+          type="hidden"
           name="bodyText"
-          required
-          rows={12}
-          placeholder="Írd ide a szerződés szövegét, majd szúrd be például ezt: {{coupleName}} vagy {{weddingDate}}."
-          className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 font-mono text-sm leading-6 text-ink outline-none transition focus:border-ink/50"
+          value={bodyHtml}
+          readOnly
         />
+        <div className="overflow-hidden rounded-md border border-ink/15 bg-white">
+          <div className="flex flex-wrap gap-1 border-b border-ink/10 bg-paper px-2 py-2">
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("bold")}
+              className="inline-flex size-9 items-center justify-center rounded-md text-graphite transition hover:bg-ink/5"
+              title="Félkövér"
+            >
+              <Bold size={16} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("italic")}
+              className="inline-flex size-9 items-center justify-center rounded-md text-graphite transition hover:bg-ink/5"
+              title="Dőlt"
+            >
+              <Italic size={16} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("underline")}
+              className="inline-flex size-9 items-center justify-center rounded-md text-graphite transition hover:bg-ink/5"
+              title="Aláhúzás"
+            >
+              <Underline size={16} />
+            </button>
+            <span className="mx-1 h-9 w-px bg-ink/10" />
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("formatBlock", "h2")}
+              className="inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 text-sm font-semibold text-graphite transition hover:bg-ink/5"
+              title="Címsor"
+            >
+              H2
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("formatBlock", "p")}
+              className="inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 text-sm font-semibold text-graphite transition hover:bg-ink/5"
+              title="Bekezdés"
+            >
+              P
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("insertUnorderedList")}
+              className="inline-flex size-9 items-center justify-center rounded-md text-graphite transition hover:bg-ink/5"
+              title="Felsorolás"
+            >
+              <List size={16} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("insertOrderedList")}
+              className="inline-flex size-9 items-center justify-center rounded-md text-graphite transition hover:bg-ink/5"
+              title="Számozott lista"
+            >
+              <ListOrdered size={16} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand("formatBlock", "blockquote")}
+              className="inline-flex size-9 items-center justify-center rounded-md text-graphite transition hover:bg-ink/5"
+              title="Idézet / kiemelt blokk"
+            >
+              <Quote size={16} />
+            </button>
+          </div>
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={syncEditorValue}
+            onKeyUp={saveSelection}
+            onMouseUp={saveSelection}
+            onBlur={saveSelection}
+            onFocus={saveSelection}
+            data-placeholder="Írd vagy másold ide a szerződés szövegét, majd szúrd be például ezt: {{coupleName}} vagy {{weddingDate}}."
+            className="contract-rich-editor min-h-80 w-full bg-white px-4 py-4 text-sm leading-7 text-ink outline-none"
+          />
+        </div>
       </label>
 
       <fieldset className="space-y-2">

@@ -12,6 +12,7 @@ import {
   parseContractFields,
   renderContractTemplateText
 } from "@/lib/contract-fields";
+import { contractBodyToPlainText } from "@/lib/contract-rich-text";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { prisma } from "@/lib/prisma";
 import { createSignedContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
@@ -651,9 +652,10 @@ export async function signContractAction(token: string, formData: FormData) {
     const completedFields = contract.sourceType === "written" ? readClientFieldAnswers(formData, clientFields) : {};
     const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
     const renderedBodyText = renderContractTemplateText(contract.bodyText ?? "", completedFields);
+    const renderedPlainText = contract.sourceType === "written" ? contractBodyToPlainText(renderedBodyText) : renderedBodyText;
     const documentHash =
       contract.sourceType === "written"
-        ? sha256Hex(canonicalJson({ title: contract.title, renderedBodyText, completedFields }))
+        ? sha256Hex(canonicalJson({ title: contract.title, renderedBodyText, renderedPlainText, completedFields }))
         : contract.documentHash ??
           sha256Hex(
             canonicalJson({
@@ -679,7 +681,7 @@ export async function signContractAction(token: string, formData: FormData) {
     const signedPdfBytes =
       contract.sourceType === "written"
         ? await createSignedWrittenPdf({
-            bodyText: renderedBodyText,
+            bodyText: renderedPlainText,
             answers: clientFields
               .filter((field) => !templateFieldKeys.has(field.key))
               .map((field) => ({

@@ -61,6 +61,153 @@ input[type="time"] {
   font: inherit;
 }
 
+.contract-rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: rgb(94 91 84 / 0.45);
+  pointer-events: none;
+}
+
+.contract-rich-editor,
+.contract-rich-text {
+  overflow-wrap: anywhere;
+}
+
+.contract-rich-editor p,
+.contract-rich-editor div,
+.contract-rich-text p,
+.contract-rich-text div {
+  margin: 0 0 1rem;
+}
+
+.contract-rich-editor h1,
+.contract-rich-text h1 {
+  margin: 0 0 1rem;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 650;
+  color: #171717;
+}
+
+.contract-rich-editor h2,
+.contract-rich-text h2 {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1.25rem;
+  line-height: 1.35;
+  font-weight: 650;
+  color: #171717;
+}
+
+.contract-rich-editor h3,
+.contract-rich-editor h4,
+.contract-rich-text h3,
+.contract-rich-text h4 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  line-height: 1.45;
+  font-weight: 650;
+  color: #171717;
+}
+
+.contract-rich-editor ul,
+.contract-rich-editor ol,
+.contract-rich-text ul,
+.contract-rich-text ol {
+  margin: 0 0 1rem;
+  padding-left: 1.35rem;
+}
+
+.contract-rich-editor ul,
+.contract-rich-text ul {
+  list-style: disc;
+}
+
+.contract-rich-editor ol,
+.contract-rich-text ol {
+  list-style: decimal;
+}
+
+.contract-rich-editor li,
+.contract-rich-text li {
+  margin: 0.25rem 0;
+}
+
+.contract-rich-editor blockquote,
+.contract-rich-text blockquote {
+  margin: 1rem 0;
+  border-left: 3px solid #b2945e;
+  padding-left: 1rem;
+  color: rgb(94 91 84 / 0.86);
+}
+
+.contract-rich-editor table,
+.contract-rich-text table {
+  margin: 1rem 0;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.contract-rich-editor th,
+.contract-rich-editor td,
+.contract-rich-text th,
+.contract-rich-text td {
+  border: 1px solid rgb(23 23 23 / 0.12);
+  padding: 0.55rem 0.65rem;
+  vertical-align: top;
+}
+
+.contract-rich-editor th,
+.contract-rich-text th {
+  background: #f8f7f4;
+  font-weight: 650;
+}
+
+.contract-rich-text .contract-inline-field {
+  display: inline-flex;
+  transform: translateY(0.25rem);
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0 0.25rem;
+  vertical-align: baseline;
+}
+
+.contract-rich-text .contract-inline-field span {
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b2945e;
+}
+
+.contract-rich-text .contract-inline-field input,
+.contract-rich-text .contract-inline-field textarea {
+  min-width: 11rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(178 148 94 / 0.45);
+  background: rgb(178 148 94 / 0.1);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #171717;
+  outline: none;
+}
+
+.contract-rich-text .contract-inline-field textarea {
+  min-width: min(100%, 22rem);
+}
+
+.contract-rich-text .contract-inline-field input:focus,
+.contract-rich-text .contract-inline-field textarea:focus {
+  border-color: #b2945e;
+  background: white;
+}
+
+.contract-rich-text .contract-inline-field-block {
+  display: flex;
+  transform: none;
+  margin: 1rem 0;
+}
+
 @keyframes galleryFadeIn {
   from {
     opacity: 0;

@@ -5,10 +5,9 @@ import {
   contractFieldInputName,
   fieldKeysInContractTemplate,
   parseContractAnswers,
-  parseContractFields,
-  parseContractTemplateParts,
-  type ContractFieldDefinition
+  parseContractFields
 } from "@/lib/contract-fields";
+import { renderContractTemplateHtml } from "@/lib/contract-rich-text";
 import { dateLocaleForCustomer, normalizeCustomerLanguage, type CustomerLanguage } from "@/lib/customer-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { prisma } from "@/lib/prisma";
@@ -53,52 +52,6 @@ function ContractUnavailable() {
         </p>
       </section>
     </main>
-  );
-}
-
-function ContractInlineInput({
-  field,
-  defaultValue,
-  formId
-}: {
-  field: ContractFieldDefinition;
-  defaultValue: string;
-  formId: string;
-}) {
-  const inputName = contractFieldInputName(field.key);
-  const label = contractFieldDisplayLabel(field);
-
-  if (field.type === "textarea") {
-    return (
-      <label className="my-3 block rounded-md border border-ink/10 bg-paper p-3">
-        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-brass">
-          {label}
-        </span>
-        <textarea
-          form={formId}
-          name={inputName}
-          defaultValue={defaultValue}
-          required
-          rows={3}
-          className="w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/50"
-        />
-      </label>
-    );
-  }
-
-  return (
-    <label className="mx-1 inline-flex translate-y-1 flex-col gap-1 align-baseline">
-      <span className="sr-only">{label}</span>
-      <input
-        form={formId}
-        name={inputName}
-        type={field.type}
-        defaultValue={defaultValue}
-        required
-        placeholder={label}
-        className="h-9 min-w-44 rounded-md border border-brass/40 bg-brass/10 px-3 text-sm font-medium text-ink outline-none transition placeholder:text-graphite/45 focus:border-brass"
-      />
-    </label>
   );
 }
 
@@ -189,7 +142,6 @@ export default async function ContractPublicPage({
   const contractFields = parseContractFields(contract.clientFields);
   const completedFields = parseContractAnswers(contract.completedFields);
   const signatureFormId = `contract-signature-form-${contract.id}`;
-  const templateParts = parseContractTemplateParts(contract.bodyText ?? "", contractFields);
   const templateFieldKeys = fieldKeysInContractTemplate(contract.bodyText ?? "");
   const extraContractFields = contractFields.filter((field) => !templateFieldKeys.has(field.key));
   const language = normalizeCustomerLanguage(contract.customer.preferredLanguage);
@@ -201,6 +153,14 @@ export default async function ContractPublicPage({
     weddingDate: contract.customer.weddingDate ? contract.customer.weddingDate.toISOString().slice(0, 10) : "",
     venue: contract.customer.venue ?? ""
   };
+  const contractHtml = renderContractTemplateHtml({
+    bodyText: contract.bodyText ?? "",
+    fields: contractFields,
+    values: Object.fromEntries(
+      contractFields.map((field) => [field.key, completedFields[field.key] ?? customerDefaults[field.key] ?? ""])
+    ),
+    formId: signatureFormId
+  });
 
   if (!contract.openedAt) {
     await prisma.contract.update({
@@ -262,26 +222,10 @@ export default async function ContractPublicPage({
               ) : (
                 <div className="min-h-[520px] bg-white p-6 md:p-8">
                   <h2 className="text-2xl font-semibold text-ink">{contract.title}</h2>
-                  <div className="mt-6 text-sm leading-8 text-graphite">
-                    {templateParts.map((part, index) => {
-                      if (part.type === "text") {
-                        return (
-                          <span key={`${part.type}-${index}`} className="whitespace-pre-wrap">
-                            {part.value}
-                          </span>
-                        );
-                      }
-
-                      return (
-                        <ContractInlineInput
-                          key={`${part.field.key}-${index}`}
-                          field={part.field}
-                          formId={signatureFormId}
-                          defaultValue={completedFields[part.field.key] ?? customerDefaults[part.field.key] ?? ""}
-                        />
-                      );
-                    })}
-                  </div>
+                  <div
+                    className="contract-rich-text mt-6 text-sm leading-8 text-graphite"
+                    dangerouslySetInnerHTML={{ __html: contractHtml }}
+                  />
                 </div>
               )}
             </div>
