@@ -17,6 +17,7 @@ export function normalizeLeadStatus(value: string | null | undefined): LeadStatu
 
 export const LEAD_EVENT_TYPES = [
   { key: "wedding", label: { hu: "Esküvő", de: "Hochzeit" } },
+  { key: "mini_session", label: { hu: "Mini session", de: "Mini Session" } },
   { key: "family", label: { hu: "Család", de: "Familie" } },
   { key: "newborn", label: { hu: "Újszülött", de: "Neugeborene" } },
   { key: "engagement", label: { hu: "Jegyesfotózás", de: "Verlobung" } },

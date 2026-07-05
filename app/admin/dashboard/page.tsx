@@ -882,6 +882,7 @@ export default async function AdminDashboardPage() {
     prisma.lead.findMany({
       where: {
         ...adminOwnedWhere(admin),
+        eventType: { not: "mini_session" },
         eventDate: { gte: calendarStart, lt: calendarEnd }
       },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],

@@ -27,6 +27,7 @@ import {
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   normalizeMiniSessionLanguage
 } from "@/lib/mini-sessions";
+import { syncMiniSessionBookingLead } from "@/lib/mini-session-leads";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
 import {
@@ -505,6 +506,13 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     redirect(`/admin/mini-sessions?error=taken#mini-session-${session.id}`);
   }
 
+  try {
+    await syncMiniSessionBookingLead({ booking, miniSession: session });
+    revalidatePath("/admin/dashboard");
+  } catch (error) {
+    console.error("Mini session lead sync failed", error);
+  }
+
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/mini-session/${session.slug}`);
   redirect(`/admin/mini-sessions?adminBooking=1#mini-session-${session.id}`);
@@ -628,6 +636,13 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   });
   let customerEmailSentAt: Date | null = null;
   let adminEmailSentAt: Date | null = null;
+
+  try {
+    await syncMiniSessionBookingLead({ booking, miniSession: session });
+    revalidatePath("/admin/dashboard");
+  } catch (error) {
+    console.error("Mini session lead sync failed", error);
+  }
 
   try {
     const sent = await sendMiniSessionBookingConfirmationEmail({
