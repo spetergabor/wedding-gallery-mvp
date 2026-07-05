@@ -431,6 +431,34 @@ async function createSignedWrittenPdf({
     y = height - 72;
   }
 
+  function drawWrappedTextOnPages({
+    text,
+    x,
+    maxWidth,
+    font,
+    size,
+    lineHeight,
+    color = rgb(0.12, 0.12, 0.12)
+  }: {
+    text: string;
+    x: number;
+    maxWidth: number;
+    font: PDFFont;
+    size: number;
+    lineHeight: number;
+    color?: ReturnType<typeof rgb>;
+  }) {
+    for (const line of wrapText(text, font, size, maxWidth)) {
+      ensureSpace(lineHeight);
+
+      if (line) {
+        page.drawText(line, { x, y, size, font, color });
+      }
+
+      y -= lineHeight;
+    }
+  }
+
   page.drawText(pdfText(contractTitle), {
     x: margin,
     y,
@@ -447,11 +475,9 @@ async function createSignedWrittenPdf({
     color: rgb(0.35, 0.35, 0.35)
   });
   y -= 34;
-  y = drawWrappedText({
-    page,
+  drawWrappedTextOnPages({
     text: bodyText,
     x: margin,
-    y,
     maxWidth: width - margin * 2,
     font,
     size: 11,
@@ -480,11 +506,9 @@ async function createSignedWrittenPdf({
         color: rgb(0.35, 0.35, 0.35)
       });
       y -= 14;
-      y = drawWrappedText({
-        page,
+      drawWrappedTextOnPages({
         text: answer.value || "-",
         x: margin,
-        y,
         maxWidth: width - margin * 2,
         font,
         size: 11,
