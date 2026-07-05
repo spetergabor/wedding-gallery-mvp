@@ -2,12 +2,12 @@ import { Building2, CalendarDays, CheckCircle2, ExternalLink, FileText, Heart, I
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { CustomerPortalDetailsForm } from "@/components/customer-portal-details-form";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   createCustomerVendorAction,
   deleteCustomerPortalImageAction,
   deleteCustomerVendorAction,
-  updateCustomerPortalDetailsAction,
   uploadCustomerPortalImageAction
 } from "@/lib/customer-portal-actions";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
@@ -64,6 +64,12 @@ const PORTAL_COPY = {
     notes: "Egyéb megjegyzés",
     email: "E-mail",
     phone: "Telefon",
+    edit: "Szerkesztés",
+    editing: "Szerkesztés alatt",
+    editingHint: "Most módosíthatók a mezők. Mentés után az adatlap újra lezárt nézetbe kerül.",
+    cancel: "Mégse",
+    locked: "Lezárt adatlap",
+    lockedHint: "Az adatok alapból csak olvashatók. Szerkesztéshez nyomjátok meg a Szerkesztés gombot.",
     save: "Adatok mentése",
     saving: "Mentés...",
     inspiration: "Inspirációs képek",
@@ -122,6 +128,12 @@ const PORTAL_COPY = {
     notes: "Weitere Notizen",
     email: "E-Mail",
     phone: "Telefon",
+    edit: "Bearbeiten",
+    editing: "Bearbeitung aktiv",
+    editingHint: "Die Felder können jetzt geändert werden. Nach dem Speichern ist das Formular wieder gesperrt.",
+    cancel: "Abbrechen",
+    locked: "Gesperrtes Formular",
+    lockedHint: "Die Angaben sind standardmäßig nur lesbar. Zum Ändern bitte auf Bearbeiten klicken.",
     save: "Daten speichern",
     saving: "Speichern...",
     inspiration: "Inspirationsbilder",
@@ -148,10 +160,6 @@ const PORTAL_COPY = {
     delete: "Löschen"
   }
 } as const;
-
-function dateInputValue(date: Date | null) {
-  return date ? date.toISOString().slice(0, 10) : "";
-}
 
 function formatDate(date: Date | null, language: "hu" | "de") {
   if (!date) {
@@ -309,87 +317,37 @@ export default async function CustomerPortalPage({
               </h2>
               <p className="mt-2 text-sm leading-6 text-graphite/70">{copy.coupleDataIntro}</p>
 
-              <form action={updateCustomerPortalDetailsAction.bind(null, token)} className="mt-6 space-y-7">
-                <div className="grid gap-5 md:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.wifeName}</span>
-                    <input name="wifeName" defaultValue={customer.wifeName ?? ""} required className={fieldClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.husbandName}</span>
-                    <input name="husbandName" defaultValue={customer.husbandName ?? customer.partnerName ?? ""} required className={fieldClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.wifeEmail}</span>
-                    <input name="wifeEmail" type="email" defaultValue={customer.wifeEmail ?? customer.primaryEmail} required className={fieldClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.husbandEmail}</span>
-                    <input name="husbandEmail" type="email" defaultValue={customer.husbandEmail ?? customer.partnerEmail ?? customer.secondaryEmail ?? ""} required className={fieldClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.wifePhone}</span>
-                    <input name="wifePhone" defaultValue={customer.wifePhone ?? customer.phone ?? ""} className={fieldClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.husbandPhone}</span>
-                    <input name="husbandPhone" defaultValue={customer.husbandPhone ?? customer.partnerPhone ?? ""} className={fieldClass} />
-                  </label>
-                </div>
-
-                <div className="border-t border-ink/10 pt-6">
-                  <h3 className="text-base font-semibold text-ink">{copy.locations}</h3>
-                  <div className="mt-4 grid gap-5 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.weddingDate}</span>
-                      <input name="weddingDate" type="date" defaultValue={dateInputValue(customer.weddingDate)} className={fieldClass} />
-                    </label>
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.gettingReady}</span>
-                      <input name="gettingReadyLocation" defaultValue={customer.gettingReadyLocation ?? ""} className={fieldClass} />
-                    </label>
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.churchCeremony}</span>
-                      <input name="churchCeremonyLocation" defaultValue={customer.churchCeremonyLocation ?? customer.ceremonyLocation ?? ""} className={fieldClass} />
-                    </label>
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.civilCeremony}</span>
-                      <input name="civilCeremonyLocation" defaultValue={customer.civilCeremonyLocation ?? ""} className={fieldClass} />
-                    </label>
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.mainLocation}</span>
-                      <input name="mainLocation" defaultValue={customer.mainLocation ?? customer.weddingLocation ?? customer.venue ?? ""} className={fieldClass} />
-                    </label>
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.weddingAddress}</span>
-                      <input name="weddingAddress" defaultValue={customer.weddingAddress ?? ""} className={fieldClass} />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="grid gap-5 border-t border-ink/10 pt-6">
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.schedule}</span>
-                    <textarea name="weddingSchedule" defaultValue={customer.weddingSchedule ?? ""} className={textAreaClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.styleNotes}</span>
-                    <textarea name="weddingStyleNotes" defaultValue={customer.weddingStyleNotes ?? ""} className={textAreaClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.importantPeople}</span>
-                    <textarea name="importantPeopleNotes" defaultValue={customer.importantPeopleNotes ?? ""} className={textAreaClass} />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.notes}</span>
-                    <textarea name="portalNotes" defaultValue={customer.portalNotes ?? ""} className={textAreaClass} />
-                  </label>
-                </div>
-
-                <div>
-                  <FormSubmitButton pendingLabel={copy.saving}>{copy.save}</FormSubmitButton>
-                </div>
-              </form>
+              <CustomerPortalDetailsForm
+                token={token}
+                copy={copy}
+                customer={{
+                  wifeName: customer.wifeName,
+                  wifeEmail: customer.wifeEmail,
+                  wifePhone: customer.wifePhone,
+                  husbandName: customer.husbandName,
+                  husbandEmail: customer.husbandEmail,
+                  husbandPhone: customer.husbandPhone,
+                  partnerName: customer.partnerName,
+                  partnerEmail: customer.partnerEmail,
+                  partnerPhone: customer.partnerPhone,
+                  primaryEmail: customer.primaryEmail,
+                  secondaryEmail: customer.secondaryEmail,
+                  phone: customer.phone,
+                  weddingDateValue: customer.weddingDate ? customer.weddingDate.toISOString().slice(0, 10) : "",
+                  venue: customer.venue,
+                  weddingLocation: customer.weddingLocation,
+                  weddingAddress: customer.weddingAddress,
+                  gettingReadyLocation: customer.gettingReadyLocation,
+                  churchCeremonyLocation: customer.churchCeremonyLocation,
+                  civilCeremonyLocation: customer.civilCeremonyLocation,
+                  mainLocation: customer.mainLocation,
+                  ceremonyLocation: customer.ceremonyLocation,
+                  weddingSchedule: customer.weddingSchedule,
+                  weddingStyleNotes: customer.weddingStyleNotes,
+                  importantPeopleNotes: customer.importantPeopleNotes,
+                  portalNotes: customer.portalNotes
+                }}
+              />
             </section>
 
             <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
