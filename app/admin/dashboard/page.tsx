@@ -466,6 +466,7 @@ const DASHBOARD_COPY = {
     noNotificationsTitle: "Még nincs értesítés",
     noNotificationsDescription: "Egyelőre nincs nyitott üzenet vagy figyelmeztetés.",
     latestGalleriesTitle: "Legutóbbi galériák",
+    moreGalleries: "Többi galéria",
     media: "média",
     active: "Aktív",
     inactive: "Inaktív",
@@ -572,6 +573,7 @@ const DASHBOARD_COPY = {
     noNotificationsTitle: "Noch keine Benachrichtigungen",
     noNotificationsDescription: "Aktuell gibt es keine offenen Nachrichten oder Hinweise.",
     latestGalleriesTitle: "Letzte Galerien",
+    moreGalleries: "Weitere Galerien",
     media: "Medien",
     active: "Aktiv",
     inactive: "Inaktiv",
@@ -1187,7 +1189,7 @@ export default async function AdminDashboardPage() {
     prisma.gallery.findMany({
       where: galleryWhere,
       orderBy: { createdAt: "desc" },
-      take: 5,
+      take: 4,
       include: {
         _count: { select: { photos: true } },
         photos: {
@@ -1572,8 +1574,15 @@ export default async function AdminDashboardPage() {
       />
 
       <section className="mt-8 rounded-md border border-ink/12 bg-white">
-        <div className="border-b border-ink/10 px-5 py-4">
+        <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
           <h2 className={sectionTitleClass}>{copy.latestGalleriesTitle}</h2>
+          <Link
+            href="/admin/galleries"
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+          >
+            {copy.moreGalleries}
+            <ArrowRight size={15} />
+          </Link>
         </div>
         <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
           {latestGalleries.map((gallery) => (
