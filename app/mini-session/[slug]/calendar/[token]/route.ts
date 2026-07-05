@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { miniSessionBookingCalendarUrl, miniSessionBookingCancelUrl } from "@/lib/email";
 import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/mini-session-calendar";
-import { MINI_SESSION_BOOKING_STATUS_CANCELLED } from "@/lib/mini-sessions";
+import { MINI_SESSION_BOOKING_STATUS_CANCELLED, normalizeMiniSessionLanguage } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
 function plainTextResponse(message: string, status: number) {
@@ -15,6 +15,30 @@ function plainTextResponse(message: string, status: number) {
 
 function miniSessionCalendarUid(bookingId: string) {
   return `mini-session-${bookingId}@gallery.hochzeitsfotografgraz.at`;
+}
+
+function calendarDescriptionCopy(language: "hu" | "de") {
+  return language === "de"
+    ? {
+        booked: "Mini-Session-Buchung.",
+        cancelled: "Die Mini-Session-Buchung wurde storniert.",
+        location: "Ort",
+        name: "Name",
+        email: "E-Mail",
+        phone: "Telefon",
+        attendeeCount: "Personen",
+        cancel: "Termin stornieren"
+      }
+    : {
+        booked: "Mini session foglalás.",
+        cancelled: "A mini session foglalás törölve lett.",
+        location: "Helyszín",
+        name: "Név",
+        email: "Email",
+        phone: "Telefon",
+        attendeeCount: "Létszám",
+        cancel: "Időpont törlése"
+      };
 }
 
 export async function GET(
@@ -45,14 +69,16 @@ export async function GET(
   const isCancelled = booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED;
   const calendarUrl = miniSessionBookingCalendarUrl(slug, token);
   const cancelUrl = miniSessionBookingCancelUrl(slug, token);
+  const language = normalizeMiniSessionLanguage(booking.miniSession.language);
+  const copy = calendarDescriptionCopy(language);
   const description = [
-    isCancelled ? "A mini session foglalás törölve lett." : "Mini session foglalás.",
-    `Helyszín: ${booking.miniSession.location}`,
-    `Név: ${booking.name}`,
-    `Email: ${booking.email}`,
-    `Telefon: ${booking.phone}`,
-    `Létszám: ${booking.attendeeCount}`,
-    isCancelled ? null : `Időpont törlése: ${cancelUrl}`
+    isCancelled ? copy.cancelled : copy.booked,
+    `${copy.location}: ${booking.miniSession.location}`,
+    `${copy.name}: ${booking.name}`,
+    `${copy.email}: ${booking.email}`,
+    `${copy.phone}: ${booking.phone}`,
+    `${copy.attendeeCount}: ${booking.attendeeCount}`,
+    isCancelled ? null : `${copy.cancel}: ${cancelUrl}`
   ].filter(Boolean).join("\n");
   const ics = buildMiniSessionCalendarIcs({
     uid: miniSessionCalendarUid(booking.id),

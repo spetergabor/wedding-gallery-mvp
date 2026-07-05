@@ -1,10 +1,25 @@
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 
 export const MINI_SESSION_BOOKING_STATUS_BOOKED = "booked";
 export const MINI_SESSION_BOOKING_STATUS_CANCELLED = "cancelled";
 export const MINI_SESSION_BOOKING_SOURCE_CLIENT = "client";
 export const MINI_SESSION_BOOKING_SOURCE_MANUAL = "manual";
 export const MINI_SESSION_BOOKING_SOURCE_BLOCKED = "blocked";
+export const MINI_SESSION_LANGUAGES = [
+  { value: "hu", label: "Magyar" },
+  { value: "de", label: "Deutsch" }
+] as const;
+
+export type MiniSessionLanguage = CustomerLanguage;
+
+export function normalizeMiniSessionLanguage(value: string | null | undefined): MiniSessionLanguage {
+  return value === "de" ? "de" : "hu";
+}
+
+export function miniSessionLanguageLabel(value: string | null | undefined) {
+  return normalizeMiniSessionLanguage(value) === "de" ? "Deutsch" : "Magyar";
+}
 
 type MiniSessionLike = {
   startsAt: Date;
@@ -36,8 +51,8 @@ function dateParts(date: Date) {
   };
 }
 
-export function formatMiniSessionDate(date: Date) {
-  return date.toLocaleDateString("hu-HU", {
+export function formatMiniSessionDate(date: Date, language: MiniSessionLanguage = "hu") {
+  return date.toLocaleDateString(dateLocaleForCustomer(language), {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -45,16 +60,16 @@ export function formatMiniSessionDate(date: Date) {
   });
 }
 
-export function formatMiniSessionTime(date: Date) {
-  return date.toLocaleTimeString("hu-HU", {
+export function formatMiniSessionTime(date: Date, language: MiniSessionLanguage = "hu") {
+  return date.toLocaleTimeString(dateLocaleForCustomer(language), {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: APP_TIME_ZONE
   });
 }
 
-export function formatMiniSessionSlot(startsAt: Date, endsAt: Date) {
-  return `${formatMiniSessionTime(startsAt)}-${formatMiniSessionTime(endsAt)}`;
+export function formatMiniSessionSlot(startsAt: Date, endsAt: Date, language: MiniSessionLanguage = "hu") {
+  return `${formatMiniSessionTime(startsAt, language)}-${formatMiniSessionTime(endsAt, language)}`;
 }
 
 export function createMiniSessionSlots(session: MiniSessionLike) {

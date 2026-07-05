@@ -24,6 +24,8 @@ import {
   formatMiniSessionDate,
   formatMiniSessionSlot,
   formatMiniSessionTime,
+  miniSessionLanguageLabel,
+  MINI_SESSION_LANGUAGES,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
@@ -119,6 +121,16 @@ export default async function AdminMiniSessionsPage({
             <input name="slug" className={fieldClass} placeholder="oszi-mini-session" />
           </label>
           <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Landing page nyelve</span>
+            <select name="language" defaultValue="hu" className={fieldClass}>
+              {MINI_SESSION_LANGUAGES.map((language) => (
+                <option key={language.value} value={language.value}>
+                  {language.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Mikor</span>
             <input name="date" type="date" required className={fieldClass} />
           </label>
@@ -193,6 +205,7 @@ export default async function AdminMiniSessionsPage({
                       <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
                       <span className="inline-flex items-center gap-1.5"><Users size={15} /> {booked.length} foglalás</span>
                       <span className="inline-flex items-center gap-1.5"><CheckCircle2 size={15} /> {freeSlotCount}/{slots.length} szabad</span>
+                      <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
                       {cancelled.length > 0 ? <span className="inline-flex items-center gap-1.5"><XCircle size={15} /> {cancelled.length} törölt</span> : null}
                     </div>
                     <p className="mt-2 text-sm text-graphite/60">Publikus oldal: /mini-session/{session.slug}</p>
@@ -226,6 +239,16 @@ export default async function AdminMiniSessionsPage({
                       <label className="block space-y-2">
                         <span className="text-sm font-medium text-graphite">Publikus slug</span>
                         <input name="slug" defaultValue={session.slug} required className={fieldClass} />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-graphite">Landing page nyelve</span>
+                        <select name="language" defaultValue={session.language} className={fieldClass}>
+                          {MINI_SESSION_LANGUAGES.map((language) => (
+                            <option key={language.value} value={language.value}>
+                              {language.label}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="block space-y-2">
                         <span className="text-sm font-medium text-graphite">Mikor</span>

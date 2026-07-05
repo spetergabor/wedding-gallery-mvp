@@ -83,6 +83,7 @@ type MiniSessionBookingEmail = {
   calendarIcs?: string;
   calendarFilename?: string;
   calendarButtonLabel?: string;
+  language?: CustomerLanguage;
 };
 
 type AdminMiniSessionBookingEmail = {
@@ -430,8 +431,12 @@ export function adminMiniSessionUrl(miniSessionId: string) {
   return `${appBaseUrl()}/admin/mini-sessions#mini-session-${miniSessionId}`;
 }
 
-function formatMiniSessionEmailDate(date: Date) {
-  return date.toLocaleDateString("hu-HU", {
+function miniSessionEmailLanguage(language?: CustomerLanguage) {
+  return language === "de" ? "de" : "hu";
+}
+
+function formatMiniSessionEmailDate(date: Date, language?: CustomerLanguage) {
+  return date.toLocaleDateString(dateLocaleForCustomer(miniSessionEmailLanguage(language)), {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -439,16 +444,16 @@ function formatMiniSessionEmailDate(date: Date) {
   });
 }
 
-function formatMiniSessionEmailTime(date: Date) {
-  return date.toLocaleTimeString("hu-HU", {
+function formatMiniSessionEmailTime(date: Date, language?: CustomerLanguage) {
+  return date.toLocaleTimeString(dateLocaleForCustomer(miniSessionEmailLanguage(language)), {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: APP_TIME_ZONE
   });
 }
 
-function miniSessionSlotLabel(startsAt: Date, endsAt: Date) {
-  return `${formatMiniSessionEmailTime(startsAt)}-${formatMiniSessionEmailTime(endsAt)}`;
+function miniSessionSlotLabel(startsAt: Date, endsAt: Date, language?: CustomerLanguage) {
+  return `${formatMiniSessionEmailTime(startsAt, language)}-${formatMiniSessionEmailTime(endsAt, language)}`;
 }
 
 function miniSessionCalendarAttachments(payload: { calendarIcs?: string; calendarFilename?: string }) {
@@ -464,19 +469,57 @@ function miniSessionCalendarAttachments(payload: { calendarIcs?: string; calenda
   ];
 }
 
+const MINI_SESSION_BOOKING_EMAIL_COPY = {
+  hu: {
+    subject: "Foglalás megerősítve",
+    heading: "Időpont foglalás megerősítve",
+    greeting: "Szia",
+    body: "a mini session időpontod rögzítve lett.",
+    sessionLabel: "Session",
+    dateLabel: "Dátum",
+    timeLabel: "Időpont",
+    locationLabel: "Helyszín",
+    attendeeCountLabel: "Létszám",
+    addCalendar: "Naptárhoz adás",
+    cancelIntro: "Ha mégsem jó az időpont, ezen a linken tudod törölni a foglalást:",
+    cancelButton: "Időpont törlése",
+    fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
+  },
+  de: {
+    subject: "Buchung bestätigt",
+    heading: "Terminbuchung bestätigt",
+    greeting: "Hallo",
+    body: "dein Mini-Session-Termin wurde gespeichert.",
+    sessionLabel: "Session",
+    dateLabel: "Datum",
+    timeLabel: "Termin",
+    locationLabel: "Ort",
+    attendeeCountLabel: "Personen",
+    addCalendar: "Zum Kalender hinzufügen",
+    cancelIntro: "Falls der Termin doch nicht passt, kannst du deine Buchung über diesen Link stornieren:",
+    cancelButton: "Termin stornieren",
+    fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
+  }
+} as const;
+
+function miniSessionBookingEmailCopy(language?: CustomerLanguage) {
+  return MINI_SESSION_BOOKING_EMAIL_COPY[miniSessionEmailLanguage(language)];
+}
+
 function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
-  const calendarLabel = payload.calendarButtonLabel ?? "Naptárhoz adás";
+  const copy = miniSessionBookingEmailCopy(payload.language);
+  const calendarLabel = payload.calendarButtonLabel ?? copy.addCalendar;
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Időpont foglalás megerősítve</h1>
-      <p style="margin: 0 0 18px;">Szia ${escapeHtml(payload.name)}, a mini session időpontod rögzítve lett.</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(copy.heading)}</h1>
+      <p style="margin: 0 0 18px;">${escapeHtml(copy.greeting)} ${escapeHtml(payload.name)}, ${escapeHtml(copy.body)}</p>
       <table style="border-collapse: collapse; margin-bottom: 20px;">
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Session</td><td style="padding: 4px 0;"><strong>${escapeHtml(payload.sessionTitle)}</strong></td></tr>
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Dátum</td><td style="padding: 4px 0;">${formatMiniSessionEmailDate(payload.sessionDate)}</td></tr>
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Időpont</td><td style="padding: 4px 0;">${miniSessionSlotLabel(payload.startsAt, payload.endsAt)}</td></tr>
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Helyszín</td><td style="padding: 4px 0;">${escapeHtml(payload.location)}</td></tr>
-        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Létszám</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.sessionLabel)}</td><td style="padding: 4px 0;"><strong>${escapeHtml(payload.sessionTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.dateLabel)}</td><td style="padding: 4px 0;">${formatMiniSessionEmailDate(payload.sessionDate, payload.language)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.timeLabel)}</td><td style="padding: 4px 0;">${miniSessionSlotLabel(payload.startsAt, payload.endsAt, payload.language)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.locationLabel)}</td><td style="padding: 4px 0;">${escapeHtml(payload.location)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.attendeeCountLabel)}</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
       </table>
       ${
         payload.calendarUrl
@@ -485,11 +528,11 @@ function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
       </p>`
           : ""
       }
-      <p style="margin: 0 0 16px;">Ha mégsem jó az időpont, ezen a linken tudod törölni a foglalást:</p>
+      <p style="margin: 0 0 16px;">${escapeHtml(copy.cancelIntro)}</p>
       <p style="margin: 0 0 16px;">
-        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Időpont törlése</a>
+        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(copy.cancelButton)}</a>
       </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">Ha nem működik a gomb, ezt másold be a böngészőbe:<br>${escapeHtml(payload.cancelUrl)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${escapeHtml(copy.fallback)}<br>${escapeHtml(payload.cancelUrl)}</p>
     </div>
   `;
 }
@@ -497,6 +540,8 @@ function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
 export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessionBookingEmail) {
   const { apiKey, from } = emailConfig();
   const attachments = miniSessionCalendarAttachments(payload);
+  const copy = miniSessionBookingEmailCopy(payload.language);
+  const calendarLabel = payload.calendarButtonLabel ?? copy.addCalendar;
 
   if (!apiKey) {
     console.warn("Mini session booking confirmation skipped. Missing RESEND_API_KEY.");
@@ -512,19 +557,19 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
     body: JSON.stringify({
       from,
       to: payload.to,
-      subject: `Foglalás megerősítve: ${payload.sessionTitle}`,
+      subject: `${copy.subject}: ${payload.sessionTitle}`,
       html: miniSessionBookingConfirmationHtml(payload),
       text: [
-        "Időpont foglalás megerősítve",
+        copy.heading,
         "",
-        `Session: ${payload.sessionTitle}`,
-        `Dátum: ${formatMiniSessionEmailDate(payload.sessionDate)}`,
-        `Időpont: ${miniSessionSlotLabel(payload.startsAt, payload.endsAt)}`,
-        `Helyszín: ${payload.location}`,
-        `Létszám: ${payload.attendeeCount}`,
+        `${copy.sessionLabel}: ${payload.sessionTitle}`,
+        `${copy.dateLabel}: ${formatMiniSessionEmailDate(payload.sessionDate, payload.language)}`,
+        `${copy.timeLabel}: ${miniSessionSlotLabel(payload.startsAt, payload.endsAt, payload.language)}`,
+        `${copy.locationLabel}: ${payload.location}`,
+        `${copy.attendeeCountLabel}: ${payload.attendeeCount}`,
         "",
-        ...(payload.calendarUrl ? [`Naptárhoz adás: ${payload.calendarUrl}`, ""] : []),
-        `Időpont törlése: ${payload.cancelUrl}`
+        ...(payload.calendarUrl ? [`${calendarLabel}: ${payload.calendarUrl}`, ""] : []),
+        `${copy.cancelButton}: ${payload.cancelUrl}`
       ].join("\n"),
       ...(attachments ? { attachments } : {})
     })

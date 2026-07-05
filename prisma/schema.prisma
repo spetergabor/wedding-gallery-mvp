@@ -142,6 +142,7 @@ model MiniSession {
   startsAt        DateTime
   endsAt          DateTime
   durationMinutes Int
+  language        String   @default("hu")
   isActive        Boolean  @default(true)
   notes           String?
   coverImageUrl   String?

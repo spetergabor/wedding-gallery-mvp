@@ -19,11 +19,13 @@ import {
 import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/mini-session-calendar";
 import {
   createMiniSessionSlots,
+  type MiniSessionLanguage,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_CLIENT,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
-  MINI_SESSION_BOOKING_STATUS_CANCELLED
+  MINI_SESSION_BOOKING_STATUS_CANCELLED,
+  normalizeMiniSessionLanguage
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
@@ -52,6 +54,10 @@ function isValidEmail(email: string) {
 function parseInteger(value: string, fallback: number) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function miniSessionLanguageFromForm(formData: FormData) {
+  return normalizeMiniSessionLanguage(formString(formData, "language"));
 }
 
 function parseLocalDateTime(date: string, time: string) {
@@ -155,7 +161,8 @@ function miniSessionCalendarDescription({
   attendeeCount,
   cancelUrl,
   adminUrl,
-  status
+  status,
+  language = "hu"
 }: {
   location: string;
   name: string;
@@ -165,16 +172,42 @@ function miniSessionCalendarDescription({
   cancelUrl?: string;
   adminUrl?: string;
   status?: "booked" | "cancelled";
+  language?: MiniSessionLanguage;
 }) {
+  const copy =
+    language === "de"
+      ? {
+          booked: "Mini-Session-Buchung.",
+          cancelled: "Die Mini-Session-Buchung wurde storniert.",
+          location: "Ort",
+          name: "Name",
+          email: "E-Mail",
+          phone: "Telefon",
+          attendeeCount: "Personen",
+          cancel: "Termin stornieren",
+          admin: "Admin"
+        }
+      : {
+          booked: "Mini session foglalás.",
+          cancelled: "A mini session foglalás törölve lett.",
+          location: "Helyszín",
+          name: "Név",
+          email: "Email",
+          phone: "Telefon",
+          attendeeCount: "Létszám",
+          cancel: "Időpont törlése",
+          admin: "Admin"
+        };
+
   return [
-    status === "cancelled" ? "A mini session foglalás törölve lett." : "Mini session foglalás.",
-    `Helyszín: ${location}`,
-    `Név: ${name}`,
-    `Email: ${email}`,
-    `Telefon: ${phone}`,
-    `Létszám: ${attendeeCount}`,
-    cancelUrl ? `Időpont törlése: ${cancelUrl}` : null,
-    adminUrl ? `Admin: ${adminUrl}` : null
+    status === "cancelled" ? copy.cancelled : copy.booked,
+    `${copy.location}: ${location}`,
+    `${copy.name}: ${name}`,
+    `${copy.email}: ${email}`,
+    `${copy.phone}: ${phone}`,
+    `${copy.attendeeCount}: ${attendeeCount}`,
+    cancelUrl ? `${copy.cancel}: ${cancelUrl}` : null,
+    adminUrl ? `${copy.admin}: ${adminUrl}` : null
   ].filter(Boolean).join("\n");
 }
 
@@ -186,6 +219,7 @@ export async function createMiniSessionAction(formData: FormData) {
   const startTime = formString(formData, "startTime");
   const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
+  const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseLocalDateTime(date, startTime);
@@ -209,6 +243,7 @@ export async function createMiniSessionAction(formData: FormData) {
         startsAt,
         endsAt,
         durationMinutes,
+        language,
         isActive: formData.get("isActive") === "on",
         notes: notes || null,
         coverImageUrl: uploadedCover?.url ?? null,
@@ -248,6 +283,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const startTime = formString(formData, "startTime");
   const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
+  const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseLocalDateTime(date, startTime);
@@ -268,6 +304,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         startsAt,
         endsAt,
         durationMinutes,
+        language,
         isActive: formData.get("isActive") === "on",
         notes: notes || null
       }
@@ -551,6 +588,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   const adminUrl = adminMiniSessionUrl(session.id);
   const publicUrl = miniSessionPublicUrl(session.slug);
   const calendarFilename = miniSessionCalendarFilename(session.title);
+  const language = normalizeMiniSessionLanguage(session.language);
   const customerCalendarIcs = buildMiniSessionCalendarIcs({
     uid: miniSessionCalendarUid(booking.id),
     sessionTitle: session.title,
@@ -566,7 +604,8 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       email,
       phone,
       attendeeCount,
-      cancelUrl
+      cancelUrl,
+      language
     })
   });
   const adminCalendarIcs = buildMiniSessionCalendarIcs({
@@ -603,7 +642,9 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       cancelUrl,
       calendarUrl,
       calendarIcs: customerCalendarIcs,
-      calendarFilename
+      calendarFilename,
+      calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
+      language
     });
     customerEmailSentAt = sent ? new Date() : null;
   } catch (error) {

@@ -1,0 +1,2 @@
+ALTER TABLE "MiniSession"
+ADD COLUMN "language" TEXT NOT NULL DEFAULT 'hu';
