@@ -594,6 +594,7 @@ function getActiveTab(flags: {
   contractUploaded?: string;
   contractWritten?: string;
   contractSent?: string;
+  contractDeleted?: string;
   invoiceUploaded?: string;
   invoiceSent?: string;
   invoiceStatusUpdated?: string;
@@ -607,7 +608,7 @@ function getActiveTab(flags: {
     return "invoices";
   }
 
-  if (flags.contractUploaded || flags.contractWritten || flags.contractSent) {
+  if (flags.contractUploaded || flags.contractWritten || flags.contractSent || flags.contractDeleted) {
     return "contracts";
   }
 
@@ -638,6 +639,7 @@ export default async function AdminClientDetailPage({
     contractUploaded?: string;
     contractWritten?: string;
     contractSent?: string;
+    contractDeleted?: string;
     contractError?: string;
     invoiceUploaded?: string;
     invoiceSent?: string;
@@ -1023,6 +1025,7 @@ export default async function AdminClientDetailPage({
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
+        {flags.contractDeleted ? <Alert title="Szerződés törölve." variant="success" /> : null}
         {flags.invoiceUploaded ? <Alert title="Számla feltöltve." variant="success" /> : null}
         {flags.invoiceSent ? <Alert title="Számla elküldve emailben." variant="success" /> : null}
         {flags.invoiceStatusUpdated ? <Alert title="Számla státusz frissítve." variant="success" /> : null}

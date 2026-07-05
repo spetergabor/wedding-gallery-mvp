@@ -9,7 +9,13 @@ import { mergeContractFieldsFromTemplate } from "@/lib/contract-fields";
 import { contractPublicUrl, sendContractSignatureRequestEmail } from "@/lib/email";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { prisma } from "@/lib/prisma";
-import { createContractObjectKey, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
+import {
+  createContractObjectKey,
+  deletePhotoObject,
+  getPhotoPublicUrl,
+  getR2KeyFromPublicUrl,
+  savePhotoObject
+} from "@/lib/storage";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -171,4 +177,34 @@ export async function sendContractAction(customerId: string, contractId: string)
 
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?contractSent=1`);
+}
+
+export async function deleteContractAction(customerId: string, contractId: string) {
+  const admin = await requireAdmin();
+
+  const contract = await prisma.contract.findFirst({
+    where: customerContractAccessWhere(admin, customerId, contractId),
+    select: {
+      id: true,
+      r2Key: true,
+      signedR2Key: true,
+      signedFileUrl: true
+    }
+  });
+
+  if (!contract) {
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractError=not-found`);
+  }
+
+  await prisma.contract.delete({
+    where: { id: contract.id }
+  });
+
+  await Promise.all([
+    deletePhotoObject(contract.r2Key),
+    deletePhotoObject(contract.signedR2Key ?? getR2KeyFromPublicUrl(contract.signedFileUrl) ?? "")
+  ]);
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=contracts&contractDeleted=1`);
 }

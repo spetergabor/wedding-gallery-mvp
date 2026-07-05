@@ -1,7 +1,8 @@
-import { Download, ExternalLink, FileText, Mail, UploadCloud } from "lucide-react";
+import { Download, ExternalLink, FileText, Mail, Trash2, UploadCloud } from "lucide-react";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { WrittenContractEditor } from "@/components/written-contract-editor";
-import { sendContractAction, uploadContractAction } from "@/lib/contract-actions";
+import { deleteContractAction, sendContractAction, uploadContractAction } from "@/lib/contract-actions";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 
 type Contract = {
@@ -175,6 +176,16 @@ export function ContractManager({
                       </a>
                     </>
                   ) : null}
+                  <form action={deleteContractAction.bind(null, customerId, contract.id)}>
+                    <ConfirmSubmitButton
+                      variant="danger"
+                      className="size-10 px-0"
+                      message={`Biztosan törlöd ezt a szerződést: ${contract.title}? A PDF is törlődik a tárhelyről.`}
+                      title="Szerződés törlése"
+                    >
+                      <Trash2 size={16} />
+                    </ConfirmSubmitButton>
+                  </form>
                 </div>
               </div>
               <div className="mt-3 grid gap-2 text-xs text-graphite/60">
