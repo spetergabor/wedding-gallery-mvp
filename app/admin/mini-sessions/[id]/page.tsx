@@ -2,13 +2,13 @@ import { ArrowLeft, CalendarClock, CheckCircle2, ChevronDown, Download, External
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { ComponentType } from "react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MiniSessionTabController } from "@/components/mini-session-tab-controller";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { miniSessionPublicUrl } from "@/lib/email";
@@ -127,11 +127,11 @@ export default async function AdminMiniSessionDetailPage({
   const freeSlots = slots.filter((slot) => !bookedBySlot.has(slot.token));
   const freeSlotCount = freeSlots.length;
   const publicUrl = miniSessionPublicUrl(session.slug);
-  const tabs: Array<{ id: MiniSessionTab; label: string; icon: ComponentType<{ size?: number; className?: string }> }> = [
-    { id: "overview", label: "Áttekintés", icon: CalendarClock },
-    { id: "bookings", label: "Foglalók", icon: Users },
-    { id: "slots", label: "Idősávok", icon: CheckCircle2 },
-    { id: "settings", label: "Beállítások", icon: Settings2 }
+  const tabs: Array<{ key: MiniSessionTab; label: string; icon: "CalendarClock" | "Users" | "CheckCircle2" | "Settings2" }> = [
+    { key: "overview", label: "Áttekintés", icon: "CalendarClock" },
+    { key: "bookings", label: "Foglalók", icon: "Users" },
+    { key: "slots", label: "Idősávok", icon: "CheckCircle2" },
+    { key: "settings", label: "Beállítások", icon: "Settings2" }
   ];
 
   return (
@@ -186,7 +186,7 @@ export default async function AdminMiniSessionDetailPage({
               <Download size={14} />
               CSV export
             </Link>
-            <Link className={headerActionLinkClass} href={tabHref(session.id, "settings")}>
+            <Link className={headerActionLinkClass} href={tabHref(session.id, "settings")} data-mini-session-tab-target="settings">
               <Settings2 size={14} />
               Szerkesztés
             </Link>
@@ -194,42 +194,27 @@ export default async function AdminMiniSessionDetailPage({
         </div>
       </section>
 
-      <nav className="mt-5 flex gap-2 overflow-x-auto border-b border-ink/10 pb-2">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = currentTab === tab.id;
-          return (
-            <Link
-              key={tab.id}
-              href={tabHref(session.id, tab.id)}
-              className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
-                isActive ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
-              }`}
-            >
-              <Icon size={15} />
-              {tab.label}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="mt-5">
+        <MiniSessionTabController tabs={tabs} initialTab={currentTab} />
+      </div>
 
-      {currentTab === "overview" ? (
-        <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div data-mini-session-tab-panel="overview" hidden={currentTab !== "overview"}>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-4">
-              <Link href={tabHref(session.id, "slots")} className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
+              <Link href={tabHref(session.id, "slots")} data-mini-session-tab-target="slots" className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
                 <p className="text-2xl font-semibold text-ink">{slots.length}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Összes idősáv</p>
               </Link>
-              <Link href={tabHref(session.id, "slots")} className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
+              <Link href={tabHref(session.id, "slots")} data-mini-session-tab-target="slots" className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
                 <p className="text-2xl font-semibold text-sage">{freeSlotCount}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Szabad</p>
               </Link>
-              <Link href={tabHref(session.id, "bookings")} className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
+              <Link href={tabHref(session.id, "bookings")} data-mini-session-tab-target="bookings" className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
                 <p className="text-2xl font-semibold text-ink">{contactBookings.length}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Foglaló</p>
               </Link>
-              <Link href={tabHref(session.id, "slots")} className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
+              <Link href={tabHref(session.id, "slots")} data-mini-session-tab-target="slots" className="rounded-md bg-white px-4 py-4 shadow-soft transition hover:bg-ink/5">
                 <p className="text-2xl font-semibold text-graphite">{blockedBookings.length}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Blokkolt</p>
               </Link>
@@ -241,7 +226,7 @@ export default async function AdminMiniSessionDetailPage({
                   <h2 className="text-lg font-semibold text-ink">Legutóbbi foglalók</h2>
                   <p className="mt-1 text-sm text-graphite/65">A teljes kontaktlistát a Foglalók fülön látod.</p>
                 </div>
-                <Link href={tabHref(session.id, "bookings")} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+                <Link href={tabHref(session.id, "bookings")} data-mini-session-tab-target="bookings" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
                   <Users size={15} />
                   Foglalók megnyitása
                 </Link>
@@ -289,10 +274,10 @@ export default async function AdminMiniSessionDetailPage({
             </section>
           </aside>
         </div>
-      ) : null}
+      </div>
 
-      {currentTab === "bookings" ? (
-        <section className="mt-6 rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+      <div data-mini-session-tab-panel="bookings" hidden={currentTab !== "bookings"}>
+        <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h2 className="text-lg font-semibold text-ink">Foglalók</h2>
@@ -399,10 +384,10 @@ export default async function AdminMiniSessionDetailPage({
             </details>
           ) : null}
         </section>
-      ) : null}
+      </div>
 
-      {currentTab === "slots" ? (
-        <div className="mt-6 grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div data-mini-session-tab-panel="slots" hidden={currentTab !== "slots"}>
+        <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
               <PlusCircle size={18} />
@@ -518,10 +503,10 @@ export default async function AdminMiniSessionDetailPage({
             </div>
           </section>
         </div>
-      ) : null}
+      </div>
 
-      {currentTab === "settings" ? (
-        <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div data-mini-session-tab-panel="settings" hidden={currentTab !== "settings"}>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
             <h2 className="text-lg font-semibold text-ink">Esemény beállításai</h2>
             <form action={updateMiniSessionAction.bind(null, session.id)} className="mt-5 grid content-start gap-4 sm:grid-cols-2">
@@ -632,7 +617,7 @@ export default async function AdminMiniSessionDetailPage({
             </section>
           </aside>
         </div>
-      ) : null}
+      </div>
     </AdminShell>
   );
 }
