@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   FileText,
   FolderKanban,
+  Globe2,
   Heart,
   ImagePlus,
   MessageSquare,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "details";
+type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
 
 type CustomerTabItem = {
   key: CustomerTab;
@@ -32,6 +33,7 @@ const icons = {
   FileText,
   ReceiptText,
   MessageSquare,
+  Globe2,
   Settings
 } satisfies Record<string, LucideIcon>;
 
@@ -108,7 +110,7 @@ export function CustomerTabController({
   return (
     <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
       <nav
-        className="flex min-w-full gap-1 overflow-x-auto border-b border-ink/10 bg-white p-1 [scrollbar-width:none] md:grid md:grid-cols-3 md:gap-0 md:overflow-visible md:p-0 xl:grid-cols-9 [&::-webkit-scrollbar]:hidden"
+        className="flex min-w-full gap-1 overflow-x-auto border-b border-ink/10 bg-white p-1 [scrollbar-width:none] md:grid md:grid-cols-3 md:gap-0 md:overflow-visible md:p-0 xl:grid-cols-10 [&::-webkit-scrollbar]:hidden"
         aria-label="Ügyfél munkaterületek"
       >
         {tabs.map((tab) => {

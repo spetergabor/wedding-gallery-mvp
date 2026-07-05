@@ -90,6 +90,19 @@ model Customer {
   weddingDate    DateTime?
   venue          String?
   preferredLanguage String @default("de")
+  portalToken    String?  @unique
+  partnerName    String?
+  partnerEmail   String?
+  partnerPhone   String?
+  weddingLocation String?
+  weddingAddress String?
+  gettingReadyLocation String?
+  ceremonyLocation String?
+  receptionLocation String?
+  weddingSchedule String?
+  weddingStyleNotes String?
+  importantPeopleNotes String?
+  portalNotes    String?
   status         String   @default("lead")
   notes          String?
   createdAt      DateTime @default(now())
@@ -101,12 +114,50 @@ model Customer {
   projects       CustomerProject[]
   albumReviews   AlbumReview[]
   albumDesigns   AlbumDesign[]
+  portalImages   CustomerPortalImage[]
+  vendors        CustomerVendor[]
 
   @@index([adminId])
   @@index([customerType])
   @@index([status])
   @@index([weddingDate])
   @@index([primaryEmail])
+}
+
+model CustomerPortalImage {
+  id               String   @id @default(cuid())
+  customerId       String
+  title            String?
+  notes            String?
+  originalFilename String
+  imageUrl         String
+  r2Key            String
+  fileSize         Int      @default(0)
+  contentType      String?
+  uploadedBy       String   @default("client")
+  createdAt        DateTime @default(now())
+  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model CustomerVendor {
+  id          String   @id @default(cuid())
+  customerId  String
+  role        String
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  website     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([role])
 }
 
 model Lead {

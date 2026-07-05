@@ -28,6 +28,7 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
+import { CustomerPortalManager } from "@/components/customer-portal-manager";
 import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { CustomerTabController } from "@/components/customer-tab-controller";
 import { DismissibleNextAction } from "@/components/dismissible-next-action";
@@ -38,6 +39,7 @@ import { customerAccessWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { CUSTOMER_STATUSES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
+import { customerPortalUrl } from "@/lib/email";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { getProjectWorkflowSummary } from "@/lib/project-workflow";
 import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
@@ -151,13 +153,13 @@ type CustomerProjectOverview = {
   };
 };
 
-type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "details";
+type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
 type AlbumMode = "editor" | "upload";
 
 const customerTabs: Array<{
   key: CustomerTab;
   label: string;
-  icon: "CheckCircle2" | "FolderKanban" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Settings";
+  icon: "CheckCircle2" | "FolderKanban" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Globe2" | "Settings";
 }> = [
   { key: "overview", label: "Áttekintés", icon: "CheckCircle2" },
   { key: "projects", label: "Projektek", icon: "FolderKanban" },
@@ -167,6 +169,7 @@ const customerTabs: Array<{
   { key: "contracts", label: "Szerződések", icon: "FileText" },
   { key: "invoices", label: "Számlák", icon: "ReceiptText" },
   { key: "communication", label: "Kommunikáció", icon: "MessageSquare" },
+  { key: "portal", label: "Portál", icon: "Globe2" },
   { key: "details", label: "Adatok", icon: "Settings" }
 ];
 
@@ -594,6 +597,7 @@ function getActiveTab(flags: {
   invoiceUploaded?: string;
   invoiceSent?: string;
   invoiceStatusUpdated?: string;
+  portalCreated?: string;
 }): CustomerTab {
   if (flags.edit === "1") {
     return "details";
@@ -605,6 +609,10 @@ function getActiveTab(flags: {
 
   if (flags.contractUploaded || flags.contractWritten || flags.contractSent) {
     return "contracts";
+  }
+
+  if (flags.portalCreated) {
+    return "portal";
   }
 
   if (customerTabs.some((tab) => tab.key === flags.tab)) {
@@ -635,6 +643,8 @@ export default async function AdminClientDetailPage({
     invoiceSent?: string;
     invoiceStatusUpdated?: string;
     invoiceError?: string;
+    portalCreated?: string;
+    portalError?: string;
     edit?: string;
     projectCreated?: string;
     projectDeleted?: string;
@@ -675,11 +685,30 @@ export default async function AdminClientDetailPage({
       weddingDate: true,
       venue: true,
       preferredLanguage: true,
+      portalToken: true,
+      partnerName: true,
+      partnerEmail: true,
+      partnerPhone: true,
+      weddingLocation: true,
+      weddingAddress: true,
+      gettingReadyLocation: true,
+      ceremonyLocation: true,
+      receptionLocation: true,
+      weddingSchedule: true,
+      weddingStyleNotes: true,
+      importantPeopleNotes: true,
+      portalNotes: true,
       status: true,
       notes: true,
       createdAt: true,
       contracts: {
         orderBy: { createdAt: "desc" }
+      },
+      portalImages: {
+        orderBy: { createdAt: "desc" }
+      },
+      vendors: {
+        orderBy: [{ role: "asc" }, { name: "asc" }]
       },
       invoices: {
         orderBy: { createdAt: "desc" },
@@ -938,6 +967,7 @@ export default async function AdminClientDetailPage({
     projectsByDate.map((project) => [project.id, getProjectWorkflowSummary(customer.id, project, { today })])
   );
   const nextProjectWorkflow = nextProject ? projectWorkflowSummaries.get(nextProject.id) : null;
+  const portalUrl = customer.portalToken ? customerPortalUrl(customer.portalToken) : null;
 
   return (
     <AdminShell>
@@ -987,6 +1017,8 @@ export default async function AdminClientDetailPage({
         {flags.invoiceUploaded ? <Alert title="Számla feltöltve." variant="success" /> : null}
         {flags.invoiceSent ? <Alert title="Számla elküldve emailben." variant="success" /> : null}
         {flags.invoiceStatusUpdated ? <Alert title="Számla státusz frissítve." variant="success" /> : null}
+        {flags.portalCreated ? <Alert title="Ügyfélportál létrehozva." variant="success" /> : null}
+        {flags.portalError === "type" ? <Alert title="Ügyfélportál csak esküvős párnál elérhető." variant="error" /> : null}
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
         {flags.albumDeleted ? <Alert title="Album ellenőrző törölve." variant="success" /> : null}
@@ -1453,6 +1485,10 @@ export default async function AdminClientDetailPage({
             </div>
           )}
         </section>
+      </div>
+
+      <div data-customer-tab-panel="portal" hidden={activeTab !== "portal"}>
+        <CustomerPortalManager customer={customer} portalUrl={portalUrl} />
       </div>
 
       <div data-customer-tab-panel="details" hidden={activeTab !== "details"}>

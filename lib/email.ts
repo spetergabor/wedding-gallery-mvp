@@ -429,6 +429,10 @@ export function miniSessionBookingCalendarUrl(slug: string, token: string) {
   return `${appBaseUrl()}/mini-session/${slug}/calendar/${token}`;
 }
 
+export function customerPortalUrl(token: string) {
+  return `${appBaseUrl()}/portal/${token}`;
+}
+
 export function adminMiniSessionUrl(miniSessionId: string) {
   return `${appBaseUrl()}/admin/mini-sessions/${miniSessionId}`;
 }

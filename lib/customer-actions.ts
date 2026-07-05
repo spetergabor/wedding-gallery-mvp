@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { createCustomerPortalToken } from "@/lib/customer-portal";
 import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
@@ -66,7 +67,8 @@ export async function createCustomerAction(formData: FormData) {
   const customer = await prisma.customer.create({
     data: {
       ...payload,
-      adminId: admin.id
+      adminId: admin.id,
+      portalToken: payload.customerType === "wedding_couple" ? createCustomerPortalToken() : null
     },
     select: { id: true }
   });
@@ -88,6 +90,7 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
     where: customerAccessWhere(admin, customerId),
     select: {
       id: true,
+      portalToken: true,
       galleries: {
         select: {
           id: true,
@@ -103,11 +106,20 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
 
   await prisma.customer.update({
     where: { id: customer.id },
-    data: payload
+    data: {
+      ...payload,
+      portalToken:
+        payload.customerType === "wedding_couple" && !customer.portalToken
+          ? createCustomerPortalToken()
+          : customer.portalToken
+    }
   });
 
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${customerId}`);
+  if (customer.portalToken) {
+    revalidatePath(`/portal/${customer.portalToken}`);
+  }
   for (const gallery of customer.galleries) {
     revalidatePath(`/admin/galleries/${gallery.id}`);
     revalidatePath(`/g/${gallery.slug}`);
@@ -240,6 +252,11 @@ export async function deleteCustomerAction(customerId: string) {
         select: {
           r2Key: true
         }
+      },
+      portalImages: {
+        select: {
+          r2Key: true
+        }
       }
     }
   });
@@ -252,12 +269,13 @@ export async function deleteCustomerAction(customerId: string) {
     [contract.r2Key, contract.signedR2Key].filter((key): key is string => Boolean(key))
   );
   const invoiceObjectKeys = customer.invoices.map((invoice) => invoice.r2Key).filter(Boolean);
+  const portalImageObjectKeys = customer.portalImages.map((image) => image.r2Key).filter(Boolean);
 
   await prisma.customer.delete({
     where: { id: customer.id }
   });
 
-  await Promise.all([...contractObjectKeys, ...invoiceObjectKeys].map((key) => deletePhotoObject(key)));
+  await Promise.all([...contractObjectKeys, ...invoiceObjectKeys, ...portalImageObjectKeys].map((key) => deletePhotoObject(key)));
 
   revalidatePath("/admin/clients");
   revalidatePath("/admin/galleries");

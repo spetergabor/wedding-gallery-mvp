@@ -173,6 +173,20 @@ export function createMiniSessionCoverObjectKey({
   return `mini-sessions/${adminId}/covers/${uniqueName}`;
 }
 
+export function createCustomerPortalImageObjectKey({
+  customerId,
+  originalFilename
+}: {
+  customerId: string;
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".jpg";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "inspiration";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `customer-portals/${customerId}/inspiration/${uniqueName}`;
+}
+
 export function createContractObjectKey({
   customerId,
   originalFilename
