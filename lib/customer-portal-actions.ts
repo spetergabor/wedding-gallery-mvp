@@ -106,30 +106,47 @@ export async function ensureCustomerPortalAction(customerId: string) {
 
 export async function updateCustomerPortalDetailsAction(token: string, formData: FormData) {
   const customer = await findCustomerByPortalToken(token);
-  const coupleName = formString(formData, "coupleName");
-  const primaryEmail = normalizeEmail(formOptionalString(formData, "primaryEmail"));
+  const wifeName = formString(formData, "wifeName");
+  const husbandName = formString(formData, "husbandName");
+  const wifeEmail = normalizeEmail(formOptionalString(formData, "wifeEmail"));
+  const husbandEmail = normalizeEmail(formOptionalString(formData, "husbandEmail"));
+  const wifePhone = formOptionalString(formData, "wifePhone");
+  const husbandPhone = formOptionalString(formData, "husbandPhone");
+  const mainLocation = formOptionalString(formData, "mainLocation");
+  const gettingReadyLocation = formOptionalString(formData, "gettingReadyLocation");
+  const churchCeremonyLocation = formOptionalString(formData, "churchCeremonyLocation");
+  const civilCeremonyLocation = formOptionalString(formData, "civilCeremonyLocation");
 
-  if (!coupleName || !primaryEmail) {
+  if (!wifeName || !husbandName || !wifeEmail || !husbandEmail) {
     portalRedirect(token, "error=missing");
   }
 
   await prisma.customer.update({
     where: { id: customer.id },
     data: {
-      coupleName,
-      primaryEmail,
-      secondaryEmail: normalizeEmail(formOptionalString(formData, "secondaryEmail")),
-      phone: formOptionalString(formData, "phone"),
-      partnerName: formOptionalString(formData, "partnerName"),
-      partnerEmail: normalizeEmail(formOptionalString(formData, "partnerEmail")),
-      partnerPhone: formOptionalString(formData, "partnerPhone"),
+      coupleName: `${wifeName} & ${husbandName}`,
+      primaryEmail: wifeEmail,
+      secondaryEmail: husbandEmail !== wifeEmail ? husbandEmail : null,
+      phone: wifePhone || husbandPhone,
+      wifeName,
+      wifeEmail,
+      wifePhone,
+      husbandName,
+      husbandEmail,
+      husbandPhone,
+      partnerName: husbandName,
+      partnerEmail: husbandEmail,
+      partnerPhone: husbandPhone,
       weddingDate: formDate(formData, "weddingDate"),
-      venue: formOptionalString(formData, "venue"),
-      weddingLocation: formOptionalString(formData, "weddingLocation"),
+      venue: mainLocation,
+      weddingLocation: mainLocation,
       weddingAddress: formOptionalString(formData, "weddingAddress"),
-      gettingReadyLocation: formOptionalString(formData, "gettingReadyLocation"),
-      ceremonyLocation: formOptionalString(formData, "ceremonyLocation"),
-      receptionLocation: formOptionalString(formData, "receptionLocation"),
+      gettingReadyLocation,
+      churchCeremonyLocation,
+      civilCeremonyLocation,
+      mainLocation,
+      ceremonyLocation: churchCeremonyLocation || civilCeremonyLocation,
+      receptionLocation: mainLocation,
       weddingSchedule: formOptionalString(formData, "weddingSchedule"),
       weddingStyleNotes: formOptionalString(formData, "weddingStyleNotes"),
       importantPeopleNotes: formOptionalString(formData, "importantPeopleNotes"),

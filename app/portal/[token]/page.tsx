@@ -45,24 +45,25 @@ const PORTAL_COPY = {
     imageSize: "Maximum 12 MB-os képet töltsetek fel.",
     coupleData: "Pár és esküvői adatok",
     coupleDataIntro: "Ezeket az adatokat a fotós is látja az admin felületen.",
-    coupleName: "Pár / projekt neve",
-    primaryEmail: "Elsődleges e-mail",
-    secondaryEmail: "Másodlagos e-mail",
-    phone: "Telefon",
-    partnerName: "Partner neve",
-    partnerEmail: "Partner e-mail",
-    partnerPhone: "Partner telefon",
+    wifeName: "Feleség neve",
+    wifeEmail: "Feleség e-mail címe",
+    wifePhone: "Feleség telefonszáma",
+    husbandName: "Férj neve",
+    husbandEmail: "Férj e-mail címe",
+    husbandPhone: "Férj telefonszáma",
     weddingDate: "Esküvő dátuma",
-    venue: "Fő helyszín",
-    weddingLocation: "Helyszín neve",
-    weddingAddress: "Helyszín címe",
-    gettingReady: "Getting ready helyszín",
-    ceremony: "Ceremónia helyszín",
-    reception: "Vacsora / buli helyszín",
+    locations: "Helyszínek",
+    mainLocation: "Fő helyszín",
+    weddingAddress: "Fő helyszín címe",
+    gettingReady: "Készülődés helyszíne",
+    churchCeremony: "Templomi szertartás helyszíne",
+    civilCeremony: "Polgári szertartás helyszíne",
     schedule: "Menetrend",
     styleNotes: "Styling, hangulat, inspiráció",
     importantPeople: "Fontos emberek / családi infók",
     notes: "Egyéb megjegyzés",
+    email: "E-mail",
+    phone: "Telefon",
     save: "Adatok mentése",
     saving: "Mentés...",
     inspiration: "Inspirációs képek",
@@ -102,24 +103,25 @@ const PORTAL_COPY = {
     imageSize: "Bitte ladet Bilder bis maximal 12 MB hoch.",
     coupleData: "Paar- und Hochzeitsdaten",
     coupleDataIntro: "Diese Angaben sieht auch euer Fotograf im Adminbereich.",
-    coupleName: "Paar / Projektname",
-    primaryEmail: "Primäre E-Mail",
-    secondaryEmail: "Zweite E-Mail",
-    phone: "Telefon",
-    partnerName: "Partnername",
-    partnerEmail: "Partner E-Mail",
-    partnerPhone: "Partner Telefon",
+    wifeName: "Name der Braut",
+    wifeEmail: "E-Mail der Braut",
+    wifePhone: "Telefon der Braut",
+    husbandName: "Name des Bräutigams",
+    husbandEmail: "E-Mail des Bräutigams",
+    husbandPhone: "Telefon des Bräutigams",
     weddingDate: "Hochzeitsdatum",
-    venue: "Hauptlocation",
-    weddingLocation: "Name der Location",
-    weddingAddress: "Adresse der Location",
+    locations: "Locations",
+    mainLocation: "Hauptlocation",
+    weddingAddress: "Adresse der Hauptlocation",
     gettingReady: "Getting-ready Location",
-    ceremony: "Trauung",
-    reception: "Dinner / Party",
+    churchCeremony: "Kirchliche Trauung",
+    civilCeremony: "Standesamtliche Trauung",
     schedule: "Tagesablauf",
     styleNotes: "Styling, Stimmung, Inspiration",
     importantPeople: "Wichtige Personen / Familieninfos",
     notes: "Weitere Notizen",
+    email: "E-Mail",
+    phone: "Telefon",
     save: "Daten speichern",
     saving: "Speichern...",
     inspiration: "Inspirationsbilder",
@@ -250,7 +252,7 @@ export default async function CustomerPortalPage({
               </span>
               <span className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-paper px-3 py-2">
                 <MapPin size={16} />
-                {value(customer.venue || customer.weddingLocation, language)}
+                {value(customer.mainLocation || customer.venue || customer.weddingLocation, language)}
               </span>
             </div>
           </div>
@@ -307,80 +309,84 @@ export default async function CustomerPortalPage({
               </h2>
               <p className="mt-2 text-sm leading-6 text-graphite/70">{copy.coupleDataIntro}</p>
 
-              <form action={updateCustomerPortalDetailsAction.bind(null, token)} className="mt-6 grid gap-5 md:grid-cols-2">
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-graphite">{copy.coupleName}</span>
-                  <input name="coupleName" defaultValue={customer.coupleName} required className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.primaryEmail}</span>
-                  <input name="primaryEmail" type="email" defaultValue={customer.primaryEmail} required className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.secondaryEmail}</span>
-                  <input name="secondaryEmail" type="email" defaultValue={customer.secondaryEmail ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.phone}</span>
-                  <input name="phone" defaultValue={customer.phone ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.partnerName}</span>
-                  <input name="partnerName" defaultValue={customer.partnerName ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.partnerEmail}</span>
-                  <input name="partnerEmail" type="email" defaultValue={customer.partnerEmail ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.partnerPhone}</span>
-                  <input name="partnerPhone" defaultValue={customer.partnerPhone ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.weddingDate}</span>
-                  <input name="weddingDate" type="date" defaultValue={dateInputValue(customer.weddingDate)} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.venue}</span>
-                  <input name="venue" defaultValue={customer.venue ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.weddingLocation}</span>
-                  <input name="weddingLocation" defaultValue={customer.weddingLocation ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.weddingAddress}</span>
-                  <input name="weddingAddress" defaultValue={customer.weddingAddress ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.gettingReady}</span>
-                  <input name="gettingReadyLocation" defaultValue={customer.gettingReadyLocation ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.ceremony}</span>
-                  <input name="ceremonyLocation" defaultValue={customer.ceremonyLocation ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.reception}</span>
-                  <input name="receptionLocation" defaultValue={customer.receptionLocation ?? ""} className={fieldClass} />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-graphite">{copy.schedule}</span>
-                  <textarea name="weddingSchedule" defaultValue={customer.weddingSchedule ?? ""} className={textAreaClass} />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-graphite">{copy.styleNotes}</span>
-                  <textarea name="weddingStyleNotes" defaultValue={customer.weddingStyleNotes ?? ""} className={textAreaClass} />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-graphite">{copy.importantPeople}</span>
-                  <textarea name="importantPeopleNotes" defaultValue={customer.importantPeopleNotes ?? ""} className={textAreaClass} />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-graphite">{copy.notes}</span>
-                  <textarea name="portalNotes" defaultValue={customer.portalNotes ?? ""} className={textAreaClass} />
-                </label>
-                <div className="md:col-span-2">
+              <form action={updateCustomerPortalDetailsAction.bind(null, token)} className="mt-6 space-y-7">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.wifeName}</span>
+                    <input name="wifeName" defaultValue={customer.wifeName ?? ""} required className={fieldClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.husbandName}</span>
+                    <input name="husbandName" defaultValue={customer.husbandName ?? customer.partnerName ?? ""} required className={fieldClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.wifeEmail}</span>
+                    <input name="wifeEmail" type="email" defaultValue={customer.wifeEmail ?? customer.primaryEmail} required className={fieldClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.husbandEmail}</span>
+                    <input name="husbandEmail" type="email" defaultValue={customer.husbandEmail ?? customer.partnerEmail ?? customer.secondaryEmail ?? ""} required className={fieldClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.wifePhone}</span>
+                    <input name="wifePhone" defaultValue={customer.wifePhone ?? customer.phone ?? ""} className={fieldClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.husbandPhone}</span>
+                    <input name="husbandPhone" defaultValue={customer.husbandPhone ?? customer.partnerPhone ?? ""} className={fieldClass} />
+                  </label>
+                </div>
+
+                <div className="border-t border-ink/10 pt-6">
+                  <h3 className="text-base font-semibold text-ink">{copy.locations}</h3>
+                  <div className="mt-4 grid gap-5 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.weddingDate}</span>
+                      <input name="weddingDate" type="date" defaultValue={dateInputValue(customer.weddingDate)} className={fieldClass} />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.gettingReady}</span>
+                      <input name="gettingReadyLocation" defaultValue={customer.gettingReadyLocation ?? ""} className={fieldClass} />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.churchCeremony}</span>
+                      <input name="churchCeremonyLocation" defaultValue={customer.churchCeremonyLocation ?? customer.ceremonyLocation ?? ""} className={fieldClass} />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.civilCeremony}</span>
+                      <input name="civilCeremonyLocation" defaultValue={customer.civilCeremonyLocation ?? ""} className={fieldClass} />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.mainLocation}</span>
+                      <input name="mainLocation" defaultValue={customer.mainLocation ?? customer.weddingLocation ?? customer.venue ?? ""} className={fieldClass} />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.weddingAddress}</span>
+                      <input name="weddingAddress" defaultValue={customer.weddingAddress ?? ""} className={fieldClass} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 border-t border-ink/10 pt-6">
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.schedule}</span>
+                    <textarea name="weddingSchedule" defaultValue={customer.weddingSchedule ?? ""} className={textAreaClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.styleNotes}</span>
+                    <textarea name="weddingStyleNotes" defaultValue={customer.weddingStyleNotes ?? ""} className={textAreaClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.importantPeople}</span>
+                    <textarea name="importantPeopleNotes" defaultValue={customer.importantPeopleNotes ?? ""} className={textAreaClass} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.notes}</span>
+                    <textarea name="portalNotes" defaultValue={customer.portalNotes ?? ""} className={textAreaClass} />
+                  </label>
+                </div>
+
+                <div>
                   <FormSubmitButton pendingLabel={copy.saving}>{copy.save}</FormSubmitButton>
                 </div>
               </form>
@@ -462,7 +468,7 @@ export default async function CustomerPortalPage({
                   <input name="contactName" className={fieldClass} />
                 </label>
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium text-graphite">{copy.primaryEmail}</span>
+                  <span className="text-sm font-medium text-graphite">{copy.email}</span>
                   <input name="email" type="email" className={fieldClass} />
                 </label>
                 <label className="block space-y-2">

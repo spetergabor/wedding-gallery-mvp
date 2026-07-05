@@ -14,12 +14,21 @@ type PortalCustomer = {
   weddingDate: Date | null;
   venue: string | null;
   portalToken: string | null;
+  wifeName: string | null;
+  wifeEmail: string | null;
+  wifePhone: string | null;
+  husbandName: string | null;
+  husbandEmail: string | null;
+  husbandPhone: string | null;
   partnerName: string | null;
   partnerEmail: string | null;
   partnerPhone: string | null;
   weddingLocation: string | null;
   weddingAddress: string | null;
   gettingReadyLocation: string | null;
+  churchCeremonyLocation: string | null;
+  civilCeremonyLocation: string | null;
+  mainLocation: string | null;
   ceremonyLocation: string | null;
   receptionLocation: string | null;
   weddingSchedule: string | null;
@@ -107,9 +116,11 @@ export function CustomerPortalManager({
   );
   const completedItems = [
     Boolean(customer.portalToken),
-    Boolean(customer.partnerName || customer.secondaryEmail),
+    Boolean(customer.wifeName && customer.husbandName),
+    Boolean(customer.wifeEmail && customer.husbandEmail),
     Boolean(customer.weddingDate),
-    Boolean(customer.venue || customer.weddingLocation),
+    Boolean(customer.mainLocation || customer.venue || customer.weddingLocation),
+    Boolean(customer.gettingReadyLocation || customer.churchCeremonyLocation || customer.civilCeremonyLocation),
     customer.vendors.length > 0,
     customer.portalImages.length > 0,
     visibleContracts.some((contract) => contract.signedAt || contract.signedFileUrl)
@@ -176,10 +187,10 @@ export function CustomerPortalManager({
       ) : null}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <InfoItem label="Kitöltöttség" value={`${completedItems}/7 fontos pont`} />
-        <InfoItem label="Pár" value={customer.coupleName} />
+        <InfoItem label="Kitöltöttség" value={`${completedItems}/8 fontos pont`} />
+        <InfoItem label="Pár" value={[customer.wifeName, customer.husbandName].filter(Boolean).join(" & ") || customer.coupleName} />
         <InfoItem label="Dátum" value={formatDate(customer.weddingDate)} />
-        <InfoItem label="Helyszín" value={value(customer.venue || customer.weddingLocation)} />
+        <InfoItem label="Fő helyszín" value={value(customer.mainLocation || customer.venue || customer.weddingLocation)} />
       </div>
 
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -190,17 +201,17 @@ export function CustomerPortalManager({
               Pár és esküvői adatok
             </h3>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <InfoItem label="Elsődleges email" value={customer.primaryEmail} />
-              <InfoItem label="Másodlagos email" value={value(customer.secondaryEmail)} />
-              <InfoItem label="Telefon" value={value(customer.phone)} />
-              <InfoItem label="Partner neve" value={value(customer.partnerName)} />
-              <InfoItem label="Partner email" value={value(customer.partnerEmail)} />
-              <InfoItem label="Partner telefon" value={value(customer.partnerPhone)} />
-              <InfoItem label="Esküvő helyszíne" value={value(customer.weddingLocation || customer.venue)} />
-              <InfoItem label="Cím" value={value(customer.weddingAddress)} />
-              <InfoItem label="Getting ready" value={value(customer.gettingReadyLocation)} />
-              <InfoItem label="Ceremónia" value={value(customer.ceremonyLocation)} />
-              <InfoItem label="Vacsora / buli" value={value(customer.receptionLocation)} />
+              <InfoItem label="Feleség neve" value={value(customer.wifeName)} />
+              <InfoItem label="Férj neve" value={value(customer.husbandName || customer.partnerName)} />
+              <InfoItem label="Feleség email" value={value(customer.wifeEmail || customer.primaryEmail)} />
+              <InfoItem label="Férj email" value={value(customer.husbandEmail || customer.partnerEmail || customer.secondaryEmail)} />
+              <InfoItem label="Feleség telefon" value={value(customer.wifePhone || customer.phone)} />
+              <InfoItem label="Férj telefon" value={value(customer.husbandPhone || customer.partnerPhone)} />
+              <InfoItem label="Készülődés" value={value(customer.gettingReadyLocation)} />
+              <InfoItem label="Templomi szertartás" value={value(customer.churchCeremonyLocation || customer.ceremonyLocation)} />
+              <InfoItem label="Polgári szertartás" value={value(customer.civilCeremonyLocation)} />
+              <InfoItem label="Fő helyszín" value={value(customer.mainLocation || customer.weddingLocation || customer.venue)} />
+              <InfoItem label="Fő helyszín címe" value={value(customer.weddingAddress)} />
               <InfoItem label="Fontos emberek" value={value(customer.importantPeopleNotes)} />
             </div>
             {customer.weddingSchedule || customer.weddingStyleNotes || customer.portalNotes ? (

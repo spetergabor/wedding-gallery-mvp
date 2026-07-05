@@ -91,12 +91,21 @@ model Customer {
   venue          String?
   preferredLanguage String @default("de")
   portalToken    String?  @unique
+  wifeName       String?
+  wifeEmail      String?
+  wifePhone      String?
+  husbandName    String?
+  husbandEmail   String?
+  husbandPhone   String?
   partnerName    String?
   partnerEmail   String?
   partnerPhone   String?
   weddingLocation String?
   weddingAddress String?
   gettingReadyLocation String?
+  churchCeremonyLocation String?
+  civilCeremonyLocation String?
+  mainLocation   String?
   ceremonyLocation String?
   receptionLocation String?
   weddingSchedule String?
