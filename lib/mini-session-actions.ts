@@ -442,6 +442,7 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     include: {
       admin: {
         select: {
+          name: true,
           email: true
         }
       }
@@ -544,6 +545,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     include: {
       admin: {
         select: {
+          name: true,
           email: true
         }
       }
@@ -657,6 +659,8 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   try {
     const sent = await sendMiniSessionBookingConfirmationEmail({
       to: email,
+      replyTo: session.admin.email,
+      senderName: session.admin.name,
       sessionTitle: session.title,
       sessionDate: session.sessionDate,
       location: session.location,
@@ -679,6 +683,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   try {
     const sent = await sendMiniSessionAdminBookingEmail({
       to: session.admin.email,
+      replyTo: email,
       sessionTitle: session.title,
       sessionDate: session.sessionDate,
       location: session.location,
@@ -720,6 +725,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
         include: {
           admin: {
             select: {
+              name: true,
               email: true
             }
           }
@@ -770,6 +776,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
       });
       const sent = await sendMiniSessionBookingCancelledEmail({
         to: booking.miniSession.admin.email,
+        replyTo: booking.email,
         sessionTitle: booking.miniSession.title,
         sessionDate: booking.miniSession.sessionDate,
         location: booking.miniSession.location,
@@ -851,7 +858,16 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
       miniSession: adminOwnedWhere(admin)
     },
     include: {
-      miniSession: true
+      miniSession: {
+        include: {
+          admin: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
+      }
     }
   });
 
@@ -890,6 +906,8 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
   try {
     const sent = await sendMiniSessionBookingConfirmationEmail({
       to: booking.email,
+      replyTo: booking.miniSession.admin.email,
+      senderName: booking.miniSession.admin.name,
       sessionTitle: booking.miniSession.title,
       sessionDate: booking.miniSession.sessionDate,
       location: booking.miniSession.location,

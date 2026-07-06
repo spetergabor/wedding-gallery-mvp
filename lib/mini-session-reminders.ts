@@ -54,6 +54,7 @@ export async function sendMiniSessionReminderEmails({
           language: true,
           admin: {
             select: {
+              name: true,
               email: true
             }
           }
@@ -80,6 +81,8 @@ export async function sendMiniSessionReminderEmails({
     try {
       const wasSent = await sendMiniSessionReminderEmail({
         to: email,
+        replyTo: booking.miniSession.admin.email,
+        senderName: booking.miniSession.admin.name,
         sessionTitle: booking.miniSession.title,
         sessionDate: booking.miniSession.sessionDate,
         location: booking.miniSession.location,

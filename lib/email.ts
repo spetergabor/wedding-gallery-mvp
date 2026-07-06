@@ -73,6 +73,8 @@ type GuestGalleryDownloadReadyEmail = {
 
 type MiniSessionBookingEmail = {
   to: string;
+  replyTo?: string;
+  senderName?: string | null;
   sessionTitle: string;
   sessionDate: Date;
   location: string;
@@ -92,6 +94,8 @@ type MiniSessionReminderEmail = MiniSessionBookingEmail;
 
 type AdminMiniSessionBookingEmail = {
   to?: string;
+  replyTo?: string;
+  senderName?: string | null;
   sessionTitle: string;
   sessionDate: Date;
   location: string;
@@ -297,6 +301,28 @@ function emailConfig() {
     from: process.env.EMAIL_FROM ?? "Wedding Gallery <onboarding@resend.dev>",
     adminEmail: process.env.ADMIN_NOTIFICATION_EMAIL
   };
+}
+
+function emailAddressFromSender(sender: string) {
+  const match = sender.match(/<([^<>]+)>/);
+  return (match?.[1] ?? sender).trim();
+}
+
+function emailDisplayName(value?: string | null) {
+  return value?.replace(/[<>"\r\n]/g, " ").replace(/\s+/g, " ").trim() || null;
+}
+
+function senderWithDisplayName(sender: string, displayName?: string | null) {
+  const name = emailDisplayName(displayName);
+  const address = emailAddressFromSender(sender);
+
+  return name && address ? `${name} <${address}>` : sender;
+}
+
+function replyToPayload(replyTo?: string) {
+  const value = replyTo?.trim();
+
+  return value ? { reply_to: value } : {};
 }
 
 function escapeHtml(value: string) {
@@ -604,8 +630,9 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from,
+      from: senderWithDisplayName(from, payload.senderName),
       to: payload.to,
+      ...replyToPayload(payload.replyTo),
       subject: `${copy.subject}: ${payload.sessionTitle}`,
       html: miniSessionBookingConfirmationHtml(payload),
       text: [
@@ -680,8 +707,9 @@ export async function sendMiniSessionReminderEmail(payload: MiniSessionReminderE
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from,
+      from: senderWithDisplayName(from, payload.senderName),
       to: payload.to,
+      ...replyToPayload(payload.replyTo),
       subject: `${copy.subject}: ${payload.sessionTitle}`,
       html: miniSessionReminderHtml(payload),
       text: [
@@ -755,8 +783,9 @@ export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSession
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from,
+      from: senderWithDisplayName(from, payload.senderName),
       to: recipient,
+      ...replyToPayload(payload.replyTo),
       subject: `Új mini session foglalás: ${payload.sessionTitle}`,
       html: adminMiniSessionBookingHtml(payload, "Új mini session foglalás"),
       text: [
@@ -802,8 +831,9 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from,
+      from: senderWithDisplayName(from, payload.senderName),
       to: recipient,
+      ...replyToPayload(payload.replyTo),
       subject: `Mini session foglalás törölve: ${payload.sessionTitle}`,
       html: adminMiniSessionBookingHtml(payload, "Mini session foglalás törölve"),
       text: [
