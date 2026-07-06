@@ -1,14 +1,95 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, CalendarClock, Camera, ChevronDown, HardDrive, LayoutDashboard, LogOut, Menu, Plus, Settings, Users } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Bell,
+  BriefcaseBusiness,
+  CalendarClock,
+  Camera,
+  ChevronDown,
+  HardDrive,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Plus,
+  Settings,
+  Users
+} from "lucide-react";
 import { AdminLanguageSwitch } from "@/components/admin-language-switch";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
 import { logoutAction } from "@/lib/gallery-actions";
-import { getAdminSession } from "@/lib/auth";
+import { getAdminSession, type AdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationWhere, ownerAdminId } from "@/lib/admin-scope";
 import { ADMIN_SHELL_COPY, getAdminLanguage } from "@/lib/admin-language";
 import { switchWorkspaceAction } from "@/lib/workspace-actions";
+
+type AdminShellCopy = (typeof ADMIN_SHELL_COPY)[keyof typeof ADMIN_SHELL_COPY];
+
+function workspaceDisplayName(admin: AdminSession, copy: AdminShellCopy) {
+  return admin.isTeamWorkspace ? admin.teamOwnerName ?? copy.teamWorkspace : admin.name;
+}
+
+function WorkspaceStatusBanner({ admin, copy }: { admin: AdminSession | null; copy: AdminShellCopy }) {
+  if (!admin?.isTeamMember) {
+    return null;
+  }
+
+  const isTeamWorkspace = admin.isTeamWorkspace;
+  const activeWorkspaceLabel = isTeamWorkspace ? copy.teamWorkspace : copy.ownWorkspace;
+  const targetWorkspaceMode = isTeamWorkspace ? "own" : "team";
+  const targetWorkspaceLabel = isTeamWorkspace ? copy.switchToOwnWorkspace : copy.switchToTeamWorkspace;
+
+  return (
+    <section
+      className={`mb-6 rounded-md border bg-white px-4 py-3 shadow-soft ${
+        isTeamWorkspace ? "border-brass/30" : "border-ink/10"
+      }`}
+      aria-label={copy.workspace}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md ${
+              isTeamWorkspace ? "bg-brass/15 text-brass" : "bg-ink/5 text-ink"
+            }`}
+          >
+            <BriefcaseBusiness size={17} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-graphite/55">{copy.activeWorkspace}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-ink">
+                {activeWorkspaceLabel}: {workspaceDisplayName(admin, copy)}
+              </p>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  isTeamWorkspace ? "bg-brass/15 text-brass" : "bg-ink/5 text-ink"
+                }`}
+              >
+                {activeWorkspaceLabel}
+              </span>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-graphite/65">
+              {isTeamWorkspace ? copy.teamWorkspaceHint : copy.ownWorkspaceHint}
+            </p>
+          </div>
+        </div>
+        <form action={switchWorkspaceAction} className="shrink-0">
+          <button
+            type="submit"
+            name="workspaceMode"
+            value={targetWorkspaceMode}
+            className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink shadow-soft transition hover:bg-ink/5 sm:w-auto"
+          >
+            <ArrowLeftRight size={15} />
+            {targetWorkspaceLabel}
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
   const [admin, language] = await Promise.all([getAdminSession(), getAdminLanguage()]);
@@ -256,7 +337,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             </details>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl px-5 py-8 lg:px-10">{children}</main>
+        <main className="mx-auto w-full max-w-6xl px-5 py-8 lg:px-10">
+          <WorkspaceStatusBanner admin={admin} copy={copy} />
+          {children}
+        </main>
       </div>
     </div>
   );
