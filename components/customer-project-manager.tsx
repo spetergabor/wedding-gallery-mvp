@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BookOpen,
   Calendar,
+  CalendarPlus,
   Camera,
   CheckCircle2,
   Clock3,
@@ -30,6 +31,7 @@ import {
   customerProjectTypeLabel
 } from "@/lib/customer-project-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { googleCalendarAllDayUrl } from "@/lib/google-calendar";
 import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectStatusAction } from "@/lib/customer-actions";
 import {
   getProjectPhaseIndex,
@@ -172,6 +174,24 @@ function CountPill({ icon: Icon, label, count }: { icon: LucideIcon; label: stri
       {count} {label}
     </span>
   );
+}
+
+function projectGoogleCalendarUrl(project: CustomerProject) {
+  if (!project.eventDate) {
+    return null;
+  }
+
+  const details = [
+    customerProjectTypeLabel(project.projectType),
+    project.notes ? `\n${project.notes}` : ""
+  ].join("");
+
+  return googleCalendarAllDayUrl({
+    title: project.title,
+    date: project.eventDate,
+    location: project.venue,
+    details
+  });
 }
 
 const workflowIconMap: Record<ProjectWorkflowIconKey, LucideIcon> = {
@@ -381,6 +401,7 @@ export function CustomerProjectManager({
                 const StepIcon = workflowIconMap[nextStep.iconKey];
                 const nextStepStyle = stepStyle(nextStep.state);
                 const isAlbumProject = project.projectType === "album";
+                const calendarUrl = projectGoogleCalendarUrl(project);
 
                 return (
                   <>
@@ -407,7 +428,7 @@ export function CustomerProjectManager({
                   </div>
                   {project.notes ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-graphite/70">{project.notes}</p> : null}
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                   {isAlbumProject ? (
                     <ButtonLink href={`/admin/clients/${customerId}?tab=album&albumMode=upload`}>
                       <BookOpen size={16} />
@@ -419,6 +440,17 @@ export function CustomerProjectManager({
                       Új galéria
                     </ButtonLink>
                   )}
+                  {calendarUrl ? (
+                    <a
+                      href={calendarUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
+                    >
+                      <CalendarPlus size={16} />
+                      Google naptár
+                    </a>
+                  ) : null}
                   <form action={deleteCustomerProjectAction.bind(null, customerId, project.id)}>
                     <ConfirmSubmitButton
                       message="Biztosan törlöd ezt a projektet? A kapcsolt galériák és dokumentumok megmaradnak, csak projekt nélkül folytatják."
