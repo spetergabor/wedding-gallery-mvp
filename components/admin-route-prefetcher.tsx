@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-const ADMIN_PREFETCH_ROUTES = ["/admin/dashboard", "/admin/clients", "/admin/galleries", "/admin/notifications", "/admin/settings"];
+const ADMIN_PREFETCH_ROUTES = ["/admin/dashboard", "/admin/clients", "/admin/galleries", "/admin/team", "/admin/notifications", "/admin/settings"];
 
 export function AdminRoutePrefetcher() {
   const router = useRouter();

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
-import { adminOwnedWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { ensureLeadPipelineSchema, normalizeLeadEventType, normalizeLeadStatus } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 
@@ -47,7 +47,7 @@ export async function createLeadAction(formData: FormData) {
 
   const lead = await prisma.lead.create({
     data: {
-      adminId: admin.id,
+      adminId: ownerAdminId(admin),
       name,
       status,
       sortOrder: (maxSort._max.sortOrder ?? -1) + 1,

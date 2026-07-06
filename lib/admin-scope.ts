@@ -3,10 +3,15 @@ import type { Prisma } from "@prisma/client";
 type AdminSession = {
   id: string;
   role: string;
+  workspaceAdminId?: string | null;
 };
 
+export function ownerAdminId(admin: AdminSession) {
+  return admin.workspaceAdminId ?? admin.id;
+}
+
 export function adminOwnedWhere(admin: AdminSession) {
-  return { adminId: admin.id };
+  return { adminId: ownerAdminId(admin) };
 }
 
 export function galleryAccessWhere(admin: AdminSession, galleryId: string): Prisma.GalleryWhereInput {
@@ -105,9 +110,5 @@ export function albumDesignAccessWhere(admin: AdminSession, designId: string): P
 }
 
 export function notificationWhere(admin: AdminSession): Prisma.AdminNotificationWhereInput {
-  return { adminId: admin.id };
-}
-
-export function ownerAdminId(admin: AdminSession, fallbackAdminId?: string | null) {
-  return fallbackAdminId ?? admin.id;
+  return { adminId: ownerAdminId(admin) };
 }

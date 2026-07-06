@@ -11,7 +11,7 @@ import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
-import { adminOwnedWhere, galleryAccessWhere, galleryPhotoAccessWhere, notificationWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, galleryAccessWhere, galleryPhotoAccessWhere, notificationWhere, ownerAdminId } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   GALLERY_MODE_FULL,
@@ -889,7 +889,7 @@ export async function createGalleryAction(formData: FormData) {
       data: {
         title,
         slug,
-        adminId: admin.id,
+        adminId: ownerAdminId(admin),
         customerId: customer?.id ?? null,
         projectId: project?.id ?? null,
         password: password || null,

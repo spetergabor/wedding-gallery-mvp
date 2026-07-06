@@ -6,12 +6,13 @@ import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
 import { logoutAction } from "@/lib/gallery-actions";
 import { getAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { notificationWhere } from "@/lib/admin-scope";
+import { notificationWhere, ownerAdminId } from "@/lib/admin-scope";
 import { ADMIN_SHELL_COPY, getAdminLanguage } from "@/lib/admin-language";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
   const [admin, language] = await Promise.all([getAdminSession(), getAdminLanguage()]);
   const copy = ADMIN_SHELL_COPY[language];
+  const workspaceAdminId = admin ? ownerAdminId(admin) : null;
   const [unreadNotifications, settings] = await Promise.all([
     prisma.adminNotification.count({
       where: { ...notificationWhere(admin ?? { id: "", role: "photographer" }), readAt: null }
@@ -19,7 +20,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
     admin
       ? prisma.siteSettings.findFirst({
           where: {
-            OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
+            OR: [{ adminId: workspaceAdminId }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
           },
           select: {
             businessName: true,
@@ -65,6 +66,12 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <CalendarClock size={17} />
             Mini session
           </Link>
+          {admin && !admin.isTeamMember ? (
+            <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/team">
+              <Users size={17} />
+              {copy.team}
+            </Link>
+          ) : null}
           {admin?.role === "super_admin" ? (
             <>
               <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
@@ -141,6 +148,12 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                     <CalendarClock size={17} />
                     Mini session
                   </Link>
+                  {admin && !admin.isTeamMember ? (
+                    <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/team">
+                      <Users size={17} />
+                      {copy.team}
+                    </Link>
+                  ) : null}
                   {admin?.role === "super_admin" ? (
                     <>
                       <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">

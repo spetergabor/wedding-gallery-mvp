@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { customerAccessWhere } from "@/lib/admin-scope";
+import { customerAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { createCustomerPortalToken } from "@/lib/customer-portal";
 import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
@@ -67,7 +67,7 @@ export async function createCustomerAction(formData: FormData) {
   const customer = await prisma.customer.create({
     data: {
       ...payload,
-      adminId: admin.id,
+      adminId: ownerAdminId(admin),
       portalToken: payload.customerType === "wedding_couple" ? createCustomerPortalToken() : null
     },
     select: { id: true }

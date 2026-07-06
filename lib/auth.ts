@@ -10,6 +10,71 @@ const PENDING_2FA_COOKIE = "wgm_pending_2fa";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 14;
 const PENDING_2FA_MAX_AGE = 5 * 60;
 
+const ADMIN_SESSION_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  status: true,
+  teamMembership: {
+    select: {
+      owner: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          status: true
+        }
+      }
+    }
+  }
+} as const;
+
+type RawAdminSession = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  teamMembership: {
+    owner: {
+      id: string;
+      name: string;
+      email: string;
+      status: string;
+    };
+  } | null;
+};
+
+export type AdminSession = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  workspaceAdminId: string;
+  workspaceOwnerName: string | null;
+  workspaceOwnerEmail: string | null;
+  isTeamMember: boolean;
+};
+
+function toAdminSession(admin: RawAdminSession): AdminSession {
+  const owner = admin.teamMembership?.owner;
+  const activeOwner = owner?.status === "approved" ? owner : null;
+
+  return {
+    id: admin.id,
+    email: admin.email,
+    name: admin.name,
+    role: admin.role,
+    status: admin.status,
+    workspaceAdminId: activeOwner?.id ?? admin.id,
+    workspaceOwnerName: activeOwner?.name ?? null,
+    workspaceOwnerEmail: activeOwner?.email ?? null,
+    isTeamMember: Boolean(activeOwner)
+  };
+}
+
 function authSecret() {
   return process.env.AUTH_SECRET ?? "dev-auth-secret-change-me";
 }
@@ -107,10 +172,12 @@ export async function getAdminSession() {
     return null;
   }
 
-  return prisma.admin.findUnique({
+  const admin = await prisma.admin.findUnique({
     where: { id: adminId },
-    select: { id: true, email: true, name: true, role: true, status: true }
+    select: ADMIN_SESSION_SELECT
   });
+
+  return admin ? toAdminSession(admin) : null;
 }
 
 export async function refreshAdminSession() {
@@ -123,7 +190,7 @@ export async function refreshAdminSession() {
 
   const admin = await prisma.admin.findUnique({
     where: { id: adminId },
-    select: { id: true, email: true, name: true, role: true, status: true }
+    select: ADMIN_SESSION_SELECT
   });
 
   if (!admin || admin.status !== "approved") {
@@ -132,7 +199,7 @@ export async function refreshAdminSession() {
 
   cookieStore.set(ADMIN_COOKIE, createSessionValue(admin.id), adminSessionCookieOptions());
 
-  return admin;
+  return toAdminSession(admin);
 }
 
 export async function requireAdmin() {
@@ -152,7 +219,7 @@ export async function requireAdmin() {
 export async function requireSuperAdmin() {
   const admin = await requireAdmin();
 
-  if (admin.role !== "super_admin") {
+  if (admin.role !== "super_admin" || admin.isTeamMember) {
     redirect("/admin/dashboard");
   }
 

@@ -510,8 +510,17 @@ export default async function AdminSettingsPage({
   }>;
 }) {
   const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
+  const isTeamMember = admin.isTeamMember;
   const activeTab: SettingsTab =
-    params.tab === "profile" ? "profile" : params.tab === "security" ? "security" : params.tab === "providers" && admin.role === "super_admin" ? "providers" : "brand";
+    params.tab === "security"
+      ? "security"
+      : params.tab === "providers" && admin.role === "super_admin"
+        ? "providers"
+        : params.tab === "brand" && !isTeamMember
+          ? "brand"
+          : params.tab === "profile" || isTeamMember
+            ? "profile"
+            : "brand";
   const [settings, photographerProfile, serviceUsage] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
@@ -551,7 +560,7 @@ export default async function AdminSettingsPage({
     }),
     admin.role === "super_admin" ? getServiceUsageSummary() : Promise.resolve(null)
   ]);
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-4" : "sm:grid-cols-3";
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-4" : isTeamMember ? "sm:grid-cols-2" : "sm:grid-cols-3";
 
   return (
     <AdminShell>
@@ -565,15 +574,17 @@ export default async function AdminSettingsPage({
 
       <div className="mb-6 rounded-md border border-ink/10 bg-white p-2">
         <nav className={`grid gap-2 ${settingsTabColumns}`} aria-label="Beállítások fülek">
-          <Link
-            href="/admin/settings?tab=brand"
-            className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
-              activeTab === "brand" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
-            }`}
-          >
-            <Globe2 size={16} />
-            Márka
-          </Link>
+          {!isTeamMember ? (
+            <Link
+              href="/admin/settings?tab=brand"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                activeTab === "brand" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <Globe2 size={16} />
+              Márka
+            </Link>
+          ) : null}
           <Link
             href="/admin/settings?tab=profile"
             className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
@@ -635,7 +646,7 @@ export default async function AdminSettingsPage({
         ) : null}
       </div>
 
-      {activeTab === "brand" ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
+      {activeTab === "brand" && !isTeamMember ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
 
       {activeTab === "profile" ? <PhotographerProfileSettings profile={photographerProfile} /> : null}
 

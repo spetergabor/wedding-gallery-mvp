@@ -107,6 +107,11 @@ export async function updatePhotographerProfileAction(formData: FormData) {
 
 export async function updateSiteSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
+
+  if (admin.isTeamMember) {
+    redirect("/admin/settings?tab=profile");
+  }
+
   const logoHeight = formClampedNumber(formData, "logoHeight", 80, 32, 140);
   const adminName = formString(formData, "adminName") || admin.name;
 

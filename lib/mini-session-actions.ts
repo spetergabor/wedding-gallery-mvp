@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { adminOwnedWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
@@ -216,6 +216,7 @@ function miniSessionCalendarDescription({
 
 export async function createMiniSessionAction(formData: FormData) {
   const admin = await requireAdmin();
+  const workspaceAdminId = ownerAdminId(admin);
   const title = formString(formData, "title");
   const location = formString(formData, "location");
   const date = formString(formData, "date");
@@ -233,13 +234,13 @@ export async function createMiniSessionAction(formData: FormData) {
     redirect("/admin/mini-sessions?error=missing");
   }
 
-  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"));
+  const uploadedCover = await uploadMiniSessionCover(workspaceAdminId, formData.get("coverImage"));
   let miniSession: { id: string };
 
   try {
     miniSession = await prisma.miniSession.create({
       data: {
-        adminId: admin.id,
+        adminId: workspaceAdminId,
         title,
         slug,
         location,
@@ -333,6 +334,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
 
 export async function updateMiniSessionCoverAction(id: string, formData: FormData) {
   const admin = await requireAdmin();
+  const workspaceAdminId = ownerAdminId(admin);
   const current = await prisma.miniSession.findFirst({
     where: { id, ...adminOwnedWhere(admin) },
     select: { id: true, slug: true, coverImageR2Key: true }
@@ -342,7 +344,7 @@ export async function updateMiniSessionCoverAction(id: string, formData: FormDat
     redirect("/admin/mini-sessions");
   }
 
-  const uploadedCover = await uploadMiniSessionCover(admin.id, formData.get("coverImage"), `/admin/mini-sessions/${id}?tab=settings`);
+  const uploadedCover = await uploadMiniSessionCover(workspaceAdminId, formData.get("coverImage"), `/admin/mini-sessions/${id}?tab=settings`);
 
   if (!uploadedCover) {
     redirect(`/admin/mini-sessions/${id}?tab=settings&error=cover_missing`);

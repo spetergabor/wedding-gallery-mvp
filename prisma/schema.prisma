@@ -38,6 +38,22 @@ model Admin {
   siteSettings SiteSettings?
   leads        Lead[]
   miniSessions MiniSession[]
+  teamMembers  AdminTeamMembership[] @relation("TeamOwner")
+  teamMembership AdminTeamMembership? @relation("TeamMember")
+}
+
+model AdminTeamMembership {
+  id           String   @id @default(cuid())
+  ownerAdminId String
+  memberAdminId String   @unique
+  createdAt    DateTime @default(now())
+  owner        Admin    @relation("TeamOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
+  member       Admin    @relation("TeamMember", fields: [memberAdminId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerAdminId, memberAdminId])
+  @@index([ownerAdminId])
+  @@index([memberAdminId])
+  @@index([createdAt])
 }
 
 model AdminNotification {
