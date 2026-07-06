@@ -7,8 +7,12 @@ import { verifyTotpCode } from "@/lib/totp";
 
 const ADMIN_COOKIE = "wgm_admin";
 const PENDING_2FA_COOKIE = "wgm_pending_2fa";
+export const ADMIN_WORKSPACE_COOKIE = "wgm_workspace";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 14;
 const PENDING_2FA_MAX_AGE = 5 * 60;
+const WORKSPACE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+export type AdminWorkspaceMode = "own" | "team";
 
 const ADMIN_SESSION_SELECT = {
   id: true,
@@ -53,14 +57,28 @@ export type AdminSession = {
   role: string;
   status: string;
   workspaceAdminId: string;
+  workspaceMode: AdminWorkspaceMode;
   workspaceOwnerName: string | null;
   workspaceOwnerEmail: string | null;
+  teamOwnerName: string | null;
+  teamOwnerEmail: string | null;
   isTeamMember: boolean;
+  isTeamWorkspace: boolean;
 };
 
-function toAdminSession(admin: RawAdminSession): AdminSession {
+function normalizeWorkspaceMode(value: string | undefined, hasTeam: boolean): AdminWorkspaceMode {
+  if (!hasTeam) {
+    return "own";
+  }
+
+  return value === "own" ? "own" : "team";
+}
+
+function toAdminSession(admin: RawAdminSession, workspaceCookieValue?: string): AdminSession {
   const owner = admin.teamMembership?.owner;
   const activeOwner = owner?.status === "approved" ? owner : null;
+  const workspaceMode = normalizeWorkspaceMode(workspaceCookieValue, Boolean(activeOwner));
+  const teamWorkspaceOwner = workspaceMode === "team" ? activeOwner : null;
 
   return {
     id: admin.id,
@@ -68,10 +86,14 @@ function toAdminSession(admin: RawAdminSession): AdminSession {
     name: admin.name,
     role: admin.role,
     status: admin.status,
-    workspaceAdminId: activeOwner?.id ?? admin.id,
-    workspaceOwnerName: activeOwner?.name ?? null,
-    workspaceOwnerEmail: activeOwner?.email ?? null,
-    isTeamMember: Boolean(activeOwner)
+    workspaceAdminId: teamWorkspaceOwner?.id ?? admin.id,
+    workspaceMode,
+    workspaceOwnerName: teamWorkspaceOwner?.name ?? null,
+    workspaceOwnerEmail: teamWorkspaceOwner?.email ?? null,
+    teamOwnerName: activeOwner?.name ?? null,
+    teamOwnerEmail: activeOwner?.email ?? null,
+    isTeamMember: Boolean(activeOwner),
+    isTeamWorkspace: Boolean(teamWorkspaceOwner)
   };
 }
 
@@ -111,6 +133,16 @@ function pendingTwoFactorCookieOptions() {
     secure: process.env.NODE_ENV === "production",
     path: "/admin/login",
     maxAge: PENDING_2FA_MAX_AGE
+  };
+}
+
+export function adminWorkspaceCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: WORKSPACE_COOKIE_MAX_AGE
   };
 }
 
@@ -167,6 +199,7 @@ function readPendingTwoFactorValue(value: string | undefined) {
 export async function getAdminSession() {
   const cookieStore = await cookies();
   const adminId = readSessionValue(cookieStore.get(ADMIN_COOKIE)?.value);
+  const workspaceMode = cookieStore.get(ADMIN_WORKSPACE_COOKIE)?.value;
 
   if (!adminId) {
     return null;
@@ -177,12 +210,13 @@ export async function getAdminSession() {
     select: ADMIN_SESSION_SELECT
   });
 
-  return admin ? toAdminSession(admin) : null;
+  return admin ? toAdminSession(admin, workspaceMode) : null;
 }
 
 export async function refreshAdminSession() {
   const cookieStore = await cookies();
   const adminId = readSessionValue(cookieStore.get(ADMIN_COOKIE)?.value);
+  const workspaceMode = cookieStore.get(ADMIN_WORKSPACE_COOKIE)?.value;
 
   if (!adminId) {
     return null;
@@ -199,7 +233,7 @@ export async function refreshAdminSession() {
 
   cookieStore.set(ADMIN_COOKIE, createSessionValue(admin.id), adminSessionCookieOptions());
 
-  return toAdminSession(admin);
+  return toAdminSession(admin, workspaceMode);
 }
 
 export async function requireAdmin() {

@@ -67,28 +67,30 @@ export default async function AdminTeamPage({
   const workspaceAdminId = ownerAdminId(admin);
   const [owner, members] = await Promise.all([
     prisma.admin.findUnique({
-      where: { id: workspaceAdminId },
+      where: { id: admin.isTeamMember ? admin.workspaceAdminId : workspaceAdminId },
       select: {
         id: true,
         name: true,
         email: true
       }
     }),
-    prisma.adminTeamMembership.findMany({
-      where: { ownerAdminId: workspaceAdminId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        member: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            status: true,
-            role: true
+    admin.isTeamMember
+      ? Promise.resolve([])
+      : prisma.adminTeamMembership.findMany({
+          where: { ownerAdminId: workspaceAdminId },
+          orderBy: { createdAt: "desc" },
+          include: {
+            member: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                status: true,
+                role: true
+              }
+            }
           }
-        }
-      }
-    })
+        })
   ]);
   const error = params.error ? errorMessages[params.error] : null;
 
@@ -126,8 +128,8 @@ export default async function AdminTeamPage({
             <div>
               <h2 className="text-lg font-semibold text-ink">Csapattagként dolgozol</h2>
               <p className="mt-2 text-sm leading-6 text-graphite/75">
-                Aktív munkaterület: <span className="font-medium text-ink">{owner?.name ?? admin.workspaceOwnerName ?? "Fő fotós"}</span>
-                {owner?.email ? ` · ${owner.email}` : ""}. Az itt létrehozott ügyfelek, galériák és mini sessionök ehhez a fiókhoz tartoznak.
+                Csapat workspace: <span className="font-medium text-ink">{admin.teamOwnerName ?? owner?.name ?? "Fő fotós"}</span>
+                {admin.teamOwnerEmail ? ` · ${admin.teamOwnerEmail}` : owner?.email ? ` · ${owner.email}` : ""}. A bal oldali munkaterület-váltóval tudsz a saját bizniszed és a csapatmunka között váltani.
               </p>
             </div>
           </div>
@@ -161,13 +163,13 @@ export default async function AdminTeamPage({
         </section>
       )}
 
-      {members.length === 0 ? (
+      {!admin.isTeamMember && members.length === 0 ? (
         <EmptyState
           icon={<Users size={22} />}
           title="Még nincs csapattag"
           description="Ha hozzáadsz valakit, itt fog megjelenni a csapat listában."
         />
-      ) : (
+      ) : !admin.isTeamMember ? (
         <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
           <div className="divide-y divide-ink/10">
             {members.map((membership) => (
@@ -206,7 +208,7 @@ export default async function AdminTeamPage({
             ))}
           </div>
         </section>
-      )}
+      ) : null}
     </AdminShell>
   );
 }

@@ -8,6 +8,7 @@ import { getAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationWhere, ownerAdminId } from "@/lib/admin-scope";
 import { ADMIN_SHELL_COPY, getAdminLanguage } from "@/lib/admin-language";
+import { switchWorkspaceAction } from "@/lib/workspace-actions";
 
 export async function AdminShell({ children }: { children: React.ReactNode }) {
   const [admin, language] = await Promise.all([getAdminSession(), getAdminLanguage()]);
@@ -49,7 +50,38 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
 
-        <nav className="mt-10 space-y-1" aria-label={copy.navigationLabel}>
+        {admin?.isTeamMember ? (
+          <form action={switchWorkspaceAction} className="mt-6 rounded-md border border-ink/10 bg-white p-2">
+            <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-graphite/55">{copy.workspace}</p>
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                type="submit"
+                name="workspaceMode"
+                value="team"
+                className={`min-h-9 rounded-md px-2 text-xs font-medium transition ${
+                  admin.isTeamWorkspace ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                }`}
+              >
+                {copy.teamWorkspace}
+              </button>
+              <button
+                type="submit"
+                name="workspaceMode"
+                value="own"
+                className={`min-h-9 rounded-md px-2 text-xs font-medium transition ${
+                  admin.workspaceMode === "own" ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                }`}
+              >
+                {copy.ownWorkspace}
+              </button>
+            </div>
+            <p className="mt-2 px-2 text-xs leading-5 text-graphite/65">
+              {admin.isTeamWorkspace ? admin.teamOwnerName ?? copy.teamWorkspace : admin.name}
+            </p>
+          </form>
+        ) : null}
+
+        <nav className={admin?.isTeamMember ? "mt-6 space-y-1" : "mt-10 space-y-1"} aria-label={copy.navigationLabel}>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/dashboard">
             <LayoutDashboard size={17} />
             {copy.dashboard}
@@ -131,6 +163,33 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                 <ChevronDown size={15} className="transition group-open:rotate-180" />
               </summary>
               <div className="absolute right-0 mt-2 w-[min(86vw,320px)] overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
+                {admin?.isTeamMember ? (
+                  <form action={switchWorkspaceAction} className="border-b border-ink/10 p-2">
+                    <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-graphite/55">{copy.workspace}</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      <button
+                        type="submit"
+                        name="workspaceMode"
+                        value="team"
+                        className={`min-h-10 rounded-md px-2 text-xs font-medium transition ${
+                          admin.isTeamWorkspace ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                        }`}
+                      >
+                        {copy.teamWorkspace}
+                      </button>
+                      <button
+                        type="submit"
+                        name="workspaceMode"
+                        value="own"
+                        className={`min-h-10 rounded-md px-2 text-xs font-medium transition ${
+                          admin.workspaceMode === "own" ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                        }`}
+                      >
+                        {copy.ownWorkspace}
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
                 <nav className="p-2" aria-label={copy.mobileNavigationLabel}>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/dashboard">
                     <LayoutDashboard size={17} />

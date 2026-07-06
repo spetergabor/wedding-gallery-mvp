@@ -108,7 +108,7 @@ export async function updatePhotographerProfileAction(formData: FormData) {
 export async function updateSiteSettingsAction(formData: FormData) {
   const admin = await requireAdmin();
 
-  if (admin.isTeamMember) {
+  if (admin.isTeamWorkspace) {
     redirect("/admin/settings?tab=profile");
   }
 
