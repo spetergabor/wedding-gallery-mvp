@@ -40,6 +40,22 @@ model Admin {
   miniSessions MiniSession[]
   teamMembers  AdminTeamMembership[] @relation("TeamOwner")
   teamMembership AdminTeamMembership? @relation("TeamMember")
+  passwordResetTokens AdminPasswordResetToken[]
+}
+
+model AdminPasswordResetToken {
+  id        String   @id @default(cuid())
+  adminId   String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+  @@index([usedAt])
+  @@index([createdAt])
 }
 
 model AdminTeamMembership {

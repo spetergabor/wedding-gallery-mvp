@@ -113,6 +113,13 @@ type AdminMiniSessionBookingEmail = {
   calendarButtonLabel?: string;
 };
 
+type AdminPasswordResetEmail = {
+  to: string;
+  name: string;
+  resetUrl: string;
+  expiresInMinutes: number;
+};
+
 const CUSTOMER_EMAIL_COPY = {
   de: {
     proofingInvite: {
@@ -461,6 +468,10 @@ export function miniSessionBookingCalendarUrl(slug: string, token: string) {
   return `${appBaseUrl()}/mini-session/${slug}/calendar/${token}`;
 }
 
+export function adminPasswordResetUrl(token: string) {
+  return `${appBaseUrl()}/admin/reset-password/${encodeURIComponent(token)}`;
+}
+
 export function customerPortalUrl(token: string) {
   return `${appBaseUrl()}/portal/${token}`;
 }
@@ -505,6 +516,61 @@ function miniSessionCalendarAttachments(payload: { calendarIcs?: string; calenda
       content: Buffer.from(payload.calendarIcs, "utf8").toString("base64")
     }
   ];
+}
+
+function adminPasswordResetHtml({ name, resetUrl, expiresInMinutes }: AdminPasswordResetEmail) {
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Jelszó visszaállítása</h1>
+      <p style="margin: 0 0 18px;">Szia ${escapeHtml(name)},</p>
+      <p style="margin: 0 0 18px;">Jelszó-visszaállítást kértél a Wedding Gallery admin felülethez.</p>
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(resetUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Új jelszó beállítása</a>
+      </p>
+      <p style="margin: 0 0 12px; color: #777; font-size: 13px;">A link ${expiresInMinutes} percig érvényes.</p>
+      <p style="margin: 0 0 18px; color: #777; font-size: 13px;">Ha nem te kérted, hagyd figyelmen kívül ezt az e-mailt.</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">Ha nem működik a gomb, ezt másold be a böngészőbe:<br>${escapeHtml(resetUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendAdminPasswordResetEmail(payload: AdminPasswordResetEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Password reset email skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject: "Jelszó visszaállítása - Wedding Gallery",
+      html: adminPasswordResetHtml(payload),
+      text: [
+        `Szia ${payload.name},`,
+        "",
+        "Jelszó-visszaállítást kértél a Wedding Gallery admin felülethez.",
+        `Új jelszó beállítása: ${payload.resetUrl}`,
+        "",
+        `A link ${payload.expiresInMinutes} percig érvényes.`,
+        "Ha nem te kérted, hagyd figyelmen kívül ezt az e-mailt."
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Password reset email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
 }
 
 const MINI_SESSION_BOOKING_EMAIL_COPY = {

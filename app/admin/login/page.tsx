@@ -9,7 +9,7 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ approval?: string; error?: string; registered?: string; twoFactor?: string }>;
+  searchParams: Promise<{ approval?: string; error?: string; registered?: string; reset?: string; twoFactor?: string }>;
 }) {
   const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
   const needsTwoFactor = params.twoFactor === "1";
@@ -50,6 +50,11 @@ export default async function AdminLoginPage({
           {params.registered === "pending" ? (
             <Alert title="Regisztráció elküldve." variant="success">
               A fiók jóváhagyásra vár. Értesítsd a főadmint, hogy aktiválja.
+            </Alert>
+          ) : null}
+          {params.reset === "success" ? (
+            <Alert title="Az új jelszó mentve." variant="success">
+              Most már be tudsz lépni az új jelszóval.
             </Alert>
           ) : null}
         </div>
@@ -95,6 +100,12 @@ export default async function AdminLoginPage({
                 className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
               />
             </label>
+
+            <div className="text-right">
+              <Link href="/admin/forgot-password" className="text-sm font-medium text-graphite/70 hover:text-ink">
+                Elfelejtetted a jelszót?
+              </Link>
+            </div>
 
             <FormSubmitButton className="w-full" pendingLabel="Belépés...">Belépés</FormSubmitButton>
           </form>
