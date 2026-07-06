@@ -87,7 +87,9 @@ const GALLERY_COPY = {
     listNameRequired: "Bitte gib einen Namen für die Liste ein.",
     listCreateError: "Die Liste konnte nicht erstellt werden.",
     selectionSaved: "Die Auswahl wurde gespeichert.",
-    openPhoto: "Foto öffnen"
+    openPhoto: "Foto öffnen",
+    videoSectionTitle: "Videos",
+    videoCount: (count: number) => `${count} ${count === 1 ? "Video" : "Videos"}`
   },
   hu: {
     selection: "Képválogatás",
@@ -158,7 +160,9 @@ const GALLERY_COPY = {
     listNameRequired: "Adj nevet a listának.",
     listCreateError: "A listát nem sikerült létrehozni.",
     selectionSaved: "A válogatást mentettük.",
-    openPhoto: "Fotó megnyitása"
+    openPhoto: "Fotó megnyitása",
+    videoSectionTitle: "Videók",
+    videoCount: (count: number) => `${count} videó`
   }
 } as const;
 
@@ -283,6 +287,14 @@ export function PublicGallery({
 
     return photos.filter((photo) => favoriteIds.has(photo.id));
   }, [favoriteIds, favoritesEnabled, photos, showFavoritesOnly]);
+  const visibleVideoItems = useMemo(
+    () => visiblePhotos.map((photo, index) => ({ photo, index })).filter(({ photo }) => isVideo(photo)),
+    [visiblePhotos]
+  );
+  const visibleImageItems = useMemo(
+    () => visiblePhotos.map((photo, index) => ({ photo, index })).filter(({ photo }) => !isVideo(photo)),
+    [visiblePhotos]
+  );
 
   const selectedPhoto = useMemo(() => {
     if (selectedIndex === null) {
@@ -306,7 +318,7 @@ export function PublicGallery({
     const columns = Array.from({ length: safeColumnCount }, () => [] as Array<{ photo: PublicPhoto; index: number }>);
     const columnHeights = Array.from({ length: safeColumnCount }, () => 0);
 
-    visiblePhotos.forEach((photo, index) => {
+    visibleImageItems.forEach(({ photo, index }) => {
       const shortestColumnIndex = columnHeights.reduce((shortestIndex, height, currentIndex) => {
         return height < columnHeights[shortestIndex] ? currentIndex : shortestIndex;
       }, 0);
@@ -317,7 +329,7 @@ export function PublicGallery({
     });
 
     return columns;
-  }, [columnCount, visiblePhotos]);
+  }, [columnCount, visibleImageItems]);
 
   useEffect(() => {
     if (!favoritesEnabled) {
@@ -811,7 +823,7 @@ export function PublicGallery({
 
   return (
     <>
-      <section className="grid gap-2" style={galleryGridStyle}>
+      <section className="space-y-10">
         {favoritesEnabled && favoriteEmail ? (
           <div className="col-span-full mb-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -891,26 +903,33 @@ export function PublicGallery({
             {favoriteError ? <p className="mt-2 text-sm text-red-700">{favoriteError}</p> : null}
           </div>
         ) : null}
-        {photoColumns.map((column, columnIndex) => (
-          <div key={columnIndex} className="grid content-start gap-2">
-            {column.map(({ photo, index }) => (
-              <div
-                key={photo.id}
-                className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
-                  favoritesEnabled && favoriteIds.has(photo.id)
-                    ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
-                    : "ring-0"
-                } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
-              >
-                <span className="relative block w-full">
-                  <button
-                    type="button"
-                    title={copy.openPhoto}
-                    aria-label={`${copy.openPhoto}: ${photo.filename}`}
-                    onClick={() => setSelectedIndex(index)}
-                    className="relative z-0 block w-full text-left"
-                  >
-                    {isVideo(photo) ? (
+
+        {visibleVideoItems.length > 0 ? (
+          <section className="space-y-4" aria-labelledby="public-gallery-videos">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">{copy.videoCount(visibleVideoItems.length)}</p>
+              <h2 id="public-gallery-videos" className="font-playfair mt-1 text-3xl font-semibold text-ink md:text-4xl">
+                {copy.videoSectionTitle}
+              </h2>
+            </div>
+            <div className="grid gap-2" style={galleryGridStyle}>
+              {visibleVideoItems.map(({ photo, index }) => (
+                <div
+                  key={photo.id}
+                  className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
+                    favoritesEnabled && favoriteIds.has(photo.id)
+                      ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
+                      : "ring-0"
+                  } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
+                >
+                  <span className="relative block w-full">
+                    <button
+                      type="button"
+                      title={copy.openPhoto}
+                      aria-label={`${copy.openPhoto}: ${photo.filename}`}
+                      onClick={() => setSelectedIndex(index)}
+                      className="relative z-0 block w-full text-left"
+                    >
                       <span className="relative block aspect-video w-full overflow-hidden bg-ink">
                         <video
                           src={photo.imageUrl}
@@ -925,52 +944,105 @@ export function PublicGallery({
                           </span>
                         </span>
                       </span>
-                    ) : hasImageDimensions(photo) ? (
-                      <Image
-                        src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
-                        alt={photo.filename}
-                        width={photo.imageWidth}
-                        height={photo.imageHeight}
-                        unoptimized
-                        className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
-                        sizes={imageSizes}
-                      />
-                    ) : (
-                      <img
-                        src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
-                        alt={photo.filename}
-                        loading="lazy"
-                        className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
-                      />
-                    )}
-                    <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
-                      <Maximize2 size={16} />
-                    </span>
-                  </button>
-                  {favoritesEnabled ? (
-                    <button
-                      type="button"
-                      title={proofingSelection ? "Auswählen" : "Favorit"}
-                      aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
-                      onClick={() => void toggleFavorite(photo.id)}
-                      className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
-                        pendingFavoriteId === photo.id ? "opacity-80" : ""
-                      } ${
-                        lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
-                      }`}
-                    >
-                      <Heart
-                        size={17}
-                        className="transition-transform duration-150"
-                        fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
-                      />
+                      <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
+                        <Maximize2 size={16} />
+                      </span>
                     </button>
-                  ) : null}
-                </span>
+                    {favoritesEnabled ? (
+                      <button
+                        type="button"
+                        title={proofingSelection ? "Auswählen" : "Favorit"}
+                        aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
+                        onClick={() => void toggleFavorite(photo.id)}
+                        className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
+                          pendingFavoriteId === photo.id ? "opacity-80" : ""
+                        } ${
+                          lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
+                        }`}
+                      >
+                        <Heart
+                          size={17}
+                          className="transition-transform duration-150"
+                          fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
+                        />
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {visibleImageItems.length > 0 ? (
+          <section className="grid gap-2" style={galleryGridStyle}>
+            {photoColumns.map((column, columnIndex) => (
+              <div key={columnIndex} className="grid content-start gap-2">
+                {column.map(({ photo, index }) => (
+                  <div
+                    key={photo.id}
+                    className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
+                      favoritesEnabled && favoriteIds.has(photo.id)
+                        ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
+                        : "ring-0"
+                    } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
+                  >
+                    <span className="relative block w-full">
+                      <button
+                        type="button"
+                        title={copy.openPhoto}
+                        aria-label={`${copy.openPhoto}: ${photo.filename}`}
+                        onClick={() => setSelectedIndex(index)}
+                        className="relative z-0 block w-full text-left"
+                      >
+                        {hasImageDimensions(photo) ? (
+                          <Image
+                            src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
+                            alt={photo.filename}
+                            width={photo.imageWidth}
+                            height={photo.imageHeight}
+                            unoptimized
+                            className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
+                            sizes={imageSizes}
+                          />
+                        ) : (
+                          <img
+                            src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
+                            alt={photo.filename}
+                            loading="lazy"
+                            className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
+                          />
+                        )}
+                        <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
+                          <Maximize2 size={16} />
+                        </span>
+                      </button>
+                      {favoritesEnabled ? (
+                        <button
+                          type="button"
+                          title={proofingSelection ? "Auswählen" : "Favorit"}
+                          aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
+                          onClick={() => void toggleFavorite(photo.id)}
+                          className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
+                            pendingFavoriteId === photo.id ? "opacity-80" : ""
+                          } ${
+                            lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
+                          }`}
+                        >
+                          <Heart
+                            size={17}
+                            className="transition-transform duration-150"
+                            fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
+                          />
+                        </button>
+                      ) : null}
+                    </span>
+                  </div>
+                ))}
               </div>
             ))}
-          </div>
-        ))}
+          </section>
+        ) : null}
       </section>
 
       {favoritesEnabled || downloadsEnabled ? (

@@ -103,6 +103,9 @@ export default async function PublicGalleryPage({
       ? PHOTO_DELIVERY_STAGE_RAW
       : PHOTO_DELIVERY_STAGE_FINAL;
   const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden && photo.deliveryStage === publicDeliveryStage);
+  const visibleVideos = visiblePhotos.filter((photo) => photo.mediaType === "video");
+  const visibleImages = visiblePhotos.filter((photo) => photo.mediaType !== "video");
+  const publicPhotos = [...visibleVideos, ...visibleImages];
   const downloadsEnabled =
     gallery.downloadsEnabled && (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const favoritesEnabled = !proofingGallery || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
@@ -253,7 +256,7 @@ export default async function PublicGalleryPage({
           <PublicGallery
             galleryId={gallery.id}
             title={gallery.title}
-            photos={visiblePhotos}
+            photos={publicPhotos}
             downloadsEnabled={downloadsEnabled}
             favoritesEnabled={favoritesEnabled}
             favoriteMode={proofingSelection ? "proofing" : "favorites"}
