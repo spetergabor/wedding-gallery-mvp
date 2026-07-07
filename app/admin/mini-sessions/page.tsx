@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { miniSessionPublicUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
@@ -110,6 +111,30 @@ function formatCalendarBlockRange(startsAt: Date, endsAt: Date) {
   }
 
   return `${startDate} ${startTime} - ${endDate} ${endTime}`;
+}
+
+function startOfDay(date = new Date()) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function isInRange(date: Date, startsAt: Date, endsAt: Date) {
+  return date >= startsAt && date < endsAt;
+}
+
+function formatProjectTime(project: { startTime: string | null; endTime: string | null }) {
+  if (!project.startTime || !project.endTime) {
+    return null;
+  }
+
+  return `${project.startTime}-${project.endTime}`;
 }
 
 function CreateModeSwitch({ createMode }: { createMode: BookingCreateMode }) {
@@ -380,7 +405,11 @@ export default async function AdminMiniSessionsPage({
   const flags = await searchParams;
   const currentTab = activeTab(flags.tab);
   const createMode = activeCreateMode(flags.create);
-  const [sessions, calendarBlocks] = await Promise.all([
+  const now = new Date();
+  const today = startOfDay(now);
+  const tomorrow = addDays(today, 1);
+  const weekEnd = addDays(today, 7);
+  const [sessions, calendarBlocks, weekProjects] = await Promise.all([
     prisma.miniSession.findMany({
       where: adminOwnedWhere(admin),
       orderBy: [{ startsAt: "desc" }],
@@ -396,6 +425,33 @@ export default async function AdminMiniSessionsPage({
     prisma.adminCalendarBlock.findMany({
       where: { adminId: workspaceAdminId },
       orderBy: [{ startsAt: "asc" }, { createdAt: "desc" }]
+    }),
+    prisma.customerProject.findMany({
+      where: {
+        eventDate: {
+          gte: today,
+          lt: weekEnd
+        },
+        status: { not: "archived" },
+        customer: adminOwnedWhere(admin)
+      },
+      orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
+      take: 12,
+      select: {
+        id: true,
+        title: true,
+        projectType: true,
+        eventDate: true,
+        startTime: true,
+        endTime: true,
+        venue: true,
+        customer: {
+          select: {
+            id: true,
+            coupleName: true
+          }
+        }
+      }
     })
   ]);
   const sessionMetrics = new Map(
@@ -417,11 +473,25 @@ export default async function AdminMiniSessionsPage({
         .map((booking) => ({ session, booking }))
     )
     .sort((a, b) => b.booking.startsAt.getTime() - a.booking.startsAt.getTime());
-  const activeBookingCount = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED).length;
   const freeSlotCount = [...sessionMetrics.values()].reduce((total, metrics) => total + metrics.freeSlotCount, 0);
-  const showServices = currentTab === "overview" || currentTab === "services";
-  const showMiniDays = currentTab === "overview" || currentTab === "mini";
-  const showBookings = currentTab === "overview" || currentTab === "bookings";
+  const activeBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
+  const upcomingBookings = activeBookings
+    .filter((item) => item.booking.startsAt >= now)
+    .sort((a, b) => a.booking.startsAt.getTime() - b.booking.startsAt.getTime());
+  const todayBookingCount = activeBookings.filter((item) => isInRange(item.booking.startsAt, today, tomorrow)).length;
+  const weekBookingCount = activeBookings.filter((item) => isInRange(item.booking.startsAt, today, weekEnd)).length;
+  const todayProjectCount = weekProjects.filter((project) => project.eventDate && isInRange(project.eventDate, today, tomorrow)).length;
+  const activeCalendarBlocks = calendarBlocks.filter((block) => block.endsAt >= now);
+  const nextCalendarBlock = activeCalendarBlocks.find((block) => block.startsAt >= today) ?? activeCalendarBlocks[0] ?? null;
+  const hasInactivePublicPages = sessions.some((session) => !session.isActive);
+  const dashboardIssues = [
+    freeSlotCount === 0 ? "Nincs szabad idősáv a jelenlegi foglalóknál." : null,
+    nextCalendarBlock ? `Következő naptár tiltás: ${nextCalendarBlock.title} (${formatCalendarBlockRange(nextCalendarBlock.startsAt, nextCalendarBlock.endsAt)})` : null,
+    hasInactivePublicPages ? "Van rejtett foglalási oldal, amit érdemes ellenőrizni." : null
+  ].filter((issue): issue is string => Boolean(issue));
+  const showServices = currentTab === "services";
+  const showMiniDays = currentTab === "mini";
+  const showBookings = currentTab === "bookings";
 
   return (
     <AdminShell>
@@ -450,42 +520,151 @@ export default async function AdminMiniSessionsPage({
       </div>
 
       {currentTab === "overview" ? (
-        <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <Link href={hubHref("services", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-            <p className="text-2xl font-semibold text-ink">{recurringServices.length}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-              <BriefcaseBusiness size={13} />
-              Állandó szolgáltatás
-            </p>
-          </Link>
-          <Link href={hubHref("mini", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-            <p className="text-2xl font-semibold text-ink">{miniSessionDays.length}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-              <CalendarClock size={13} />
-              Mini session nap
-            </p>
-          </Link>
-          <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-            <p className="text-2xl font-semibold text-ink">{activeBookingCount}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-              <Users size={13} />
-              Aktív foglalás
-            </p>
-          </Link>
-          <Link href={hubHref("calendar", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-            <p className="text-2xl font-semibold text-ink">{calendarBlocks.length}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-              <Ban size={13} />
-              Naptár tiltás
-            </p>
-          </Link>
-          <Link href={hubHref("overview", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-            <p className="text-2xl font-semibold text-sage">{freeSlotCount}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-              <CheckCircle2 size={13} />
-              Szabad idősáv
-            </p>
-          </Link>
+        <div className="space-y-6">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+              <p className="truncate text-lg font-semibold text-ink">
+                {upcomingBookings[0] ? formatMiniSessionDate(upcomingBookings[0].booking.startsAt) : "Nincs"}
+              </p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+                <CalendarClock size={13} />
+                Következő foglalás
+              </p>
+            </Link>
+            <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+              <p className="text-2xl font-semibold text-ink">{todayBookingCount + todayProjectCount}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+                <Users size={13} />
+                Fotózás ma
+              </p>
+            </Link>
+            <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+              <p className="text-2xl font-semibold text-ink">{weekBookingCount + weekProjects.length}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+                <CalendarDays size={13} />
+                Következő 7 nap
+              </p>
+            </Link>
+            <Link href={hubHref("calendar", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+              <p className="text-2xl font-semibold text-ink">{activeCalendarBlocks.length}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+                <Ban size={13} />
+                Aktív tiltás
+              </p>
+            </Link>
+            <Link href={hubHref("services", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+              <p className="text-2xl font-semibold text-sage">{freeSlotCount}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+                <CheckCircle2 size={13} />
+                Szabad idősáv
+              </p>
+            </Link>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
+                    <ListChecks size={15} />
+                    Mai fókusz
+                  </div>
+                  <h2 className="mt-2 text-lg font-semibold text-ink">Következő foglalások</h2>
+                </div>
+                <Link href={hubHref("bookings", createMode)} className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+                  <Users size={14} />
+                  Összes foglalás
+                </Link>
+              </div>
+
+              {upcomingBookings.length === 0 ? (
+                <p className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">
+                  Nincs közelgő ügyfélfoglalás.
+                </p>
+              ) : (
+                <div className="mt-5 divide-y divide-ink/10 overflow-hidden rounded-md border border-ink/10">
+                  {upcomingBookings.slice(0, 5).map(({ session, booking }) => (
+                    <Link
+                      key={booking.id}
+                      href={`/admin/mini-sessions/${session.id}?tab=bookings`}
+                      className="grid gap-2 bg-white px-4 py-3 transition hover:bg-paper sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink">{booking.name}</p>
+                        <p className="mt-1 truncate text-xs text-graphite/60">{session.title} · {booking.attendeeCount} fő</p>
+                      </div>
+                      <p className="text-sm text-graphite/75 sm:text-right">{formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}</p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <aside className="space-y-5">
+              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
+                  <Plus size={15} />
+                  Gyors műveletek
+                </div>
+                <div className="mt-4 grid gap-2">
+                  <Link href={hubHref("create", "service")} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-graphite">
+                    <BriefcaseBusiness size={15} />
+                    Állandó fotózás
+                  </Link>
+                  <Link href={hubHref("create", "mini")} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+                    <CalendarClock size={15} />
+                    Mini session nap
+                  </Link>
+                  <Link href={hubHref("calendar", createMode)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+                    <Ban size={15} />
+                    Naptár tiltása
+                  </Link>
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
+                  <CheckCircle2 size={15} />
+                  Állapot
+                </div>
+                {dashboardIssues.length === 0 ? (
+                  <p className="mt-4 rounded-md bg-sage/10 px-3 py-3 text-sm leading-6 text-sage">
+                    Minden rendben: van szabad idősáv, és nincs sürgős naptár figyelmeztetés.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-2">
+                    {dashboardIssues.map((issue) => (
+                      <p key={issue} className="rounded-md bg-paper px-3 py-3 text-sm leading-6 text-graphite/75">
+                        {issue}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
+                  <CalendarDays size={15} />
+                  Normál projektek
+                </div>
+                {weekProjects.length === 0 ? (
+                  <p className="mt-4 text-sm leading-6 text-graphite/70">A következő 7 napban nincs ügyfélprojekt.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {weekProjects.slice(0, 4).map((project) => (
+                      <Link key={project.id} href={`/admin/clients/${project.customer.id}?tab=projects`} className="block rounded-md border border-ink/10 px-3 py-3 transition hover:bg-paper">
+                        <p className="truncate text-sm font-semibold text-ink">{project.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-graphite/65">
+                          {project.eventDate ? formatMiniSessionDate(project.eventDate) : "Nincs dátum"} · {customerProjectTypeLabel(project.projectType)}
+                          {formatProjectTime(project) ? ` · ${formatProjectTime(project)}` : ""}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </aside>
+          </div>
         </div>
       ) : null}
 
@@ -522,7 +701,7 @@ export default async function AdminMiniSessionsPage({
       ) : null}
 
       <div className="mt-6 space-y-8">
-        {sessions.length === 0 && currentTab !== "calendar" && currentTab !== "create" ? (
+        {sessions.length === 0 && currentTab !== "overview" && currentTab !== "calendar" && currentTab !== "create" ? (
           <EmptyState
             icon={<CalendarClock size={22} />}
             title="Még nincs foglaló"
@@ -779,19 +958,6 @@ export default async function AdminMiniSessionsPage({
                 </div>
               )}
             </div>
-          </section>
-        ) : null}
-
-        {currentTab === "overview" ? (
-          <section id="availability" className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
-              <CheckCircle2 size={15} />
-              Elérhetőség
-            </div>
-            <h2 className="mt-2 text-lg font-semibold text-ink">Naptár és szabad idősávok</h2>
-            <p className="mt-2 text-sm leading-6 text-graphite/70">
-              A szabad idősávok automatikusan levonják a már foglalt mini session időpontokat, az állandó szolgáltatás foglalásait, az ügyfélprojektek időpontjait és a globális naptár beállításokban tiltott időszakokat.
-            </p>
           </section>
         ) : null}
       </div>
