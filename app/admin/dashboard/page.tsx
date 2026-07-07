@@ -12,6 +12,7 @@ import {
   Heart,
   ImagePlus,
   Mail,
+  MapPin,
   MessageSquare,
   ReceiptText
 } from "lucide-react";
@@ -27,7 +28,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { customerProjectTypeLabel } from "@/lib/customer-project-options";
+import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { ensureLeadPipelineSchema, leadEventTypeLabel, leadStatusLabel, normalizeLeadStatus } from "@/lib/leads";
 import {
   formatMiniSessionSlot,
@@ -107,6 +108,25 @@ type DashboardStat = {
   detail: string;
 };
 
+type DashboardUpcomingProject = {
+  id: string;
+  title: string;
+  projectType: string;
+  status: string;
+  eventDate: Date | null;
+  startTime: string | null;
+  endTime: string | null;
+  venue: string | null;
+  customer: {
+    id: string;
+    coupleName: string;
+    primaryEmail: string;
+  };
+  _count: {
+    galleries: number;
+  };
+};
+
 const sectionMetaClass = "flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brass";
 const sectionTitleClass = "text-base font-semibold text-ink";
 
@@ -136,11 +156,21 @@ function formatDate(date: Date | null, language: AdminLanguage) {
 }
 
 function formatProjectTimeRange(project: { startTime: string | null; endTime: string | null }) {
-  if (!project.startTime || !project.endTime) {
+  const time = formatProjectTimeText(project);
+
+  if (!time) {
     return "";
   }
 
-  return ` · ${project.startTime} - ${project.endTime}`;
+  return ` · ${time}`;
+}
+
+function formatProjectTimeText(project: { startTime: string | null; endTime: string | null }) {
+  if (!project.startTime || !project.endTime) {
+    return null;
+  }
+
+  return `${project.startTime} - ${project.endTime}`;
 }
 
 function startOfToday() {
@@ -465,10 +495,13 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Projektek",
     projectsTitle: "Következő projektek",
+    projectsDescription: "A következő dátumos projektek, hogy gyorsan lásd, mi jön időrendben.",
     openClients: "Ügyfelek megnyitása",
     noUpcomingTitle: "Nincs közelgő projekt",
     noUpcomingDescription: "Az ügyfél adatlapján létrehozott jövőbeli projektek itt jelennek majd meg időrendben.",
     gallery: "galéria",
+    missingVenue: "Nincs helyszín",
+    missingTime: "Nincs időpont",
     notificationsTitle: "Értesítések",
     all: "Összes",
     noNotificationsTitle: "Még nincs értesítés",
@@ -572,10 +605,13 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Projekte",
     projectsTitle: "Nächste Projekte",
+    projectsDescription: "Die nächsten datierten Projekte in chronologischer Reihenfolge.",
     openClients: "Kunden öffnen",
     noUpcomingTitle: "Keine anstehenden Projekte",
     noUpcomingDescription: "Zukünftige Projekte aus den Kundendaten erscheinen hier chronologisch.",
     gallery: "Galerie",
+    missingVenue: "Kein Ort",
+    missingTime: "Keine Uhrzeit",
     notificationsTitle: "Benachrichtigungen",
     all: "Alle",
     noNotificationsTitle: "Noch keine Benachrichtigungen",
@@ -591,6 +627,108 @@ const DASHBOARD_COPY = {
 } as const;
 
 type DashboardCopy = (typeof DASHBOARD_COPY)[AdminLanguage];
+
+function UpcomingProjectsSection({
+  copy,
+  language,
+  projects
+}: {
+  copy: DashboardCopy;
+  language: AdminLanguage;
+  projects: DashboardUpcomingProject[];
+}) {
+  const visibleProjects = projects.filter(
+    (project): project is DashboardUpcomingProject & { eventDate: Date } => project.eventDate instanceof Date
+  );
+
+  return (
+    <section className="mt-8 rounded-md border border-ink/12 bg-white">
+      <div className="flex flex-col justify-between gap-4 border-b border-ink/10 px-5 py-4 md:flex-row md:items-end">
+        <div>
+          <div className={sectionMetaClass}>
+            <FolderKanban size={15} />
+            {copy.projectsEyebrow}
+          </div>
+          <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.projectsTitle}</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">{copy.projectsDescription}</p>
+        </div>
+        <Link
+          href="/admin/clients"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+        >
+          {copy.openClients}
+          <ArrowRight size={15} />
+        </Link>
+      </div>
+
+      {visibleProjects.length === 0 ? (
+        <div className="p-5">
+          <EmptyState
+            icon={<CalendarClock size={18} className="text-ink" />}
+            title={copy.noUpcomingTitle}
+            description={copy.noUpcomingDescription}
+          />
+        </div>
+      ) : (
+        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+          {visibleProjects.map((project) => {
+            const projectTime = formatProjectTimeText(project);
+
+            return (
+              <Link
+                key={project.id}
+                href={`/admin/clients/${project.customer.id}?tab=projects`}
+                className="group rounded-md border border-ink/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brass/30 hover:shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-20 shrink-0 rounded-md bg-paper px-2 py-2 text-center ring-1 ring-ink/8">
+                    <p className="text-sm font-semibold text-ink">{formatShortCalendarDate(project.eventDate, language)}</p>
+                    <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-graphite/55">
+                      {formatWeekday(project.eventDate, language)}
+                    </p>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
+                        {customerProjectTypeLabel(project.projectType)}
+                      </span>
+                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                        {customerProjectStatusLabel(project.status)}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 truncate font-semibold text-ink">{project.title}</h3>
+                    <p className="mt-1 truncate text-sm text-graphite/70">{project.customer.coupleName}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2 text-sm text-graphite/70">
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <CalendarClock size={15} className="shrink-0 text-brass" />
+                    <span className="truncate">{projectTime ?? copy.missingTime}</span>
+                  </span>
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <MapPin size={15} className="shrink-0 text-brass" />
+                    <span className="truncate">{project.venue || copy.missingVenue}</span>
+                  </span>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-ink/8 pt-3">
+                  <span className="text-xs font-medium text-graphite/60">
+                    {project._count.galleries} {copy.gallery}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-brass">
+                    {copy.calendar.project}
+                    <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function DashboardWorkCalendar({
   copy,
@@ -838,6 +976,7 @@ export default async function AdminDashboardPage() {
     activeCount,
     photoCount,
     photoStorage,
+    upcomingProjects,
     calendarProjects,
     calendarLeads,
     calendarContracts,
@@ -861,6 +1000,37 @@ export default async function AdminDashboardPage() {
     prisma.gallery.count({ where: { ...galleryWhere, isActive: true } }),
     prisma.photo.count({ where: photoWhere }),
     prisma.photo.aggregate({ where: photoWhere, _sum: { fileSize: true } }),
+    prisma.customerProject.findMany({
+      where: {
+        ...projectWhere,
+        eventDate: { gte: today },
+        status: { not: "archived" }
+      },
+      orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
+      take: 6,
+      select: {
+        id: true,
+        title: true,
+        projectType: true,
+        status: true,
+        eventDate: true,
+        startTime: true,
+        endTime: true,
+        venue: true,
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        _count: {
+          select: {
+            galleries: true
+          }
+        }
+      }
+    }),
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
@@ -1581,6 +1751,8 @@ export default async function AdminDashboardPage() {
           { label: copy.stats.storage[0], value: formatStorageSize(totalStorageBytes), detail: copy.stats.storage[1] }
         ]}
       />
+
+      <UpcomingProjectsSection copy={copy} language={language} projects={upcomingProjects} />
 
       <section className="mt-8 rounded-md border border-ink/12 bg-white">
         <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
