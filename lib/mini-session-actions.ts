@@ -6,7 +6,10 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { syncMiniSessionBookingToGoogleCalendar } from "@/lib/google-calendar-api";
+import {
+  deleteCustomerProjectFromGoogleCalendar,
+  syncMiniSessionBookingToGoogleCalendar
+} from "@/lib/google-calendar-api";
 import {
   adminMiniSessionUrl,
   miniSessionBookingCalendarUrl,
@@ -18,7 +21,10 @@ import {
 } from "@/lib/email";
 import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/mini-session-calendar";
 import { hasMiniSessionSlotConflict } from "@/lib/mini-session-availability";
-import { linkMiniSessionBookingToCustomerProject } from "@/lib/mini-session-customer-sync";
+import {
+  cleanupMiniSessionBookingCustomerProject,
+  linkMiniSessionBookingToCustomerProject
+} from "@/lib/mini-session-customer-sync";
 import {
   createMiniSessionSlots,
   type MiniSessionLanguage,
@@ -159,6 +165,18 @@ function uploadedMiniSessionCoverFromForm(formData: FormData, adminId: string, e
 
 function miniSessionCalendarUid(bookingId: string) {
   return `mini-session-${bookingId}@gallery.hochzeitsfotografgraz.at`;
+}
+
+async function deleteLinkedMiniSessionProjectCalendarEvent(projectId: string | null) {
+  if (!projectId) {
+    return;
+  }
+
+  try {
+    await deleteCustomerProjectFromGoogleCalendar(projectId);
+  } catch (error) {
+    console.error("Mini session linked customer project Google Calendar delete failed", error);
+  }
 }
 
 function miniSessionCalendarDescription({
@@ -865,12 +883,21 @@ export async function cancelMiniSessionBookingAction(token: string) {
   if (booking.status !== MINI_SESSION_BOOKING_STATUS_CANCELLED) {
     const cancelledAt = new Date();
 
-    await prisma.miniSessionBooking.update({
-      where: { id: booking.id },
-      data: {
-        status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
-        cancelledAt
-      }
+    await deleteLinkedMiniSessionProjectCalendarEvent(booking.projectId);
+
+    await prisma.$transaction(async (tx) => {
+      const cancelledBooking = await tx.miniSessionBooking.update({
+        where: { id: booking.id },
+        data: {
+          status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
+          cancelledAt
+        }
+      });
+
+      await cleanupMiniSessionBookingCustomerProject({
+        tx,
+        booking: cancelledBooking
+      });
     });
 
     try {
@@ -932,11 +959,24 @@ export async function cancelMiniSessionBookingAction(token: string) {
     } catch (error) {
       console.error("Mini session cancellation email failed", error);
     }
+  } else {
+    await deleteLinkedMiniSessionProjectCalendarEvent(booking.projectId);
+
+    await prisma.$transaction(async (tx) => {
+      await cleanupMiniSessionBookingCustomerProject({
+        tx,
+        booking
+      });
+    });
   }
 
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  revalidatePath("/admin/clients");
+  if (booking.customerId) {
+    revalidatePath(`/admin/clients/${booking.customerId}`);
+  }
   redirect(`/mini-session/${booking.miniSession.slug}?cancelled=1&calendar=${booking.cancelToken}`);
 }
 
@@ -951,6 +991,8 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
     select: {
       id: true,
       status: true,
+      customerId: true,
+      projectId: true,
       miniSession: {
         select: {
           id: true,
@@ -965,12 +1007,21 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
   }
 
   if (booking.status !== MINI_SESSION_BOOKING_STATUS_CANCELLED) {
-    await prisma.miniSessionBooking.update({
-      where: { id: booking.id },
-      data: {
-        status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
-        cancelledAt: new Date()
-      }
+    await deleteLinkedMiniSessionProjectCalendarEvent(booking.projectId);
+
+    await prisma.$transaction(async (tx) => {
+      const cancelledBooking = await tx.miniSessionBooking.update({
+        where: { id: booking.id },
+        data: {
+          status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
+          cancelledAt: new Date()
+        }
+      });
+
+      await cleanupMiniSessionBookingCustomerProject({
+        tx,
+        booking: cancelledBooking
+      });
     });
 
     try {
@@ -978,11 +1029,24 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
     } catch (error) {
       console.error("Mini session Google Calendar admin cancellation sync failed", error);
     }
+  } else {
+    await deleteLinkedMiniSessionProjectCalendarEvent(booking.projectId);
+
+    await prisma.$transaction(async (tx) => {
+      await cleanupMiniSessionBookingCustomerProject({
+        tx,
+        booking
+      });
+    });
   }
 
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
+  revalidatePath("/admin/clients");
+  if (booking.customerId) {
+    revalidatePath(`/admin/clients/${booking.customerId}`);
+  }
   redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&bookingCancelled=1`);
 }
 

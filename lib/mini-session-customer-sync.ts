@@ -136,3 +136,82 @@ export async function linkMiniSessionBookingToCustomerProject({
     }
   });
 }
+
+export async function cleanupMiniSessionBookingCustomerProject({
+  tx,
+  booking
+}: {
+  tx: Prisma.TransactionClient;
+  booking: Pick<MiniSessionBooking, "id" | "customerId" | "projectId">;
+}) {
+  if (booking.projectId) {
+    const project = await tx.customerProject.findFirst({
+      where: {
+        id: booking.projectId,
+        projectType: "mini_session",
+        miniSessionBookings: {
+          some: { id: booking.id }
+        }
+      },
+      select: { id: true }
+    });
+
+    if (project) {
+      await tx.customerProject.delete({
+        where: { id: project.id }
+      });
+    }
+  }
+
+  if (!booking.customerId) {
+    return;
+  }
+
+  const customer = await tx.customer.findUnique({
+    where: { id: booking.customerId },
+    select: {
+      id: true,
+      customerType: true,
+      tags: true,
+      _count: {
+        select: {
+          projects: true,
+          galleries: true,
+          contracts: true,
+          invoices: true,
+          albumReviews: true,
+          albumDesigns: true,
+          portalImages: true,
+          vendors: true
+        }
+      }
+    }
+  });
+
+  if (!customer) {
+    return;
+  }
+
+  const otherMiniSessionBookingCount = await tx.miniSessionBooking.count({
+    where: {
+      customerId: customer.id,
+      id: { not: booking.id }
+    }
+  });
+  const hasOtherCustomerWork =
+    customer._count.projects > 0 ||
+    customer._count.galleries > 0 ||
+    customer._count.contracts > 0 ||
+    customer._count.invoices > 0 ||
+    customer._count.albumReviews > 0 ||
+    customer._count.albumDesigns > 0 ||
+    customer._count.portalImages > 0 ||
+    customer._count.vendors > 0 ||
+    otherMiniSessionBookingCount > 0;
+
+  if (customer.customerType === "mini_session" && customer.tags.includes(MINI_SESSION_CUSTOMER_TAG) && !hasOtherCustomerWork) {
+    await tx.customer.delete({
+      where: { id: customer.id }
+    });
+  }
+}
