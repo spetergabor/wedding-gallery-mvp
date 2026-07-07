@@ -150,6 +150,30 @@ function miniSessionBookingStatusClass(status: string) {
     : "bg-sage/10 text-sage";
 }
 
+function calendarBlockStatus(block: { startsAt: Date; endsAt: Date }, now: Date) {
+  if (block.endsAt < now) {
+    return "Lejárt";
+  }
+
+  if (block.startsAt <= now && block.endsAt >= now) {
+    return "Most aktív";
+  }
+
+  return "Jövőbeni";
+}
+
+function calendarBlockStatusClass(block: { startsAt: Date; endsAt: Date }, now: Date) {
+  if (block.endsAt < now) {
+    return "bg-ink/5 text-graphite";
+  }
+
+  if (block.startsAt <= now && block.endsAt >= now) {
+    return "bg-red-50 text-red-700";
+  }
+
+  return "bg-sage/10 text-sage";
+}
+
 function CreateModeSwitch({ createMode }: { createMode: BookingCreateMode }) {
   return (
     <div className="rounded-md border border-ink/10 bg-white p-1 shadow-soft">
@@ -558,6 +582,8 @@ export default async function AdminMiniSessionsPage({
   const weekBookingCount = activeBookings.filter((item) => isInRange(item.booking.startsAt, today, weekEnd)).length;
   const todayProjectCount = weekProjects.filter((project) => project.eventDate && isInRange(project.eventDate, today, tomorrow)).length;
   const activeCalendarBlocks = calendarBlocks.filter((block) => block.endsAt >= now);
+  const todayCalendarBlocks = calendarBlocks.filter((block) => block.startsAt < tomorrow && block.endsAt > today);
+  const expiredCalendarBlocks = calendarBlocks.filter((block) => block.endsAt < now);
   const nextCalendarBlock = activeCalendarBlocks.find((block) => block.startsAt >= today) ?? activeCalendarBlocks[0] ?? null;
   const hasInactivePublicPages = sessions.some((session) => !session.isActive);
   const dashboardIssues = [
@@ -1021,68 +1047,114 @@ export default async function AdminMiniSessionsPage({
               </span>
             </div>
 
-            <form action={createAdminCalendarBlockAction} className="mt-6 grid gap-4 rounded-md border border-ink/10 bg-paper p-4 lg:grid-cols-2">
-              <label className="block space-y-2 lg:col-span-2">
-                <span className="text-sm font-medium text-graphite">Megnevezés</span>
-                <input name="title" className={fieldClass} placeholder="pl. Nyaralás, esküvő, zárt nap" />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Kezdő dátum</span>
-                <input name="startDate" type="date" required className={fieldClass} />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Záró dátum</span>
-                <input name="endDate" type="date" className={fieldClass} />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Mettől</span>
-                <input name="startTime" type="time" defaultValue="00:00" className={fieldClass} />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Meddig</span>
-                <input name="endTime" type="time" defaultValue="23:59" className={fieldClass} />
-              </label>
-              <label className="block space-y-2 lg:col-span-2">
-                <span className="text-sm font-medium text-graphite">Megjegyzés</span>
-                <textarea name="notes" className={textAreaClass} placeholder="Belső megjegyzés, például miért nem foglalható ez az időszak." />
-              </label>
-              <div className="flex flex-col gap-3 border-t border-ink/10 pt-4 sm:flex-row sm:items-center lg:col-span-2">
-                <FormSubmitButton>
-                  <Plus size={15} />
-                  Tiltás hozzáadása
-                </FormSubmitButton>
-                <p className="text-xs leading-5 text-graphite/60">Többnapos tiltásnál elég a kezdő és záró dátumot megadni.</p>
+            <div className="mt-5 grid gap-3 md:grid-cols-4">
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="text-lg font-semibold text-ink">{activeCalendarBlocks.length}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Aktív / jövőbeni</p>
               </div>
-            </form>
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="text-lg font-semibold text-ink">{todayCalendarBlocks.length}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Ma érintett</p>
+              </div>
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="text-lg font-semibold text-ink">{sessions.length}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Érintett foglaló</p>
+              </div>
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="truncate text-lg font-semibold text-ink">{nextCalendarBlock ? formatMiniSessionDate(nextCalendarBlock.startsAt) : "Nincs"}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Következő tiltás</p>
+              </div>
+            </div>
 
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-ink">Jelenlegi tiltások</h3>
-              {calendarBlocks.length === 0 ? (
-                <p className="mt-3 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">
-                  Nincs globálisan blokkolt időszak.
-                </p>
-              ) : (
-                <div className="mt-3 divide-y divide-ink/10 overflow-hidden rounded-md border border-ink/10">
-                  {calendarBlocks.map((block) => (
-                    <div key={block.id} className="grid gap-3 bg-white px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink">{block.title}</p>
-                        <p className="mt-1 text-sm text-graphite/70">{formatCalendarBlockRange(block.startsAt, block.endsAt)}</p>
-                        {block.notes ? <p className="mt-1 text-xs leading-5 text-graphite/60">{block.notes}</p> : null}
-                      </div>
-                      <form action={deleteAdminCalendarBlockAction.bind(null, block.id)}>
-                        <ConfirmSubmitButton
-                          variant="danger"
-                          message="Biztosan törlöd ezt a naptár tiltást? Az érintett időpontok újra foglalhatók lesznek."
-                          className="h-9 w-full px-3 text-xs md:w-auto"
-                        >
-                          Törlés
-                        </ConfirmSubmitButton>
-                      </form>
-                    </div>
-                  ))}
+            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+              <form action={createAdminCalendarBlockAction} className="grid gap-4 rounded-md border border-ink/10 bg-paper p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-ink">Új globális tiltás</h3>
+                  <p className="mt-1 text-xs leading-5 text-graphite/60">
+                    Amit itt rögzítesz, minden foglalási oldalból automatikusan kiesik.
+                  </p>
                 </div>
-              )}
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-graphite">Megnevezés</span>
+                  <input name="title" className={fieldClass} placeholder="pl. Nyaralás, esküvő, zárt nap" />
+                </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Kezdő dátum</span>
+                    <input name="startDate" type="date" required className={fieldClass} />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Záró dátum</span>
+                    <input name="endDate" type="date" className={fieldClass} />
+                  </label>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Mettől</span>
+                    <input name="startTime" type="time" defaultValue="00:00" className={fieldClass} />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Meddig</span>
+                    <input name="endTime" type="time" defaultValue="23:59" className={fieldClass} />
+                  </label>
+                </div>
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-graphite">Megjegyzés</span>
+                  <textarea name="notes" className={textAreaClass} placeholder="Belső megjegyzés, például miért nem foglalható ez az időszak." />
+                </label>
+                <div className="flex flex-col gap-3 border-t border-ink/10 pt-4">
+                  <FormSubmitButton>
+                    <Plus size={15} />
+                    Tiltás hozzáadása
+                  </FormSubmitButton>
+                  <p className="text-xs leading-5 text-graphite/60">Többnapos tiltásnál elég a kezdő és záró dátumot megadni.</p>
+                </div>
+              </form>
+
+              <div>
+                <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink">Tiltások listája</h3>
+                    <p className="mt-1 text-xs leading-5 text-graphite/60">
+                      {expiredCalendarBlocks.length > 0 ? `${expiredCalendarBlocks.length} lejárt tiltás is látszik, hogy visszakövethető maradjon.` : "Csak aktuális és jövőbeni tiltások vannak."}
+                    </p>
+                  </div>
+                  <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+                    {calendarBlocks.length} összesen
+                  </span>
+                </div>
+                {calendarBlocks.length === 0 ? (
+                  <p className="mt-3 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">
+                    Nincs globálisan blokkolt időszak.
+                  </p>
+                ) : (
+                  <div className="mt-3 divide-y divide-ink/10 overflow-hidden rounded-md border border-ink/10">
+                    {calendarBlocks.map((block) => (
+                      <div key={block.id} className="grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-ink">{block.title}</p>
+                            <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${calendarBlockStatusClass(block, now)}`}>
+                              {calendarBlockStatus(block, now)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-graphite/70">{formatCalendarBlockRange(block.startsAt, block.endsAt)}</p>
+                          {block.notes ? <p className="mt-1 text-xs leading-5 text-graphite/60">{block.notes}</p> : null}
+                        </div>
+                        <form action={deleteAdminCalendarBlockAction.bind(null, block.id)}>
+                          <ConfirmSubmitButton
+                            variant="danger"
+                            message="Biztosan törlöd ezt a naptár tiltást? Az érintett időpontok újra foglalhatók lesznek."
+                            className="h-9 w-full px-3 text-xs md:w-auto"
+                          >
+                            Törlés
+                          </ConfirmSubmitButton>
+                        </form>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </section>
         ) : null}
