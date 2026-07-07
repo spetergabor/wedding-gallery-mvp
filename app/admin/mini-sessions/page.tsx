@@ -13,6 +13,7 @@ import {
   Phone,
   Plus,
   Settings2,
+  UploadCloud,
   Users,
   XCircle,
   type LucideIcon
@@ -257,6 +258,33 @@ function CreateSettingsSection({
   );
 }
 
+function CreateCoverUploadField({
+  submitLabel,
+  pendingLabel
+}: {
+  submitLabel: string;
+  pendingLabel: string;
+}) {
+  return (
+    <div className="rounded-md border border-ink/10 bg-white p-4">
+      <label className="block space-y-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+          <ImageIcon size={15} />
+          Borítókép az érkező oldalra
+        </span>
+        <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
+      </label>
+      <div className="mt-3 flex flex-col gap-3 border-t border-ink/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs leading-5 text-graphite/65">A borítókép a létrehozással együtt kerül feltöltésre.</p>
+        <FormSubmitButton variant="secondary" pendingLabel={pendingLabel} className="h-11 w-full px-4 sm:w-auto">
+          <UploadCloud size={16} />
+          {submitLabel}
+        </FormSubmitButton>
+      </div>
+    </div>
+  );
+}
+
 function ServiceCreateForm() {
   return (
     <form action={createMiniSessionAction} encType="multipart/form-data" className="mt-6 space-y-6">
@@ -359,13 +387,7 @@ function ServiceCreateForm() {
         description="A borítókép és a szövegek a vendégeknek látható landing page-re kerülnek."
       >
         <div className="grid gap-4">
-          <label className="block space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-              <ImageIcon size={15} />
-              Borítókép az érkező oldalra
-            </span>
-            <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
-          </label>
+          <CreateCoverUploadField submitLabel="Borítóval együtt létrehozás" pendingLabel="Létrehozás és feltöltés..." />
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
             <textarea name="notes" className={textAreaClass} placeholder="Rövid leírás az ügyfeleknek." />
@@ -458,13 +480,7 @@ function MiniSessionCreateForm() {
         description="Itt állíthatod be, mit lásson a vendég a foglalási landing page-en."
       >
         <div className="grid gap-4">
-          <label className="block space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-              <ImageIcon size={15} />
-              Borítókép az érkező oldalra
-            </span>
-            <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
-          </label>
+          <CreateCoverUploadField submitLabel="Borítóval együtt létrehozás" pendingLabel="Létrehozás és feltöltés..." />
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
             <textarea name="notes" className={textAreaClass} placeholder="Opcionális rövid infó az ügyfeleknek." />
