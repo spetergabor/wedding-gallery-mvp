@@ -1,4 +1,21 @@
-import { Building2, CalendarDays, CheckCircle2, ExternalLink, FileText, Heart, ImagePlus, Mail, MapPin, Phone, Trash2, UploadCloud, UserRound } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  Camera,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
+  FileText,
+  Heart,
+  ImagePlus,
+  Mail,
+  MapPin,
+  Phone,
+  ReceiptText,
+  Trash2,
+  UploadCloud,
+  UserRound
+} from "lucide-react";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -90,6 +107,24 @@ const PORTAL_COPY = {
     openContract: "Megnyitás",
     signed: "Aláírva",
     sent: "Elküldve",
+    projects: "Fotózások és projektek",
+    projectsIntro: "Itt látjátok az időpontokat, helyszíneket és az adott projekthez tartozó galériákat, szerződéseket és számlákat.",
+    noProjects: "Még nincs külön projekt megosztva veletek.",
+    time: "Időpont",
+    noTime: "Nincs időpont megadva",
+    noLocation: "Nincs helyszín megadva",
+    linkedGalleries: "Galériák",
+    linkedContracts: "Szerződések",
+    linkedInvoices: "Számlák",
+    noLinkedGalleries: "Ehhez a projekthez még nincs aktív galéria.",
+    noLinkedContracts: "Ehhez a projekthez még nincs megnyitható szerződés.",
+    noLinkedInvoices: "Ehhez a projekthez még nincs kiküldött számla.",
+    openGallery: "Galéria megnyitása",
+    openInvoice: "Számla megnyitása",
+    media: "média",
+    paid: "Fizetve",
+    open: "Nyitott",
+    dueDate: "Fizetési határidő",
     photographer: "Fotós adatai",
     noImages: "Még nincs feltöltött inspiráció.",
     noVendors: "Még nincs szolgáltató megadva.",
@@ -154,6 +189,24 @@ const PORTAL_COPY = {
     openContract: "Öffnen",
     signed: "Unterschrieben",
     sent: "Gesendet",
+    projects: "Shootings und Projekte",
+    projectsIntro: "Hier seht ihr Termine, Orte und die zugehörigen Galerien, Verträge und Rechnungen pro Projekt.",
+    noProjects: "Noch kein eigenes Projekt wurde mit euch geteilt.",
+    time: "Uhrzeit",
+    noTime: "Keine Uhrzeit angegeben",
+    noLocation: "Kein Ort angegeben",
+    linkedGalleries: "Galerien",
+    linkedContracts: "Verträge",
+    linkedInvoices: "Rechnungen",
+    noLinkedGalleries: "Für dieses Projekt gibt es noch keine aktive Galerie.",
+    noLinkedContracts: "Für dieses Projekt gibt es noch keinen verfügbaren Vertrag.",
+    noLinkedInvoices: "Für dieses Projekt gibt es noch keine gesendete Rechnung.",
+    openGallery: "Galerie öffnen",
+    openInvoice: "Rechnung öffnen",
+    media: "Medien",
+    paid: "Bezahlt",
+    open: "Offen",
+    dueDate: "Fällig am",
     photographer: "Fotograf Kontakt",
     noImages: "Noch keine Inspiration hochgeladen.",
     noVendors: "Noch kein Dienstleister eingetragen.",
@@ -176,6 +229,77 @@ function formatDate(date: Date | null, language: "hu" | "de") {
 
 function value(value: string | null | undefined, language: "hu" | "de") {
   return value?.trim() || (language === "hu" ? "Nincs megadva" : "Nicht angegeben");
+}
+
+const projectTypeLabels = {
+  hu: {
+    wedding: "Esküvő",
+    couple_session: "Párfotózás",
+    mini_session: "Mini fotózás",
+    family: "Családi fotózás",
+    event: "Esemény",
+    business: "Céges / brand",
+    album: "Album",
+    general: "Általános projekt"
+  },
+  de: {
+    wedding: "Hochzeit",
+    couple_session: "Paarshooting",
+    mini_session: "Mini-Session",
+    family: "Familienshooting",
+    event: "Event",
+    business: "Business / Brand",
+    album: "Album",
+    general: "Allgemeines Projekt"
+  }
+} as const;
+
+const projectStatusLabels = {
+  hu: {
+    lead: "Érdeklődő",
+    planned: "Tervezve",
+    in_progress: "Folyamatban",
+    proofing: "Válogatás / ellenőrzés",
+    editing: "Kidolgozás alatt",
+    delivered: "Átadva",
+    archived: "Archivált"
+  },
+  de: {
+    lead: "Anfrage",
+    planned: "Geplant",
+    in_progress: "In Arbeit",
+    proofing: "Auswahl / Prüfung",
+    editing: "In Bearbeitung",
+    delivered: "Übergeben",
+    archived: "Archiviert"
+  }
+} as const;
+
+function projectTypeLabel(type: string, language: "hu" | "de") {
+  return projectTypeLabels[language][type as keyof (typeof projectTypeLabels)["hu"]] ?? projectTypeLabels[language].general;
+}
+
+function projectStatusLabel(status: string, language: "hu" | "de") {
+  return projectStatusLabels[language][status as keyof (typeof projectStatusLabels)["hu"]] ?? projectStatusLabels[language].planned;
+}
+
+function formatTimeRange(startTime: string | null, endTime: string | null, language: "hu" | "de") {
+  if (!startTime || !endTime) {
+    return language === "hu" ? "Nincs időpont megadva" : "Keine Uhrzeit angegeben";
+  }
+
+  return `${startTime} - ${endTime}`;
+}
+
+function formatAmount(amountCents: number | null, currency: string, language: "hu" | "de") {
+  if (typeof amountCents !== "number") {
+    return null;
+  }
+
+  return new Intl.NumberFormat(language === "hu" ? "hu-HU" : "de-DE", {
+    style: "currency",
+    currency
+  }).format(amountCents / 100);
 }
 
 export default async function CustomerPortalPage({
@@ -220,6 +344,70 @@ export default async function CustomerPortalPage({
       },
       vendors: {
         orderBy: [{ role: "asc" }, { name: "asc" }]
+      },
+      projects: {
+        where: {
+          status: { not: "archived" }
+        },
+        orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
+        include: {
+          galleries: {
+            where: { isActive: true },
+            orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              eventDate: true,
+              _count: {
+                select: {
+                  photos: true
+                }
+              }
+            }
+          },
+          contracts: {
+            where: {
+              OR: [
+                { sentAt: { not: null } },
+                { signedAt: { not: null } },
+                { accessToken: { not: null } },
+                { signedFileUrl: { not: null } }
+              ]
+            },
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              fileUrl: true,
+              accessToken: true,
+              sentAt: true,
+              signedAt: true,
+              signedFileUrl: true
+            }
+          },
+          invoices: {
+            where: {
+              OR: [
+                { sentAt: { not: null } },
+                { paidAt: { not: null } }
+              ]
+            },
+            orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              fileUrl: true,
+              amountCents: true,
+              currency: true,
+              dueDate: true,
+              paidAt: true,
+              sentAt: true
+            }
+          }
+        }
       },
       contracts: {
         where: {
@@ -307,6 +495,157 @@ export default async function CustomerPortalPage({
           {flags.imageError === "type" ? <Alert title={copy.imageType} variant="error" /> : null}
           {flags.imageError === "size" ? <Alert title={copy.imageSize} variant="error" /> : null}
         </div>
+
+        <section className="mb-7 rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
+          <h2 className="flex items-center gap-2 text-xl font-semibold text-ink">
+            <Camera size={20} />
+            {copy.projects}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-graphite/70">{copy.projectsIntro}</p>
+
+          {customer.projects.length === 0 ? (
+            <p className="mt-5 rounded-md bg-paper px-4 py-3 text-sm text-graphite/70">{copy.noProjects}</p>
+          ) : (
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              {customer.projects.map((project) => (
+                <article key={project.id} className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                          {projectTypeLabel(project.projectType, language)}
+                        </span>
+                        <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          {projectStatusLabel(project.status, language)}
+                        </span>
+                      </div>
+                      <h3 className="mt-3 text-lg font-semibold text-ink">{project.title}</h3>
+                    </div>
+                    <div className="rounded-md bg-white px-3 py-2 text-sm font-medium text-ink ring-1 ring-ink/10">
+                      {formatDate(project.eventDate, language)}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 text-sm text-graphite/75">
+                    <p className="inline-flex items-center gap-2">
+                      <Clock3 size={15} />
+                      <span>
+                        {copy.time}: {formatTimeRange(project.startTime, project.endTime, language)}
+                      </span>
+                    </p>
+                    <p className="inline-flex items-center gap-2">
+                      <MapPin size={15} />
+                      <span>{project.venue || copy.noLocation}</span>
+                    </p>
+                  </div>
+
+                  <div className="mt-5 space-y-4">
+                    <div>
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <ImagePlus size={16} />
+                        {copy.linkedGalleries}
+                      </h4>
+                      {project.galleries.length === 0 ? (
+                        <p className="mt-2 text-sm text-graphite/65">{copy.noLinkedGalleries}</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {project.galleries.map((gallery) => (
+                            <a
+                              key={gallery.id}
+                              href={`/g/${gallery.slug}`}
+                              target="_blank"
+                              className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm transition hover:bg-ink/5"
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate font-medium text-ink">{gallery.title}</span>
+                                <span className="text-xs text-graphite/60">{gallery._count.photos} {copy.media}</span>
+                              </span>
+                              <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-ink">
+                                {copy.openGallery}
+                                <ExternalLink size={14} />
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <FileText size={16} />
+                        {copy.linkedContracts}
+                      </h4>
+                      {project.contracts.length === 0 ? (
+                        <p className="mt-2 text-sm text-graphite/65">{copy.noLinkedContracts}</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {project.contracts.map((contract) => {
+                            const href = contract.signedFileUrl || (contract.accessToken ? contractPublicUrl(contract.accessToken) : contract.fileUrl);
+                            const isSigned = Boolean(contract.signedAt || contract.signedFileUrl);
+
+                            return (
+                              <a
+                                key={contract.id}
+                                href={href}
+                                target="_blank"
+                                className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm transition hover:bg-ink/5"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate font-medium text-ink">{contract.title}</span>
+                                  <span className="text-xs text-graphite/60">{isSigned ? copy.signed : copy.sent}</span>
+                                </span>
+                                <ExternalLink size={14} className="shrink-0 text-ink" />
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <ReceiptText size={16} />
+                        {copy.linkedInvoices}
+                      </h4>
+                      {project.invoices.length === 0 ? (
+                        <p className="mt-2 text-sm text-graphite/65">{copy.noLinkedInvoices}</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {project.invoices.map((invoice) => {
+                            const amount = formatAmount(invoice.amountCents, invoice.currency, language);
+                            const isPaid = Boolean(invoice.paidAt || invoice.status === "paid");
+
+                            return (
+                              <a
+                                key={invoice.id}
+                                href={invoice.fileUrl}
+                                target="_blank"
+                                className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm transition hover:bg-ink/5"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate font-medium text-ink">{invoice.title}</span>
+                                  <span className="text-xs text-graphite/60">
+                                    {[isPaid ? copy.paid : copy.open, amount, invoice.dueDate ? `${copy.dueDate}: ${formatDate(invoice.dueDate, language)}` : null]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                  </span>
+                                </span>
+                                <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-ink">
+                                  {copy.openInvoice}
+                                  <ExternalLink size={14} />
+                                </span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
         <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-7">
