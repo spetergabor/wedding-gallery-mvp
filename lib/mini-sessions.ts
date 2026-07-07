@@ -262,7 +262,7 @@ export function groupMiniSessionSlotsByDate(slots: MiniSessionSlot[], language: 
 }
 
 export function miniSessionModeLabel(value: string | null | undefined) {
-  return value === MINI_SESSION_BOOKING_MODE_RECURRING ? "Állandó foglaló" : "Egynapos mini session";
+  return value === MINI_SESSION_BOOKING_MODE_RECURRING ? "Állandó szolgáltatás" : "Mini session nap";
 }
 
 export function miniSessionDateInput(session: { startsAt: Date }) {

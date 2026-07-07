@@ -180,7 +180,7 @@ export default async function AdminMiniSessionDetailPage({
       <div className="mb-5">
         <Link href="/admin/mini-sessions" className="inline-flex items-center gap-2 text-sm font-medium text-graphite hover:text-ink">
           <ArrowLeft size={15} />
-          Vissza a mini sessionökhöz
+          Vissza az időpontfoglalóhoz
         </Link>
       </div>
 
@@ -193,8 +193,8 @@ export default async function AdminMiniSessionDetailPage({
         {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
         {flags.error === "slot" ? <Alert title="Érvénytelen idősáv." variant="error">Válassz egy szabad idősávot.</Alert> : null}
         {flags.error === "taken" ? <Alert title="Ez az idősáv már foglalt." variant="error">Frissítsd a listát vagy válassz másik idősávot.</Alert> : null}
-        {flags.created ? <Alert title="Mini session létrehozva." variant="success" /> : null}
-        {flags.updated ? <Alert title="Mini session frissítve." variant="success" /> : null}
+        {flags.created ? <Alert title="Foglaló létrehozva." variant="success" /> : null}
+        {flags.updated ? <Alert title="Foglaló frissítve." variant="success" /> : null}
         {flags.bookingCancelled ? <Alert title="Idősáv törölve, újra foglalható." variant="success" /> : null}
         {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
         {flags.confirmationSent ? <Alert title="Megerősítő e-mail újraküldve." variant="success" /> : null}
@@ -339,7 +339,7 @@ export default async function AdminMiniSessionDetailPage({
                   <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${session.coverImageUrl ? "text-white/75" : "text-brass"}`}>{miniSessionLanguageLabel(session.language)}</p>
                   <p className="mt-2 text-xl font-semibold">{session.title}</p>
                   <p className={`mt-2 text-xs ${session.coverImageUrl ? "text-white/80" : "text-graphite/70"}`}>
-                    {isRecurring ? `Állandó foglaló · ${session.bookingWindowDays} nap` : formatMiniSessionDate(session.sessionDate)} · {session.location}
+                    {isRecurring ? `Állandó szolgáltatás · ${session.bookingWindowDays} nap` : formatMiniSessionDate(session.sessionDate)} · {session.location}
                   </p>
                 </div>
               </div>
@@ -739,8 +739,8 @@ export default async function AdminMiniSessionDetailPage({
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-graphite">Foglaló típusa</span>
                 <select name="bookingMode" defaultValue={session.bookingMode} className={fieldClass}>
-                  <option value={MINI_SESSION_BOOKING_MODE_SINGLE_DAY}>Egynapos mini session</option>
-                  <option value={MINI_SESSION_BOOKING_MODE_RECURRING}>Állandó foglaló</option>
+                  <option value={MINI_SESSION_BOOKING_MODE_SINGLE_DAY}>Mini session nap</option>
+                  <option value={MINI_SESSION_BOOKING_MODE_RECURRING}>Állandó szolgáltatás</option>
                 </select>
               </label>
               <label className="block space-y-2">
@@ -768,7 +768,7 @@ export default async function AdminMiniSessionDetailPage({
               <section className="rounded-md border border-ink/10 bg-paper p-4 sm:col-span-2">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                   <div>
-                    <h3 className="text-sm font-semibold text-ink">Állandó foglaló elérhetősége</h3>
+                    <h3 className="text-sm font-semibold text-ink">Állandó szolgáltatás elérhetősége</h3>
                     <p className="mt-1 text-xs leading-5 text-graphite/65">
                       Ezek a napok és időablakok csak állandó foglaló módban kerülnek ki a publikus naptárba.
                     </p>
@@ -894,7 +894,7 @@ export default async function AdminMiniSessionDetailPage({
               <form action={deleteMiniSessionAction.bind(null, session.id)} className="mt-4">
                 <ConfirmSubmitButton
                   variant="danger"
-                  message={`Biztosan törlöd ezt a mini sessiont? A hozzá tartozó ${booked.length} foglalás is törlődik.`}
+                  message={`Biztosan törlöd ezt a foglalót? A hozzá tartozó ${booked.length} foglalás is törlődik.`}
                   className="h-10 px-3"
                 >
                   <Trash2 size={15} />

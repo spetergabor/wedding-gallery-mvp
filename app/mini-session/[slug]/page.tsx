@@ -32,7 +32,7 @@ const MINI_SESSION_PAGE_COPY = {
     takenTitle: "Ez az időpont közben betelt.",
     takenText: "Válassz egy másik szabad idősávot.",
     invalidSlot: "Érvénytelen időpont.",
-    inactive: "Ez a mini session jelenleg nem foglalható.",
+    inactive: "Ez a foglaló jelenleg nem elérhető.",
     soldOut: "Minden időpont betelt.",
     stylingTitle: "Styling és előkészület",
     stylingIntro: "Pár praktikus infó a fotózás hangulatához.",
