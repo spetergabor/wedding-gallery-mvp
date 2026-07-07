@@ -818,7 +818,9 @@ export default async function AdminMiniSessionsPage({
             description: "Mindig foglalható fotózások, saját heti elérhetőséggel.",
             icon: BriefcaseBusiness,
             items: recurringServices,
-            visible: showServices
+            visible: showServices,
+            createHref: hubHref("create", "service"),
+            createLabel: "Új állandó fotózás"
           },
           {
             id: "mini-session-days",
@@ -826,7 +828,9 @@ export default async function AdminMiniSessionsPage({
             description: "Egyszeri fotózási napok fix dátummal és idősávokkal.",
             icon: CalendarClock,
             items: miniSessionDays,
-            visible: showMiniDays
+            visible: showMiniDays,
+            createHref: hubHref("create", "mini"),
+            createLabel: "Új mini session nap"
           }
         ].map((group) => {
           const GroupIcon = group.icon;
@@ -841,10 +845,26 @@ export default async function AdminMiniSessionsPage({
                 key={group.id}
                 icon={<GroupIcon size={22} />}
                 title={`Még nincs ${group.title.toLowerCase()}`}
-                description="A fenti teljes szélességű létrehozó panelből tudsz újat indítani."
+                description="Hozz létre egy foglalási oldalt, majd oszd meg a publikus linket."
+                action={
+                  <Link href={group.createHref} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+                    <Plus size={15} />
+                    {group.createLabel}
+                  </Link>
+                }
               />
             ) : null;
           }
+
+          const groupActiveCount = group.items.filter((session) => session.isActive).length;
+          const groupBookedCount = group.items.reduce(
+            (total, session) => total + session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED).length,
+            0
+          );
+          const groupFreeSlotCount = group.items.reduce(
+            (total, session) => total + (sessionMetrics.get(session.id)?.freeSlotCount ?? 0),
+            0
+          );
 
           return (
             <section key={group.id} id={group.id} className="space-y-4">
@@ -856,9 +876,26 @@ export default async function AdminMiniSessionsPage({
                   </div>
                   <p className="mt-2 text-sm text-graphite/70">{group.description}</p>
                 </div>
-                <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                  {group.items.length} elem
-                </span>
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+                    {group.items.length} elem
+                  </span>
+                  <span className="inline-flex w-fit rounded-full bg-sage/10 px-3 py-1 text-xs font-medium text-sage">
+                    {groupActiveCount} aktív
+                  </span>
+                  <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+                    {groupFreeSlotCount} szabad idősáv
+                  </span>
+                  <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+                    {groupBookedCount} foglalás
+                  </span>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Link href={group.createHref} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 sm:w-auto">
+                  <Plus size={14} />
+                  {group.createLabel}
+                </Link>
               </div>
 
               {group.items.map((session) => {
@@ -894,6 +931,12 @@ export default async function AdminMiniSessionsPage({
                           <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
                         </div>
                         <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
+                        {session.isActive && freeSessionSlotCount === 0 ? (
+                          <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                            <Ban size={13} />
+                            Nincs szabad idősáv, a publikus oldalon nem lesz foglalható időpont.
+                          </p>
+                        ) : null}
                       </div>
                       <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 xl:w-auto xl:flex xl:flex-nowrap">
                         <Link className="inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-ink px-2.5 text-xs font-medium text-white transition hover:bg-graphite sm:px-3 sm:text-sm xl:w-auto" href={`/admin/mini-sessions/${session.id}`}>
