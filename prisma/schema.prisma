@@ -230,25 +230,45 @@ model MiniSession {
   title           String
   slug            String   @unique
   location        String
-  sessionDate     DateTime
-  startsAt        DateTime
-  endsAt          DateTime
-  durationMinutes Int
-  language        String   @default("hu")
-  isActive        Boolean  @default(true)
-  notes           String?
-  stylingNotes    String?
-  coverImageUrl   String?
-  coverImageR2Key String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  admin           Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  bookings        MiniSessionBooking[]
+  bookingMode       String   @default("single_day")
+  bookingWindowDays Int      @default(60)
+  sessionDate       DateTime
+  startsAt          DateTime
+  endsAt            DateTime
+  durationMinutes   Int
+  language          String   @default("hu")
+  isActive          Boolean  @default(true)
+  notes             String?
+  stylingNotes      String?
+  coverImageUrl     String?
+  coverImageR2Key   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  admin             Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  bookings          MiniSessionBooking[]
+  availabilityRules MiniSessionAvailability[]
 
   @@index([adminId])
   @@index([slug])
+  @@index([bookingMode])
   @@index([sessionDate])
   @@index([startsAt])
+  @@index([isActive])
+}
+
+model MiniSessionAvailability {
+  id            String   @id @default(cuid())
+  miniSessionId String
+  weekday       Int
+  startsAt      String
+  endsAt        String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  miniSession   MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+
+  @@index([miniSessionId])
+  @@index([miniSessionId, weekday])
   @@index([isActive])
 }
 

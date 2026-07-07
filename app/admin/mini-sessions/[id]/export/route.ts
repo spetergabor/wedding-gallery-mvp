@@ -109,7 +109,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     ...session.bookings.map((booking) =>
       csvRow([
         session.title,
-        formatMiniSessionDate(session.sessionDate, "hu"),
+        formatMiniSessionDate(booking.startsAt, "hu"),
         formatMiniSessionSlot(booking.startsAt, booking.endsAt, "hu"),
         booking.name,
         booking.email,

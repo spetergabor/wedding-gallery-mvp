@@ -8,15 +8,20 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { miniSessionPublicUrl } from "@/lib/email";
+import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import { createMiniSessionAction } from "@/lib/mini-session-actions";
 import {
   createMiniSessionSlots,
   formatMiniSessionDate,
   formatMiniSessionTime,
+  miniSessionModeLabel,
+  MINI_SESSION_BOOKING_MODE_RECURRING,
+  MINI_SESSION_BOOKING_MODE_SINGLE_DAY,
   miniSessionLanguageLabel,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
-  MINI_SESSION_LANGUAGES
+  MINI_SESSION_LANGUAGES,
+  MINI_SESSION_WEEKDAYS
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
@@ -45,11 +50,24 @@ export default async function AdminMiniSessionsPage({
     where: adminOwnedWhere(admin),
     orderBy: [{ startsAt: "desc" }],
     include: {
+      availabilityRules: {
+        orderBy: [{ weekday: "asc" }, { startsAt: "asc" }]
+      },
       bookings: {
         orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }]
       }
     }
   });
+  const sessionMetrics = new Map(
+    await Promise.all(
+      sessions.map(async (session) => {
+        const slots = createMiniSessionSlots(session);
+        const availableSlots = await getAvailableMiniSessionSlots(session);
+
+        return [session.id, { slots, freeSlotCount: availableSlots.length }] as const;
+      })
+    )
+  );
 
   return (
     <AdminShell>
@@ -79,8 +97,8 @@ export default async function AdminMiniSessionsPage({
               <Plus size={18} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-ink">Új mini session</h2>
-              <p className="mt-1 text-sm text-graphite/70">Új foglalható nap létrehozása</p>
+              <h2 className="text-lg font-semibold text-ink">Új foglaló létrehozása</h2>
+              <p className="mt-1 text-sm text-graphite/70">Egynapos mini session vagy állandó szolgáltatás</p>
             </div>
           </div>
           <ChevronDown size={18} className="shrink-0 text-graphite/60 transition group-open:rotate-180" />
@@ -105,7 +123,14 @@ export default async function AdminMiniSessionsPage({
             </select>
           </label>
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Mikor</span>
+            <span className="text-sm font-medium text-graphite">Foglaló típusa</span>
+            <select name="bookingMode" defaultValue={MINI_SESSION_BOOKING_MODE_SINGLE_DAY} className={fieldClass}>
+              <option value={MINI_SESSION_BOOKING_MODE_SINGLE_DAY}>Egynapos mini session</option>
+              <option value={MINI_SESSION_BOOKING_MODE_RECURRING}>Állandó foglaló</option>
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Mikor / foglalás kezdete</span>
             <input name="date" type="date" required className={fieldClass} />
           </label>
           <label className="block space-y-2">
@@ -126,6 +151,46 @@ export default async function AdminMiniSessionsPage({
               <input name="durationMinutes" type="number" min="5" step="5" defaultValue="20" required className={fieldClass} />
             </label>
           </div>
+          <section className="rounded-md border border-ink/10 bg-paper p-4 lg:col-span-2">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+              <div>
+                <h3 className="text-sm font-semibold text-ink">Állandó foglaló elérhetősége</h3>
+                <p className="mt-1 text-xs leading-5 text-graphite/65">
+                  Csak állandó foglalónál számít. A publikus oldalon ezekből készül a naptár.
+                </p>
+              </div>
+              <label className="block w-full space-y-2 sm:w-44">
+                <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Foglalási ablak</span>
+                <input name="bookingWindowDays" type="number" min="7" max="180" step="1" defaultValue="60" className={fieldClass} />
+              </label>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {MINI_SESSION_WEEKDAYS.map((weekday) => (
+                <div key={weekday.value} className="rounded-md border border-ink/10 bg-white p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                    <input
+                      name="availabilityWeekday"
+                      type="checkbox"
+                      value={weekday.value}
+                      defaultChecked={weekday.value >= 1 && weekday.value <= 5}
+                      className="size-4 rounded border-ink/20"
+                    />
+                    {weekday.label}
+                  </label>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-[11px] uppercase tracking-[0.1em] text-graphite/55">Mettől</span>
+                      <input name={`availabilityStart-${weekday.value}`} type="time" defaultValue="10:00" className={fieldClass} />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-[11px] uppercase tracking-[0.1em] text-graphite/55">Meddig</span>
+                      <input name={`availabilityEnd-${weekday.value}`} type="time" defaultValue="18:00" className={fieldClass} />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
           <label className="block space-y-2 lg:col-span-2">
             <span className="flex items-center gap-2 text-sm font-medium text-graphite">
               <ImageIcon size={15} />
@@ -168,22 +233,31 @@ export default async function AdminMiniSessionsPage({
           sessions.map((session) => {
             const booked = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
             const cancelled = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
-            const slots = createMiniSessionSlots(session);
-            const bookedSlotTokens = new Set(booked.map((booking) => booking.startsAt.toISOString()));
-            const freeSlotCount = slots.filter((slot) => !bookedSlotTokens.has(slot.token)).length;
+            const metrics = sessionMetrics.get(session.id);
+            const slots = metrics?.slots ?? [];
+            const freeSlotCount = metrics?.freeSlotCount ?? 0;
             const publicUrl = miniSessionPublicUrl(session.slug);
+            const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
             return (
               <section id={`mini-session-${session.id}`} key={session.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
                 <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-semibold text-ink">{session.title}</h2>
+                      <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+                        {miniSessionModeLabel(session.bookingMode)}
+                      </span>
                       <span className={`rounded-full px-3 py-1 text-xs font-medium ${session.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
                         {session.isActive ? "Aktív" : "Rejtett"}
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-3 text-sm text-graphite/70">
-                      <span className="inline-flex items-center gap-1.5"><CalendarClock size={15} /> {formatMiniSessionDate(session.sessionDate)} · {formatMiniSessionTime(session.startsAt)}-{formatMiniSessionTime(session.endsAt)}</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <CalendarClock size={15} />
+                        {isRecurring
+                          ? `Foglalható ${session.bookingWindowDays} napra előre`
+                          : `${formatMiniSessionDate(session.sessionDate)} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
+                      </span>
                       <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
                       <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
                     </div>

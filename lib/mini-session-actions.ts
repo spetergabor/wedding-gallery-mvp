@@ -6,7 +6,6 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   adminMiniSessionUrl,
   miniSessionBookingCalendarUrl,
@@ -17,15 +16,22 @@ import {
   sendMiniSessionBookingConfirmationEmail
 } from "@/lib/email";
 import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/mini-session-calendar";
+import { hasMiniSessionSlotConflict } from "@/lib/mini-session-availability";
 import {
   createMiniSessionSlots,
   type MiniSessionLanguage,
+  MINI_SESSION_BOOKING_MODE_RECURRING,
+  MINI_SESSION_BOOKING_MODE_SINGLE_DAY,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_CLIENT,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
-  normalizeMiniSessionLanguage
+  MINI_SESSION_WEEKDAYS,
+  normalizeBookingWindowDays,
+  normalizeMiniSessionLanguage,
+  normalizeMiniSessionWeekday,
+  parseMiniSessionLocalDateTime
 } from "@/lib/mini-sessions";
 import { syncMiniSessionBookingLead } from "@/lib/mini-session-leads";
 import { prisma } from "@/lib/prisma";
@@ -61,48 +67,28 @@ function miniSessionLanguageFromForm(formData: FormData) {
   return normalizeMiniSessionLanguage(formString(formData, "language"));
 }
 
-function parseLocalDateTime(date: string, time: string) {
-  if (!date || !time) {
-    return null;
-  }
-
-  const [year, month, day] = date.split("-").map((part) => Number.parseInt(part, 10));
-  const [hour, minute] = time.split(":").map((part) => Number.parseInt(part, 10));
-
-  if (![year, month, day, hour, minute].every(Number.isFinite)) {
-    return null;
-  }
-
-  const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute));
-  const offset = timeZoneOffsetMs(utcGuess, APP_TIME_ZONE);
-  const value = new Date(utcGuess.getTime() - offset);
-  const refinedOffset = timeZoneOffsetMs(value, APP_TIME_ZONE);
-
-  return new Date(utcGuess.getTime() - refinedOffset);
+function miniSessionBookingModeFromForm(formData: FormData) {
+  return formString(formData, "bookingMode") === MINI_SESSION_BOOKING_MODE_RECURRING
+    ? MINI_SESSION_BOOKING_MODE_RECURRING
+    : MINI_SESSION_BOOKING_MODE_SINGLE_DAY;
 }
 
-function timeZoneOffsetMs(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const asUtc = Date.UTC(
-    Number(values.year),
-    Number(values.month) - 1,
-    Number(values.day),
-    Number(values.hour),
-    Number(values.minute),
-    Number(values.second)
+function miniSessionAvailabilityRulesFromForm(formData: FormData) {
+  const selectedWeekdays = new Set(
+    formData
+      .getAll("availabilityWeekday")
+      .map((value) => (typeof value === "string" ? normalizeMiniSessionWeekday(value) : null))
+      .filter((value): value is number => value !== null)
   );
 
-  return asUtc - date.getTime();
+  return MINI_SESSION_WEEKDAYS
+    .filter((weekday) => selectedWeekdays.has(weekday.value))
+    .map((weekday) => ({
+      weekday: weekday.value,
+      startsAt: formString(formData, `availabilityStart-${weekday.value}`),
+      endsAt: formString(formData, `availabilityEnd-${weekday.value}`)
+    }))
+    .filter((rule) => rule.startsAt && rule.endsAt && rule.endsAt > rule.startsAt);
 }
 
 function createCancelToken() {
@@ -223,12 +209,15 @@ export async function createMiniSessionAction(formData: FormData) {
   const startTime = formString(formData, "startTime");
   const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
+  const bookingMode = miniSessionBookingModeFromForm(formData);
+  const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
+  const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
-  const startsAt = parseLocalDateTime(date, startTime);
-  const endsAt = parseLocalDateTime(date, endTime);
+  const startsAt = parseMiniSessionLocalDateTime(date, startTime);
+  const endsAt = parseMiniSessionLocalDateTime(date, endTime);
 
   if (!title || !location || !slug || !startsAt || !endsAt || endsAt <= startsAt) {
     redirect("/admin/mini-sessions?error=missing");
@@ -244,7 +233,9 @@ export async function createMiniSessionAction(formData: FormData) {
         title,
         slug,
         location,
-        sessionDate: parseLocalDateTime(date, "12:00") ?? startsAt,
+        bookingMode,
+        bookingWindowDays,
+        sessionDate: parseMiniSessionLocalDateTime(date, "12:00") ?? startsAt,
         startsAt,
         endsAt,
         durationMinutes,
@@ -253,7 +244,8 @@ export async function createMiniSessionAction(formData: FormData) {
         notes: notes || null,
         stylingNotes: stylingNotes || null,
         coverImageUrl: uploadedCover?.url ?? null,
-        coverImageR2Key: uploadedCover?.r2Key ?? null
+        coverImageR2Key: uploadedCover?.r2Key ?? null,
+        availabilityRules: availabilityRules.length > 0 ? { create: availabilityRules } : undefined
       }
     });
   } catch (error) {
@@ -289,12 +281,15 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const startTime = formString(formData, "startTime");
   const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
+  const bookingMode = miniSessionBookingModeFromForm(formData);
+  const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
+  const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
-  const startsAt = parseLocalDateTime(date, startTime);
-  const endsAt = parseLocalDateTime(date, endTime);
+  const startsAt = parseMiniSessionLocalDateTime(date, startTime);
+  const endsAt = parseMiniSessionLocalDateTime(date, endTime);
 
   if (!title || !location || !slug || !startsAt || !endsAt || endsAt <= startsAt) {
     redirect(`/admin/mini-sessions/${id}?tab=settings&error=missing`);
@@ -307,14 +302,20 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         title,
         slug,
         location,
-        sessionDate: parseLocalDateTime(date, "12:00") ?? startsAt,
+        bookingMode,
+        bookingWindowDays,
+        sessionDate: parseMiniSessionLocalDateTime(date, "12:00") ?? startsAt,
         startsAt,
         endsAt,
         durationMinutes,
         language,
         isActive: formData.get("isActive") === "on",
         notes: notes || null,
-        stylingNotes: stylingNotes || null
+        stylingNotes: stylingNotes || null,
+        availabilityRules: {
+          deleteMany: {},
+          create: availabilityRules
+        }
       }
     });
   } catch (error) {
@@ -442,6 +443,7 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
   const session = await prisma.miniSession.findFirst({
     where: { id, ...adminOwnedWhere(admin) },
     include: {
+      availabilityRules: true,
       admin: {
         select: {
           name: true,
@@ -459,6 +461,10 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
 
   if (!slot) {
     redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=slot`);
+  }
+
+  if (await hasMiniSessionSlotConflict(session.adminId, slot)) {
+    redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=taken`);
   }
 
   if (source === MINI_SESSION_BOOKING_SOURCE_MANUAL && !rawName) {
@@ -545,6 +551,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   const session = await prisma.miniSession.findUnique({
     where: { slug },
     include: {
+      availabilityRules: true,
       admin: {
         select: {
           name: true,
@@ -562,6 +569,10 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
 
   if (!slot) {
     redirect(`/mini-session/${slug}?error=slot`);
+  }
+
+  if (await hasMiniSessionSlotConflict(session.adminId, slot)) {
+    redirect(`/mini-session/${slug}?error=taken`);
   }
 
   const cancelToken = createCancelToken();
@@ -664,7 +675,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       replyTo: session.admin.email,
       senderName: session.admin.name,
       sessionTitle: session.title,
-      sessionDate: session.sessionDate,
+      sessionDate: booking.startsAt,
       location: session.location,
       startsAt: booking.startsAt,
       endsAt: booking.endsAt,
@@ -687,7 +698,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       to: session.admin.email,
       replyTo: email,
       sessionTitle: session.title,
-      sessionDate: session.sessionDate,
+      sessionDate: booking.startsAt,
       location: session.location,
       startsAt: booking.startsAt,
       endsAt: booking.endsAt,
@@ -780,7 +791,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
         to: booking.miniSession.admin.email,
         replyTo: booking.email,
         sessionTitle: booking.miniSession.title,
-        sessionDate: booking.miniSession.sessionDate,
+        sessionDate: booking.startsAt,
         location: booking.miniSession.location,
         startsAt: booking.startsAt,
         endsAt: booking.endsAt,
@@ -911,7 +922,7 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
       replyTo: booking.miniSession.admin.email,
       senderName: booking.miniSession.admin.name,
       sessionTitle: booking.miniSession.title,
-      sessionDate: booking.miniSession.sessionDate,
+      sessionDate: booking.startsAt,
       location: booking.miniSession.location,
       startsAt: booking.startsAt,
       endsAt: booking.endsAt,

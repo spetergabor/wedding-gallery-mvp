@@ -4,12 +4,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import { bookMiniSessionAction } from "@/lib/mini-session-actions";
 import {
-  createMiniSessionSlots,
   formatMiniSessionDate,
   formatMiniSessionSlot,
-  MINI_SESSION_BOOKING_STATUS_BOOKED,
+  groupMiniSessionSlotsByDate,
+  MINI_SESSION_BOOKING_MODE_RECURRING,
   normalizeMiniSessionLanguage
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
@@ -21,6 +22,7 @@ const MINI_SESSION_PAGE_COPY = {
   hu: {
     availableTimes: "Foglalható időpontok",
     intro: "Válassz egy szabad idősávot, add meg az adataidat, és e-mailben küldjük a megerősítést.",
+    recurringMeta: "Folyamatosan foglalható",
     bookedTitle: "Köszönöm, a foglalásod rögzítve lett.",
     bookedText: "A megerősítő e-mail hamarosan megérkezik.",
     addCalendar: "Naptárhoz adás",
@@ -46,6 +48,7 @@ const MINI_SESSION_PAGE_COPY = {
   de: {
     availableTimes: "Verfügbare Termine",
     intro: "Wähle einen freien Zeitslot, gib deine Daten ein und du erhältst die Bestätigung per E-Mail.",
+    recurringMeta: "Laufend buchbar",
     bookedTitle: "Danke, deine Buchung wurde gespeichert.",
     bookedText: "Die Bestätigung per E-Mail kommt in Kürze.",
     addCalendar: "Zum Kalender hinzufügen",
@@ -82,10 +85,7 @@ export default async function PublicMiniSessionPage({
   const session = await prisma.miniSession.findUnique({
     where: { slug },
     include: {
-      bookings: {
-        where: { status: MINI_SESSION_BOOKING_STATUS_BOOKED },
-        select: { startsAt: true }
-      },
+      availabilityRules: true,
       admin: {
         select: {
           siteSettings: {
@@ -104,11 +104,13 @@ export default async function PublicMiniSessionPage({
     notFound();
   }
 
-  const bookedTokens = new Set(session.bookings.map((booking) => booking.startsAt.toISOString()));
-  const availableSlots = createMiniSessionSlots(session).filter((slot) => !bookedTokens.has(slot.token));
   const brandName = session.admin.siteSettings?.businessName || "Wedding Gallery";
   const language = normalizeMiniSessionLanguage(session.language);
   const copy = MINI_SESSION_PAGE_COPY[language];
+  const availableSlots = await getAvailableMiniSessionSlots(session);
+  const availableSlotGroups = groupMiniSessionSlotsByDate(availableSlots, language);
+  const defaultSlotToken = availableSlots[0]?.token ?? "";
+  const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
   const calendarHref = flags.calendar ? `/mini-session/${session.slug}/calendar/${encodeURIComponent(flags.calendar)}` : null;
   const hasCoverImage = Boolean(session.coverImageUrl);
   const eyebrowClass = hasCoverImage ? "text-white/80" : "text-brass";
@@ -143,7 +145,7 @@ export default async function PublicMiniSessionPage({
             <div className={`mt-6 flex flex-wrap gap-3 text-sm ${metaClass}`}>
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${metaPillClass}`}>
                 <CalendarClock size={16} />
-                {formatMiniSessionDate(session.sessionDate, language)}
+                {isRecurring ? copy.recurringMeta : formatMiniSessionDate(session.sessionDate, language)}
               </span>
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${metaPillClass}`}>
                 <MapPin size={16} />
@@ -214,13 +216,27 @@ export default async function PublicMiniSessionPage({
                 <CheckCircle2 size={19} />
                 {copy.chooseSlot}
               </h2>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {availableSlots.map((slot, index) => (
-                  <label key={slot.token} className="relative flex min-h-14 cursor-pointer items-center rounded-md border border-ink/10 bg-paper px-4 text-sm font-medium text-ink transition hover:border-ink/25">
-                    <input name="slot" type="radio" value={slot.token} required defaultChecked={index === 0} className="peer sr-only" />
-                    <span className="absolute inset-0 rounded-md ring-0 transition peer-checked:ring-2 peer-checked:ring-ink" />
-                    <span className="relative">{formatMiniSessionSlot(slot.startsAt, slot.endsAt, language)}</span>
-                  </label>
+              <div className="mt-5 space-y-4">
+                {availableSlotGroups.map((group) => (
+                  <section key={group.key} className="rounded-md border border-ink/10 bg-paper p-3">
+                    <h3 className="text-sm font-semibold text-ink">{group.label}</h3>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {group.slots.map((slot) => (
+                        <label key={slot.token} className="relative flex min-h-12 cursor-pointer items-center rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25">
+                          <input
+                            name="slot"
+                            type="radio"
+                            value={slot.token}
+                            required
+                            defaultChecked={slot.token === defaultSlotToken}
+                            className="peer sr-only"
+                          />
+                          <span className="absolute inset-0 rounded-md ring-0 transition peer-checked:ring-2 peer-checked:ring-ink" />
+                          <span className="relative">{formatMiniSessionSlot(slot.startsAt, slot.endsAt, language)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
             </div>
