@@ -8,6 +8,7 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
+  Download,
   FileText,
   FolderKanban,
   Heart,
@@ -208,6 +209,10 @@ function projectGoogleCalendarUrl(project: CustomerProject) {
     location: project.venue,
     details
   });
+}
+
+function projectCalendarIcsUrl(project: CustomerProject) {
+  return project.eventDate ? `/admin/projects/${project.id}/calendar` : null;
 }
 
 const workflowIconMap: Record<ProjectWorkflowIconKey, LucideIcon> = {
@@ -434,6 +439,7 @@ export function CustomerProjectManager({
                 const nextStepStyle = stepStyle(nextStep.state);
                 const isAlbumProject = project.projectType === "album";
                 const calendarUrl = projectGoogleCalendarUrl(project);
+                const calendarIcsUrl = projectCalendarIcsUrl(project);
 
                 return (
                   <>
@@ -485,6 +491,16 @@ export function CustomerProjectManager({
                     >
                       <CalendarPlus size={16} />
                       Google naptár
+                    </a>
+                  ) : null}
+                  {calendarIcsUrl ? (
+                    <a
+                      href={calendarIcsUrl}
+                      download
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
+                    >
+                      <Download size={16} />
+                      Apple / Outlook
                     </a>
                   ) : null}
                   <form action={deleteCustomerProjectAction.bind(null, customerId, project.id)}>

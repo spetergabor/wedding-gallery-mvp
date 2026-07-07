@@ -4,6 +4,7 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
+  Download,
   ExternalLink,
   FileText,
   Heart,
@@ -121,6 +122,7 @@ const PORTAL_COPY = {
     noLinkedInvoices: "Ehhez a projekthez még nincs kiküldött számla.",
     openGallery: "Galéria megnyitása",
     openInvoice: "Számla megnyitása",
+    addCalendar: "Naptárhoz adás",
     media: "média",
     paid: "Fizetve",
     open: "Nyitott",
@@ -203,6 +205,7 @@ const PORTAL_COPY = {
     noLinkedInvoices: "Für dieses Projekt gibt es noch keine gesendete Rechnung.",
     openGallery: "Galerie öffnen",
     openInvoice: "Rechnung öffnen",
+    addCalendar: "Zum Kalender hinzufügen",
     media: "Medien",
     paid: "Bezahlt",
     open: "Offen",
@@ -538,6 +541,17 @@ export default async function CustomerPortalPage({
                       <span>{project.venue || copy.noLocation}</span>
                     </p>
                   </div>
+
+                  {project.eventDate ? (
+                    <a
+                      href={`/portal/${token}/projects/${project.id}/calendar`}
+                      download
+                      className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink ring-1 ring-ink/10 transition hover:bg-ink/5"
+                    >
+                      <Download size={15} />
+                      {copy.addCalendar}
+                    </a>
+                  ) : null}
 
                   <div className="mt-5 space-y-4">
                     <div>
