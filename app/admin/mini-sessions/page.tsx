@@ -16,9 +16,9 @@ import {
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
+import { type ReactNode } from "react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
-import { BookingCreateStepController } from "@/components/booking-create-step-controller";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
@@ -200,12 +200,35 @@ function BookingHubTabs({
   );
 }
 
+function CreateSettingsSection({
+  title,
+  description,
+  children
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-ink/10 pt-6 first:border-t-0 first:pt-0">
+      <div className="mb-4">
+        <h4 className="text-sm font-semibold uppercase tracking-[0.14em] text-graphite/60">{title}</h4>
+        {description ? <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function ServiceCreateForm() {
   return (
-    <form action={createMiniSessionAction} encType="multipart/form-data" noValidate className="mt-6">
+    <form action={createMiniSessionAction} encType="multipart/form-data" className="mt-6 space-y-6">
       <input type="hidden" name="bookingMode" value={MINI_SESSION_BOOKING_MODE_RECURRING} />
-      <BookingCreateStepController submitLabel="Szolgáltatás létrehozása">
-        <section data-booking-create-step-panel className="grid gap-4 md:grid-cols-2">
+      <CreateSettingsSection
+        title="Alapadatok"
+        description="Ezek jelennek meg a publikus foglalási oldalon és az admin listákban."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Szolgáltatás neve</span>
             <input name="title" required className={fieldClass} placeholder="pl. Íriszfotózás" />
@@ -232,10 +255,15 @@ function ServiceCreateForm() {
             <span className="text-sm font-medium text-graphite">Helyszín</span>
             <input name="location" required className={fieldClass} placeholder="Stúdió / cím" />
           </label>
-        </section>
+        </div>
+      </CreateSettingsSection>
 
-        <section data-booking-create-step-panel className="grid gap-5">
-          <div className="grid gap-4 md:grid-cols-3">
+      <CreateSettingsSection
+        title="Foglalható időpontok"
+        description="Az alap idősávokból és a heti elérhetőségből készül a vendégoldali naptár."
+      >
+        <div className="grid gap-5">
+          <div className="grid gap-4 md:grid-cols-4">
             <label className="block space-y-2">
               <span className="text-sm font-medium text-graphite">Alap kezdés</span>
               <input name="startTime" type="time" required defaultValue="10:00" className={fieldClass} />
@@ -248,21 +276,17 @@ function ServiceCreateForm() {
               <span className="text-sm font-medium text-graphite">Időtartam</span>
               <input name="durationMinutes" type="number" min="5" step="5" defaultValue="30" required className={fieldClass} />
             </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Foglalási ablak</span>
+              <input name="bookingWindowDays" type="number" min="7" max="180" step="1" defaultValue="60" className={fieldClass} />
+            </label>
           </div>
 
           <section className="rounded-md border border-ink/10 bg-paper p-4">
-            <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-              <div>
-                <h3 className="text-sm font-semibold text-ink">Heti elérhetőség</h3>
-                <p className="mt-1 text-xs leading-5 text-graphite/65">
-                  Ezekből készül a publikus foglalási naptár. A globális naptárblokkolás minden napból automatikusan levonódik.
-                </p>
-              </div>
-              <label className="block w-full space-y-2 md:w-48">
-                <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Foglalási ablak</span>
-                <input name="bookingWindowDays" type="number" min="7" max="180" step="1" defaultValue="60" className={fieldClass} />
-              </label>
-            </div>
+            <h3 className="text-sm font-semibold text-ink">Heti elérhetőség</h3>
+            <p className="mt-1 text-xs leading-5 text-graphite/65">
+              A globális naptárblokkolás minden napból automatikusan levonódik.
+            </p>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {MINI_SESSION_WEEKDAYS.map((weekday) => (
                 <div key={weekday.value} className="rounded-md border border-ink/10 bg-white p-3">
@@ -290,9 +314,14 @@ function ServiceCreateForm() {
               ))}
             </div>
           </section>
-        </section>
+        </div>
+      </CreateSettingsSection>
 
-        <section data-booking-create-step-panel className="grid gap-4">
+      <CreateSettingsSection
+        title="Publikus oldal"
+        description="A borítókép és a szövegek a vendégeknek látható landing page-re kerülnek."
+      >
+        <div className="grid gap-4">
           <label className="block space-y-2">
             <span className="flex items-center gap-2 text-sm font-medium text-graphite">
               <ImageIcon size={15} />
@@ -308,32 +337,32 @@ function ServiceCreateForm() {
             <span className="text-sm font-medium text-graphite">Styling / előkészület</span>
             <textarea name="stylingNotes" className={textAreaClass} placeholder="pl. milyen ruhát, sminket, hangulatot javasolsz..." />
           </label>
-        </section>
+        </div>
+      </CreateSettingsSection>
 
-        <section data-booking-create-step-panel className="space-y-4">
-          <div className="rounded-md border border-ink/10 bg-paper px-4 py-4">
-            <h4 className="text-sm font-semibold text-ink">Állandó fotózás publikálása</h4>
-            <p className="mt-1 text-sm leading-6 text-graphite/70">
-              Mentés után megnyílik a kezelőoldal, ahol ellenőrizheted az idősávokat és másolhatod a publikus linket.
-            </p>
-          </div>
+      <CreateSettingsSection title="Publikálás">
+        <div className="flex flex-col justify-between gap-4 rounded-md bg-paper px-4 py-4 sm:flex-row sm:items-center">
           <label className="flex items-center gap-2 text-sm text-graphite">
             <input name="isActive" type="checkbox" defaultChecked className="size-4 rounded border-ink/20" />
             Publikusan foglalható
           </label>
-        </section>
-      </BookingCreateStepController>
+          <FormSubmitButton pendingLabel="Létrehozás...">Szolgáltatás létrehozása</FormSubmitButton>
+        </div>
+      </CreateSettingsSection>
     </form>
   );
 }
 
 function MiniSessionCreateForm() {
   return (
-    <form action={createMiniSessionAction} encType="multipart/form-data" noValidate className="mt-6">
+    <form action={createMiniSessionAction} encType="multipart/form-data" className="mt-6 space-y-6">
       <input type="hidden" name="bookingMode" value={MINI_SESSION_BOOKING_MODE_SINGLE_DAY} />
       <input type="hidden" name="bookingWindowDays" value="60" />
-      <BookingCreateStepController submitLabel="Mini session nap létrehozása">
-        <section data-booking-create-step-panel className="grid gap-4 md:grid-cols-2">
+      <CreateSettingsSection
+        title="Alapadatok"
+        description="A név, dátum és helyszín alapján készül a publikus mini session oldal."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Session neve</span>
             <input name="title" required className={fieldClass} placeholder="pl. Őszi mini session" />
@@ -360,9 +389,14 @@ function MiniSessionCreateForm() {
             <span className="text-sm font-medium text-graphite">Helyszín</span>
             <input name="location" required className={fieldClass} placeholder="Helyszín" />
           </label>
-        </section>
+        </div>
+      </CreateSettingsSection>
 
-        <section data-booking-create-step-panel className="grid gap-4 md:grid-cols-3">
+      <CreateSettingsSection
+        title="Idősávok"
+        description="A kezdés, zárás és időtartam alapján generálódnak a foglalható időpontok."
+      >
+        <div className="grid gap-4 md:grid-cols-3">
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Fotózás mettől</span>
             <input name="startTime" type="time" required className={fieldClass} />
@@ -375,9 +409,14 @@ function MiniSessionCreateForm() {
             <span className="text-sm font-medium text-graphite">Időtartam / foglalás</span>
             <input name="durationMinutes" type="number" min="5" step="5" defaultValue="20" required className={fieldClass} />
           </label>
-        </section>
+        </div>
+      </CreateSettingsSection>
 
-        <section data-booking-create-step-panel className="grid gap-4">
+      <CreateSettingsSection
+        title="Publikus oldal"
+        description="Itt állíthatod be, mit lásson a vendég a foglalási landing page-en."
+      >
+        <div className="grid gap-4">
           <label className="block space-y-2">
             <span className="flex items-center gap-2 text-sm font-medium text-graphite">
               <ImageIcon size={15} />
@@ -393,21 +432,18 @@ function MiniSessionCreateForm() {
             <span className="text-sm font-medium text-graphite">Styling / előkészület</span>
             <textarea name="stylingNotes" className={textAreaClass} placeholder="pl. világos ruhák, natúr színek, kényelmes cipő..." />
           </label>
-        </section>
+        </div>
+      </CreateSettingsSection>
 
-        <section data-booking-create-step-panel className="space-y-4">
-          <div className="rounded-md border border-ink/10 bg-paper px-4 py-4">
-            <h4 className="text-sm font-semibold text-ink">Mini session publikálása</h4>
-            <p className="mt-1 text-sm leading-6 text-graphite/70">
-              Mentés után megnyílik a kezelőoldal, ahol ellenőrizheted a foglalható idősávokat és másolhatod a publikus linket.
-            </p>
-          </div>
+      <CreateSettingsSection title="Publikálás">
+        <div className="flex flex-col justify-between gap-4 rounded-md bg-paper px-4 py-4 sm:flex-row sm:items-center">
           <label className="flex items-center gap-2 text-sm text-graphite">
             <input name="isActive" type="checkbox" defaultChecked className="size-4 rounded border-ink/20" />
             Publikusan foglalható
           </label>
-        </section>
-      </BookingCreateStepController>
+          <FormSubmitButton pendingLabel="Létrehozás...">Mini session nap létrehozása</FormSubmitButton>
+        </div>
+      </CreateSettingsSection>
     </form>
   );
 }
