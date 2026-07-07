@@ -8,7 +8,9 @@ import {
   ExternalLink,
   ImageIcon,
   ListChecks,
+  Mail,
   MapPin,
+  Phone,
   Plus,
   Settings2,
   Users,
@@ -136,6 +138,16 @@ function formatProjectTime(project: { startTime: string | null; endTime: string 
   }
 
   return `${project.startTime}-${project.endTime}`;
+}
+
+function miniSessionBookingStatusLabel(status: string) {
+  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED ? "Törölt" : "Aktív";
+}
+
+function miniSessionBookingStatusClass(status: string) {
+  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED
+    ? "bg-red-50 text-red-700"
+    : "bg-sage/10 text-sage";
 }
 
 function CreateModeSwitch({ createMode }: { createMode: BookingCreateMode }) {
@@ -536,6 +548,9 @@ export default async function AdminMiniSessionsPage({
     .sort((a, b) => b.booking.startsAt.getTime() - a.booking.startsAt.getTime());
   const freeSlotCount = [...sessionMetrics.values()].reduce((total, metrics) => total + metrics.freeSlotCount, 0);
   const activeBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
+  const cancelledBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
+  const activeAttendeeCount = activeBookings.reduce((total, item) => total + item.booking.attendeeCount, 0);
+  const uniqueContactCount = new Set(contactBookings.map((item) => item.booking.email.toLowerCase())).size;
   const upcomingBookings = activeBookings
     .filter((item) => item.booking.startsAt >= now)
     .sort((a, b) => a.booking.startsAt.getTime() - b.booking.startsAt.getTime());
@@ -904,34 +919,84 @@ export default async function AdminMiniSessionsPage({
                   <ListChecks size={15} />
                   Foglalások
                 </div>
-                <h2 className="mt-2 text-lg font-semibold text-ink">Legutóbbi foglalások</h2>
+                <h2 className="mt-2 text-lg font-semibold text-ink">Kontaktlista</h2>
+                <p className="mt-1 text-sm leading-6 text-graphite/70">
+                  Az összes mini session és állandó fotózás foglalója egy helyen, közvetlen elérhetőségekkel.
+                </p>
               </div>
               <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
                 {contactBookings.length} összesen
               </span>
             </div>
 
+            <div className="mt-5 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="text-lg font-semibold text-ink">{activeBookings.length}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Aktív foglalás</p>
+              </div>
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="text-lg font-semibold text-ink">{uniqueContactCount}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Kapcsolat</p>
+              </div>
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="text-lg font-semibold text-ink">{activeAttendeeCount}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Érkező fő</p>
+              </div>
+              <div className="rounded-md bg-paper px-3 py-3">
+                <p className="text-lg font-semibold text-graphite">{cancelledBookings.length}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Törölt</p>
+              </div>
+            </div>
+
             {contactBookings.length === 0 ? (
               <p className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">Még nincs ügyfélfoglalás.</p>
             ) : (
               <div className="mt-5 divide-y divide-ink/10 overflow-hidden rounded-md border border-ink/10">
-                {contactBookings.slice(0, currentTab === "bookings" ? 50 : 8).map(({ session, booking }) => (
-                  <Link
+                <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] gap-3 bg-paper px-4 py-3 text-xs font-medium uppercase tracking-[0.12em] text-graphite/55 md:grid">
+                  <span>Ügyfél</span>
+                  <span>Elérhetőség</span>
+                  <span>Időpont</span>
+                  <span className="text-right">Művelet</span>
+                </div>
+                {contactBookings.map(({ session, booking }) => (
+                  <div
                     key={booking.id}
-                    href={`/admin/mini-sessions/${session.id}?tab=bookings`}
-                    className="grid gap-2 bg-white px-4 py-3 transition hover:bg-paper sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto] sm:items-center"
+                    className="grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] md:items-center"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-ink">{booking.name}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-ink">{booking.name}</p>
+                        <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-medium ${miniSessionBookingStatusClass(booking.status)}`}>
+                          {miniSessionBookingStatusLabel(booking.status)}
+                        </span>
+                      </div>
                       <p className="mt-1 truncate text-xs text-graphite/60">{session.title}</p>
+                      <p className="mt-1 text-xs text-graphite/60">{booking.attendeeCount} fő</p>
                     </div>
-                    <p className="text-sm text-graphite/75">{formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}</p>
-                    <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-medium ${
-                      booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED ? "bg-red-50 text-red-700" : "bg-sage/10 text-sage"
-                    }`}>
-                      {booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED ? "Törölt" : "Aktív"}
-                    </span>
-                  </Link>
+                    <div className="min-w-0 space-y-1 text-sm text-graphite/75">
+                      <a className="flex min-w-0 items-center gap-2 hover:text-ink" href={`mailto:${booking.email}`}>
+                        <Mail size={14} className="shrink-0" />
+                        <span className="truncate">{booking.email}</span>
+                      </a>
+                      <a className="flex min-w-0 items-center gap-2 hover:text-ink" href={`tel:${booking.phone}`}>
+                        <Phone size={14} className="shrink-0" />
+                        <span className="truncate">{booking.phone}</span>
+                      </a>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm text-graphite/75">{formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}</p>
+                      <p className="mt-1 truncate text-xs text-graphite/55">/mini-session/{session.slug}</p>
+                    </div>
+                    <div className="flex gap-2 md:justify-end">
+                      <Link
+                        href={`/admin/mini-sessions/${session.id}?tab=bookings`}
+                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 md:w-auto"
+                      >
+                        <Settings2 size={14} />
+                        Kezelés
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
