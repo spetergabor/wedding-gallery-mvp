@@ -290,6 +290,8 @@ model CustomerProject {
   projectType  String   @default("general")
   status       String   @default("planned")
   eventDate    DateTime?
+  startTime    String?
+  endTime      String?
   venue        String?
   notes        String?
   createdAt    DateTime @default(now())

@@ -135,6 +135,14 @@ function formatDate(date: Date | null, language: AdminLanguage) {
   });
 }
 
+function formatProjectTimeRange(project: { startTime: string | null; endTime: string | null }) {
+  if (!project.startTime || !project.endTime) {
+    return "";
+  }
+
+  return ` · ${project.startTime} - ${project.endTime}`;
+}
+
 function startOfToday() {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
@@ -1365,6 +1373,7 @@ export default async function AdminDashboardPage() {
         return [];
       }
 
+      const timeText = formatProjectTimeRange(project);
       const venueText = project.venue ? ` · ${project.venue}` : "";
 
       return [
@@ -1372,7 +1381,7 @@ export default async function AdminDashboardPage() {
           key: `calendar-project-${project.id}`,
           date: project.eventDate,
           title: project.title,
-          detail: `${project.customer.coupleName} · ${customerProjectTypeLabel(project.projectType)}${venueText}`,
+          detail: `${project.customer.coupleName} · ${customerProjectTypeLabel(project.projectType)}${timeText}${venueText}`,
           href: `/admin/clients/${project.customer.id}?tab=projects`,
           label: copy.calendar.project,
           kind: "event",

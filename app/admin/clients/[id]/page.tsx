@@ -77,6 +77,14 @@ function formatDateTime(date: Date | null) {
   });
 }
 
+function formatProjectTimeRange(project: { startTime: string | null; endTime: string | null }) {
+  if (!project.startTime || !project.endTime) {
+    return null;
+  }
+
+  return `${project.startTime} - ${project.endTime}`;
+}
+
 type CustomerTask = {
   title: string;
   detail: string;
@@ -97,6 +105,8 @@ type CustomerProjectOverview = {
   projectType: string;
   status: string;
   eventDate: Date | null;
+  startTime: string | null;
+  endTime: string | null;
   venue: string | null;
   createdAt: Date;
   galleries: Array<{
@@ -664,6 +674,7 @@ export default async function AdminClientDetailPage({
     projectCreated?: string;
     projectDeleted?: string;
     projectError?: string;
+    projectUpdated?: string;
     projectStatusUpdated?: string;
     statusUpdated?: string;
     tab?: string;
@@ -1032,9 +1043,12 @@ export default async function AdminClientDetailPage({
         {flags.created ? <Alert title="Ügyfél létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Ügyfél mentve." variant="success" /> : null}
         {flags.projectCreated ? <Alert title="Projekt létrehozva." variant="success" /> : null}
+        {flags.projectUpdated ? <Alert title="Projekt időpont és adatok mentve." variant="success" /> : null}
         {flags.projectDeleted ? <Alert title="Projekt törölve." variant="success" /> : null}
         {flags.projectStatusUpdated ? <Alert title="Projekt státusz mentve." variant="success" /> : null}
         {flags.projectError === "missing" ? <Alert title="A projekt nem található vagy hiányzik a neve." variant="error" /> : null}
+        {flags.projectError === "time" ? <Alert title="A kezdési és befejezési időt együtt add meg." variant="error" /> : null}
+        {flags.projectError === "date" ? <Alert title="Időpont mentéséhez dátumot is meg kell adni." variant="error" /> : null}
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
@@ -1229,6 +1243,7 @@ export default async function AdminClientDetailPage({
                           <h3 className="mt-2 text-base font-semibold text-ink">{nextProject.title}</h3>
                           <p className="mt-1 text-sm text-graphite/75">
                             {customerProjectTypeLabel(nextProject.projectType)} · {formatDate(nextProject.eventDate)}
+                            {formatProjectTimeRange(nextProject) ? ` · ${formatProjectTimeRange(nextProject)}` : ""}
                             {nextProject.venue ? ` · ${nextProject.venue}` : ""}
                           </p>
                           {nextProjectWorkflow ? (
@@ -1282,6 +1297,11 @@ export default async function AdminClientDetailPage({
                             <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                               {formatDate(project.eventDate)}
                             </span>
+                            {formatProjectTimeRange(project) ? (
+                              <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                                {formatProjectTimeRange(project)}
+                              </span>
+                            ) : null}
                             <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                               {project._count.galleries} galéria
                             </span>

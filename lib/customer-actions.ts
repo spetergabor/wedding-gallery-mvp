@@ -32,6 +32,32 @@ function formDate(formData: FormData, key: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function formTime(formData: FormData, key: string) {
+  const value = formString(formData, key);
+
+  if (!value) {
+    return { valid: true, value: null };
+  }
+
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value)
+    ? { valid: true, value }
+    : { valid: false, value: null };
+}
+
+function projectTimePayload(formData: FormData) {
+  const startTime = formTime(formData, "startTime");
+  const endTime = formTime(formData, "endTime");
+
+  if (!startTime.valid || !endTime.valid || Boolean(startTime.value) !== Boolean(endTime.value)) {
+    return null;
+  }
+
+  return {
+    startTime: startTime.value,
+    endTime: endTime.value
+  };
+}
+
 function customerPayload(formData: FormData) {
   const coupleName = formString(formData, "coupleName");
   const primaryEmail = formString(formData, "primaryEmail").toLowerCase();
@@ -164,9 +190,19 @@ export async function createCustomerProjectAction(customerId: string, formData: 
   }
 
   const title = formString(formData, "title");
+  const eventDate = formDate(formData, "eventDate");
+  const projectTimes = projectTimePayload(formData);
 
   if (!title) {
     redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  if (!projectTimes) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=time`);
+  }
+
+  if ((projectTimes.startTime || projectTimes.endTime) && !eventDate) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=date`);
   }
 
   await prisma.customerProject.create({
@@ -175,7 +211,9 @@ export async function createCustomerProjectAction(customerId: string, formData: 
       title,
       projectType: normalizeCustomerProjectType(formString(formData, "projectType")),
       status: normalizeCustomerProjectStatus(formString(formData, "status")),
-      eventDate: formDate(formData, "eventDate"),
+      eventDate,
+      startTime: projectTimes.startTime,
+      endTime: projectTimes.endTime,
       venue: formOptionalString(formData, "venue"),
       notes: formOptionalString(formData, "notes")
     }
@@ -184,6 +222,56 @@ export async function createCustomerProjectAction(customerId: string, formData: 
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/clients");
   redirect(`/admin/clients/${customerId}?tab=projects&projectCreated=1`);
+}
+
+export async function updateCustomerProjectAction(customerId: string, projectId: string, formData: FormData) {
+  const admin = await requireAdmin();
+
+  const project = await prisma.customerProject.findFirst({
+    where: {
+      id: projectId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!project) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  const title = formString(formData, "title");
+  const eventDate = formDate(formData, "eventDate");
+  const projectTimes = projectTimePayload(formData);
+
+  if (!title) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  if (!projectTimes) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=time`);
+  }
+
+  if ((projectTimes.startTime || projectTimes.endTime) && !eventDate) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=date`);
+  }
+
+  await prisma.customerProject.update({
+    where: { id: project.id },
+    data: {
+      title,
+      projectType: normalizeCustomerProjectType(formString(formData, "projectType")),
+      status: normalizeCustomerProjectStatus(formString(formData, "status")),
+      eventDate,
+      startTime: projectTimes.startTime,
+      endTime: projectTimes.endTime,
+      venue: formOptionalString(formData, "venue"),
+      notes: formOptionalString(formData, "notes")
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/clients");
+  redirect(`/admin/clients/${customerId}?tab=projects&projectUpdated=1`);
 }
 
 export async function updateCustomerProjectStatusAction(customerId: string, projectId: string, formData: FormData) {

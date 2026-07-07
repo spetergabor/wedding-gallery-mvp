@@ -31,8 +31,8 @@ import {
   customerProjectTypeLabel
 } from "@/lib/customer-project-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { googleCalendarAllDayUrl } from "@/lib/google-calendar";
-import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectStatusAction } from "@/lib/customer-actions";
+import { googleCalendarUrl } from "@/lib/google-calendar";
+import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectAction } from "@/lib/customer-actions";
 import {
   getProjectPhaseIndex,
   getProjectWorkflowSummary,
@@ -60,6 +60,8 @@ type CustomerProject = {
   projectType: string;
   status: string;
   eventDate: Date | null;
+  startTime: string | null;
+  endTime: string | null;
   venue: string | null;
   notes: string | null;
   createdAt: Date;
@@ -138,6 +140,10 @@ function dateInputValue(date: Date | null | undefined) {
   return date.toISOString().slice(0, 10);
 }
 
+function timeInputValue(time: string | null | undefined) {
+  return time ?? "";
+}
+
 function formatDate(date: Date | null | undefined) {
   if (!date) {
     return "Nincs dátum";
@@ -149,6 +155,14 @@ function formatDate(date: Date | null | undefined) {
     day: "numeric",
     timeZone: APP_TIME_ZONE
   });
+}
+
+function formatTimeRange(startTime: string | null | undefined, endTime: string | null | undefined) {
+  if (!startTime || !endTime) {
+    return "Nincs időpont";
+  }
+
+  return `${startTime} - ${endTime}`;
 }
 
 function statusClass(status: string) {
@@ -186,9 +200,11 @@ function projectGoogleCalendarUrl(project: CustomerProject) {
     project.notes ? `\n${project.notes}` : ""
   ].join("");
 
-  return googleCalendarAllDayUrl({
+  return googleCalendarUrl({
     title: project.title,
     date: project.eventDate,
+    startTime: project.startTime,
+    endTime: project.endTime,
     location: project.venue,
     details
   });
@@ -313,7 +329,7 @@ export function CustomerProjectManager({
             <span className="hidden text-xs text-graphite/60 group-open:inline">Űrlap bezárása</span>
           </summary>
 
-          <form action={createCustomerProjectAction.bind(null, customerId)} className="grid gap-4 border-t border-ink/10 p-4 xl:grid-cols-4">
+          <form action={createCustomerProjectAction.bind(null, customerId)} className="grid gap-4 border-t border-ink/10 p-4 md:grid-cols-2 xl:grid-cols-4">
             <label className="space-y-2 xl:col-span-2">
               <span className="text-sm font-medium text-graphite">Projekt neve</span>
               <input
@@ -360,7 +376,23 @@ export function CustomerProjectManager({
                 className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
               />
             </label>
-            <label className="space-y-2 xl:col-span-2">
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-graphite">Mettől</span>
+              <input
+                name="startTime"
+                type="time"
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium text-graphite">Meddig</span>
+              <input
+                name="endTime"
+                type="time"
+                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <label className="space-y-2">
               <span className="text-sm font-medium text-graphite">Helyszín</span>
               <input
                 name="venue"
@@ -420,6 +452,10 @@ export function CustomerProjectManager({
                     <span className="inline-flex items-center gap-1.5">
                       <Calendar size={14} />
                       {formatDate(project.eventDate)}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Clock3 size={14} />
+                      {formatTimeRange(project.startTime, project.endTime)}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <MapPin size={14} />
@@ -501,25 +537,101 @@ export function CustomerProjectManager({
                 <CountPill icon={BookOpen} label="albumterv" count={project._count.albumDesigns} />
               </div>
 
-              <form action={updateCustomerProjectStatusAction.bind(null, customerId, project.id)} className="mt-4 flex flex-col gap-2 rounded-md bg-paper p-3 sm:flex-row sm:items-end">
-                <label className="flex-1 space-y-2">
-                  <span className="text-sm font-medium text-graphite">Projekt státusz</span>
-                  <select
-                    name="status"
-                    defaultValue={project.status}
-                    className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                  >
-                    {CUSTOMER_PROJECT_STATUSES.map((status) => (
-                      <option key={status.value} value={status.value}>
-                        {status.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <FormSubmitButton type="submit" variant="secondary" className="h-10" pendingLabel="Mentés...">
-                  Státusz mentése
-                </FormSubmitButton>
-              </form>
+              <details className="group mt-4 rounded-md bg-paper">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-medium text-ink transition hover:bg-ink/[0.03] [&::-webkit-details-marker]:hidden">
+                  <span>Projekt adatok szerkesztése</span>
+                  <span className="text-xs text-graphite/60 group-open:hidden">Megnyitás</span>
+                  <span className="hidden text-xs text-graphite/60 group-open:inline">Bezárás</span>
+                </summary>
+                <form action={updateCustomerProjectAction.bind(null, customerId, project.id)} className="grid gap-3 border-t border-ink/10 p-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="space-y-2 xl:col-span-2">
+                    <span className="text-sm font-medium text-graphite">Projekt neve</span>
+                    <input
+                      name="title"
+                      required
+                      defaultValue={project.title}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">Típus</span>
+                    <select
+                      name="projectType"
+                      defaultValue={project.projectType}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    >
+                      {CUSTOMER_PROJECT_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">Státusz</span>
+                    <select
+                      name="status"
+                      defaultValue={project.status}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    >
+                      {CUSTOMER_PROJECT_STATUSES.map((status) => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">Dátum</span>
+                    <input
+                      name="eventDate"
+                      type="date"
+                      defaultValue={dateInputValue(project.eventDate)}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">Mettől</span>
+                    <input
+                      name="startTime"
+                      type="time"
+                      defaultValue={timeInputValue(project.startTime)}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">Meddig</span>
+                    <input
+                      name="endTime"
+                      type="time"
+                      defaultValue={timeInputValue(project.endTime)}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">Helyszín</span>
+                    <input
+                      name="venue"
+                      defaultValue={project.venue ?? ""}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2 xl:col-span-4">
+                    <span className="text-sm font-medium text-graphite">Megjegyzés</span>
+                    <textarea
+                      name="notes"
+                      rows={3}
+                      defaultValue={project.notes ?? ""}
+                      className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <div className="xl:col-span-4">
+                    <FormSubmitButton type="submit" variant="secondary" className="h-10" pendingLabel="Mentés...">
+                      Projekt adatok mentése
+                    </FormSubmitButton>
+                  </div>
+                </form>
+              </details>
 
               {project.galleries.length > 0 ? (
                 <div className="mt-4 divide-y divide-ink/10 rounded-md border border-ink/10">
