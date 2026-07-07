@@ -188,6 +188,7 @@ model Customer {
   importantPeopleNotes String?
   portalNotes    String?
   status         String   @default("lead")
+  tags           String[] @default([])
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -196,6 +197,7 @@ model Customer {
   invoices       CustomerInvoice[]
   galleries      Gallery[]
   projects       CustomerProject[]
+  miniSessionBookings MiniSessionBooking[]
   albumReviews   AlbumReview[]
   albumDesigns   AlbumDesign[]
   portalImages   CustomerPortalImage[]
@@ -318,6 +320,8 @@ model MiniSessionAvailability {
 model MiniSessionBooking {
   id              String   @id @default(cuid())
   miniSessionId   String
+  customerId      String?
+  projectId       String?
   name            String
   email           String
   phone           String
@@ -340,8 +344,12 @@ model MiniSessionBooking {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   miniSession     MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  project         CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([miniSessionId])
+  @@index([customerId])
+  @@index([projectId])
   @@index([miniSessionId, startsAt])
   @@index([status])
   @@index([status, startsAt, reminderEmailSentAt])
@@ -374,6 +382,7 @@ model CustomerProject {
   galleries    Gallery[]
   albumReviews AlbumReview[]
   albumDesigns AlbumDesign[]
+  miniSessionBookings MiniSessionBooking[]
 
   @@index([customerId])
   @@index([projectType])

@@ -1,5 +1,6 @@
 export const CUSTOMER_TYPES = [
   { value: "wedding_couple", label: "Esküvős pár" },
+  { value: "mini_session", label: "Mini shooting" },
   { value: "couple_session", label: "Párfotózás" },
   { value: "individual", label: "Egyéni ügyfél" },
   { value: "family", label: "Család" },

@@ -734,6 +734,7 @@ export default async function AdminClientDetailPage({
       importantPeopleNotes: true,
       portalNotes: true,
       status: true,
+      tags: true,
       notes: true,
       createdAt: true,
       contracts: {
@@ -1014,6 +1015,15 @@ export default async function AdminClientDetailPage({
             <p className="mt-3 text-sm text-graphite/70">
               {typeLabel} · {customerStatusLabel(customer.status)} · {formatDate(customer.weddingDate)}
             </p>
+            {customer.tags.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {customer.tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-ink">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
           <form action={updateCustomerStatusAction.bind(null, customer.id)} className="rounded-md border border-ink/10 bg-white p-3">
             <label className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">

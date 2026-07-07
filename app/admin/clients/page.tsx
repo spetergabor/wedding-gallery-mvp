@@ -71,6 +71,7 @@ export default async function AdminClientsPage({
       weddingDate: true,
       venue: true,
       status: true,
+      tags: true,
       customerType: true,
       createdAt: true,
       contracts: {
@@ -281,6 +282,11 @@ export default async function AdminClientsPage({
                     <span className="rounded-full bg-sage/10 px-2 py-0.5 text-[11px] font-medium text-sage">
                       {customer.workflow.laneLabel}
                     </span>
+                    {customer.tags.map((tag) => (
+                      <span key={tag} className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-ink">
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                   <div className="mt-1.5 flex flex-col gap-1 text-xs text-graphite/70 sm:flex-row sm:items-center sm:gap-4">
                     <span className="inline-flex items-center gap-1.5">

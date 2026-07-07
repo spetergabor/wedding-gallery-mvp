@@ -18,6 +18,7 @@ import {
 } from "@/lib/email";
 import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/mini-session-calendar";
 import { hasMiniSessionSlotConflict } from "@/lib/mini-session-availability";
+import { linkMiniSessionBookingToCustomerProject } from "@/lib/mini-session-customer-sync";
 import {
   createMiniSessionSlots,
   type MiniSessionLanguage,
@@ -579,7 +580,7 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
       return null;
     }
 
-    return tx.miniSessionBooking.create({
+    const createdBooking = await tx.miniSessionBooking.create({
       data: {
         miniSessionId: session.id,
         name,
@@ -593,6 +594,16 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
         adminNote: adminNote || null,
         cancelToken
       }
+    });
+
+    if (source === MINI_SESSION_BOOKING_SOURCE_BLOCKED) {
+      return createdBooking;
+    }
+
+    return linkMiniSessionBookingToCustomerProject({
+      tx,
+      session,
+      booking: createdBooking
     });
   }).catch((error) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -679,7 +690,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       return null;
     }
 
-    return tx.miniSessionBooking.create({
+    const createdBooking = await tx.miniSessionBooking.create({
       data: {
         miniSessionId: session.id,
         name,
@@ -691,6 +702,12 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
         source: MINI_SESSION_BOOKING_SOURCE_CLIENT,
         cancelToken
       }
+    });
+
+    return linkMiniSessionBookingToCustomerProject({
+      tx,
+      session,
+      booking: createdBooking
     });
   }).catch((error) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
