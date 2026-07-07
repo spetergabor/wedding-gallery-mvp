@@ -152,7 +152,7 @@ function BookingHubTabs({
   createMode: BookingCreateMode;
 }) {
   return (
-    <div className="mt-8 overflow-hidden rounded-md border border-ink/12 bg-white">
+    <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
       <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white sm:grid-cols-2 xl:grid-cols-5" aria-label="Időpontfoglaló fülek">
         {bookingHubTabs.map((tab) => {
           const Icon = tab.icon;
@@ -444,6 +444,8 @@ export default async function AdminMiniSessionsPage({
         </div>
       </div>
 
+      <BookingHubTabs currentTab={currentTab} createMode={createMode} />
+
       <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Link href={hubHref("services", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
           <p className="text-2xl font-semibold text-ink">{recurringServices.length}</p>
@@ -523,8 +525,6 @@ export default async function AdminMiniSessionsPage({
 
         {createMode === "service" ? <ServiceCreateForm /> : <MiniSessionCreateForm />}
       </section>
-
-      <BookingHubTabs currentTab={currentTab} createMode={createMode} />
 
       <div className="mt-6 space-y-8">
         {sessions.length === 0 && currentTab !== "calendar" ? (
