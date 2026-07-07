@@ -264,6 +264,64 @@ export async function createMiniSessionAction(formData: FormData) {
   redirect(`/admin/mini-sessions/${miniSession.id}?created=1`);
 }
 
+export async function createAdminCalendarBlockAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const workspaceAdminId = ownerAdminId(admin);
+  const title = formString(formData, "title") || "Blokkolt időszak";
+  const startDate = formString(formData, "startDate");
+  const endDate = formString(formData, "endDate") || startDate;
+  const startTime = formString(formData, "startTime") || "00:00";
+  const endTime = formString(formData, "endTime") || "23:59";
+  const notes = formString(formData, "notes");
+  const startsAt = parseMiniSessionLocalDateTime(startDate, startTime);
+  let endsAt = parseMiniSessionLocalDateTime(endDate, endTime);
+
+  if (startsAt && endsAt && endsAt <= startsAt) {
+    endsAt = parseMiniSessionLocalDateTime(endDate, "23:59");
+  }
+
+  if (!startsAt || !endsAt || endsAt <= startsAt) {
+    redirect("/admin/mini-sessions?tab=calendar&calendarError=missing");
+  }
+
+  await prisma.adminCalendarBlock.create({
+    data: {
+      adminId: workspaceAdminId,
+      title,
+      startsAt,
+      endsAt,
+      notes: notes || null
+    }
+  });
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath("/mini-session/[slug]", "page");
+  redirect("/admin/mini-sessions?tab=calendar&calendarBlocked=1");
+}
+
+export async function deleteAdminCalendarBlockAction(id: string) {
+  const admin = await requireAdmin();
+  const block = await prisma.adminCalendarBlock.findFirst({
+    where: {
+      id,
+      adminId: ownerAdminId(admin)
+    },
+    select: { id: true }
+  });
+
+  if (!block) {
+    redirect("/admin/mini-sessions?tab=calendar");
+  }
+
+  await prisma.adminCalendarBlock.delete({
+    where: { id: block.id }
+  });
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath("/mini-session/[slug]", "page");
+  redirect("/admin/mini-sessions?tab=calendar&calendarDeleted=1");
+}
+
 export async function updateMiniSessionAction(id: string, formData: FormData) {
   const admin = await requireAdmin();
   const current = await prisma.miniSession.findFirst({

@@ -35,6 +35,7 @@ model Admin {
   galleries    Gallery[]
   customers    Customer[]
   notifications AdminNotification[]
+  calendarBlocks AdminCalendarBlock[]
   siteSettings SiteSettings?
   leads        Lead[]
   miniSessions MiniSession[]
@@ -86,6 +87,23 @@ model AdminNotification {
   @@index([adminId])
   @@index([readAt])
   @@index([createdAt])
+}
+
+model AdminCalendarBlock {
+  id        String   @id @default(cuid())
+  adminId   String
+  title     String
+  startsAt  DateTime
+  endsAt    DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([startsAt])
+  @@index([endsAt])
+  @@index([adminId, startsAt])
 }
 
 model SiteSettings {

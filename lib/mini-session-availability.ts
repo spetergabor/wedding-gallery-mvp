@@ -77,7 +77,7 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
   const projectRangeStartsAt = parseMiniSessionLocalDateTime(rangeStartKey, "00:00") ?? range.startsAt;
   const projectRangeEndsAt = parseMiniSessionLocalDateTime(rangeEndKey, "23:59") ?? range.endsAt;
 
-  const [bookings, projects] = await Promise.all([
+  const [bookings, projects, calendarBlocks] = await Promise.all([
     prisma.miniSessionBooking.findMany({
       where: {
         status: MINI_SESSION_BOOKING_STATUS_BOOKED,
@@ -103,6 +103,17 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
         startTime: true,
         endTime: true
       }
+    }),
+    prisma.adminCalendarBlock.findMany({
+      where: {
+        adminId,
+        startsAt: { lt: range.endsAt },
+        endsAt: { gt: range.startsAt }
+      },
+      select: {
+        startsAt: true,
+        endsAt: true
+      }
     })
   ]);
 
@@ -112,6 +123,7 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
 
   return [
     ...bookings.map((booking) => ({ startsAt: booking.startsAt, endsAt: booking.endsAt })),
+    ...calendarBlocks.map((block) => ({ startsAt: block.startsAt, endsAt: block.endsAt })),
     ...projectBusyTimes
   ];
 }
@@ -138,6 +150,19 @@ export async function hasMiniSessionSlotConflict(adminId: string, slot: MiniSess
   });
 
   if (booking) {
+    return true;
+  }
+
+  const calendarBlock = await prisma.adminCalendarBlock.findFirst({
+    where: {
+      adminId,
+      startsAt: { lt: slot.endsAt },
+      endsAt: { gt: slot.startsAt }
+    },
+    select: { id: true }
+  });
+
+  if (calendarBlock) {
     return true;
   }
 
