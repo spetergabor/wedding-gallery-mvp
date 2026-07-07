@@ -48,7 +48,7 @@ import {
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
-type BookingHubTab = "overview" | "services" | "mini" | "bookings" | "calendar";
+type BookingHubTab = "overview" | "create" | "services" | "mini" | "bookings" | "calendar";
 type BookingCreateMode = "service" | "mini";
 
 const fieldClass =
@@ -64,6 +64,7 @@ const sessionActionButtonClass =
 
 const bookingHubTabs: Array<{ key: BookingHubTab; label: string; icon: LucideIcon }> = [
   { key: "overview", label: "Áttekintés", icon: CheckCircle2 },
+  { key: "create", label: "Létrehozás", icon: Plus },
   { key: "services", label: "Állandó szolgáltatások", icon: BriefcaseBusiness },
   { key: "mini", label: "Mini session napok", icon: CalendarClock },
   { key: "bookings", label: "Foglalások", icon: Users },
@@ -71,7 +72,7 @@ const bookingHubTabs: Array<{ key: BookingHubTab; label: string; icon: LucideIco
 ];
 
 function activeTab(value: string | undefined): BookingHubTab {
-  if (value === "services" || value === "mini" || value === "bookings" || value === "calendar") {
+  if (value === "create" || value === "services" || value === "mini" || value === "bookings" || value === "calendar") {
     return value;
   }
 
@@ -82,20 +83,20 @@ function activeCreateMode(value: string | undefined): BookingCreateMode {
   return value === "mini" ? "mini" : "service";
 }
 
-function hubHref(tab: BookingHubTab, createMode: BookingCreateMode, hash?: string) {
+function hubHref(tab: BookingHubTab, createMode: BookingCreateMode) {
   const params = new URLSearchParams();
 
   if (tab !== "overview") {
     params.set("tab", tab);
   }
 
-  if (createMode !== "service") {
+  if (tab === "create" && createMode !== "service") {
     params.set("create", createMode);
   }
 
   const query = params.toString();
 
-  return `/admin/mini-sessions${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`;
+  return `/admin/mini-sessions${query ? `?${query}` : ""}`;
 }
 
 function formatCalendarBlockRange(startsAt: Date, endsAt: Date) {
@@ -111,18 +112,12 @@ function formatCalendarBlockRange(startsAt: Date, endsAt: Date) {
   return `${startDate} ${startTime} - ${endDate} ${endTime}`;
 }
 
-function CreateModeSwitch({
-  currentTab,
-  createMode
-}: {
-  currentTab: BookingHubTab;
-  createMode: BookingCreateMode;
-}) {
+function CreateModeSwitch({ createMode }: { createMode: BookingCreateMode }) {
   return (
     <div className="rounded-md border border-ink/10 bg-white p-1 shadow-soft">
       <div className="grid grid-cols-2 gap-1">
         <Link
-          href={hubHref(currentTab, "service", "new-booking")}
+          href={hubHref("create", "service")}
           className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
             createMode === "service" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
           }`}
@@ -131,7 +126,7 @@ function CreateModeSwitch({
           Állandó
         </Link>
         <Link
-          href={hubHref(currentTab, "mini", "new-booking")}
+          href={hubHref("create", "mini")}
           className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
             createMode === "mini" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
           }`}
@@ -153,7 +148,7 @@ function BookingHubTabs({
 }) {
   return (
     <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
-      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white sm:grid-cols-2 xl:grid-cols-5" aria-label="Időpontfoglaló fülek">
+      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white sm:grid-cols-2 xl:grid-cols-6" aria-label="Időpontfoglaló fülek">
         {bookingHubTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = currentTab === tab.key;
@@ -430,7 +425,7 @@ export default async function AdminMiniSessionsPage({
 
   return (
     <AdminShell>
-      <div className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+      <div className="mb-6">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Időpontfoglaló</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Foglalási központ</h1>
@@ -438,51 +433,9 @@ export default async function AdminMiniSessionsPage({
             Állandó szolgáltatások, mini session napok, foglalások és globális naptárblokkolások egy helyen.
           </p>
         </div>
-        <div className="w-full lg:w-[360px]">
-          <p className="mb-2 text-xs uppercase tracking-[0.14em] text-graphite/55">Új foglaló típusa</p>
-          <CreateModeSwitch currentTab={currentTab} createMode={createMode} />
-        </div>
       </div>
 
       <BookingHubTabs currentTab={currentTab} createMode={createMode} />
-
-      <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Link href={hubHref("services", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-          <p className="text-2xl font-semibold text-ink">{recurringServices.length}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-            <BriefcaseBusiness size={13} />
-            Állandó szolgáltatás
-          </p>
-        </Link>
-        <Link href={hubHref("mini", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-          <p className="text-2xl font-semibold text-ink">{miniSessionDays.length}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-            <CalendarClock size={13} />
-            Mini session nap
-          </p>
-        </Link>
-        <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-          <p className="text-2xl font-semibold text-ink">{activeBookingCount}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-            <Users size={13} />
-            Aktív foglalás
-          </p>
-        </Link>
-        <Link href={hubHref("calendar", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-          <p className="text-2xl font-semibold text-ink">{calendarBlocks.length}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-            <Ban size={13} />
-            Naptár tiltás
-          </p>
-        </Link>
-        <Link href={hubHref("overview", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-          <p className="text-2xl font-semibold text-sage">{freeSlotCount}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-            <CheckCircle2 size={13} />
-            Szabad idősáv
-          </p>
-        </Link>
-      </div>
 
       <div className="mb-5 space-y-3">
         {flags.error === "missing" ? <Alert title="Hiányzó vagy hibás adat." variant="error" /> : null}
@@ -496,38 +449,80 @@ export default async function AdminMiniSessionsPage({
         {flags.calendarDeleted ? <Alert title="Naptár tiltás törölve." variant="success" /> : null}
       </div>
 
-      <section id="new-booking" className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ink text-white">
-              {createMode === "service" ? <BriefcaseBusiness size={18} /> : <CalendarClock size={18} />}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Új foglalási oldal</p>
-              <h2 className="mt-1 text-xl font-semibold text-ink">
-                {createMode === "service" ? "Állandó szolgáltatás létrehozása" : "Mini session nap létrehozása"}
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-graphite/70">
-                {createMode === "service"
-                  ? "Mindig foglalható szolgáltatás heti elérhetőséggel, például íriszfotózás vagy portré."
-                  : "Egyszeri, kampányszerű fotózási nap fix dátummal és idősávokkal."}
-              </p>
-            </div>
-          </div>
-          <Link
-            href={hubHref("calendar", createMode)}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 sm:w-auto"
-          >
-            <CalendarDays size={15} />
-            Naptár beállítások
+      {currentTab === "overview" ? (
+        <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <Link href={hubHref("services", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+            <p className="text-2xl font-semibold text-ink">{recurringServices.length}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+              <BriefcaseBusiness size={13} />
+              Állandó szolgáltatás
+            </p>
+          </Link>
+          <Link href={hubHref("mini", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+            <p className="text-2xl font-semibold text-ink">{miniSessionDays.length}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+              <CalendarClock size={13} />
+              Mini session nap
+            </p>
+          </Link>
+          <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+            <p className="text-2xl font-semibold text-ink">{activeBookingCount}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+              <Users size={13} />
+              Aktív foglalás
+            </p>
+          </Link>
+          <Link href={hubHref("calendar", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+            <p className="text-2xl font-semibold text-ink">{calendarBlocks.length}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+              <Ban size={13} />
+              Naptár tiltás
+            </p>
+          </Link>
+          <Link href={hubHref("overview", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
+            <p className="text-2xl font-semibold text-sage">{freeSlotCount}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
+              <CheckCircle2 size={13} />
+              Szabad idősáv
+            </p>
           </Link>
         </div>
+      ) : null}
 
-        {createMode === "service" ? <ServiceCreateForm /> : <MiniSessionCreateForm />}
-      </section>
+      {currentTab === "create" ? (
+        <section id="new-booking" className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-ink text-white">
+                {createMode === "service" ? <BriefcaseBusiness size={18} /> : <CalendarClock size={18} />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Új foglalási oldal</p>
+                <h2 className="mt-1 text-xl font-semibold text-ink">Mit szeretnél létrehozni?</h2>
+                <p className="mt-1 text-sm leading-6 text-graphite/70">
+                  Válaszd ki, hogy egyszeri mini session napot vagy folyamatosan foglalható állandó fotózást indítasz.
+                </p>
+              </div>
+            </div>
+            <CreateModeSwitch createMode={createMode} />
+          </div>
+
+          <div className="mt-6 border-t border-ink/10 pt-5">
+            <h3 className="text-lg font-semibold text-ink">
+              {createMode === "service" ? "Állandó fotózás létrehozása" : "Mini session nap létrehozása"}
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-graphite/70">
+              {createMode === "service"
+                ? "Mindig foglalható szolgáltatás heti elérhetőséggel, például íriszfotózás vagy portré."
+                : "Egyszeri, kampányszerű fotózási nap fix dátummal és idősávokkal."}
+            </p>
+            {createMode === "service" ? <ServiceCreateForm /> : <MiniSessionCreateForm />}
+          </div>
+        </section>
+      ) : null}
 
       <div className="mt-6 space-y-8">
-        {sessions.length === 0 && currentTab !== "calendar" ? (
+        {sessions.length === 0 && currentTab !== "calendar" && currentTab !== "create" ? (
           <EmptyState
             icon={<CalendarClock size={22} />}
             title="Még nincs foglaló"
