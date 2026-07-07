@@ -24,6 +24,14 @@ type CustomerTabItem = {
   icon: keyof typeof icons;
 };
 
+type CustomerTabGroup = {
+  key: "overview" | "work" | "business" | "portal";
+  label: string;
+  icon: keyof typeof icons;
+  defaultTab: CustomerTab;
+  tabs: CustomerTab[];
+};
+
 const icons = {
   CheckCircle2,
   FolderKanban,
@@ -36,6 +44,41 @@ const icons = {
   Globe2,
   Settings
 } satisfies Record<string, LucideIcon>;
+
+const tabGroups: CustomerTabGroup[] = [
+  {
+    key: "overview",
+    label: "Áttekintés",
+    icon: "CheckCircle2",
+    defaultTab: "overview",
+    tabs: ["overview"]
+  },
+  {
+    key: "work",
+    label: "Munka",
+    icon: "FolderKanban",
+    defaultTab: "projects",
+    tabs: ["projects", "galleries", "proofing", "album"]
+  },
+  {
+    key: "business",
+    label: "Üzlet",
+    icon: "FileText",
+    defaultTab: "contracts",
+    tabs: ["contracts", "invoices"]
+  },
+  {
+    key: "portal",
+    label: "Ügyfélportál",
+    icon: "Globe2",
+    defaultTab: "portal",
+    tabs: ["portal", "details", "communication"]
+  }
+];
+
+function isCustomerTabItem(tab: CustomerTabItem | undefined): tab is CustomerTabItem {
+  return Boolean(tab);
+}
 
 function updatePanels(activeTab: CustomerTab) {
   document.querySelectorAll<HTMLElement>("[data-customer-tab-panel]").forEach((panel) => {
@@ -63,9 +106,22 @@ export function CustomerTabController({
   initialTab: CustomerTab;
 }) {
   const validTabs = useMemo(() => new Set(tabs.map((tab) => tab.key)), [tabs]);
+  const tabsByKey = useMemo(() => new Map(tabs.map((tab) => [tab.key, tab])), [tabs]);
+  const availableGroups = useMemo(
+    () =>
+      tabGroups
+        .map((group) => ({
+          ...group,
+          tabs: group.tabs.filter((tab) => validTabs.has(tab))
+        }))
+        .filter((group) => group.tabs.length > 0 && validTabs.has(group.defaultTab)),
+    [validTabs]
+  );
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<CustomerTab>(initialTab);
+  const activeGroup = availableGroups.find((group) => group.tabs.includes(activeTab)) ?? availableGroups[0];
+  const activeGroupTabs = activeGroup?.tabs.map((tab) => tabsByKey.get(tab)).filter(isCustomerTabItem) ?? [];
 
   useEffect(() => {
     setActiveTab(tabParam && validTabs.has(tabParam as CustomerTab) ? (tabParam as CustomerTab) : "overview");
@@ -110,31 +166,59 @@ export function CustomerTabController({
   return (
     <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
       <nav
-        className="flex min-w-full gap-1 overflow-x-auto border-b border-ink/10 bg-white p-1 [scrollbar-width:none] md:grid md:grid-cols-3 md:gap-0 md:overflow-visible md:p-0 xl:grid-cols-10 [&::-webkit-scrollbar]:hidden"
-        aria-label="Ügyfél munkaterületek"
+        className="grid grid-cols-2 gap-1 border-b border-ink/10 bg-white p-1 sm:grid-cols-4"
+        aria-label="Ügyfél fő területek"
       >
-        {tabs.map((tab) => {
-          const Icon = icons[tab.icon];
-          const isActive = activeTab === tab.key;
+        {availableGroups.map((group) => {
+          const Icon = icons[group.icon];
+          const isActive = activeGroup?.key === group.key;
 
           return (
             <button
-              key={tab.key}
+              key={group.key}
               type="button"
-              data-customer-tab-target={tab.key}
+              data-customer-tab-target={group.defaultTab}
               aria-current={isActive ? "page" : undefined}
-              className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border border-transparent px-3 text-sm font-medium transition md:min-h-11 md:rounded-none md:border-y-0 md:border-l-0 md:border-r md:border-ink/10 md:last:border-r-0 ${
+              className={`flex h-11 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${
                 isActive
-                  ? "border-ink/15 bg-paper text-ink md:border-b-2 md:border-b-ink/50"
-                  : "text-graphite hover:bg-ink/[0.04] hover:text-ink"
+                  ? "border-ink bg-ink text-white shadow-sm"
+                  : "border-transparent text-graphite hover:bg-ink/[0.04] hover:text-ink"
               }`}
             >
               <Icon size={16} />
-              {tab.label}
+              {group.label}
             </button>
           );
         })}
       </nav>
+      {activeGroupTabs.length > 1 ? (
+        <nav
+          className="flex min-w-full gap-2 overflow-x-auto bg-paper/70 p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label={`${activeGroup?.label ?? "Ügyfél"} alfülek`}
+        >
+          {activeGroupTabs.map((tab) => {
+            const Icon = icons[tab.icon];
+            const isActive = activeTab === tab.key;
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                data-customer-tab-target={tab.key}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition ${
+                  isActive
+                    ? "border-ink/20 bg-white text-ink shadow-sm"
+                    : "border-transparent text-graphite hover:bg-white hover:text-ink"
+                }`}
+              >
+                <Icon size={15} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
     </div>
   );
 }
