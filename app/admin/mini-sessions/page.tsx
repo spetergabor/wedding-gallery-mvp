@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
+import { BookingCreateStepController } from "@/components/booking-create-step-controller";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
@@ -201,188 +202,212 @@ function BookingHubTabs({
 
 function ServiceCreateForm() {
   return (
-    <form action={createMiniSessionAction} encType="multipart/form-data" className="mt-6 grid gap-5">
+    <form action={createMiniSessionAction} encType="multipart/form-data" noValidate className="mt-6">
       <input type="hidden" name="bookingMode" value={MINI_SESSION_BOOKING_MODE_RECURRING} />
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Szolgáltatás neve</span>
-          <input name="title" required className={fieldClass} placeholder="pl. Íriszfotózás" />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Publikus slug</span>
-          <input name="slug" className={fieldClass} placeholder="iriszfotozas" />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Landing page nyelve</span>
-          <select name="language" defaultValue="hu" className={fieldClass}>
-            {MINI_SESSION_LANGUAGES.map((language) => (
-              <option key={language.value} value={language.value}>
-                {language.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
-          <input name="date" type="date" required className={fieldClass} />
-        </label>
-        <label className="block space-y-2 md:col-span-2">
-          <span className="text-sm font-medium text-graphite">Helyszín</span>
-          <input name="location" required className={fieldClass} placeholder="Stúdió / cím" />
-        </label>
-      </div>
+      <BookingCreateStepController submitLabel="Szolgáltatás létrehozása">
+        <section data-booking-create-step-panel className="grid gap-4 md:grid-cols-2">
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Szolgáltatás neve</span>
+            <input name="title" required className={fieldClass} placeholder="pl. Íriszfotózás" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Publikus slug</span>
+            <input name="slug" className={fieldClass} placeholder="iriszfotozas" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Landing page nyelve</span>
+            <select name="language" defaultValue="hu" className={fieldClass}>
+              {MINI_SESSION_LANGUAGES.map((language) => (
+                <option key={language.value} value={language.value}>
+                  {language.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
+            <input name="date" type="date" required className={fieldClass} />
+          </label>
+          <label className="block space-y-2 md:col-span-2">
+            <span className="text-sm font-medium text-graphite">Helyszín</span>
+            <input name="location" required className={fieldClass} placeholder="Stúdió / cím" />
+          </label>
+        </section>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Alap kezdés</span>
-          <input name="startTime" type="time" required defaultValue="10:00" className={fieldClass} />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Alap zárás</span>
-          <input name="endTime" type="time" required defaultValue="18:00" className={fieldClass} />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Időtartam</span>
-          <input name="durationMinutes" type="number" min="5" step="5" defaultValue="30" required className={fieldClass} />
-        </label>
-      </div>
+        <section data-booking-create-step-panel className="grid gap-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Alap kezdés</span>
+              <input name="startTime" type="time" required defaultValue="10:00" className={fieldClass} />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Alap zárás</span>
+              <input name="endTime" type="time" required defaultValue="18:00" className={fieldClass} />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Időtartam</span>
+              <input name="durationMinutes" type="number" min="5" step="5" defaultValue="30" required className={fieldClass} />
+            </label>
+          </div>
 
-      <section className="rounded-md border border-ink/10 bg-paper p-4">
-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
-          <div>
-            <h3 className="text-sm font-semibold text-ink">Heti elérhetőség</h3>
-            <p className="mt-1 text-xs leading-5 text-graphite/65">
-              Ezekből készül a publikus foglalási naptár. A globális naptárblokkolás minden napból automatikusan levonódik.
+          <section className="rounded-md border border-ink/10 bg-paper p-4">
+            <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+              <div>
+                <h3 className="text-sm font-semibold text-ink">Heti elérhetőség</h3>
+                <p className="mt-1 text-xs leading-5 text-graphite/65">
+                  Ezekből készül a publikus foglalási naptár. A globális naptárblokkolás minden napból automatikusan levonódik.
+                </p>
+              </div>
+              <label className="block w-full space-y-2 md:w-48">
+                <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Foglalási ablak</span>
+                <input name="bookingWindowDays" type="number" min="7" max="180" step="1" defaultValue="60" className={fieldClass} />
+              </label>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {MINI_SESSION_WEEKDAYS.map((weekday) => (
+                <div key={weekday.value} className="rounded-md border border-ink/10 bg-white p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-ink">
+                    <input
+                      name="availabilityWeekday"
+                      type="checkbox"
+                      value={weekday.value}
+                      defaultChecked={weekday.value >= 1 && weekday.value <= 5}
+                      className="size-4 rounded border-ink/20"
+                    />
+                    {weekday.label}
+                  </label>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="block space-y-1">
+                      <span className="text-[11px] uppercase tracking-[0.1em] text-graphite/55">Mettől</span>
+                      <input name={`availabilityStart-${weekday.value}`} type="time" defaultValue="10:00" className={fieldClass} />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-[11px] uppercase tracking-[0.1em] text-graphite/55">Meddig</span>
+                      <input name={`availabilityEnd-${weekday.value}`} type="time" defaultValue="18:00" className={fieldClass} />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </section>
+
+        <section data-booking-create-step-panel className="grid gap-4">
+          <label className="block space-y-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+              <ImageIcon size={15} />
+              Borítókép az érkező oldalra
+            </span>
+            <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
+            <textarea name="notes" className={textAreaClass} placeholder="Rövid leírás az ügyfeleknek." />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Styling / előkészület</span>
+            <textarea name="stylingNotes" className={textAreaClass} placeholder="pl. milyen ruhát, sminket, hangulatot javasolsz..." />
+          </label>
+        </section>
+
+        <section data-booking-create-step-panel className="space-y-4">
+          <div className="rounded-md border border-ink/10 bg-paper px-4 py-4">
+            <h4 className="text-sm font-semibold text-ink">Állandó fotózás publikálása</h4>
+            <p className="mt-1 text-sm leading-6 text-graphite/70">
+              Mentés után megnyílik a kezelőoldal, ahol ellenőrizheted az idősávokat és másolhatod a publikus linket.
             </p>
           </div>
-          <label className="block w-full space-y-2 md:w-48">
-            <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/55">Foglalási ablak</span>
-            <input name="bookingWindowDays" type="number" min="7" max="180" step="1" defaultValue="60" className={fieldClass} />
+          <label className="flex items-center gap-2 text-sm text-graphite">
+            <input name="isActive" type="checkbox" defaultChecked className="size-4 rounded border-ink/20" />
+            Publikusan foglalható
           </label>
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {MINI_SESSION_WEEKDAYS.map((weekday) => (
-            <div key={weekday.value} className="rounded-md border border-ink/10 bg-white p-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                <input
-                  name="availabilityWeekday"
-                  type="checkbox"
-                  value={weekday.value}
-                  defaultChecked={weekday.value >= 1 && weekday.value <= 5}
-                  className="size-4 rounded border-ink/20"
-                />
-                {weekday.label}
-              </label>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <label className="block space-y-1">
-                  <span className="text-[11px] uppercase tracking-[0.1em] text-graphite/55">Mettől</span>
-                  <input name={`availabilityStart-${weekday.value}`} type="time" defaultValue="10:00" className={fieldClass} />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-[11px] uppercase tracking-[0.1em] text-graphite/55">Meddig</span>
-                  <input name={`availabilityEnd-${weekday.value}`} type="time" defaultValue="18:00" className={fieldClass} />
-                </label>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <label className="block space-y-2">
-        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-          <ImageIcon size={15} />
-          Borítókép az érkező oldalra
-        </span>
-        <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
-      </label>
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
-        <textarea name="notes" className={textAreaClass} placeholder="Rövid leírás az ügyfeleknek." />
-      </label>
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-graphite">Styling / előkészület</span>
-        <textarea name="stylingNotes" className={textAreaClass} placeholder="pl. milyen ruhát, sminket, hangulatot javasolsz..." />
-      </label>
-      <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:flex-row sm:items-center">
-        <label className="flex items-center gap-2 text-sm text-graphite">
-          <input name="isActive" type="checkbox" defaultChecked className="size-4 rounded border-ink/20" />
-          Publikusan foglalható
-        </label>
-        <FormSubmitButton>Szolgáltatás létrehozása</FormSubmitButton>
-      </div>
+        </section>
+      </BookingCreateStepController>
     </form>
   );
 }
 
 function MiniSessionCreateForm() {
   return (
-    <form action={createMiniSessionAction} encType="multipart/form-data" className="mt-6 grid gap-5">
+    <form action={createMiniSessionAction} encType="multipart/form-data" noValidate className="mt-6">
       <input type="hidden" name="bookingMode" value={MINI_SESSION_BOOKING_MODE_SINGLE_DAY} />
       <input type="hidden" name="bookingWindowDays" value="60" />
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Session neve</span>
-          <input name="title" required className={fieldClass} placeholder="pl. Őszi mini session" />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Publikus slug</span>
-          <input name="slug" className={fieldClass} placeholder="oszi-mini-session" />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Landing page nyelve</span>
-          <select name="language" defaultValue="hu" className={fieldClass}>
-            {MINI_SESSION_LANGUAGES.map((language) => (
-              <option key={language.value} value={language.value}>
-                {language.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Dátum</span>
-          <input name="date" type="date" required className={fieldClass} />
-        </label>
-        <label className="block space-y-2 md:col-span-2">
-          <span className="text-sm font-medium text-graphite">Helyszín</span>
-          <input name="location" required className={fieldClass} placeholder="Helyszín" />
-        </label>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Fotózás mettől</span>
-          <input name="startTime" type="time" required className={fieldClass} />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Meddig</span>
-          <input name="endTime" type="time" required className={fieldClass} />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Időtartam / foglalás</span>
-          <input name="durationMinutes" type="number" min="5" step="5" defaultValue="20" required className={fieldClass} />
-        </label>
-      </div>
-      <label className="block space-y-2">
-        <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-          <ImageIcon size={15} />
-          Borítókép az érkező oldalra
-        </span>
-        <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
-      </label>
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
-        <textarea name="notes" className={textAreaClass} placeholder="Opcionális rövid infó az ügyfeleknek." />
-      </label>
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-graphite">Styling / előkészület</span>
-        <textarea name="stylingNotes" className={textAreaClass} placeholder="pl. világos ruhák, natúr színek, kényelmes cipő..." />
-      </label>
-      <div className="flex flex-col gap-3 border-t border-ink/10 pt-5 sm:flex-row sm:items-center">
-        <label className="flex items-center gap-2 text-sm text-graphite">
-          <input name="isActive" type="checkbox" defaultChecked className="size-4 rounded border-ink/20" />
-          Publikusan foglalható
-        </label>
-        <FormSubmitButton>Mini session nap létrehozása</FormSubmitButton>
-      </div>
+      <BookingCreateStepController submitLabel="Mini session nap létrehozása">
+        <section data-booking-create-step-panel className="grid gap-4 md:grid-cols-2">
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Session neve</span>
+            <input name="title" required className={fieldClass} placeholder="pl. Őszi mini session" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Publikus slug</span>
+            <input name="slug" className={fieldClass} placeholder="oszi-mini-session" />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Landing page nyelve</span>
+            <select name="language" defaultValue="hu" className={fieldClass}>
+              {MINI_SESSION_LANGUAGES.map((language) => (
+                <option key={language.value} value={language.value}>
+                  {language.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Dátum</span>
+            <input name="date" type="date" required className={fieldClass} />
+          </label>
+          <label className="block space-y-2 md:col-span-2">
+            <span className="text-sm font-medium text-graphite">Helyszín</span>
+            <input name="location" required className={fieldClass} placeholder="Helyszín" />
+          </label>
+        </section>
+
+        <section data-booking-create-step-panel className="grid gap-4 md:grid-cols-3">
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Fotózás mettől</span>
+            <input name="startTime" type="time" required className={fieldClass} />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Meddig</span>
+            <input name="endTime" type="time" required className={fieldClass} />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Időtartam / foglalás</span>
+            <input name="durationMinutes" type="number" min="5" step="5" defaultValue="20" required className={fieldClass} />
+          </label>
+        </section>
+
+        <section data-booking-create-step-panel className="grid gap-4">
+          <label className="block space-y-2">
+            <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+              <ImageIcon size={15} />
+              Borítókép az érkező oldalra
+            </span>
+            <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
+            <textarea name="notes" className={textAreaClass} placeholder="Opcionális rövid infó az ügyfeleknek." />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Styling / előkészület</span>
+            <textarea name="stylingNotes" className={textAreaClass} placeholder="pl. világos ruhák, natúr színek, kényelmes cipő..." />
+          </label>
+        </section>
+
+        <section data-booking-create-step-panel className="space-y-4">
+          <div className="rounded-md border border-ink/10 bg-paper px-4 py-4">
+            <h4 className="text-sm font-semibold text-ink">Mini session publikálása</h4>
+            <p className="mt-1 text-sm leading-6 text-graphite/70">
+              Mentés után megnyílik a kezelőoldal, ahol ellenőrizheted a foglalható idősávokat és másolhatod a publikus linket.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-graphite">
+            <input name="isActive" type="checkbox" defaultChecked className="size-4 rounded border-ink/20" />
+            Publikusan foglalható
+          </label>
+        </section>
+      </BookingCreateStepController>
     </form>
   );
 }
