@@ -371,6 +371,11 @@ export async function deleteCustomerAction(customerId: string) {
         select: {
           r2Key: true
         }
+      },
+      projects: {
+        select: {
+          id: true
+        }
       }
     }
   });
@@ -384,9 +389,47 @@ export async function deleteCustomerAction(customerId: string) {
   );
   const invoiceObjectKeys = customer.invoices.map((invoice) => invoice.r2Key).filter(Boolean);
   const portalImageObjectKeys = customer.portalImages.map((image) => image.r2Key).filter(Boolean);
+  const projectIds = customer.projects.map((project) => project.id);
 
-  await prisma.customer.delete({
-    where: { id: customer.id }
+  await Promise.all(
+    projectIds.map((projectId) =>
+      deleteCustomerProjectFromGoogleCalendar(projectId).catch((error) => {
+        console.error("Customer project Google Calendar delete failed during customer delete", error);
+      })
+    )
+  );
+
+  await prisma.$transaction(async (tx) => {
+    if (projectIds.length > 0) {
+      await tx.miniSessionBooking.updateMany({
+        where: {
+          OR: [{ customerId: customer.id }, { projectId: { in: projectIds } }]
+        },
+        data: {
+          customerId: null,
+          projectId: null
+        }
+      });
+
+      await tx.gallery.updateMany({
+        where: { projectId: { in: projectIds } },
+        data: { projectId: null }
+      });
+    } else {
+      await tx.miniSessionBooking.updateMany({
+        where: { customerId: customer.id },
+        data: { customerId: null }
+      });
+    }
+
+    await tx.gallery.updateMany({
+      where: { customerId: customer.id },
+      data: { customerId: null }
+    });
+
+    await tx.customer.delete({
+      where: { id: customer.id }
+    });
   });
 
   await Promise.all([...contractObjectKeys, ...invoiceObjectKeys, ...portalImageObjectKeys].map((key) => deletePhotoObject(key)));
