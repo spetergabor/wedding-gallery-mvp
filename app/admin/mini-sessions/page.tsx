@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Download,
   ExternalLink,
-  ImageIcon,
   ListChecks,
   Mail,
   MapPin,
@@ -25,6 +24,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MiniSessionCoverUploadBox } from "@/components/mini-session-cover-upload-box";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
@@ -58,8 +58,6 @@ type BookingCreateMode = "service" | "mini";
 
 const fieldClass =
   "h-12 w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
-const fileInputClass =
-  "block w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 py-2.5 text-sm text-ink outline-none transition file:mr-4 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-graphite focus:border-ink/50";
 const textAreaClass =
   "min-h-24 w-full min-w-0 rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 const sessionActionLinkClass =
@@ -359,14 +357,7 @@ function ServiceCreateForm() {
         description="A borítókép és a szövegek a vendégeknek látható landing page-re kerülnek."
       >
         <div className="grid gap-4">
-          <label className="block space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-              <ImageIcon size={15} />
-              Borítókép az érkező oldalra
-            </span>
-            <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
-            <span className="block text-xs text-graphite/60">A kiválasztott kép a szolgáltatás létrehozásakor kerül feltöltésre.</span>
-          </label>
+          <MiniSessionCoverUploadBox helperText="Válassz képet, töltsd fel, és az előnézet után a szolgáltatás ezzel a borítóval jön létre." />
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
             <textarea name="notes" className={textAreaClass} placeholder="Rövid leírás az ügyfeleknek." />
@@ -459,14 +450,7 @@ function MiniSessionCreateForm() {
         description="Itt állíthatod be, mit lásson a vendég a foglalási landing page-en."
       >
         <div className="grid gap-4">
-          <label className="block space-y-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-              <ImageIcon size={15} />
-              Borítókép az érkező oldalra
-            </span>
-            <input name="coverImage" type="file" accept="image/*" className={fileInputClass} />
-            <span className="block text-xs text-graphite/60">A kiválasztott kép a mini session létrehozásakor kerül feltöltésre.</span>
-          </label>
+          <MiniSessionCoverUploadBox helperText="Válassz képet, töltsd fel, és az előnézet után a mini session ezzel a borítóval jön létre." />
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Megjegyzés a publikus oldalra</span>
             <textarea name="notes" className={textAreaClass} placeholder="Opcionális rövid infó az ügyfeleknek." />

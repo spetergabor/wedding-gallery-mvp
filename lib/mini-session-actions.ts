@@ -139,6 +139,23 @@ async function uploadMiniSessionCover(adminId: string, file: FormDataEntryValue 
   };
 }
 
+function uploadedMiniSessionCoverFromForm(formData: FormData, adminId: string, errorPath = "/admin/mini-sessions") {
+  const r2Key = formString(formData, "uploadedCoverImageR2Key");
+
+  if (!r2Key) {
+    return null;
+  }
+
+  if (!r2Key.startsWith(`mini-sessions/${adminId}/covers/`)) {
+    redirect(`${errorPath}${errorPath.includes("?") ? "&" : "?"}error=cover`);
+  }
+
+  return {
+    r2Key,
+    url: getPhotoPublicUrl(r2Key)
+  };
+}
+
 function miniSessionCalendarUid(bookingId: string) {
   return `mini-session-${bookingId}@gallery.hochzeitsfotografgraz.at`;
 }
@@ -226,7 +243,9 @@ export async function createMiniSessionAction(formData: FormData) {
     redirect("/admin/mini-sessions?error=missing");
   }
 
-  const uploadedCover = await uploadMiniSessionCover(workspaceAdminId, formData.get("coverImage"));
+  const uploadedCover =
+    uploadedMiniSessionCoverFromForm(formData, workspaceAdminId) ??
+    (await uploadMiniSessionCover(workspaceAdminId, formData.get("coverImage")));
   let miniSession: { id: string };
 
   try {
