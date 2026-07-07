@@ -7,7 +7,7 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import { bookMiniSessionAction } from "@/lib/mini-session-actions";
 import {
-  formatMiniSessionDate,
+  formatMiniSessionDateRange,
   formatMiniSessionSlot,
   groupMiniSessionSlotsByDate,
   MINI_SESSION_BOOKING_MODE_RECURRING,
@@ -145,7 +145,7 @@ export default async function PublicMiniSessionPage({
             <div className={`mt-6 flex flex-wrap gap-3 text-sm ${metaClass}`}>
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${metaPillClass}`}>
                 <CalendarClock size={16} />
-                {isRecurring ? copy.recurringMeta : formatMiniSessionDate(session.sessionDate, language)}
+                {isRecurring ? copy.recurringMeta : formatMiniSessionDateRange(session.startsAt, session.endsAt, language)}
               </span>
               <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${metaPillClass}`}>
                 <MapPin size={16} />

@@ -26,10 +26,12 @@ import {
 import {
   createMiniSessionSlots,
   formatMiniSessionDate,
+  formatMiniSessionDateRange,
   formatMiniSessionSlot,
   formatMiniSessionSlotWithDate,
   formatMiniSessionTime,
   miniSessionDateInput,
+  miniSessionEndDateInput,
   miniSessionLanguageLabel,
   miniSessionModeLabel,
   MINI_SESSION_BOOKING_MODE_RECURRING,
@@ -158,6 +160,8 @@ export default async function AdminMiniSessionDetailPage({
   const externalConflictCount = slots.filter((slot) => !freeSlotTokens.has(slot.token) && !bookedBySlot.has(slot.token)).length;
   const publicUrl = miniSessionPublicUrl(session.slug);
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
+  const showSlotDates = isRecurring || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
+  const sessionDateLabel = formatMiniSessionDateRange(session.startsAt, session.endsAt);
   const availabilityRulesByWeekday = new Map(session.availabilityRules.map((rule) => [rule.weekday, rule]));
   const publicChecklist = [
     { label: "Publikusan aktív", ok: session.isActive },
@@ -225,7 +229,7 @@ export default async function AdminMiniSessionDetailPage({
                 <CalendarClock size={15} />
                 {isRecurring
                   ? `Foglalható ${session.bookingWindowDays} napra előre`
-                  : `${formatMiniSessionDate(session.sessionDate)} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
+                  : `${sessionDateLabel} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
               </span>
               <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
               <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
@@ -295,7 +299,11 @@ export default async function AdminMiniSessionDetailPage({
                     <div key={booking.id} className="flex flex-col justify-between gap-2 rounded-md border border-ink/10 bg-paper px-3 py-3 sm:flex-row sm:items-center">
                       <div>
                         <p className="text-sm font-semibold text-ink">{booking.name}</p>
-                        <p className="mt-1 text-xs text-graphite/60">{formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.email}</p>
+                        <p className="mt-1 text-xs text-graphite/60">
+                          {showSlotDates
+                            ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
+                            : formatMiniSessionSlot(booking.startsAt, booking.endsAt)} · {booking.email}
+                        </p>
                       </div>
                       <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
                     </div>
@@ -339,7 +347,7 @@ export default async function AdminMiniSessionDetailPage({
                   <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${session.coverImageUrl ? "text-white/75" : "text-brass"}`}>{miniSessionLanguageLabel(session.language)}</p>
                   <p className="mt-2 text-xl font-semibold">{session.title}</p>
                   <p className={`mt-2 text-xs ${session.coverImageUrl ? "text-white/80" : "text-graphite/70"}`}>
-                    {isRecurring ? `Állandó szolgáltatás · ${session.bookingWindowDays} nap` : formatMiniSessionDate(session.sessionDate)} · {session.location}
+                    {isRecurring ? `Állandó szolgáltatás · ${session.bookingWindowDays} nap` : sessionDateLabel} · {session.location}
                   </p>
                 </div>
               </div>
@@ -391,7 +399,9 @@ export default async function AdminMiniSessionDetailPage({
 
               <div className="mt-5 space-y-3 md:hidden">
                 {contactBookings.map((booking) => {
-                  const slotLabel = formatMiniSessionSlot(booking.startsAt, booking.endsAt);
+                  const slotLabel = showSlotDates
+                    ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
+                    : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                   const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
                   const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
                   const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
@@ -474,7 +484,9 @@ export default async function AdminMiniSessionDetailPage({
                   </thead>
                   <tbody className="divide-y divide-ink/10">
                     {contactBookings.map((booking) => {
-                      const slotLabel = formatMiniSessionSlot(booking.startsAt, booking.endsAt);
+                      const slotLabel = showSlotDates
+                        ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
+                        : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                       const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
                       const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
                       const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
@@ -567,7 +579,7 @@ export default async function AdminMiniSessionDetailPage({
                   <select name="slot" required className={fieldClass}>
                     {freeSlots.map((slot) => (
                       <option key={slot.token} value={slot.token}>
-                        {isRecurring
+                        {showSlotDates
                           ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
                           : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
                       </option>
@@ -664,7 +676,7 @@ export default async function AdminMiniSessionDetailPage({
                 return (
                   <div key={slot.token} className="grid gap-3 sm:grid-cols-[120px_24px_minmax(0,1fr)]">
                     <div className="text-sm font-semibold text-ink sm:pt-3">
-                      {isRecurring ? (
+                      {showSlotDates ? (
                         <>
                           <span className="block text-xs font-medium text-graphite/60">{formatMiniSessionDate(slot.startsAt)}</span>
                           <span>{formatMiniSessionSlot(slot.startsAt, slot.endsAt)}</span>
@@ -744,10 +756,14 @@ export default async function AdminMiniSessionDetailPage({
                 </select>
               </label>
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Mikor / foglalás kezdete</span>
+                <span className="text-sm font-medium text-graphite">Kezdő dátum</span>
                 <input name="date" type="date" defaultValue={miniSessionDateInput(session)} required className={fieldClass} />
               </label>
               <label className="block space-y-2">
+                <span className="text-sm font-medium text-graphite">Záró dátum (mini sessionnél)</span>
+                <input name="endDate" type="date" defaultValue={miniSessionEndDateInput(session)} className={fieldClass} />
+              </label>
+              <label className="block space-y-2 sm:col-span-2">
                 <span className="text-sm font-medium text-graphite">Hol</span>
                 <input name="location" defaultValue={session.location} required className={fieldClass} />
               </label>

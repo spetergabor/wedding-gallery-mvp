@@ -1,7 +1,6 @@
 import { ensureLeadPipelineSchema } from "@/lib/leads";
 import {
-  formatMiniSessionDate,
-  formatMiniSessionSlot,
+  formatMiniSessionSlotWithDate,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_CLIENT
 } from "@/lib/mini-sessions";
@@ -44,8 +43,7 @@ function miniSessionLeadNote(booking: MiniSessionLeadBooking, miniSession: MiniS
   return [
     `Mini session foglalás (${booking.id})`,
     `Session: ${miniSession.title}`,
-    `Dátum: ${formatMiniSessionDate(miniSession.sessionDate)}`,
-    `Idősáv: ${formatMiniSessionSlot(booking.startsAt, booking.endsAt)}`,
+    `Idősáv: ${formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}`,
     `Helyszín: ${miniSession.location}`,
     `Létszám: ${booking.attendeeCount}`,
     `Publikus link: /mini-session/${miniSession.slug}`

@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { cancelMiniSessionBookingAction } from "@/lib/mini-session-actions";
 import {
-  formatMiniSessionDate,
-  formatMiniSessionSlot,
+  formatMiniSessionSlotWithDate,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   normalizeMiniSessionLanguage
 } from "@/lib/mini-sessions";
@@ -65,7 +64,7 @@ export default async function CancelMiniSessionBookingPage({
           <p className="text-sm font-semibold text-ink">{booking.miniSession.title}</p>
           <p className="mt-2 flex items-center gap-2 text-sm text-graphite/75">
             <CalendarClock size={15} />
-            {formatMiniSessionDate(booking.miniSession.sessionDate, language)} · {formatMiniSessionSlot(booking.startsAt, booking.endsAt, language)}
+            {formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt, language)}
           </p>
           <p className="mt-2 text-sm text-graphite/75">{booking.name} · {booking.email}</p>
         </div>

@@ -210,6 +210,7 @@ export async function createMiniSessionAction(formData: FormData) {
   const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
   const bookingMode = miniSessionBookingModeFromForm(formData);
+  const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : formString(formData, "endDate") || date;
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const language = miniSessionLanguageFromForm(formData);
@@ -217,9 +218,10 @@ export async function createMiniSessionAction(formData: FormData) {
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseMiniSessionLocalDateTime(date, startTime);
-  const endsAt = parseMiniSessionLocalDateTime(date, endTime);
+  const sameDayEndsAt = parseMiniSessionLocalDateTime(date, endTime);
+  const endsAt = parseMiniSessionLocalDateTime(endDate, endTime);
 
-  if (!title || !location || !slug || !startsAt || !endsAt || endsAt <= startsAt) {
+  if (!title || !location || !slug || !startsAt || !sameDayEndsAt || !endsAt || sameDayEndsAt <= startsAt || endsAt <= startsAt) {
     redirect("/admin/mini-sessions?error=missing");
   }
 
@@ -340,6 +342,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
   const bookingMode = miniSessionBookingModeFromForm(formData);
+  const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : formString(formData, "endDate") || date;
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const language = miniSessionLanguageFromForm(formData);
@@ -347,9 +350,10 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseMiniSessionLocalDateTime(date, startTime);
-  const endsAt = parseMiniSessionLocalDateTime(date, endTime);
+  const sameDayEndsAt = parseMiniSessionLocalDateTime(date, endTime);
+  const endsAt = parseMiniSessionLocalDateTime(endDate, endTime);
 
-  if (!title || !location || !slug || !startsAt || !endsAt || endsAt <= startsAt) {
+  if (!title || !location || !slug || !startsAt || !sameDayEndsAt || !endsAt || sameDayEndsAt <= startsAt || endsAt <= startsAt) {
     redirect(`/admin/mini-sessions/${id}?tab=settings&error=missing`);
   }
 

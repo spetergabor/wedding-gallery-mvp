@@ -38,6 +38,7 @@ import {
 import {
   createMiniSessionSlots,
   formatMiniSessionDate,
+  formatMiniSessionDateRange,
   formatMiniSessionTime,
   miniSessionModeLabel,
   MINI_SESSION_BOOKING_MODE_RECURRING,
@@ -396,7 +397,7 @@ function MiniSessionCreateForm() {
       <input type="hidden" name="bookingWindowDays" value="60" />
       <CreateSettingsSection
         title="Alapadatok"
-        description="A név, dátum és helyszín alapján készül a publikus mini session oldal."
+        description="A név, dátum és helyszín alapján készül a publikus mini session oldal. Többnapos eseménynél add meg a záró dátumot is."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block space-y-2">
@@ -418,8 +419,12 @@ function MiniSessionCreateForm() {
             </select>
           </label>
           <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Dátum</span>
+            <span className="text-sm font-medium text-graphite">Kezdő dátum</span>
             <input name="date" type="date" required className={fieldClass} />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Záró dátum (opcionális)</span>
+            <input name="endDate" type="date" className={fieldClass} />
           </label>
           <label className="block space-y-2 md:col-span-2">
             <span className="text-sm font-medium text-graphite">Helyszín</span>
@@ -925,7 +930,7 @@ export default async function AdminMiniSessionsPage({
                             <CalendarClock size={15} />
                             {isRecurring
                               ? `Foglalható ${session.bookingWindowDays} napra előre`
-                              : `${formatMiniSessionDate(session.sessionDate)} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
+                              : `${formatMiniSessionDateRange(session.startsAt, session.endsAt)} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
                           </span>
                           <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
                           <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>

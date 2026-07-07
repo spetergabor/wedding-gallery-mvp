@@ -148,6 +148,17 @@ export function formatMiniSessionDate(date: Date, language: MiniSessionLanguage 
   });
 }
 
+export function formatMiniSessionDateRange(startsAt: Date, endsAt: Date, language: MiniSessionLanguage = "hu") {
+  const startDate = formatMiniSessionDate(startsAt, language);
+  const endDate = formatMiniSessionDate(endsAt, language);
+
+  if (miniSessionDateKey(startsAt) === miniSessionDateKey(endsAt)) {
+    return startDate;
+  }
+
+  return `${startDate} - ${endDate}`;
+}
+
 export function formatMiniSessionTime(date: Date, language: MiniSessionLanguage = "hu") {
   return date.toLocaleTimeString(dateLocaleForCustomer(language), {
     hour: "2-digit",
@@ -178,6 +189,39 @@ function createSlotsFromWindow(startsAt: Date, endsAt: Date, durationMinutes: nu
     const slotEndsAt = new Date(slotStartsAt.getTime() + durationMs);
     slots.push({ startsAt: slotStartsAt, endsAt: slotEndsAt, token: slotToken(slotStartsAt) });
     slotStartsAt = slotEndsAt;
+  }
+
+  return slots;
+}
+
+function createDailySlotsFromDateRange(startsAt: Date, endsAt: Date, durationMinutes: number) {
+  const startDateKey = miniSessionDateKey(startsAt);
+  const endDateKey = miniSessionDateKey(endsAt);
+
+  if (startDateKey === endDateKey) {
+    return createSlotsFromWindow(startsAt, endsAt, durationMinutes);
+  }
+
+  const slots: MiniSessionSlot[] = [];
+  const startTime = miniSessionTimeInput(startsAt);
+  const endTime = miniSessionTimeInput(endsAt);
+  let dateKey = startDateKey;
+
+  for (let dayIndex = 0; dayIndex < 180; dayIndex += 1) {
+    const dayStartsAt = parseMiniSessionLocalDateTime(dateKey, startTime);
+    const dayEndsAt = parseMiniSessionLocalDateTime(dateKey, endTime);
+
+    if (dayStartsAt && dayEndsAt && dayEndsAt > dayStartsAt) {
+      const windowStartsAt = dayStartsAt < startsAt ? startsAt : dayStartsAt;
+      const windowEndsAt = dayEndsAt > endsAt ? endsAt : dayEndsAt;
+      slots.push(...createSlotsFromWindow(windowStartsAt, windowEndsAt, durationMinutes));
+    }
+
+    if (dateKey === endDateKey) {
+      break;
+    }
+
+    dateKey = addDateKeyDays(dateKey, 1);
   }
 
   return slots;
@@ -220,7 +264,7 @@ export function createMiniSessionSlots(
     return slots;
   }
 
-  return createSlotsFromWindow(session.startsAt, session.endsAt, session.durationMinutes);
+  return createDailySlotsFromDateRange(session.startsAt, session.endsAt, session.durationMinutes);
 }
 
 export function miniSessionSlotOverlaps(slot: MiniSessionBusyTime, busyTime: MiniSessionBusyTime) {
@@ -267,6 +311,11 @@ export function miniSessionModeLabel(value: string | null | undefined) {
 
 export function miniSessionDateInput(session: { startsAt: Date }) {
   const parts = dateParts(session.startsAt);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+export function miniSessionEndDateInput(session: { endsAt: Date }) {
+  const parts = dateParts(session.endsAt);
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
