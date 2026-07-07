@@ -83,6 +83,7 @@ type MiniSessionBookingEmail = {
   name: string;
   attendeeCount: number;
   cancelUrl: string;
+  rescheduleUrl?: string;
   calendarUrl?: string;
   calendarIcs?: string;
   calendarFilename?: string;
@@ -464,6 +465,10 @@ export function miniSessionBookingCancelUrl(slug: string, token: string) {
   return `${appBaseUrl()}/mini-session/${slug}/cancel/${token}`;
 }
 
+export function miniSessionBookingRescheduleUrl(slug: string, token: string) {
+  return `${appBaseUrl()}/mini-session/${slug}/reschedule/${token}`;
+}
+
 export function miniSessionBookingCalendarUrl(slug: string, token: string) {
   return `${appBaseUrl()}/mini-session/${slug}/calendar/${token}`;
 }
@@ -585,6 +590,8 @@ const MINI_SESSION_BOOKING_EMAIL_COPY = {
     locationLabel: "Helyszín",
     attendeeCountLabel: "Létszám",
     addCalendar: "Naptárhoz adás",
+    rescheduleIntro: "Ha másik időpont lenne jobb, itt tudod módosítani:",
+    rescheduleButton: "Időpont módosítása",
     cancelIntro: "Ha mégsem jó az időpont, ezen a linken tudod törölni a foglalást:",
     cancelButton: "Időpont törlése",
     fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
@@ -600,6 +607,8 @@ const MINI_SESSION_BOOKING_EMAIL_COPY = {
     locationLabel: "Ort",
     attendeeCountLabel: "Personen",
     addCalendar: "Zum Kalender hinzufügen",
+    rescheduleIntro: "Falls ein anderer Termin besser passt, kannst du hier umbuchen:",
+    rescheduleButton: "Termin ändern",
     cancelIntro: "Falls der Termin doch nicht passt, kannst du deine Buchung über diesen Link stornieren:",
     cancelButton: "Termin stornieren",
     fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
@@ -622,6 +631,8 @@ const MINI_SESSION_REMINDER_EMAIL_COPY = {
     locationLabel: "Helyszín",
     attendeeCountLabel: "Létszám",
     addCalendar: "Naptárhoz adás",
+    rescheduleIntro: "Ha másik időpont lenne jobb, itt tudod módosítani:",
+    rescheduleButton: "Időpont módosítása",
     cancelIntro: "Ha mégsem tudsz jönni, ezen a linken tudod törölni a foglalást:",
     cancelButton: "Időpont törlése",
     fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
@@ -637,6 +648,8 @@ const MINI_SESSION_REMINDER_EMAIL_COPY = {
     locationLabel: "Ort",
     attendeeCountLabel: "Personen",
     addCalendar: "Zum Kalender hinzufügen",
+    rescheduleIntro: "Falls ein anderer Termin besser passt, kannst du hier umbuchen:",
+    rescheduleButton: "Termin ändern",
     cancelIntro: "Falls du doch nicht kommen kannst, kannst du deine Buchung über diesen Link stornieren:",
     cancelButton: "Termin stornieren",
     fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
@@ -666,6 +679,14 @@ function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
         payload.calendarUrl
           ? `<p style="margin: 0 0 16px;">
         <a href="${escapeHtml(payload.calendarUrl)}" style="display: inline-block; background: #8a6f3d; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(calendarLabel)}</a>
+      </p>`
+          : ""
+      }
+      ${
+        payload.rescheduleUrl
+          ? `<p style="margin: 0 0 16px;">${escapeHtml(copy.rescheduleIntro)}</p>
+      <p style="margin: 0 0 16px;">
+        <a href="${escapeHtml(payload.rescheduleUrl)}" style="display: inline-block; background: #f5f2ea; color: #171717; text-decoration: none; padding: 10px 14px; border-radius: 6px; border: 1px solid #ddd6c6;">${escapeHtml(copy.rescheduleButton)}</a>
       </p>`
           : ""
       }
@@ -711,6 +732,7 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
         `${copy.attendeeCountLabel}: ${payload.attendeeCount}`,
         "",
         ...(payload.calendarUrl ? [`${calendarLabel}: ${payload.calendarUrl}`, ""] : []),
+        ...(payload.rescheduleUrl ? [`${copy.rescheduleButton}: ${payload.rescheduleUrl}`, ""] : []),
         `${copy.cancelButton}: ${payload.cancelUrl}`
       ].join("\n"),
       ...(attachments ? { attachments } : {})
@@ -744,6 +766,14 @@ function miniSessionReminderHtml(payload: MiniSessionReminderEmail) {
         payload.calendarUrl
           ? `<p style="margin: 0 0 16px;">
         <a href="${escapeHtml(payload.calendarUrl)}" style="display: inline-block; background: #8a6f3d; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(calendarLabel)}</a>
+      </p>`
+          : ""
+      }
+      ${
+        payload.rescheduleUrl
+          ? `<p style="margin: 0 0 16px;">${escapeHtml(copy.rescheduleIntro)}</p>
+      <p style="margin: 0 0 16px;">
+        <a href="${escapeHtml(payload.rescheduleUrl)}" style="display: inline-block; background: #f5f2ea; color: #171717; text-decoration: none; padding: 10px 14px; border-radius: 6px; border: 1px solid #ddd6c6;">${escapeHtml(copy.rescheduleButton)}</a>
       </p>`
           : ""
       }
@@ -788,6 +818,7 @@ export async function sendMiniSessionReminderEmail(payload: MiniSessionReminderE
         `${copy.attendeeCountLabel}: ${payload.attendeeCount}`,
         "",
         ...(payload.calendarUrl ? [`${calendarLabel}: ${payload.calendarUrl}`, ""] : []),
+        ...(payload.rescheduleUrl ? [`${copy.rescheduleButton}: ${payload.rescheduleUrl}`, ""] : []),
         `${copy.cancelButton}: ${payload.cancelUrl}`
       ].join("\n")
     })

@@ -1,6 +1,7 @@
 import {
   miniSessionBookingCalendarUrl,
   miniSessionBookingCancelUrl,
+  miniSessionBookingRescheduleUrl,
   sendMiniSessionReminderEmail
 } from "@/lib/email";
 import {
@@ -91,6 +92,7 @@ export async function sendMiniSessionReminderEmails({
         name: booking.name,
         attendeeCount: booking.attendeeCount,
         cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken),
+        rescheduleUrl: miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken),
         calendarUrl: miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken),
         calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
         language

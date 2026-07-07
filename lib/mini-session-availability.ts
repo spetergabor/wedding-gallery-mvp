@@ -27,6 +27,13 @@ type MiniSessionAvailabilityInput = {
   }>;
 };
 
+type MiniSessionAvailabilityOptions = {
+  rangeStart?: Date;
+  rangeDays?: number;
+  excludeBookingId?: string;
+  excludeProjectId?: string | null;
+};
+
 function slotRange(slots: MiniSessionSlot[]) {
   if (slots.length === 0) {
     return null;
@@ -65,7 +72,7 @@ function projectBusyTime(project: { eventDate: Date | null; startTime: string | 
   return { startsAt, endsAt };
 }
 
-export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessionSlot[]) {
+export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessionSlot[], options: Pick<MiniSessionAvailabilityOptions, "excludeBookingId" | "excludeProjectId"> = {}) {
   const range = slotRange(slots);
 
   if (!range) {
@@ -80,6 +87,7 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
   const [bookings, projects, calendarBlocks] = await Promise.all([
     prisma.miniSessionBooking.findMany({
       where: {
+        ...(options.excludeBookingId ? { id: { not: options.excludeBookingId } } : {}),
         status: MINI_SESSION_BOOKING_STATUS_BOOKED,
         startsAt: { lt: range.endsAt },
         endsAt: { gt: range.startsAt },
@@ -92,6 +100,7 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
     }),
     prisma.customerProject.findMany({
       where: {
+        ...(options.excludeProjectId ? { id: { not: options.excludeProjectId } } : {}),
         eventDate: {
           gte: projectRangeStartsAt,
           lte: projectRangeEndsAt
@@ -130,17 +139,22 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
 
 export async function getAvailableMiniSessionSlots(
   session: MiniSessionAvailabilityInput,
-  options: { rangeStart?: Date; rangeDays?: number } = {}
+  options: MiniSessionAvailabilityOptions = {}
 ) {
   const slots = createMiniSessionSlots(session, options);
-  const busyTimes = await getMiniSessionBusyTimes(session.adminId, slots);
+  const busyTimes = await getMiniSessionBusyTimes(session.adminId, slots, options);
 
   return filterMiniSessionSlotsByBusyTimes(slots, busyTimes);
 }
 
-export async function hasMiniSessionSlotConflict(adminId: string, slot: MiniSessionBusyTime) {
+export async function hasMiniSessionSlotConflict(
+  adminId: string,
+  slot: MiniSessionBusyTime,
+  options: Pick<MiniSessionAvailabilityOptions, "excludeBookingId" | "excludeProjectId"> = {}
+) {
   const booking = await prisma.miniSessionBooking.findFirst({
     where: {
+      ...(options.excludeBookingId ? { id: { not: options.excludeBookingId } } : {}),
       status: MINI_SESSION_BOOKING_STATUS_BOOKED,
       startsAt: { lt: slot.endsAt },
       endsAt: { gt: slot.startsAt },
@@ -176,6 +190,7 @@ export async function hasMiniSessionSlotConflict(adminId: string, slot: MiniSess
 
   const projects = await prisma.customerProject.findMany({
     where: {
+      ...(options.excludeProjectId ? { id: { not: options.excludeProjectId } } : {}),
       eventDate: {
         gte: dayStartsAt,
         lte: dayEndsAt

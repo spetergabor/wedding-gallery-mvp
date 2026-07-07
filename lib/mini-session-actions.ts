@@ -14,6 +14,7 @@ import {
   adminMiniSessionUrl,
   miniSessionBookingCalendarUrl,
   miniSessionBookingCancelUrl,
+  miniSessionBookingRescheduleUrl,
   miniSessionPublicUrl,
   sendMiniSessionAdminBookingEmail,
   sendMiniSessionBookingCancelledEmail,
@@ -23,7 +24,8 @@ import { buildMiniSessionCalendarIcs, miniSessionCalendarFilename } from "@/lib/
 import { hasMiniSessionSlotConflict } from "@/lib/mini-session-availability";
 import {
   cleanupMiniSessionBookingCustomerProject,
-  linkMiniSessionBookingToCustomerProject
+  linkMiniSessionBookingToCustomerProject,
+  updateMiniSessionBookingCustomerProject
 } from "@/lib/mini-session-customer-sync";
 import {
   createMiniSessionSlots,
@@ -177,6 +179,40 @@ async function deleteLinkedMiniSessionProjectCalendarEvent(projectId: string | n
   } catch (error) {
     console.error("Mini session linked customer project Google Calendar delete failed", error);
   }
+}
+
+async function rescheduleMiniSessionBookingRecord({
+  bookingId,
+  slot,
+  session
+}: {
+  bookingId: string;
+  slot: { startsAt: Date; endsAt: Date };
+  session: {
+    id: string;
+    adminId: string;
+    title: string;
+    location: string;
+    language: string;
+  };
+}) {
+  return prisma.$transaction(async (tx) => {
+    const updatedBooking = await tx.miniSessionBooking.update({
+      where: { id: bookingId },
+      data: {
+        startsAt: slot.startsAt,
+        endsAt: slot.endsAt
+      }
+    });
+
+    await updateMiniSessionBookingCustomerProject({
+      tx,
+      session,
+      booking: updatedBooking
+    });
+
+    return updatedBooking;
+  });
 }
 
 function miniSessionCalendarDescription({
@@ -740,6 +776,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   }
 
   const cancelUrl = miniSessionBookingCancelUrl(slug, cancelToken);
+  const rescheduleUrl = miniSessionBookingRescheduleUrl(slug, cancelToken);
   const calendarUrl = miniSessionBookingCalendarUrl(slug, cancelToken);
   const adminUrl = adminMiniSessionUrl(session.id);
   const publicUrl = miniSessionPublicUrl(session.slug);
@@ -811,6 +848,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       name,
       attendeeCount,
       cancelUrl,
+      rescheduleUrl,
       calendarUrl,
       calendarIcs: customerCalendarIcs,
       calendarFilename,
@@ -857,6 +895,128 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${session.id}`);
   redirect(`/mini-session/${slug}?booked=1&calendar=${cancelToken}`);
+}
+
+export async function rescheduleMiniSessionBookingAction(token: string, formData: FormData) {
+  const selectedSlot = formString(formData, "slot");
+  const booking = await prisma.miniSessionBooking.findUnique({
+    where: { cancelToken: token },
+    include: {
+      miniSession: {
+        include: {
+          availabilityRules: true
+        }
+      }
+    }
+  });
+
+  if (!booking) {
+    redirect("/mini-session/cancelled?error=missing");
+  }
+
+  const slug = booking.miniSession.slug;
+
+  if (booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED) {
+    redirect(`/mini-session/${slug}/reschedule/${token}?error=cancelled`);
+  }
+
+  const slot = createMiniSessionSlots(booking.miniSession).find((candidate) => candidate.token === selectedSlot);
+
+  if (!slot) {
+    redirect(`/mini-session/${slug}/reschedule/${token}?error=slot`);
+  }
+
+  if (
+    await hasMiniSessionSlotConflict(booking.miniSession.adminId, slot, {
+      excludeBookingId: booking.id,
+      excludeProjectId: booking.projectId
+    })
+  ) {
+    redirect(`/mini-session/${slug}/reschedule/${token}?error=taken`);
+  }
+
+  await rescheduleMiniSessionBookingRecord({
+    bookingId: booking.id,
+    slot,
+    session: booking.miniSession
+  });
+
+  try {
+    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+  } catch (error) {
+    console.error("Mini session Google Calendar reschedule sync failed", error);
+  }
+
+  revalidatePath(`/mini-session/${slug}`);
+  revalidatePath(`/mini-session/${slug}/reschedule/${token}`);
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  if (booking.customerId) {
+    revalidatePath(`/admin/clients/${booking.customerId}`);
+  }
+  redirect(`/mini-session/${slug}/reschedule/${token}?rescheduled=1&calendar=${token}`);
+}
+
+export async function rescheduleMiniSessionBookingByAdminAction(bookingId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const selectedSlot = formString(formData, "slot");
+  const returnTab = formData.get("returnTab") === "slots" ? "slots" : "bookings";
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      miniSession: adminOwnedWhere(admin)
+    },
+    include: {
+      miniSession: {
+        include: {
+          availabilityRules: true
+        }
+      }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  if (booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=slot`);
+  }
+
+  const slot = createMiniSessionSlots(booking.miniSession).find((candidate) => candidate.token === selectedSlot);
+
+  if (!slot) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=slot`);
+  }
+
+  if (
+    await hasMiniSessionSlotConflict(booking.miniSession.adminId, slot, {
+      excludeBookingId: booking.id,
+      excludeProjectId: booking.projectId
+    })
+  ) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=taken`);
+  }
+
+  await rescheduleMiniSessionBookingRecord({
+    bookingId: booking.id,
+    slot,
+    session: booking.miniSession
+  });
+
+  try {
+    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+  } catch (error) {
+    console.error("Mini session Google Calendar admin reschedule sync failed", error);
+  }
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  revalidatePath(`/mini-session/${booking.miniSession.slug}`);
+  if (booking.customerId) {
+    revalidatePath(`/admin/clients/${booking.customerId}`);
+  }
+  redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&bookingRescheduled=1`);
 }
 
 export async function cancelMiniSessionBookingAction(token: string) {
@@ -1081,6 +1241,7 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
 
   const language = normalizeMiniSessionLanguage(booking.miniSession.language);
   const cancelUrl = miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken);
+  const rescheduleUrl = miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken);
   const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
   const calendarFilename = miniSessionCalendarFilename(booking.miniSession.title);
   const calendarIcs = buildMiniSessionCalendarIcs({
@@ -1116,6 +1277,7 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
       name: booking.name,
       attendeeCount: booking.attendeeCount,
       cancelUrl,
+      rescheduleUrl,
       calendarUrl,
       calendarIcs,
       calendarFilename,

@@ -137,6 +137,47 @@ export async function linkMiniSessionBookingToCustomerProject({
   });
 }
 
+export async function updateMiniSessionBookingCustomerProject({
+  tx,
+  session,
+  booking
+}: {
+  tx: Prisma.TransactionClient;
+  session: MiniSessionForCustomerSync;
+  booking: MiniSessionBooking;
+}) {
+  if (!booking.projectId) {
+    return;
+  }
+
+  const project = await tx.customerProject.findFirst({
+    where: {
+      id: booking.projectId,
+      projectType: "mini_session",
+      miniSessionBookings: {
+        some: { id: booking.id }
+      }
+    },
+    select: { id: true }
+  });
+
+  if (!project) {
+    return;
+  }
+
+  await tx.customerProject.update({
+    where: { id: project.id },
+    data: {
+      title: session.title,
+      eventDate: booking.startsAt,
+      startTime: projectTime(booking.startsAt),
+      endTime: projectTime(booking.endsAt),
+      venue: session.location || null,
+      notes: miniSessionProjectNotes(booking)
+    }
+  });
+}
+
 export async function cleanupMiniSessionBookingCustomerProject({
   tx,
   booking

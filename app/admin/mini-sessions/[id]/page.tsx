@@ -12,7 +12,7 @@ import { MiniSessionBookingFilters } from "@/components/mini-session-booking-fil
 import { MiniSessionTabController } from "@/components/mini-session-tab-controller";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { miniSessionBookingCalendarUrl, miniSessionBookingCancelUrl, miniSessionPublicUrl } from "@/lib/email";
+import { miniSessionBookingCalendarUrl, miniSessionBookingCancelUrl, miniSessionBookingRescheduleUrl, miniSessionPublicUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
   cancelMiniSessionBookingByAdminAction,
@@ -20,6 +20,7 @@ import {
   deleteMiniSessionAction,
   deleteMiniSessionCoverAction,
   resendMiniSessionBookingConfirmationAction,
+  rescheduleMiniSessionBookingByAdminAction,
   updateMiniSessionAction,
   updateMiniSessionCoverAction
 } from "@/lib/mini-session-actions";
@@ -120,6 +121,7 @@ export default async function AdminMiniSessionDetailPage({
     created?: string;
     updated?: string;
     bookingCancelled?: string;
+    bookingRescheduled?: string;
     adminBooking?: string;
     confirmationSent?: string;
     coverUpdated?: string;
@@ -200,6 +202,7 @@ export default async function AdminMiniSessionDetailPage({
         {flags.created ? <Alert title="Foglaló létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Foglaló frissítve." variant="success" /> : null}
         {flags.bookingCancelled ? <Alert title="Idősáv törölve, újra foglalható." variant="success" /> : null}
+        {flags.bookingRescheduled ? <Alert title="Időpont módosítva." variant="success" /> : null}
         {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
         {flags.confirmationSent ? <Alert title="Megerősítő e-mail újraküldve." variant="success" /> : null}
         {flags.coverUpdated ? <Alert title="Borítókép frissítve." variant="success" /> : null}
@@ -403,9 +406,12 @@ export default async function AdminMiniSessionDetailPage({
                     ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
                     : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                   const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
+                  const rescheduleUrl = miniSessionBookingRescheduleUrl(session.slug, booking.cancelToken);
                   const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
                   const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
                   const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
+                  const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
+                  const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
 
                   return (
                     <div
@@ -447,7 +453,25 @@ export default async function AdminMiniSessionDetailPage({
                           <CalendarPlus size={13} />
                           Naptár
                         </Link>
+                        <CopyLinkButton url={rescheduleUrl} label="Módosító link" className={smallActionButtonClass} />
                         <CopyLinkButton url={cancelUrl} label="Törlő link" className={smallActionButtonClass} />
+                        {isActive ? (
+                          <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, booking.id)} className="flex w-full flex-col gap-2 rounded-md border border-ink/10 bg-white p-2">
+                            <input type="hidden" name="returnTab" value="bookings" />
+                            <select name="slot" required defaultValue={currentSlot.token} className="h-9 rounded-md border border-ink/15 bg-paper px-2 text-xs text-ink outline-none">
+                              {rescheduleSlots.map((slot) => (
+                                <option key={slot.token} value={slot.token}>
+                                  {showSlotDates
+                                    ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
+                                    : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
+                                </option>
+                              ))}
+                            </select>
+                            <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className="h-9 px-2 text-xs">
+                              Áthelyezés
+                            </FormSubmitButton>
+                          </form>
+                        ) : null}
                         {isActive ? (
                           <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
                             <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
@@ -488,9 +512,12 @@ export default async function AdminMiniSessionDetailPage({
                         ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
                         : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                       const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
+                      const rescheduleUrl = miniSessionBookingRescheduleUrl(session.slug, booking.cancelToken);
                       const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
                       const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
                       const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
+                      const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
+                      const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
 
                       return (
                         <tr
@@ -532,7 +559,25 @@ export default async function AdminMiniSessionDetailPage({
                                 <CalendarPlus size={13} />
                                 Naptár
                               </Link>
+                              <CopyLinkButton url={rescheduleUrl} label="Módosító link" className={smallActionButtonClass} />
                               <CopyLinkButton url={cancelUrl} label="Törlő link" className={smallActionButtonClass} />
+                              {isActive ? (
+                                <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, booking.id)} className="flex items-center gap-1">
+                                  <input type="hidden" name="returnTab" value="bookings" />
+                                  <select name="slot" required defaultValue={currentSlot.token} className="h-8 max-w-44 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none">
+                                    {rescheduleSlots.map((slot) => (
+                                      <option key={slot.token} value={slot.token}>
+                                        {showSlotDates
+                                          ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
+                                          : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <FormSubmitButton variant="secondary" pendingLabel="..." className="h-8 px-2 text-xs">
+                                    Áthelyezés
+                                  </FormSubmitButton>
+                                </form>
+                              ) : null}
                               {isActive ? (
                                 <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
                                   <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
