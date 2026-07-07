@@ -61,7 +61,7 @@ export default async function AdminClientsPage({
           }
         : {})
     },
-    orderBy: [{ weddingDate: "asc" }, { createdAt: "desc" }],
+    orderBy: [{ createdAt: "desc" }],
     select: {
       id: true,
       coupleName: true,
@@ -267,22 +267,22 @@ export default async function AdminClientsPage({
               <Link
                 key={customer.id}
                 href={`/admin/clients/${customer.id}`}
-                className="grid gap-4 px-5 py-5 transition hover:bg-ink/[0.03] md:grid-cols-[1fr_auto] md:items-center"
+                className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] md:grid-cols-[1fr_auto] md:items-center"
               >
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-base font-semibold text-ink">{customer.coupleName}</p>
-                    <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="truncate text-sm font-semibold text-ink sm:text-base">{customer.coupleName}</p>
+                    <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
                       {customerStatusLabel(customer.status)}
                     </span>
-                    <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                    <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
                       {customerTypeLabel(customer.customerType)}
                     </span>
-                    <span className="rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
+                    <span className="rounded-full bg-sage/10 px-2 py-0.5 text-[11px] font-medium text-sage">
                       {customer.workflow.laneLabel}
                     </span>
                   </div>
-                  <div className="mt-2 flex flex-col gap-1 text-sm text-graphite/70 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="mt-1.5 flex flex-col gap-1 text-xs text-graphite/70 sm:flex-row sm:items-center sm:gap-4">
                     <span className="inline-flex items-center gap-1.5">
                       <Mail size={14} />
                       {customer.primaryEmail}
@@ -292,13 +292,14 @@ export default async function AdminClientsPage({
                       {formatDate(customer.weddingDate)}
                     </span>
                   </div>
-                  <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-ink">
+                  <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-ink">
                     {customer.workflow.title}
                     <ArrowRight size={14} />
                   </p>
                 </div>
-                <div className="text-sm text-graphite/70 md:text-right">
-                  <p>{customer.venue || "Nincs helyszín"}</p>
+                <div className="text-xs text-graphite/65 md:text-right">
+                  <p className="font-medium text-graphite">{customer.venue || "Nincs helyszín"}</p>
+                  <p>Létrehozva: {formatDate(customer.createdAt)}</p>
                   <p>{customer._count.galleries} galéria · {customer._count.contracts} szerződés</p>
                 </div>
               </Link>
