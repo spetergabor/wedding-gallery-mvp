@@ -1,6 +1,8 @@
 import Link from "next/link";
 import {
   Activity,
+  CalendarDays,
+  CheckCircle2,
   Cloud,
   Database,
   ExternalLink,
@@ -18,13 +20,23 @@ import {
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { AdminSecuritySettings } from "@/components/admin-security-settings";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { PhotographerProfileSettings } from "@/components/photographer-profile-settings";
 import { SiteSettingsForm } from "@/components/site-settings-form";
+import { ownerAdminId } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { requireAdmin } from "@/lib/auth";
+import {
+  getGoogleCalendarOptionsForIntegration,
+  googleCalendarMissingConfigKeys,
+  isGoogleCalendarConfigured,
+  type GoogleCalendarOption
+} from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
+import { disconnectGoogleCalendarAction, updateGoogleCalendarSettingsAction } from "@/lib/settings-actions";
 
-type SettingsTab = "brand" | "profile" | "providers" | "security";
+type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security";
 
 const providerLinks = [
   {
@@ -274,6 +286,194 @@ function providerCardClass(tone: ProviderTone) {
   return "border-ink/10";
 }
 
+type GoogleCalendarIntegrationSettings = {
+  googleAccountEmail: string | null;
+  calendarId: string;
+  calendarSummary: string | null;
+  syncMiniSessionBookings: boolean;
+  syncCustomerProjects: boolean;
+  deleteCancelledEvents: boolean;
+  lastSyncError: string | null;
+  connectedAt: Date;
+  updatedAt: Date;
+};
+
+function formatSettingsDateTime(date: Date | null | undefined) {
+  if (!date) {
+    return "Nincs adat";
+  }
+
+  return date.toLocaleString("hu-HU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: APP_TIME_ZONE
+  });
+}
+
+function calendarOptionValue(option: { id: string; summary: string }) {
+  return `${option.id}|||${option.summary}`;
+}
+
+function GoogleCalendarSettings({
+  configured,
+  missingConfigKeys,
+  integration,
+  calendarOptions,
+  calendarOptionsError
+}: {
+  configured: boolean;
+  missingConfigKeys: string[];
+  integration: GoogleCalendarIntegrationSettings | null;
+  calendarOptions: GoogleCalendarOption[];
+  calendarOptionsError: boolean;
+}) {
+  const selectedCalendar = integration
+    ? calendarOptions.find((calendar) => calendar.id === integration.calendarId) ?? {
+        id: integration.calendarId,
+        summary: integration.calendarSummary || integration.calendarId,
+        primary: false
+      }
+    : null;
+  const calendarOptionsWithSelected =
+    selectedCalendar && !calendarOptions.some((calendar) => calendar.id === selectedCalendar.id)
+      ? [selectedCalendar, ...calendarOptions]
+      : calendarOptions;
+
+  return (
+    <section className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
+            <CalendarDays size={15} />
+            Google naptár
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">Automatikus naptár szinkron</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
+            Ha össze van kötve, az ügyfélfoglalások és a dátummal rendelkező projektek automatikusan bekerülnek a kiválasztott Google naptárba.
+          </p>
+        </div>
+        {integration ? (
+          <span className="inline-flex w-fit items-center gap-2 rounded-full bg-sage/10 px-3 py-1 text-xs font-medium text-sage">
+            <CheckCircle2 size={14} />
+            Összekötve
+          </span>
+        ) : (
+          <span className="w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">Nincs összekötve</span>
+        )}
+      </div>
+
+      {!configured ? (
+        <div className="mt-5 rounded-md border border-brass/20 bg-brass/10 px-4 py-4 text-sm leading-6 text-graphite/75">
+          <p className="font-medium text-ink">A Google OAuth még nincs konfigurálva.</p>
+          <p className="mt-1">Vercelen add meg ezeket az env változókat: {missingConfigKeys.join(", ")}.</p>
+        </div>
+      ) : null}
+
+      {!integration ? (
+        <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-sm leading-6 text-graphite/70">
+            Az összekötés Google belépést nyit. A rendszer csak naptáreseményeket hoz létre/módosít, és a naptárlistát olvassa a kiválasztáshoz.
+          </p>
+          <div className="mt-4">
+            {configured ? (
+              <Link href="/api/google-calendar/connect" className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+                Google naptár összekötése
+              </Link>
+            ) : (
+              <span className="inline-flex h-10 items-center justify-center rounded-md bg-ink/10 px-4 text-sm font-medium text-graphite/60">
+                Google naptár összekötése
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <form action={updateGoogleCalendarSettingsAction} className="rounded-md border border-ink/10 bg-paper p-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-md bg-white px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Google fiók</p>
+                <p className="mt-1 truncate text-sm font-semibold text-ink">{integration.googleAccountEmail || "Google fiók"}</p>
+              </div>
+              <div className="rounded-md bg-white px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Kapcsolódva</p>
+                <p className="mt-1 text-sm font-semibold text-ink">{formatSettingsDateTime(integration.connectedAt)}</p>
+              </div>
+            </div>
+
+            <label className="mt-4 block space-y-2">
+              <span className="text-sm font-medium text-graphite">Célnaptár</span>
+              <select name="calendarId" defaultValue={selectedCalendar ? calendarOptionValue(selectedCalendar) : "primary|||Primary"} className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50">
+                {calendarOptionsWithSelected.length > 0 ? (
+                  calendarOptionsWithSelected.map((calendar) => (
+                    <option key={calendar.id} value={calendarOptionValue(calendar)}>
+                      {calendar.summary}{calendar.primary ? " (primary)" : ""}
+                    </option>
+                  ))
+                ) : (
+                  <option value={calendarOptionValue({ id: integration.calendarId, summary: integration.calendarSummary || integration.calendarId })}>
+                    {integration.calendarSummary || integration.calendarId}
+                  </option>
+                )}
+              </select>
+              {calendarOptionsError ? (
+                <span className="block text-xs leading-5 text-brass">A naptárlista most nem tölthető be, de a mentett naptár továbbra is használható.</span>
+              ) : null}
+            </label>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
+                <input name="syncMiniSessionBookings" type="checkbox" defaultChecked={integration.syncMiniSessionBookings} className="size-4 rounded border-ink/20" />
+                Foglalások
+              </label>
+              <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
+                <input name="syncCustomerProjects" type="checkbox" defaultChecked={integration.syncCustomerProjects} className="size-4 rounded border-ink/20" />
+                Projektek
+              </label>
+              <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
+                <input name="deleteCancelledEvents" type="checkbox" defaultChecked={integration.deleteCancelledEvents} className="size-4 rounded border-ink/20" />
+                Törlés Google-ból
+              </label>
+            </div>
+
+            {integration.lastSyncError ? (
+              <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm leading-6 text-red-700">
+                Legutóbbi Google sync hiba: {integration.lastSyncError}
+              </p>
+            ) : null}
+
+            <div className="mt-5 flex flex-col gap-3 border-t border-ink/10 pt-4 sm:flex-row sm:items-center">
+              <FormSubmitButton pendingLabel="Mentés...">Google beállítások mentése</FormSubmitButton>
+              <Link href="/api/google-calendar/connect" className="inline-flex h-10 items-center justify-center rounded-md border border-ink/10 px-4 text-sm font-medium text-ink transition hover:bg-ink/5">
+                Újra összekötés
+              </Link>
+            </div>
+          </form>
+
+          <aside className="space-y-4">
+            <div className="rounded-md border border-ink/10 bg-white p-4">
+              <p className="text-sm font-semibold text-ink">Mit szinkronizál?</p>
+              <div className="mt-3 space-y-2 text-sm leading-6 text-graphite/70">
+                <p>Mini session és állandó fotózás foglalások: név, időpont, helyszín, elérhetőség.</p>
+                <p>Ügyfélprojektek: projekt neve, ügyfél, dátum, időpont, helyszín.</p>
+              </div>
+            </div>
+            <form action={disconnectGoogleCalendarAction} className="rounded-md border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-semibold text-red-700">Kapcsolat leválasztása</p>
+              <p className="mt-2 text-sm leading-6 text-red-700/80">Az app nem hoz létre több Google naptár eseményt. A már létrehozott Google események nem törlődnek automatikusan.</p>
+              <ConfirmSubmitButton variant="danger" className="mt-4" message="Biztosan leválasztod a Google naptár kapcsolatot?">
+                Google kapcsolat leválasztása
+              </ConfirmSubmitButton>
+            </form>
+          </aside>
+        </div>
+      )}
+    </section>
+  );
+}
+
 async function getServiceUsageSummary(): Promise<ServiceUsageSummary> {
   const monthStart = startOfCurrentMonth();
   const monthEnd = startOfNextMonth(monthStart);
@@ -507,13 +707,17 @@ export default async function AdminSettingsPage({
     tab?: string;
     disabled?: string;
     enabled?: string;
+    google?: string;
   }>;
 }) {
   const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
   const isTeamWorkspace = admin.isTeamWorkspace;
+  const workspaceAdminId = ownerAdminId(admin);
   const activeTab: SettingsTab =
     params.tab === "security"
       ? "security"
+      : params.tab === "integrations" && !isTeamWorkspace
+        ? "integrations"
       : params.tab === "providers" && admin.role === "super_admin"
         ? "providers"
         : params.tab === "brand" && !isTeamWorkspace
@@ -521,7 +725,7 @@ export default async function AdminSettingsPage({
           : params.tab === "profile" || isTeamWorkspace
             ? "profile"
             : "brand";
-  const [settings, photographerProfile, serviceUsage] = await Promise.all([
+  const [settings, photographerProfile, serviceUsage, googleIntegration] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
         OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -558,9 +762,44 @@ export default async function AdminSettingsPage({
         profileNotes: true
       }
     }),
-    admin.role === "super_admin" ? getServiceUsageSummary() : Promise.resolve(null)
+    admin.role === "super_admin" ? getServiceUsageSummary() : Promise.resolve(null),
+    !isTeamWorkspace
+      ? prisma.googleCalendarIntegration.findUnique({
+          where: { adminId: workspaceAdminId },
+          select: {
+            id: true,
+            adminId: true,
+            googleAccountEmail: true,
+            calendarId: true,
+            calendarSummary: true,
+            accessTokenEncrypted: true,
+            refreshTokenEncrypted: true,
+            accessTokenExpiresAt: true,
+            syncMiniSessionBookings: true,
+            syncCustomerProjects: true,
+            deleteCancelledEvents: true,
+            lastSyncError: true,
+            connectedAt: true,
+            updatedAt: true
+          }
+        })
+      : Promise.resolve(null)
   ]);
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-4" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-3";
+  let googleCalendarOptions: GoogleCalendarOption[] = [];
+  let googleCalendarOptionsError = false;
+
+  if (googleIntegration) {
+    try {
+      googleCalendarOptions = await getGoogleCalendarOptionsForIntegration(googleIntegration);
+    } catch (error) {
+      googleCalendarOptionsError = true;
+      console.error("Google calendar options load failed", error);
+    }
+  }
+
+  const googleConfigured = isGoogleCalendarConfigured();
+  const googleMissingConfigKeys = googleCalendarMissingConfigKeys();
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-5" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-4";
 
   return (
     <AdminShell>
@@ -603,6 +842,17 @@ export default async function AdminSettingsPage({
             <ShieldCheck size={16} />
             Biztonság
           </Link>
+          {!isTeamWorkspace ? (
+            <Link
+              href="/admin/settings?tab=integrations"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                activeTab === "integrations" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <CalendarDays size={16} />
+              Integrációk
+            </Link>
+          ) : null}
           {admin.role === "super_admin" ? (
             <Link
               href="/admin/settings?tab=providers"
@@ -644,6 +894,13 @@ export default async function AdminSettingsPage({
             Válassz másik email címet ehhez a fotós fiókhoz.
           </Alert>
         ) : null}
+        {params.google === "connected" ? <Alert title="Google naptár összekötve." variant="success" /> : null}
+        {params.google === "saved" ? <Alert title="Google naptár beállítások mentve." variant="success" /> : null}
+        {params.google === "disconnected" ? <Alert title="Google naptár kapcsolat leválasztva." variant="success" /> : null}
+        {params.google === "missing-config" ? <Alert title="A Google OAuth nincs konfigurálva." variant="error">Add meg a szükséges Vercel env változókat.</Alert> : null}
+        {params.google === "state-error" ? <Alert title="A Google összekötés biztonsági ellenőrzése lejárt." variant="error">Indítsd el újra az összekötést.</Alert> : null}
+        {params.google === "no-refresh-token" ? <Alert title="A Google nem adott hosszú távú hozzáférést." variant="error">Indítsd újra az összekötést, és engedélyezd a naptár hozzáférést.</Alert> : null}
+        {params.google === "oauth-error" || params.google === "callback-error" ? <Alert title="A Google naptár összekötése nem sikerült." variant="error">Próbáld újra pár perc múlva.</Alert> : null}
       </div>
 
       {activeTab === "brand" && !isTeamWorkspace ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
@@ -651,6 +908,26 @@ export default async function AdminSettingsPage({
       {activeTab === "profile" ? <PhotographerProfileSettings profile={photographerProfile} /> : null}
 
       {activeTab === "security" ? <AdminSecuritySettings enabled={params.enabled} disabled={params.disabled} error={params.error} /> : null}
+
+      {activeTab === "integrations" ? (
+        <GoogleCalendarSettings
+          configured={googleConfigured}
+          missingConfigKeys={googleMissingConfigKeys}
+          integration={googleIntegration ? {
+            googleAccountEmail: googleIntegration.googleAccountEmail,
+            calendarId: googleIntegration.calendarId,
+            calendarSummary: googleIntegration.calendarSummary,
+            syncMiniSessionBookings: googleIntegration.syncMiniSessionBookings,
+            syncCustomerProjects: googleIntegration.syncCustomerProjects,
+            deleteCancelledEvents: googleIntegration.deleteCancelledEvents,
+            lastSyncError: googleIntegration.lastSyncError,
+            connectedAt: googleIntegration.connectedAt,
+            updatedAt: googleIntegration.updatedAt
+          } : null}
+          calendarOptions={googleCalendarOptions}
+          calendarOptionsError={googleCalendarOptionsError}
+        />
+      ) : null}
 
       {activeTab === "providers" ? (
         <div className="space-y-6">

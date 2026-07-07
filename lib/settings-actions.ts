@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -103,6 +104,49 @@ export async function updatePhotographerProfileAction(formData: FormData) {
   revalidatePath("/admin/settings");
   revalidatePath("/admin/dashboard");
   redirect("/admin/settings?tab=profile&saved=1");
+}
+
+export async function updateGoogleCalendarSettingsAction(formData: FormData) {
+  const admin = await requireAdmin();
+
+  if (admin.isTeamWorkspace) {
+    redirect("/admin/settings?tab=profile");
+  }
+
+  const adminId = ownerAdminId(admin);
+  const [calendarIdValue, calendarSummaryValue] = (formString(formData, "calendarId") || "primary").split("|||");
+  const calendarId = calendarIdValue || "primary";
+  const calendarSummary = calendarSummaryValue || null;
+
+  await prisma.googleCalendarIntegration.update({
+    where: { adminId },
+    data: {
+      calendarId,
+      calendarSummary,
+      syncMiniSessionBookings: formData.get("syncMiniSessionBookings") === "on",
+      syncCustomerProjects: formData.get("syncCustomerProjects") === "on",
+      deleteCancelledEvents: formData.get("deleteCancelledEvents") === "on",
+      lastSyncError: null
+    }
+  });
+
+  revalidatePath("/admin/settings");
+  redirect("/admin/settings?tab=integrations&google=saved");
+}
+
+export async function disconnectGoogleCalendarAction() {
+  const admin = await requireAdmin();
+
+  if (admin.isTeamWorkspace) {
+    redirect("/admin/settings?tab=profile");
+  }
+
+  await prisma.googleCalendarIntegration.deleteMany({
+    where: { adminId: ownerAdminId(admin) }
+  });
+
+  revalidatePath("/admin/settings");
+  redirect("/admin/settings?tab=integrations&google=disconnected");
 }
 
 export async function updateSiteSettingsAction(formData: FormData) {

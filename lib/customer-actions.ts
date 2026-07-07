@@ -8,6 +8,7 @@ import { createCustomerPortalToken } from "@/lib/customer-portal";
 import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
+import { deleteCustomerProjectFromGoogleCalendar, syncCustomerProjectToGoogleCalendar } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoObject } from "@/lib/storage";
 
@@ -205,7 +206,7 @@ export async function createCustomerProjectAction(customerId: string, formData: 
     redirect(`/admin/clients/${customerId}?tab=projects&projectError=date`);
   }
 
-  await prisma.customerProject.create({
+  const project = await prisma.customerProject.create({
     data: {
       customerId: customer.id,
       title,
@@ -216,8 +217,15 @@ export async function createCustomerProjectAction(customerId: string, formData: 
       endTime: projectTimes.endTime,
       venue: formOptionalString(formData, "venue"),
       notes: formOptionalString(formData, "notes")
-    }
+    },
+    select: { id: true }
   });
+
+  try {
+    await syncCustomerProjectToGoogleCalendar(project.id);
+  } catch (error) {
+    console.error("Customer project Google Calendar sync failed", error);
+  }
 
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/clients");
@@ -269,6 +277,12 @@ export async function updateCustomerProjectAction(customerId: string, projectId:
     }
   });
 
+  try {
+    await syncCustomerProjectToGoogleCalendar(project.id);
+  } catch (error) {
+    console.error("Customer project Google Calendar sync failed", error);
+  }
+
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/clients");
   redirect(`/admin/clients/${customerId}?tab=projects&projectUpdated=1`);
@@ -295,6 +309,12 @@ export async function updateCustomerProjectStatusAction(customerId: string, proj
     data: { status }
   });
 
+  try {
+    await syncCustomerProjectToGoogleCalendar(project.id);
+  } catch (error) {
+    console.error("Customer project Google Calendar status sync failed", error);
+  }
+
   revalidatePath(`/admin/clients/${customerId}`);
   redirect(`/admin/clients/${customerId}?tab=projects&projectStatusUpdated=1`);
 }
@@ -312,6 +332,12 @@ export async function deleteCustomerProjectAction(customerId: string, projectId:
 
   if (!project) {
     redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  try {
+    await deleteCustomerProjectFromGoogleCalendar(project.id);
+  } catch (error) {
+    console.error("Customer project Google Calendar delete failed", error);
   }
 
   await prisma.customerProject.delete({

@@ -36,6 +36,7 @@ model Admin {
   customers    Customer[]
   notifications AdminNotification[]
   calendarBlocks AdminCalendarBlock[]
+  googleCalendarIntegration GoogleCalendarIntegration?
   siteSettings SiteSettings?
   leads        Lead[]
   miniSessions MiniSession[]
@@ -104,6 +105,30 @@ model AdminCalendarBlock {
   @@index([startsAt])
   @@index([endsAt])
   @@index([adminId, startsAt])
+}
+
+model GoogleCalendarIntegration {
+  id                       String   @id @default(cuid())
+  adminId                  String   @unique
+  googleAccountEmail       String?
+  googleAccountId          String?
+  calendarId               String   @default("primary")
+  calendarSummary          String?
+  accessTokenEncrypted     String?
+  refreshTokenEncrypted    String?
+  accessTokenExpiresAt     DateTime?
+  scope                    String?
+  syncMiniSessionBookings  Boolean  @default(true)
+  syncCustomerProjects     Boolean  @default(true)
+  deleteCancelledEvents    Boolean  @default(true)
+  lastSyncError            String?
+  connectedAt              DateTime @default(now())
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  admin                    Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([googleAccountEmail])
 }
 
 model SiteSettings {
@@ -308,6 +333,10 @@ model MiniSessionBooking {
   reminderEmailSentAt DateTime?
   cancelledAt     DateTime?
   cancellationEmailSentAt DateTime?
+  googleCalendarEventId String?
+  googleCalendarId      String?
+  googleCalendarSyncedAt DateTime?
+  googleCalendarSyncError String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   miniSession     MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
@@ -319,6 +348,7 @@ model MiniSessionBooking {
   @@index([source])
   @@index([email])
   @@index([cancelToken])
+  @@index([googleCalendarEventId])
 }
 
 model CustomerProject {
@@ -332,6 +362,10 @@ model CustomerProject {
   endTime      String?
   venue        String?
   notes        String?
+  googleCalendarEventId String?
+  googleCalendarId      String?
+  googleCalendarSyncedAt DateTime?
+  googleCalendarSyncError String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -345,6 +379,7 @@ model CustomerProject {
   @@index([projectType])
   @@index([status])
   @@index([eventDate])
+  @@index([googleCalendarEventId])
 }
 
 model AlbumReview {

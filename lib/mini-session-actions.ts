@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { syncMiniSessionBookingToGoogleCalendar } from "@/lib/google-calendar-api";
 import {
   adminMiniSessionUrl,
   miniSessionBookingCalendarUrl,
@@ -593,6 +594,12 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     console.error("Mini session lead sync failed", error);
   }
 
+  try {
+    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+  } catch (error) {
+    console.error("Mini session Google Calendar sync failed", error);
+  }
+
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${session.id}`);
   revalidatePath(`/mini-session/${session.slug}`);
@@ -732,6 +739,12 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   }
 
   try {
+    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+  } catch (error) {
+    console.error("Mini session Google Calendar sync failed", error);
+  }
+
+  try {
     const sent = await sendMiniSessionBookingConfirmationEmail({
       to: email,
       replyTo: session.admin.email,
@@ -823,6 +836,12 @@ export async function cancelMiniSessionBookingAction(token: string) {
         cancelledAt
       }
     });
+
+    try {
+      await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    } catch (error) {
+      console.error("Mini session Google Calendar cancellation sync failed", error);
+    }
 
     try {
       const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
@@ -917,6 +936,12 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
         cancelledAt: new Date()
       }
     });
+
+    try {
+      await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    } catch (error) {
+      console.error("Mini session Google Calendar admin cancellation sync failed", error);
+    }
   }
 
   revalidatePath("/admin/mini-sessions");
