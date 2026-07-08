@@ -111,7 +111,7 @@ const providerLinks = [
     icon: Globe2,
     links: [
       { label: "Cloudflare DNS", href: "https://dash.cloudflare.com" },
-      { label: "Aktív app", href: "https://gallery.hochzeitsfotografgraz.at" },
+      { label: "Aktív app", href: "https://spetly.app" },
       { label: "CDN", href: "https://cdn.hochzeitsfotografgraz.at" }
     ],
     costHint: "Saját brandingnél és fotós domaineknél ez külön operációs terület lesz."

@@ -172,7 +172,7 @@ function uploadedMiniSessionCoverFromForm(formData: FormData, adminId: string, e
 }
 
 function miniSessionCalendarUid(bookingId: string) {
-  return `mini-session-${bookingId}@gallery.hochzeitsfotografgraz.at`;
+  return `mini-session-${bookingId}@spetly.app`;
 }
 
 async function deleteLinkedMiniSessionProjectCalendarEvent(projectId: string | null) {

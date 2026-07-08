@@ -14,7 +14,7 @@ function plainTextResponse(message: string, status: number) {
 }
 
 function miniSessionCalendarUid(bookingId: string) {
-  return `mini-session-${bookingId}@gallery.hochzeitsfotografgraz.at`;
+  return `mini-session-${bookingId}@spetly.app`;
 }
 
 function calendarDescriptionCopy(language: "hu" | "de") {

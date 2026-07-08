@@ -293,7 +293,7 @@ export function appBaseUrl() {
     process.env.NEXT_PUBLIC_APP_URL ??
     process.env.VERCEL_PROJECT_PRODUCTION_URL ??
     process.env.VERCEL_URL ??
-    "https://gallery.hochzeitsfotografgraz.at"
+    "https://spetly.app"
   ).replace(/\/$/, "");
 
   if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {

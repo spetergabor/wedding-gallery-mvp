@@ -613,7 +613,7 @@ async function reverseGeocode(latitude: number, longitude: number) {
 
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "WeddingGalleryMVP/1.0 (gallery.hochzeitsfotografgraz.at)"
+        "User-Agent": "Spetly/1.0 (spetly.app)"
       },
       next: { revalidate: 60 * 60 * 24 * 30 }
     });

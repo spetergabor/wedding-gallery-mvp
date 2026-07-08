@@ -91,7 +91,7 @@ export function customerProjectCalendarFilename(title: string) {
 }
 
 export function customerProjectCalendarUid(projectId: string) {
-  return `customer-project-${projectId}@gallery.hochzeitsfotografgraz.at`;
+  return `customer-project-${projectId}@spetly.app`;
 }
 
 export function buildCustomerProjectCalendarIcs(payload: CustomerProjectCalendarPayload) {
