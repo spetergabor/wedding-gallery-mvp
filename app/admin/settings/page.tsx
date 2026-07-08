@@ -373,6 +373,20 @@ function GoogleCalendarSettings({
         </div>
       ) : null}
 
+      <div className="mt-5 rounded-md border border-ink/10 bg-paper px-4 py-4">
+        <div className="flex gap-3">
+          <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-white text-ink ring-1 ring-ink/10">
+            <ShieldCheck size={17} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink">Mire használja a Spetly a Google Calendar hozzáférést?</p>
+            <p className="mt-1 text-sm leading-6 text-graphite/70">
+              Kizárólag foglalások és dátummal rendelkező projektek naptárszinkronjára, a célnaptár kiválasztására, valamint - ha külön bekapcsolod - a foglalt idősávok ellenőrzésére. A kapcsolat bármikor leválasztható ezen az oldalon.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {!integration ? (
         <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
           <p className="text-sm leading-6 text-graphite/70">
