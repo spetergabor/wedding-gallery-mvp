@@ -180,6 +180,13 @@ type ServiceUsageSummary = {
   providers: ProviderUsageCard[];
 };
 
+type WorkspaceGalleryStats = {
+  galleryCount: number;
+  activeGalleryCount: number;
+  mediaCount: number;
+  storageBytes: bigint;
+};
+
 function startOfCurrentMonth() {
   const date = new Date();
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -653,6 +660,45 @@ const DELIVERY_PANEL_COPY = {
   }
 } as const;
 
+const WORKSPACE_STATS_COPY = {
+  hu: {
+    eyebrow: "Workspace",
+    title: "Galéria statisztika",
+    description: "Háttérszámok a fotós fiókhoz tartozó galériákról, médiákról és R2 tárhelyről.",
+    openStorage: "R2 tárhely megnyitása",
+    stats: {
+      galleries: ["Galériák", "Összes létrehozott galéria"],
+      active: ["Aktív", "Publikusan elérhető galériák"],
+      media: ["Médiák", "Adatbázisban rögzített képek és videók"],
+      storage: ["R2 tárhely", "Feltöltött médiák összmérete"]
+    }
+  },
+  de: {
+    eyebrow: "Workspace",
+    title: "Galerie-Statistik",
+    description: "Hintergrundzahlen zu Galerien, Medien und R2-Speicher dieses Fotografen-Accounts.",
+    openStorage: "R2-Speicher öffnen",
+    stats: {
+      galleries: ["Galerien", "Alle angelegten Galerien"],
+      active: ["Aktiv", "Öffentlich erreichbare Galerien"],
+      media: ["Medien", "Bilder und Videos in der Datenbank"],
+      storage: ["R2 Speicher", "Gesamtgröße der hochgeladenen Medien"]
+    }
+  },
+  en: {
+    eyebrow: "Workspace",
+    title: "Gallery statistics",
+    description: "Background numbers for this photographer account: galleries, media and R2 storage.",
+    openStorage: "Open R2 storage",
+    stats: {
+      galleries: ["Galleries", "All created galleries"],
+      active: ["Active", "Publicly available galleries"],
+      media: ["Media", "Images and videos recorded in the database"],
+      storage: ["R2 storage", "Total uploaded media size"]
+    }
+  }
+} as const;
+
 function deliveryStatusLabel(status: string, language: AdminLanguage) {
   const labels = {
     hu: {
@@ -1112,6 +1158,84 @@ function DeliveryReliabilityPanel({
   );
 }
 
+function WorkspaceStatsPanel({ stats, language }: { stats: WorkspaceGalleryStats; language: AdminLanguage }) {
+  const copy = WORKSPACE_STATS_COPY[language];
+  const cards = [
+    {
+      label: copy.stats.galleries[0],
+      value: formatNumber(stats.galleryCount),
+      detail: copy.stats.galleries[1]
+    },
+    {
+      label: copy.stats.active[0],
+      value: formatNumber(stats.activeGalleryCount),
+      detail: copy.stats.active[1]
+    },
+    {
+      label: copy.stats.media[0],
+      value: formatNumber(stats.mediaCount),
+      detail: copy.stats.media[1]
+    },
+    {
+      label: copy.stats.storage[0],
+      value: formatBytes(stats.storageBytes),
+      detail: copy.stats.storage[1]
+    }
+  ];
+
+  return (
+    <section className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
+            <Layers size={15} />
+            {copy.eyebrow}
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
+        </div>
+        <Link
+          href="/admin/r2-storage"
+          className="inline-flex h-10 w-fit items-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+        >
+          <HardDrive size={16} />
+          {copy.openStorage}
+        </Link>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-md border border-ink/10 bg-paper px-4 py-4">
+            <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-graphite/55">{card.label}</p>
+            <p className="mt-2 text-2xl font-semibold leading-tight text-ink">{card.value}</p>
+            <div className="mt-2 h-0.5 w-8 rounded-full bg-brass/45" />
+            <p className="mt-2 text-sm leading-5 text-graphite/70">{card.detail}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+async function getWorkspaceGalleryStats(adminId: string): Promise<WorkspaceGalleryStats> {
+  const [galleryCount, activeGalleryCount, mediaCount, photoStorage] = await Promise.all([
+    prisma.gallery.count({ where: { adminId } }),
+    prisma.gallery.count({ where: { adminId, isActive: true } }),
+    prisma.photo.count({ where: { gallery: { adminId } } }),
+    prisma.photo.aggregate({
+      where: { gallery: { adminId } },
+      _sum: { fileSize: true }
+    })
+  ]);
+
+  return {
+    galleryCount,
+    activeGalleryCount,
+    mediaCount,
+    storageBytes: toBigInt(photoStorage._sum.fileSize)
+  };
+}
+
 async function getServiceUsageSummary(): Promise<ServiceUsageSummary> {
   const monthStart = startOfCurrentMonth();
   const monthEnd = startOfNextMonth(monthStart);
@@ -1365,7 +1489,7 @@ export default async function AdminSettingsPage({
           : params.tab === "profile" || isTeamWorkspace
             ? "profile"
             : "brand";
-  const [settings, photographerProfile, serviceUsage, googleIntegration, systemEvents, deliveryLogs] = await Promise.all([
+  const [settings, photographerProfile, serviceUsage, googleIntegration, systemEvents, deliveryLogs, workspaceStats] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
         OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -1466,7 +1590,8 @@ export default async function AdminSettingsPage({
             createdAt: true
           }
         })
-      : Promise.resolve([])
+      : Promise.resolve([]),
+    getWorkspaceGalleryStats(workspaceAdminId)
   ]);
   let googleCalendarOptions: GoogleCalendarOption[] = [];
   let googleCalendarOptionsError = false;
@@ -1600,7 +1725,12 @@ export default async function AdminSettingsPage({
 
       {activeTab === "brand" && !isTeamWorkspace ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
 
-      {activeTab === "profile" ? <PhotographerProfileSettings profile={photographerProfile} /> : null}
+      {activeTab === "profile" ? (
+        <div className="space-y-5">
+          <PhotographerProfileSettings profile={photographerProfile} />
+          <WorkspaceStatsPanel stats={workspaceStats} language={language} />
+        </div>
+      ) : null}
 
       {activeTab === "security" ? <AdminSecuritySettings enabled={params.enabled} disabled={params.disabled} error={params.error} /> : null}
 

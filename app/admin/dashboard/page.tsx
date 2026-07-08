@@ -102,12 +102,6 @@ type DashboardAlbumSpreadApproval = {
   };
 };
 
-type DashboardStat = {
-  label: string;
-  value: string | number;
-  detail: string;
-};
-
 type DashboardUpcomingProject = {
   id: string;
   title: string;
@@ -143,18 +137,6 @@ type DashboardUpcomingMiniSessionBooking = {
 
 const sectionMetaClass = "flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brass";
 const sectionTitleClass = "text-base font-semibold text-ink";
-
-function formatStorageSize(bytes: number) {
-  if (bytes <= 0) {
-    return "0 MB";
-  }
-
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** exponent;
-
-  return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
-}
 
 function formatDate(date: Date | null, language: AdminLanguage) {
   if (!date) {
@@ -399,28 +381,6 @@ function groupAlbumApprovalsByReview(spreads: DashboardAlbumSpreadApproval[]) {
   return Array.from(groups.values()).sort((left, right) => right.latestAt.getTime() - left.latestAt.getTime());
 }
 
-function DashboardStats({ stats }: { stats: DashboardStat[] }) {
-  return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-      {stats.map((stat, index) => (
-        <div
-          key={stat.label}
-          className={`rounded-md border border-brass/15 bg-white px-3 py-3 shadow-[0_1px_0_rgba(178,139,78,0.08)] transition hover:border-brass/30 sm:p-4 ${
-            index === stats.length - 1 ? "col-span-2 md:col-span-1" : ""
-          }`}
-        >
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-graphite/65 sm:text-xs sm:tracking-[0.16em]">
-            {stat.label}
-          </p>
-          <p className="mt-1.5 text-2xl font-semibold leading-tight text-ink sm:mt-2">{stat.value}</p>
-          <div className="mt-2 h-0.5 w-8 rounded-full bg-brass/45" />
-          <p className="mt-1 hidden text-sm text-graphite/75 sm:block">{stat.detail}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const DASHBOARD_COPY = {
   hu: {
     area: "Admin",
@@ -428,13 +388,6 @@ const DASHBOARD_COPY = {
     intro: "Áttekintés a galériákról, ügyfélfolyamatokról és a következő fontos lépésekről.",
     newClient: "Új ügyfél",
     newGallery: "Új galéria",
-    stats: {
-      galleries: ["Galériák", "Összes létrehozott galéria"],
-      active: ["Aktív", "Publikusan elérhető galériák"],
-      media: ["Médiák", "Adatbázisban rögzített képek és videók"],
-      storage: ["R2 tárhely", "Feltöltött médiák összmérete"],
-      notifications: ["Új értesítések", "Olvasatlan admin jelzések"]
-    },
     tasks: {
       deliverFinal: "Kész képek átadása",
       uploadFinal: "Kész képek feltöltése",
@@ -542,13 +495,6 @@ const DASHBOARD_COPY = {
     intro: "Überblick über Galerien, Kundenprozesse und die nächsten wichtigen Schritte.",
     newClient: "Neuer Kunde",
     newGallery: "Neue Galerie",
-    stats: {
-      galleries: ["Galerien", "Alle angelegten Galerien"],
-      active: ["Aktiv", "Öffentlich erreichbare Galerien"],
-      media: ["Medien", "Bilder und Videos in der Datenbank"],
-      storage: ["R2 Speicher", "Gesamtgröße der hochgeladenen Medien"],
-      notifications: ["Neue Hinweise", "Ungelesene Admin-Hinweise"]
-    },
     tasks: {
       deliverFinal: "Fertige Bilder übergeben",
       uploadFinal: "Fertige Bilder hochladen",
@@ -656,13 +602,6 @@ const DASHBOARD_COPY = {
     intro: "Overview of galleries, client workflows and the next important steps.",
     newClient: "New client",
     newGallery: "New gallery",
-    stats: {
-      galleries: ["Galleries", "All created galleries"],
-      active: ["Active", "Publicly available galleries"],
-      media: ["Media", "Images and videos recorded in the database"],
-      storage: ["R2 storage", "Total uploaded media size"],
-      notifications: ["New notifications", "Unread admin notices"]
-    },
     tasks: {
       deliverFinal: "Deliver final photos",
       uploadFinal: "Upload final photos",
@@ -1109,10 +1048,6 @@ export default async function AdminDashboardPage() {
   const downloadPackageWhere = { gallery: adminOwnedWhere(admin) };
 
   const [
-    galleryCount,
-    activeCount,
-    photoCount,
-    photoStorage,
     upcomingProjects,
     upcomingMiniSessionBookings,
     calendarProjects,
@@ -1134,10 +1069,6 @@ export default async function AdminDashboardPage() {
     viewLocations,
     leads
   ] = await Promise.all([
-    prisma.gallery.count({ where: galleryWhere }),
-    prisma.gallery.count({ where: { ...galleryWhere, isActive: true } }),
-    prisma.photo.count({ where: photoWhere }),
-    prisma.photo.aggregate({ where: photoWhere, _sum: { fileSize: true } }),
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
@@ -1568,7 +1499,6 @@ export default async function AdminDashboardPage() {
     })
   ]);
   const locationPoints = createViewLocationPoints(viewLocations);
-  const totalStorageBytes = photoStorage._sum.fileSize ?? 0;
   const seenZipGalleryIds = new Set<string>();
   const actionableZipPackages = problemZipPackages.filter((downloadPackage) => {
     if (isSupersededDownloadPackageMessage(downloadPackage.errorMessage)) {
@@ -1907,15 +1837,6 @@ export default async function AdminDashboardPage() {
         </div>
         </div>
       </div>
-
-      <DashboardStats
-        stats={[
-          { label: copy.stats.galleries[0], value: galleryCount, detail: copy.stats.galleries[1] },
-          { label: copy.stats.active[0], value: activeCount, detail: copy.stats.active[1] },
-          { label: copy.stats.media[0], value: photoCount, detail: copy.stats.media[1] },
-          { label: copy.stats.storage[0], value: formatStorageSize(totalStorageBytes), detail: copy.stats.storage[1] }
-        ]}
-      />
 
       <UpcomingProjectsSection
         copy={copy}
