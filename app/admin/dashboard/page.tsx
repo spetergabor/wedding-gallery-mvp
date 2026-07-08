@@ -127,6 +127,20 @@ type DashboardUpcomingProject = {
   };
 };
 
+type DashboardUpcomingMiniSessionBooking = {
+  id: string;
+  name: string;
+  email: string;
+  attendeeCount: number;
+  startsAt: Date;
+  endsAt: Date;
+  miniSession: {
+    id: string;
+    title: string;
+    location: string;
+  };
+};
+
 const sectionMetaClass = "flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brass";
 const sectionTitleClass = "text-base font-semibold text-ink";
 
@@ -493,12 +507,15 @@ const DASHBOARD_COPY = {
       activity: "Aktivitás",
       recent: "nemrég"
     },
-    projectsEyebrow: "Projektek",
-    projectsTitle: "Következő projektek",
-    projectsDescription: "A következő dátumos projektek, hogy gyorsan lásd, mi jön időrendben.",
+    projectsEyebrow: "Munkák",
+    projectsTitle: "Következő munkák",
+    projectsDescription: "Ügyfélprojektek és egyszerű időpontfoglalások egy időrendben.",
     openClients: "Ügyfelek megnyitása",
-    noUpcomingTitle: "Nincs közelgő projekt",
-    noUpcomingDescription: "Az ügyfél adatlapján létrehozott jövőbeli projektek itt jelennek majd meg időrendben.",
+    openBookings: "Foglalások megnyitása",
+    noUpcomingTitle: "Nincs közelgő munka",
+    noUpcomingDescription: "A jövőbeli projektek és egyszerű foglalások itt jelennek majd meg időrendben.",
+    simpleBooking: "Egyszerű foglalás",
+    booked: "Foglalva",
     gallery: "galéria",
     missingVenue: "Nincs helyszín",
     missingTime: "Nincs időpont",
@@ -603,12 +620,15 @@ const DASHBOARD_COPY = {
       activity: "Aktivität",
       recent: "kürzlich"
     },
-    projectsEyebrow: "Projekte",
-    projectsTitle: "Nächste Projekte",
-    projectsDescription: "Die nächsten datierten Projekte in chronologischer Reihenfolge.",
+    projectsEyebrow: "Arbeiten",
+    projectsTitle: "Nächste Arbeiten",
+    projectsDescription: "Kundenprojekte und einfache Terminbuchungen in chronologischer Reihenfolge.",
     openClients: "Kunden öffnen",
-    noUpcomingTitle: "Keine anstehenden Projekte",
-    noUpcomingDescription: "Zukünftige Projekte aus den Kundendaten erscheinen hier chronologisch.",
+    openBookings: "Buchungen öffnen",
+    noUpcomingTitle: "Keine anstehenden Arbeiten",
+    noUpcomingDescription: "Zukünftige Projekte und einfache Buchungen erscheinen hier chronologisch.",
+    simpleBooking: "Einfache Buchung",
+    booked: "Gebucht",
     gallery: "Galerie",
     missingVenue: "Kein Ort",
     missingTime: "Keine Uhrzeit",
@@ -631,15 +651,45 @@ type DashboardCopy = (typeof DASHBOARD_COPY)[AdminLanguage];
 function UpcomingProjectsSection({
   copy,
   language,
-  projects
+  projects,
+  bookings
 }: {
   copy: DashboardCopy;
   language: AdminLanguage;
   projects: DashboardUpcomingProject[];
+  bookings: DashboardUpcomingMiniSessionBooking[];
 }) {
   const visibleProjects = projects.filter(
     (project): project is DashboardUpcomingProject & { eventDate: Date } => project.eventDate instanceof Date
   );
+  const visibleWorks = [
+    ...visibleProjects.map((project) => ({
+      key: `project-${project.id}`,
+      date: project.eventDate,
+      href: `/admin/clients/${project.customer.id}?tab=projects`,
+      title: project.title,
+      subtitle: project.customer.coupleName,
+      time: formatProjectTimeText(project),
+      venue: project.venue,
+      badges: [customerProjectTypeLabel(project.projectType), customerProjectStatusLabel(project.status)],
+      footer: `${project._count.galleries} ${copy.gallery}`,
+      footerLabel: copy.calendar.project
+    })),
+    ...bookings.map((booking) => ({
+      key: `booking-${booking.id}`,
+      date: booking.startsAt,
+      href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+      title: booking.miniSession.title,
+      subtitle: booking.name,
+      time: formatMiniSessionSlot(booking.startsAt, booking.endsAt, language),
+      venue: booking.miniSession.location,
+      badges: [copy.simpleBooking, copy.booked],
+      footer: `${copy.calendar.miniSessionAttendees(booking.attendeeCount)} · ${booking.email}`,
+      footerLabel: copy.calendar.miniSessionBooking
+    }))
+  ]
+    .sort((left, right) => left.date.getTime() - right.date.getTime())
+    .slice(0, 6);
 
   return (
     <section className="mt-8 rounded-md border border-ink/12 bg-white">
@@ -652,16 +702,25 @@ function UpcomingProjectsSection({
           <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.projectsTitle}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">{copy.projectsDescription}</p>
         </div>
-        <Link
-          href="/admin/clients"
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
-        >
-          {copy.openClients}
-          <ArrowRight size={15} />
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/clients"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+          >
+            {copy.openClients}
+            <ArrowRight size={15} />
+          </Link>
+          <Link
+            href="/admin/mini-sessions?tab=bookings"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+          >
+            {copy.openBookings}
+            <ArrowRight size={15} />
+          </Link>
+        </div>
       </div>
 
-      {visibleProjects.length === 0 ? (
+      {visibleWorks.length === 0 ? (
         <div className="p-5">
           <EmptyState
             icon={<CalendarClock size={18} className="text-ink" />}
@@ -671,59 +730,51 @@ function UpcomingProjectsSection({
         </div>
       ) : (
         <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
-          {visibleProjects.map((project) => {
-            const projectTime = formatProjectTimeText(project);
-
-            return (
+          {visibleWorks.map((work) => (
               <Link
-                key={project.id}
-                href={`/admin/clients/${project.customer.id}?tab=projects`}
+                key={work.key}
+                href={work.href}
                 className="group rounded-md border border-ink/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brass/30 hover:shadow-sm"
               >
                 <div className="flex items-start gap-3">
                   <div className="w-20 shrink-0 rounded-md bg-paper px-2 py-2 text-center ring-1 ring-ink/8">
-                    <p className="text-sm font-semibold text-ink">{formatShortCalendarDate(project.eventDate, language)}</p>
+                    <p className="text-sm font-semibold text-ink">{formatShortCalendarDate(work.date, language)}</p>
                     <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-graphite/55">
-                      {formatWeekday(project.eventDate, language)}
+                      {formatWeekday(work.date, language)}
                     </p>
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
-                        {customerProjectTypeLabel(project.projectType)}
-                      </span>
-                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
-                        {customerProjectStatusLabel(project.status)}
-                      </span>
+                      <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">{work.badges[0]}</span>
+                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">{work.badges[1]}</span>
                     </div>
-                    <h3 className="mt-2 truncate font-semibold text-ink">{project.title}</h3>
-                    <p className="mt-1 truncate text-sm text-graphite/70">{project.customer.coupleName}</p>
+                    <h3 className="mt-2 truncate font-semibold text-ink">{work.title}</h3>
+                    <p className="mt-1 truncate text-sm text-graphite/70">{work.subtitle}</p>
                   </div>
                 </div>
 
                 <div className="mt-4 grid gap-2 text-sm text-graphite/70">
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <CalendarClock size={15} className="shrink-0 text-brass" />
-                    <span className="truncate">{projectTime ?? copy.missingTime}</span>
+                    <span className="truncate">{work.time ?? copy.missingTime}</span>
                   </span>
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <MapPin size={15} className="shrink-0 text-brass" />
-                    <span className="truncate">{project.venue || copy.missingVenue}</span>
+                    <span className="truncate">{work.venue || copy.missingVenue}</span>
                   </span>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-3 border-t border-ink/8 pt-3">
                   <span className="text-xs font-medium text-graphite/60">
-                    {project._count.galleries} {copy.gallery}
+                    {work.footer}
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-brass">
-                    {copy.calendar.project}
+                    {work.footerLabel}
                     <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
                   </span>
                 </div>
               </Link>
-            );
-          })}
+          ))}
         </div>
       )}
     </section>
@@ -977,6 +1028,7 @@ export default async function AdminDashboardPage() {
     photoCount,
     photoStorage,
     upcomingProjects,
+    upcomingMiniSessionBookings,
     calendarProjects,
     calendarLeads,
     calendarContracts,
@@ -1007,7 +1059,7 @@ export default async function AdminDashboardPage() {
         status: { not: "archived" }
       },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
-      take: 6,
+      take: 12,
       select: {
         id: true,
         title: true,
@@ -1027,6 +1079,33 @@ export default async function AdminDashboardPage() {
         _count: {
           select: {
             galleries: true
+          }
+        }
+      }
+    }),
+    prisma.miniSessionBooking.findMany({
+      where: {
+        status: MINI_SESSION_BOOKING_STATUS_BOOKED,
+        source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
+        startsAt: { gte: today },
+        customerId: null,
+        projectId: null,
+        miniSession: adminOwnedWhere(admin)
+      },
+      orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+      take: 12,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        attendeeCount: true,
+        startsAt: true,
+        endsAt: true,
+        miniSession: {
+          select: {
+            id: true,
+            title: true,
+            location: true
           }
         }
       }
@@ -1752,7 +1831,12 @@ export default async function AdminDashboardPage() {
         ]}
       />
 
-      <UpcomingProjectsSection copy={copy} language={language} projects={upcomingProjects} />
+      <UpcomingProjectsSection
+        copy={copy}
+        language={language}
+        projects={upcomingProjects}
+        bookings={upcomingMiniSessionBookings}
+      />
 
       <section className="mt-8 rounded-md border border-ink/12 bg-white">
         <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">

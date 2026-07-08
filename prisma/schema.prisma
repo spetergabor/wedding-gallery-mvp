@@ -281,12 +281,13 @@ model MiniSession {
   startsAt          DateTime
   endsAt            DateTime
   durationMinutes   Int
-  language          String   @default("hu")
-  isActive          Boolean  @default(true)
-  notes             String?
-  stylingNotes      String?
-  coverImageUrl     String?
-  coverImageR2Key   String?
+  language                String   @default("hu")
+  isActive                Boolean  @default(true)
+  createCustomerOnBooking Boolean  @default(true)
+  notes                   String?
+  stylingNotes            String?
+  coverImageUrl           String?
+  coverImageR2Key         String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   admin             Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)

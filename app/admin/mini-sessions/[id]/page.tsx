@@ -236,6 +236,7 @@ export default async function AdminMiniSessionDetailPage({
               </span>
               <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
               <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
+              <span>{session.createCustomerOnBooking ? "Ügyfél/projekt automatikus" : "Egyszerű foglalás"}</span>
             </div>
             <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
           </div>
@@ -799,6 +800,20 @@ export default async function AdminMiniSessionDetailPage({
                   <option value={MINI_SESSION_BOOKING_MODE_SINGLE_DAY}>Mini session nap</option>
                   <option value={MINI_SESSION_BOOKING_MODE_RECURRING}>Állandó szolgáltatás</option>
                 </select>
+              </label>
+              <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite sm:col-span-2">
+                <input
+                  name="createCustomerOnBooking"
+                  type="checkbox"
+                  defaultChecked={session.createCustomerOnBooking}
+                  className="mt-0.5 size-4 rounded border-ink/20"
+                />
+                <span>
+                  <span className="block font-medium text-ink">Foglalásból ügyfél és projekt létrehozása</span>
+                  <span className="mt-1 block leading-5 text-graphite/65">
+                    Kikapcsolva a vendégfoglalás nem hoz létre új ügyfelet vagy ügyfél alatti projektet, de a dashboardon közelgő munkaként látszik.
+                  </span>
+                </span>
               </label>
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-graphite">Kezdő dátum</span>

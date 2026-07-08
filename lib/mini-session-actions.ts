@@ -286,6 +286,7 @@ export async function createMiniSessionAction(formData: FormData) {
   const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : formString(formData, "endDate") || date;
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
+  const createCustomerOnBooking = formData.get("createCustomerOnBooking") === "on";
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
@@ -318,6 +319,7 @@ export async function createMiniSessionAction(formData: FormData) {
         durationMinutes,
         language,
         isActive: formData.get("isActive") === "on",
+        createCustomerOnBooking,
         notes: notes || null,
         stylingNotes: stylingNotes || null,
         coverImageUrl: uploadedCover?.url ?? null,
@@ -420,6 +422,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : formString(formData, "endDate") || date;
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
+  const createCustomerOnBooking = formData.get("createCustomerOnBooking") === "on";
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
@@ -447,6 +450,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         durationMinutes,
         language,
         isActive: formData.get("isActive") === "on",
+        createCustomerOnBooking,
         notes: notes || null,
         stylingNotes: stylingNotes || null,
         availabilityRules: {
@@ -650,7 +654,7 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
       }
     });
 
-    if (source === MINI_SESSION_BOOKING_SOURCE_BLOCKED) {
+    if (source === MINI_SESSION_BOOKING_SOURCE_BLOCKED || !session.createCustomerOnBooking) {
       return createdBooking;
     }
 
@@ -757,6 +761,10 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
         cancelToken
       }
     });
+
+    if (!session.createCustomerOnBooking) {
+      return createdBooking;
+    }
 
     return linkMiniSessionBookingToCustomerProject({
       tx,

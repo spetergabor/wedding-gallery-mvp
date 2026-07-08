@@ -353,6 +353,19 @@ function ServiceCreateForm() {
       </CreateSettingsSection>
 
       <CreateSettingsSection
+        title="Ügyfélfolyamat"
+        description="Egyszerű szolgáltatásoknál, például íriszfotózásnál elég a foglalás. Ha teljes ügyfélfolyamatot szeretnél vezetni, kapcsold be az automatikus ügyfél és projekt létrehozást."
+      >
+        <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite">
+          <input name="createCustomerOnBooking" type="checkbox" className="mt-0.5 size-4 rounded border-ink/20" />
+          <span>
+            <span className="block font-medium text-ink">Foglalásból ügyfél és projekt létrehozása</span>
+            <span className="mt-1 block leading-5 text-graphite/65">Kikapcsolva a foglalás csak az időpontfoglalóban és a dashboard következő munkái között jelenik meg.</span>
+          </span>
+        </label>
+      </CreateSettingsSection>
+
+      <CreateSettingsSection
         title="Publikus oldal"
         description="A borítókép és a szövegek a vendégeknek látható landing page-re kerülnek."
       >
@@ -443,6 +456,19 @@ function MiniSessionCreateForm() {
             <input name="durationMinutes" type="number" min="5" step="5" defaultValue="20" required className={fieldClass} />
           </label>
         </div>
+      </CreateSettingsSection>
+
+      <CreateSettingsSection
+        title="Ügyfélfolyamat"
+        description="Mini session napoknál általában hasznos, ha a foglalóból automatikusan ügyfél és projekt készül."
+      >
+        <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite">
+          <input name="createCustomerOnBooking" type="checkbox" defaultChecked className="mt-0.5 size-4 rounded border-ink/20" />
+          <span>
+            <span className="block font-medium text-ink">Foglalásból ügyfél és projekt létrehozása</span>
+            <span className="mt-1 block leading-5 text-graphite/65">Kikapcsolva a foglalás nem kerül be az ügyféllistába, csak önálló időpontként jelenik meg.</span>
+          </span>
+        </label>
       </CreateSettingsSection>
 
       <CreateSettingsSection
