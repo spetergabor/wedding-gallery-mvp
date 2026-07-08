@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 
 type MiniSessionSlotCalendarLanguage = "hu" | "de";
 
@@ -29,12 +30,14 @@ const COPY = {
   hu: {
     availableDays: "Foglalható napok",
     availableSlots: "Elérhető idősávok",
-    noDay: "Válassz egy foglalható napot"
+    noDay: "Válassz egy foglalható napot",
+    backToCalendar: "Teljes naptár"
   },
   de: {
     availableDays: "Verfügbare Tage",
     availableSlots: "Verfügbare Zeiten",
-    noDay: "Wähle einen verfügbaren Tag"
+    noDay: "Wähle einen verfügbaren Tag",
+    backToCalendar: "Alle Tage"
   }
 } as const;
 
@@ -95,6 +98,7 @@ export function MiniSessionSlotCalendar({
   const initialSlotToken = defaultSlotToken || days[0]?.slots[0]?.token || "";
   const [selectedDayKey, setSelectedDayKey] = useState(initialDayKey);
   const [selectedSlotToken, setSelectedSlotToken] = useState(initialSlotToken);
+  const [view, setView] = useState<"calendar" | "slots">("calendar");
 
   const dayMap = useMemo(() => new Map(days.map((day) => [day.key, day])), [days]);
   const monthKeys = useMemo(() => {
@@ -120,64 +124,82 @@ export function MiniSessionSlotCalendar({
 
       return currentTokenStillAvailable ? currentToken : day.slots[0]?.token ?? "";
     });
+    setView("slots");
   }
 
   return (
-    <div className="mt-5 space-y-4">
+    <div className="mt-5">
+      {view === "calendar" && selectedSlotToken ? <input type="hidden" name="slot" value={selectedSlotToken} /> : null}
       <section className="rounded-md border border-ink/10 bg-paper p-3">
-        <h3 className="text-sm font-semibold text-ink">{copy.availableDays}</h3>
-        <div className="mt-3 max-h-[520px] space-y-5 overflow-y-auto pr-1">
-          {months.map((month) => (
-            <div key={month.key}>
-              <div className="mb-3 text-sm font-semibold capitalize text-graphite">{month.label}</div>
-              <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-graphite/55">
-                {WEEKDAYS[language].map((weekday) => (
-                  <span key={weekday} className="grid h-7 place-items-center">
-                    {weekday}
-                  </span>
-                ))}
+        <div className="flex min-h-10 items-center justify-between gap-3 border-b border-ink/10 pb-3">
+          {view === "slots" ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setView("calendar")}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25"
+              >
+                <ArrowLeft size={15} />
+                {copy.backToCalendar}
+              </button>
+              <div className="min-w-0 text-right">
+                <p className="truncate text-sm font-semibold text-ink">{selectedDay ? selectedDay.label : copy.noDay}</p>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableSlots}</p>
               </div>
-              <div className="mt-1 grid grid-cols-7 gap-1">
-                {month.cells.map((cell) => {
-                  const availableDay = cell.availableDay;
-                  const isSelected = availableDay?.key === selectedDayKey;
-
-                  return (
-                    <button
-                      key={cell.key}
-                      type="button"
-                      disabled={!availableDay}
-                      aria-pressed={isSelected}
-                      onClick={() => {
-                        if (availableDay) {
-                          selectDay(availableDay);
-                        }
-                      }}
-                      className={`grid aspect-square min-h-10 place-items-center rounded-md border text-sm font-semibold transition ${
-                        isSelected
-                          ? "border-ink bg-ink text-white shadow-sm"
-                          : availableDay
-                            ? "border-sage/25 bg-sage/15 text-ink hover:border-sage/50 hover:bg-sage/25"
-                            : cell.inMonth
-                              ? "border-transparent bg-white text-graphite/35"
-                              : "border-transparent bg-transparent text-transparent"
-                      }`}
-                    >
-                      {cell.dayNumber}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+            </>
+          ) : (
+            <h3 className="text-sm font-semibold text-ink">{copy.availableDays}</h3>
+          )}
         </div>
-      </section>
 
-      <section className="rounded-md border border-ink/10 bg-white p-3">
-        <h3 className="text-sm font-semibold text-ink">{selectedDay ? selectedDay.label : copy.noDay}</h3>
-        <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableSlots}</p>
-        {selectedDay ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {view === "calendar" ? (
+          <div className="mt-3 max-h-[520px] space-y-5 overflow-y-auto pr-1">
+            {months.map((month) => (
+              <div key={month.key}>
+                <div className="mb-3 text-sm font-semibold capitalize text-graphite">{month.label}</div>
+                <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-graphite/55">
+                  {WEEKDAYS[language].map((weekday) => (
+                    <span key={weekday} className="grid h-7 place-items-center">
+                      {weekday}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1 grid grid-cols-7 gap-1">
+                  {month.cells.map((cell) => {
+                    const availableDay = cell.availableDay;
+                    const isSelected = availableDay?.key === selectedDayKey;
+
+                    return (
+                      <button
+                        key={cell.key}
+                        type="button"
+                        disabled={!availableDay}
+                        aria-pressed={isSelected}
+                        onClick={() => {
+                          if (availableDay) {
+                            selectDay(availableDay);
+                          }
+                        }}
+                        className={`grid aspect-square min-h-10 place-items-center rounded-md border text-sm font-semibold transition ${
+                          isSelected
+                            ? "border-ink bg-ink text-white shadow-sm"
+                            : availableDay
+                              ? "border-sage/25 bg-sage/15 text-ink hover:border-sage/50 hover:bg-sage/25"
+                              : cell.inMonth
+                                ? "border-transparent bg-white text-graphite/35"
+                                : "border-transparent bg-transparent text-transparent"
+                        }`}
+                      >
+                        {cell.dayNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : selectedDay ? (
+          <div className="mt-3 grid max-h-[520px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
             {selectedDay.slots.map((slot) => (
               <label
                 key={slot.token}
