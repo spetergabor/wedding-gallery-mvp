@@ -22,7 +22,7 @@ export function AdminLanguageSwitch({
           <Languages size={14} />
           {label}
         </span>
-        <div className="inline-grid grid-cols-2 rounded-md bg-paper p-1">
+        <div className="inline-grid grid-cols-3 rounded-md bg-paper p-1">
           {ADMIN_LANGUAGES.map((item) => {
             const isActive = language === item.value;
 

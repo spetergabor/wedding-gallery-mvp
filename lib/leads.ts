@@ -1,12 +1,12 @@
 import type { AdminLanguage } from "@/lib/admin-language";
 
 export const LEAD_STATUSES = [
-  { key: "requested", label: { hu: "Megkeresés", de: "Angefragt" } },
-  { key: "answered", label: { hu: "Megválaszolva", de: "Beantwortet" } },
-  { key: "meeting", label: { hu: "Egyeztetés", de: "Besprechung" } },
-  { key: "booking", label: { hu: "Foglalási folyamat", de: "Buchungsprozess" } },
-  { key: "booked", label: { hu: "Lefoglalva", de: "Gebucht" } },
-  { key: "follow_up", label: { hu: "Utókövetés", de: "Nachbearbeiten" } }
+  { key: "requested", label: { hu: "Megkeresés", de: "Angefragt", en: "Inquiry" } },
+  { key: "answered", label: { hu: "Megválaszolva", de: "Beantwortet", en: "Answered" } },
+  { key: "meeting", label: { hu: "Egyeztetés", de: "Besprechung", en: "Consultation" } },
+  { key: "booking", label: { hu: "Foglalási folyamat", de: "Buchungsprozess", en: "Booking process" } },
+  { key: "booked", label: { hu: "Lefoglalva", de: "Gebucht", en: "Booked" } },
+  { key: "follow_up", label: { hu: "Utókövetés", de: "Nachbearbeiten", en: "Follow-up" } }
 ] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number]["key"];
@@ -16,13 +16,13 @@ export function normalizeLeadStatus(value: string | null | undefined): LeadStatu
 }
 
 export const LEAD_EVENT_TYPES = [
-  { key: "wedding", label: { hu: "Esküvő", de: "Hochzeit" } },
-  { key: "mini_session", label: { hu: "Mini session", de: "Mini Session" } },
-  { key: "family", label: { hu: "Család", de: "Familie" } },
-  { key: "newborn", label: { hu: "Újszülött", de: "Neugeborene" } },
-  { key: "engagement", label: { hu: "Jegyesfotózás", de: "Verlobung" } },
-  { key: "business", label: { hu: "Business", de: "Business" } },
-  { key: "other", label: { hu: "Egyéb", de: "Sonstiges" } }
+  { key: "wedding", label: { hu: "Esküvő", de: "Hochzeit", en: "Wedding" } },
+  { key: "mini_session", label: { hu: "Mini session", de: "Mini Session", en: "Mini session" } },
+  { key: "family", label: { hu: "Család", de: "Familie", en: "Family" } },
+  { key: "newborn", label: { hu: "Újszülött", de: "Neugeborene", en: "Newborn" } },
+  { key: "engagement", label: { hu: "Jegyesfotózás", de: "Verlobung", en: "Engagement" } },
+  { key: "business", label: { hu: "Business", de: "Business", en: "Business" } },
+  { key: "other", label: { hu: "Egyéb", de: "Sonstiges", en: "Other" } }
 ] as const;
 
 export type LeadEventType = (typeof LEAD_EVENT_TYPES)[number]["key"];

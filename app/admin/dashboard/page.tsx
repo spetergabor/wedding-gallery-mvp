@@ -158,7 +158,7 @@ function formatStorageSize(bytes: number) {
 
 function formatDate(date: Date | null, language: AdminLanguage) {
   if (!date) {
-    return language === "de" ? "Kein Datum" : "Nincs dátum";
+    return language === "de" ? "Kein Datum" : language === "en" ? "No date" : "Nincs dátum";
   }
 
   return date.toLocaleDateString(dateLocaleForAdmin(language), {
@@ -167,6 +167,10 @@ function formatDate(date: Date | null, language: AdminLanguage) {
     day: "numeric",
     timeZone: APP_TIME_ZONE
   });
+}
+
+function miniSessionLanguageForAdmin(language: AdminLanguage) {
+  return language === "hu" ? "hu" : "de";
 }
 
 function formatProjectTimeRange(project: { startTime: string | null; endTime: string | null }) {
@@ -643,6 +647,119 @@ const DASHBOARD_COPY = {
     inactive: "Inaktiv",
     noGalleriesTitle: "Noch keine Galerie",
     noGalleriesDescription: "Frisch angelegte Galerien erscheinen hier."
+  },
+  en: {
+    area: "Admin",
+    title: "Dashboard",
+    intro: "Overview of galleries, client workflows and the next important steps.",
+    newClient: "New client",
+    newGallery: "New gallery",
+    stats: {
+      galleries: ["Galleries", "All created galleries"],
+      active: ["Active", "Publicly available galleries"],
+      media: ["Media", "Images and videos recorded in the database"],
+      storage: ["R2 storage", "Total uploaded media size"],
+      notifications: ["New notifications", "Unread admin notices"]
+    },
+    tasks: {
+      deliverFinal: "Deliver final photos",
+      uploadFinal: "Upload final photos",
+      finalReady: (name: string) => `${name}: final material is available, the delivery e-mail is waiting to be sent.`,
+      finalMissing: (name: string, status: string) => `${name}: ${status.toLowerCase()}, the edited final photos are still missing.`,
+      waitingDelivery: "Waiting for delivery",
+      processing: "Processing",
+      sendDeliveryEmail: "Send delivery e-mail",
+      deliveryEmailMissing: (name: string) => `${name}: final photos are marked delivered, but the e-mail has not been sent yet.`,
+      emailMissing: "E-mail missing",
+      sendProofingInvite: "Send selection link",
+      noClientEmail: "no client e-mail",
+      inviteDetail: (name: string, count: number, email: string) => `${name}: ${count} photos uploaded, recipient: ${email}.`,
+      waitingSend: "Waiting to send",
+      contractWaiting: "Contract waiting for signature",
+      waitingClient: "Waiting for client",
+      sendInvoice: "Send invoice",
+      overdueInvoice: "Overdue open invoice",
+      followInvoice: "Follow open invoice",
+      overdue: "Overdue",
+      open: "Open",
+      due: "due",
+      answerAlbumComment: "Answer album comments",
+      albumCommentCount: (count: number) => `${count} open comments`,
+      albumCommentDetail: (name: string, count: number, latestText: string) =>
+        `${name}: ${count} open album comments. Latest: ${latestText}`,
+      albumReview: "Album review",
+      fixPreview: "Fix preview processing",
+      brokenPreview: "Broken preview",
+      fixZip: "Fix ZIP preparation",
+      zipFallback: "the download package is stuck or failed.",
+      stuck: "Stuck",
+      brokenZip: "Broken ZIP"
+    },
+    focusEyebrow: "Today focus",
+    focusTitle: "Task center",
+    focusDescription: "The most important client, gallery and background processes in one quick list.",
+    urgent: "urgent",
+    noUrgentTitle: "No urgent admin tasks",
+    noUrgentDescription: "Problematic processing jobs, submitted selections and waiting client workflows appear here when they need attention.",
+    calendar: {
+      eyebrow: "Work calendar",
+      title: "Current month",
+      description: "Shootings, contracts, invoices and client-side activity in a monthly calendar.",
+      today: "today",
+      next7Days: "this month",
+      attention: "needs attention",
+      daysTitle: "Month view",
+      quietDaysTitle: "No entries on this day",
+      quietDaysDescription: "Click highlighted days to open the tasks and events for that day.",
+      eventCount: (count: number) => `${count} entries`,
+      agendaTitle: "Agenda",
+      noEventsTitle: "No calendar events",
+      noEventsDescription: "Projects, contracts, invoices and client activity will appear here in chronological order.",
+      project: "Project",
+      lead: "Lead",
+      contractSent: "Contract sent",
+      contractSigned: "Contract signed",
+      invoiceDue: "Invoice due",
+      invoiceSent: "Invoice sent",
+      invoicePaid: "Invoice paid",
+      selectionSubmitted: "Selection submitted",
+      miniSessionBooking: "Mini session booking",
+      miniSessionManualBooking: "Manual mini session booking",
+      miniSessionBlockedSlot: "Blocked mini session slot",
+      miniSessionAttendees: (count: number) => `${count} people`,
+      albumComment: "Album comment",
+      albumCommentCount: (count: number) => `${count} comments`,
+      albumApproved: "Album page approved",
+      albumApprovedCount: (count: number) => `${count} pages ok`,
+      albumApprovedDetail: (name: string, count: number) => `${name}: ${count} album spreads were marked approved.`,
+      task: "Task",
+      event: "Event",
+      activity: "Activity",
+      recent: "recent"
+    },
+    projectsEyebrow: "Work",
+    projectsTitle: "Upcoming work",
+    projectsDescription: "Client projects and simple appointment bookings in chronological order.",
+    openClients: "Open clients",
+    openBookings: "Open bookings",
+    noUpcomingTitle: "No upcoming work",
+    noUpcomingDescription: "Future projects and simple bookings will appear here in chronological order.",
+    simpleBooking: "Simple booking",
+    booked: "Booked",
+    gallery: "gallery",
+    missingVenue: "No location",
+    missingTime: "No time",
+    notificationsTitle: "Notifications",
+    all: "All",
+    noNotificationsTitle: "No notifications yet",
+    noNotificationsDescription: "There are no open messages or notices right now.",
+    latestGalleriesTitle: "Latest galleries",
+    moreGalleries: "More galleries",
+    media: "media",
+    active: "Active",
+    inactive: "Inactive",
+    noGalleriesTitle: "No gallery yet",
+    noGalleriesDescription: "Newly created galleries will appear here."
   }
 } as const;
 
@@ -681,7 +798,7 @@ function UpcomingProjectsSection({
       href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
       title: booking.miniSession.title,
       subtitle: booking.name,
-      time: formatMiniSessionSlot(booking.startsAt, booking.endsAt, language),
+      time: formatMiniSessionSlot(booking.startsAt, booking.endsAt, miniSessionLanguageForAdmin(language)),
       venue: booking.miniSession.location,
       badges: [copy.simpleBooking, copy.booked],
       footer: `${copy.calendar.miniSessionAttendees(booking.attendeeCount)} · ${booking.email}`,
@@ -1767,7 +1884,7 @@ export default async function AdminDashboardPage() {
     ...calendarMiniSessionBookings.map((booking): DashboardCalendarEvent => {
       const isBlocked = booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED;
       const isManual = booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL;
-      const slotLabel = formatMiniSessionSlot(booking.startsAt, booking.endsAt, language);
+      const slotLabel = formatMiniSessionSlot(booking.startsAt, booking.endsAt, miniSessionLanguageForAdmin(language));
       const bookingLabel = isBlocked
         ? copy.calendar.miniSessionBlockedSlot
         : isManual

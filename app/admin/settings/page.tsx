@@ -24,6 +24,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PhotographerProfileSettings } from "@/components/photographer-profile-settings";
 import { SiteSettingsForm } from "@/components/site-settings-form";
+import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { requireAdmin } from "@/lib/auth";
@@ -299,12 +300,234 @@ type GoogleCalendarIntegrationSettings = {
   updatedAt: Date;
 };
 
-function formatSettingsDateTime(date: Date | null | undefined) {
+const SETTINGS_COPY = {
+  hu: {
+    area: "Admin",
+    title: "Általános beállítások",
+    intro: "Márkaadatok, logó, elérhetőségek, biztonság és a platform külső szolgáltatói egy helyen.",
+    tabs: {
+      brand: "Márka",
+      profile: "Fotós adatok",
+      security: "Biztonság",
+      integrations: "Integrációk",
+      providers: "Szolgáltatók"
+    },
+    navLabel: "Beállítások fülek",
+    alerts: {
+      saved: "Beállítások mentve.",
+      logoTitle: "A logó feltöltése nem sikerült.",
+      logoBody: "Csak képfájlt tölts fel logóként.",
+      signatureTitle: "Az aláírás feltöltése nem sikerült.",
+      signatureBody: "PNG képfájlt tölts fel aláírásként.",
+      profileRequiredTitle: "A fotós adatok mentése nem sikerült.",
+      profileRequiredBody: "A név és az email megadása kötelező.",
+      profileEmailTitle: "Az email cím nem megfelelő.",
+      profileEmailBody: "Adj meg érvényes belépési email címet.",
+      profileEmailTakenTitle: "Ez az email cím már használatban van.",
+      profileEmailTakenBody: "Válassz másik email címet ehhez a fotós fiókhoz.",
+      googleConnected: "Google naptár összekötve.",
+      googleSaved: "Google naptár beállítások mentve.",
+      googleDisconnected: "Google naptár kapcsolat leválasztva.",
+      googleMissingConfigTitle: "A Google OAuth nincs konfigurálva.",
+      googleMissingConfigBody: "Add meg a szükséges Vercel env változókat.",
+      googleStateTitle: "A Google összekötés biztonsági ellenőrzése lejárt.",
+      googleStateBody: "Indítsd el újra az összekötést.",
+      googleRefreshTitle: "A Google nem adott hosszú távú hozzáférést.",
+      googleRefreshBody: "Indítsd újra az összekötést, és engedélyezd a naptár hozzáférést.",
+      googleErrorTitle: "A Google naptár összekötése nem sikerült.",
+      googleErrorBody: "Próbáld újra pár perc múlva."
+    },
+    google: {
+      eyebrow: "Google naptár",
+      title: "Automatikus naptár szinkron",
+      description: "Ha össze van kötve, az ügyfélfoglalások és a dátummal rendelkező projektek automatikusan bekerülhetnek a kiválasztott Google naptárba. Külön kapcsolóval azt is beállíthatod, hogy a Google naptár foglalt eseményei blokkolják a foglalható idősávokat.",
+      connected: "Összekötve",
+      disconnected: "Nincs összekötve",
+      missingConfigTitle: "A Google OAuth még nincs konfigurálva.",
+      missingConfigDetail: (keys: string) => `Vercelen add meg ezeket az env változókat: ${keys}.`,
+      permissionTitle: "Mire használja a Spetly a Google Calendar hozzáférést?",
+      permissionDescription: "Kizárólag foglalások és dátummal rendelkező projektek naptárszinkronjára, a célnaptár kiválasztására, valamint - ha külön bekapcsolod - a foglalt idősávok ellenőrzésére. A kapcsolat bármikor leválasztható ezen az oldalon.",
+      connectInfo: "Az összekötés Google belépést nyit. A rendszer csak naptáreseményeket hoz létre/módosít, és a naptárlistát olvassa a kiválasztáshoz.",
+      connectButton: "Google naptár összekötése",
+      account: "Google fiók",
+      connectedAt: "Kapcsolódva",
+      targetCalendar: "Célnaptár",
+      primarySuffix: "primary",
+      calendarListError: "A naptárlista most nem tölthető be, de a mentett naptár továbbra is használható.",
+      syncBookings: "Foglalások",
+      syncProjects: "Projektek",
+      blockAvailability: "Google események blokkolnak",
+      deleteCancelledEvents: "Törlés Google-ból",
+      freeBusyHint: "A Google blokkolás csak akkor aktív, ha ezt külön bekapcsolod. Ha régebben kötötted össze a naptárat, nyomd meg az Újra összekötés gombot, hogy a free/busy jogosultság is meglegyen.",
+      lastSyncError: "Legutóbbi Google sync hiba:",
+      save: "Google beállítások mentése",
+      saving: "Mentés...",
+      reconnect: "Újra összekötés",
+      syncTitle: "Mit szinkronizál?",
+      syncBookingsDetail: "Mini session és állandó fotózás foglalások: név, időpont, helyszín, elérhetőség.",
+      syncProjectsDetail: "Ügyfélprojektek: projekt neve, ügyfél, dátum, időpont, helyszín.",
+      syncBlockingDetail: "Bekapcsolt Google blokkolásnál a kiválasztott naptár foglalt eseményei nem lesznek foglalhatók a landing page-eken.",
+      disconnectTitle: "Kapcsolat leválasztása",
+      disconnectDescription: "Az app nem hoz létre több Google naptár eseményt. A már létrehozott Google események nem törlődnek automatikusan.",
+      disconnectConfirm: "Biztosan leválasztod a Google naptár kapcsolatot?",
+      disconnectButton: "Google kapcsolat leválasztása",
+      noData: "Nincs adat"
+    }
+  },
+  de: {
+    area: "Admin",
+    title: "Allgemeine Einstellungen",
+    intro: "Markendaten, Logo, Kontaktinformationen, Sicherheit und externe Plattformdienste an einem Ort.",
+    tabs: {
+      brand: "Marke",
+      profile: "Fotografendaten",
+      security: "Sicherheit",
+      integrations: "Integrationen",
+      providers: "Dienste"
+    },
+    navLabel: "Einstellungsbereiche",
+    alerts: {
+      saved: "Einstellungen gespeichert.",
+      logoTitle: "Das Logo konnte nicht hochgeladen werden.",
+      logoBody: "Bitte lade nur Bilddateien als Logo hoch.",
+      signatureTitle: "Die Signatur konnte nicht hochgeladen werden.",
+      signatureBody: "Bitte lade eine PNG-Datei als Signatur hoch.",
+      profileRequiredTitle: "Die Fotografendaten konnten nicht gespeichert werden.",
+      profileRequiredBody: "Name und E-Mail sind erforderlich.",
+      profileEmailTitle: "Die E-Mail-Adresse ist ungültig.",
+      profileEmailBody: "Bitte gib eine gültige Login-E-Mail-Adresse ein.",
+      profileEmailTakenTitle: "Diese E-Mail-Adresse wird bereits verwendet.",
+      profileEmailTakenBody: "Wähle eine andere E-Mail-Adresse für dieses Fotografenkonto.",
+      googleConnected: "Google Kalender verbunden.",
+      googleSaved: "Google Kalender-Einstellungen gespeichert.",
+      googleDisconnected: "Google Kalender-Verbindung getrennt.",
+      googleMissingConfigTitle: "Google OAuth ist nicht konfiguriert.",
+      googleMissingConfigBody: "Bitte füge die erforderlichen Vercel-Umgebungsvariablen hinzu.",
+      googleStateTitle: "Die Sicherheitsprüfung der Google-Verbindung ist abgelaufen.",
+      googleStateBody: "Starte die Verbindung erneut.",
+      googleRefreshTitle: "Google hat keinen langfristigen Zugriff bereitgestellt.",
+      googleRefreshBody: "Verbinde erneut und erlaube den Kalenderzugriff.",
+      googleErrorTitle: "Google Kalender konnte nicht verbunden werden.",
+      googleErrorBody: "Bitte versuche es in ein paar Minuten erneut."
+    },
+    google: {
+      eyebrow: "Google Kalender",
+      title: "Automatische Kalendersynchronisierung",
+      description: "Wenn verbunden, können Kundenbuchungen und datierte Projekte automatisch in den ausgewählten Google Kalender eingetragen werden. Optional können belegte Google Kalender-Ereignisse buchbare Zeitfenster blockieren.",
+      connected: "Verbunden",
+      disconnected: "Nicht verbunden",
+      missingConfigTitle: "Google OAuth ist noch nicht konfiguriert.",
+      missingConfigDetail: (keys: string) => `Füge diese Vercel-Umgebungsvariablen hinzu: ${keys}.`,
+      permissionTitle: "Wofür verwendet Spetly den Google Calendar-Zugriff?",
+      permissionDescription: "Nur für die Kalendersynchronisierung von Buchungen und datierten Projekten, zur Auswahl des Zielkalenders und - wenn du es aktivierst - zur Prüfung belegter Zeitfenster. Die Verbindung kann jederzeit auf dieser Seite getrennt werden.",
+      connectInfo: "Die Verbindung öffnet den Google Login. Spetly erstellt oder aktualisiert nur Kalenderereignisse und liest die Kalenderliste zur Auswahl des Zielkalenders.",
+      connectButton: "Google Kalender verbinden",
+      account: "Google-Konto",
+      connectedAt: "Verbunden seit",
+      targetCalendar: "Zielkalender",
+      primarySuffix: "primary",
+      calendarListError: "Die Kalenderliste kann gerade nicht geladen werden, der gespeicherte Kalender bleibt nutzbar.",
+      syncBookings: "Buchungen",
+      syncProjects: "Projekte",
+      blockAvailability: "Google-Ereignisse blockieren",
+      deleteCancelledEvents: "Aus Google löschen",
+      freeBusyHint: "Google-Blockierung ist nur aktiv, wenn du sie einschaltest. Wenn du den Kalender früher verbunden hast, nutze Erneut verbinden, damit die free/busy-Berechtigung vorhanden ist.",
+      lastSyncError: "Letzter Google Sync-Fehler:",
+      save: "Google-Einstellungen speichern",
+      saving: "Speichern...",
+      reconnect: "Erneut verbinden",
+      syncTitle: "Was wird synchronisiert?",
+      syncBookingsDetail: "Mini-Session- und laufend buchbare Termine: Name, Uhrzeit, Ort und Kontakt.",
+      syncProjectsDetail: "Kundenprojekte: Projektname, Kunde, Datum, Uhrzeit und Ort.",
+      syncBlockingDetail: "Wenn Google-Blockierung aktiv ist, sind belegte Ereignisse im ausgewählten Kalender auf Landingpages nicht buchbar.",
+      disconnectTitle: "Verbindung trennen",
+      disconnectDescription: "Die App erstellt keine weiteren Google Kalender-Ereignisse. Bereits erstellte Google-Ereignisse werden nicht automatisch gelöscht.",
+      disconnectConfirm: "Google Kalender-Verbindung wirklich trennen?",
+      disconnectButton: "Google-Verbindung trennen",
+      noData: "Keine Daten"
+    }
+  },
+  en: {
+    area: "Admin",
+    title: "General settings",
+    intro: "Brand details, logo, contact information, security and external platform services in one place.",
+    tabs: {
+      brand: "Brand",
+      profile: "Photographer details",
+      security: "Security",
+      integrations: "Integrations",
+      providers: "Providers"
+    },
+    navLabel: "Settings tabs",
+    alerts: {
+      saved: "Settings saved.",
+      logoTitle: "Logo upload failed.",
+      logoBody: "Upload an image file as the logo.",
+      signatureTitle: "Signature upload failed.",
+      signatureBody: "Upload a PNG file as the signature.",
+      profileRequiredTitle: "Photographer details could not be saved.",
+      profileRequiredBody: "Name and e-mail are required.",
+      profileEmailTitle: "The e-mail address is invalid.",
+      profileEmailBody: "Enter a valid login e-mail address.",
+      profileEmailTakenTitle: "This e-mail address is already in use.",
+      profileEmailTakenBody: "Choose another e-mail address for this photographer account.",
+      googleConnected: "Google Calendar connected.",
+      googleSaved: "Google Calendar settings saved.",
+      googleDisconnected: "Google Calendar disconnected.",
+      googleMissingConfigTitle: "Google OAuth is not configured.",
+      googleMissingConfigBody: "Add the required Vercel environment variables.",
+      googleStateTitle: "The Google connection security check expired.",
+      googleStateBody: "Start the connection again.",
+      googleRefreshTitle: "Google did not provide long-term access.",
+      googleRefreshBody: "Reconnect and allow calendar access.",
+      googleErrorTitle: "Google Calendar could not be connected.",
+      googleErrorBody: "Try again in a few minutes."
+    },
+    google: {
+      eyebrow: "Google Calendar",
+      title: "Automatic calendar sync",
+      description: "When connected, client bookings and dated projects can be added automatically to the selected Google Calendar. You can also enable Google Calendar busy events to block bookable time slots.",
+      connected: "Connected",
+      disconnected: "Not connected",
+      missingConfigTitle: "Google OAuth is not configured yet.",
+      missingConfigDetail: (keys: string) => `Add these Vercel environment variables: ${keys}.`,
+      permissionTitle: "How does Spetly use Google Calendar access?",
+      permissionDescription: "Only for calendar sync of bookings and dated projects, selecting the target calendar, and - if you enable it - checking busy time slots. You can disconnect the integration from this page at any time.",
+      connectInfo: "Connecting opens the Google sign-in flow. Spetly only creates or updates calendar events and reads the calendar list so you can choose the target calendar.",
+      connectButton: "Connect Google Calendar",
+      account: "Google account",
+      connectedAt: "Connected at",
+      targetCalendar: "Target calendar",
+      primarySuffix: "primary",
+      calendarListError: "The calendar list cannot be loaded right now, but the saved calendar can still be used.",
+      syncBookings: "Bookings",
+      syncProjects: "Projects",
+      blockAvailability: "Google events block availability",
+      deleteCancelledEvents: "Delete from Google",
+      freeBusyHint: "Google availability blocking is active only when you enable it. If you connected the calendar earlier, use Reconnect so the free/busy permission is granted.",
+      lastSyncError: "Latest Google sync error:",
+      save: "Save Google settings",
+      saving: "Saving...",
+      reconnect: "Reconnect",
+      syncTitle: "What is synchronized?",
+      syncBookingsDetail: "Mini session and always-bookable appointments: name, time, location and contact details.",
+      syncProjectsDetail: "Client projects: project name, client, date, time and location.",
+      syncBlockingDetail: "When Google blocking is enabled, busy events in the selected calendar are not bookable on landing pages.",
+      disconnectTitle: "Disconnect integration",
+      disconnectDescription: "The app will stop creating Google Calendar events. Existing Google events are not deleted automatically.",
+      disconnectConfirm: "Are you sure you want to disconnect Google Calendar?",
+      disconnectButton: "Disconnect Google Calendar",
+      noData: "No data"
+    }
+  }
+} as const;
+
+function formatSettingsDateTime(date: Date | null | undefined, language: AdminLanguage, fallback: string) {
   if (!date) {
-    return "Nincs adat";
+    return fallback;
   }
 
-  return date.toLocaleString("hu-HU", {
+  return date.toLocaleString(dateLocaleForAdmin(language), {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -319,18 +542,21 @@ function calendarOptionValue(option: { id: string; summary: string }) {
 }
 
 function GoogleCalendarSettings({
+  language,
   configured,
   missingConfigKeys,
   integration,
   calendarOptions,
   calendarOptionsError
 }: {
+  language: AdminLanguage;
   configured: boolean;
   missingConfigKeys: string[];
   integration: GoogleCalendarIntegrationSettings | null;
   calendarOptions: GoogleCalendarOption[];
   calendarOptionsError: boolean;
 }) {
+  const copy = SETTINGS_COPY[language].google;
   const selectedCalendar = integration
     ? calendarOptions.find((calendar) => calendar.id === integration.calendarId) ?? {
         id: integration.calendarId,
@@ -349,27 +575,27 @@ function GoogleCalendarSettings({
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
             <CalendarDays size={15} />
-            Google naptár
+            {copy.eyebrow}
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">Automatikus naptár szinkron</h2>
+          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
-            Ha össze van kötve, az ügyfélfoglalások és a dátummal rendelkező projektek automatikusan bekerülhetnek a kiválasztott Google naptárba. Külön kapcsolóval azt is beállíthatod, hogy a Google naptár foglalt eseményei blokkolják a foglalható idősávokat.
+            {copy.description}
           </p>
         </div>
         {integration ? (
           <span className="inline-flex w-fit items-center gap-2 rounded-full bg-sage/10 px-3 py-1 text-xs font-medium text-sage">
             <CheckCircle2 size={14} />
-            Összekötve
+            {copy.connected}
           </span>
         ) : (
-          <span className="w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">Nincs összekötve</span>
+          <span className="w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">{copy.disconnected}</span>
         )}
       </div>
 
       {!configured ? (
         <div className="mt-5 rounded-md border border-brass/20 bg-brass/10 px-4 py-4 text-sm leading-6 text-graphite/75">
-          <p className="font-medium text-ink">A Google OAuth még nincs konfigurálva.</p>
-          <p className="mt-1">Vercelen add meg ezeket az env változókat: {missingConfigKeys.join(", ")}.</p>
+          <p className="font-medium text-ink">{copy.missingConfigTitle}</p>
+          <p className="mt-1">{copy.missingConfigDetail(missingConfigKeys.join(", "))}</p>
         </div>
       ) : null}
 
@@ -379,9 +605,9 @@ function GoogleCalendarSettings({
             <ShieldCheck size={17} />
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink">Mire használja a Spetly a Google Calendar hozzáférést?</p>
+            <p className="text-sm font-semibold text-ink">{copy.permissionTitle}</p>
             <p className="mt-1 text-sm leading-6 text-graphite/70">
-              Kizárólag foglalások és dátummal rendelkező projektek naptárszinkronjára, a célnaptár kiválasztására, valamint - ha külön bekapcsolod - a foglalt idősávok ellenőrzésére. A kapcsolat bármikor leválasztható ezen az oldalon.
+              {copy.permissionDescription}
             </p>
           </div>
         </div>
@@ -390,16 +616,16 @@ function GoogleCalendarSettings({
       {!integration ? (
         <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
           <p className="text-sm leading-6 text-graphite/70">
-            Az összekötés Google belépést nyit. A rendszer csak naptáreseményeket hoz létre/módosít, és a naptárlistát olvassa a kiválasztáshoz.
+            {copy.connectInfo}
           </p>
           <div className="mt-4">
             {configured ? (
               <Link href="/api/google-calendar/connect" className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
-                Google naptár összekötése
+                {copy.connectButton}
               </Link>
             ) : (
               <span className="inline-flex h-10 items-center justify-center rounded-md bg-ink/10 px-4 text-sm font-medium text-graphite/60">
-                Google naptár összekötése
+                {copy.connectButton}
               </span>
             )}
           </div>
@@ -409,22 +635,22 @@ function GoogleCalendarSettings({
           <form action={updateGoogleCalendarSettingsAction} className="rounded-md border border-ink/10 bg-paper p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-md bg-white px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Google fiók</p>
-                <p className="mt-1 truncate text-sm font-semibold text-ink">{integration.googleAccountEmail || "Google fiók"}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">{copy.account}</p>
+                <p className="mt-1 truncate text-sm font-semibold text-ink">{integration.googleAccountEmail || copy.account}</p>
               </div>
               <div className="rounded-md bg-white px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">Kapcsolódva</p>
-                <p className="mt-1 text-sm font-semibold text-ink">{formatSettingsDateTime(integration.connectedAt)}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">{copy.connectedAt}</p>
+                <p className="mt-1 text-sm font-semibold text-ink">{formatSettingsDateTime(integration.connectedAt, language, copy.noData)}</p>
               </div>
             </div>
 
             <label className="mt-4 block space-y-2">
-              <span className="text-sm font-medium text-graphite">Célnaptár</span>
+              <span className="text-sm font-medium text-graphite">{copy.targetCalendar}</span>
               <select name="calendarId" defaultValue={selectedCalendar ? calendarOptionValue(selectedCalendar) : "primary|||Primary"} className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50">
                 {calendarOptionsWithSelected.length > 0 ? (
                   calendarOptionsWithSelected.map((calendar) => (
                     <option key={calendar.id} value={calendarOptionValue(calendar)}>
-                      {calendar.summary}{calendar.primary ? " (primary)" : ""}
+                      {calendar.summary}{calendar.primary ? ` (${copy.primarySuffix})` : ""}
                     </option>
                   ))
                 ) : (
@@ -434,60 +660,60 @@ function GoogleCalendarSettings({
                 )}
               </select>
               {calendarOptionsError ? (
-                <span className="block text-xs leading-5 text-brass">A naptárlista most nem tölthető be, de a mentett naptár továbbra is használható.</span>
+                <span className="block text-xs leading-5 text-brass">{copy.calendarListError}</span>
               ) : null}
             </label>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
                 <input name="syncMiniSessionBookings" type="checkbox" defaultChecked={integration.syncMiniSessionBookings} className="size-4 rounded border-ink/20" />
-                Foglalások
+                {copy.syncBookings}
               </label>
               <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
                 <input name="syncCustomerProjects" type="checkbox" defaultChecked={integration.syncCustomerProjects} className="size-4 rounded border-ink/20" />
-                Projektek
+                {copy.syncProjects}
               </label>
               <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
                 <input name="blockAvailabilityFromGoogleCalendar" type="checkbox" defaultChecked={integration.blockAvailabilityFromGoogleCalendar} className="size-4 rounded border-ink/20" />
-                Google események blokkolnak
+                {copy.blockAvailability}
               </label>
               <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
                 <input name="deleteCancelledEvents" type="checkbox" defaultChecked={integration.deleteCancelledEvents} className="size-4 rounded border-ink/20" />
-                Törlés Google-ból
+                {copy.deleteCancelledEvents}
               </label>
             </div>
             <p className="mt-3 rounded-md bg-white px-3 py-3 text-xs leading-5 text-graphite/65">
-              A Google blokkolás csak akkor aktív, ha ezt külön bekapcsolod. Ha régebben kötötted össze a naptárat, nyomd meg az Újra összekötés gombot, hogy a free/busy jogosultság is meglegyen.
+              {copy.freeBusyHint}
             </p>
 
             {integration.lastSyncError ? (
               <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm leading-6 text-red-700">
-                Legutóbbi Google sync hiba: {integration.lastSyncError}
+                {copy.lastSyncError} {integration.lastSyncError}
               </p>
             ) : null}
 
             <div className="mt-5 flex flex-col gap-3 border-t border-ink/10 pt-4 sm:flex-row sm:items-center">
-              <FormSubmitButton pendingLabel="Mentés...">Google beállítások mentése</FormSubmitButton>
+              <FormSubmitButton pendingLabel={copy.saving}>{copy.save}</FormSubmitButton>
               <Link href="/api/google-calendar/connect" className="inline-flex h-10 items-center justify-center rounded-md border border-ink/10 px-4 text-sm font-medium text-ink transition hover:bg-ink/5">
-                Újra összekötés
+                {copy.reconnect}
               </Link>
             </div>
           </form>
 
           <aside className="space-y-4">
             <div className="rounded-md border border-ink/10 bg-white p-4">
-              <p className="text-sm font-semibold text-ink">Mit szinkronizál?</p>
+              <p className="text-sm font-semibold text-ink">{copy.syncTitle}</p>
               <div className="mt-3 space-y-2 text-sm leading-6 text-graphite/70">
-                <p>Mini session és állandó fotózás foglalások: név, időpont, helyszín, elérhetőség.</p>
-                <p>Ügyfélprojektek: projekt neve, ügyfél, dátum, időpont, helyszín.</p>
-                <p>Bekapcsolt Google blokkolásnál a kiválasztott naptár foglalt eseményei nem lesznek foglalhatók a landing page-eken.</p>
+                <p>{copy.syncBookingsDetail}</p>
+                <p>{copy.syncProjectsDetail}</p>
+                <p>{copy.syncBlockingDetail}</p>
               </div>
             </div>
             <form action={disconnectGoogleCalendarAction} className="rounded-md border border-red-200 bg-red-50 p-4">
-              <p className="text-sm font-semibold text-red-700">Kapcsolat leválasztása</p>
-              <p className="mt-2 text-sm leading-6 text-red-700/80">Az app nem hoz létre több Google naptár eseményt. A már létrehozott Google események nem törlődnek automatikusan.</p>
-              <ConfirmSubmitButton variant="danger" className="mt-4" message="Biztosan leválasztod a Google naptár kapcsolatot?">
-                Google kapcsolat leválasztása
+              <p className="text-sm font-semibold text-red-700">{copy.disconnectTitle}</p>
+              <p className="mt-2 text-sm leading-6 text-red-700/80">{copy.disconnectDescription}</p>
+              <ConfirmSubmitButton variant="danger" className="mt-4" message={copy.disconnectConfirm}>
+                {copy.disconnectButton}
               </ConfirmSubmitButton>
             </form>
           </aside>
@@ -733,7 +959,7 @@ export default async function AdminSettingsPage({
     google?: string;
   }>;
 }) {
-  const [admin, params] = await Promise.all([requireAdmin(), searchParams]);
+  const [admin, params, language] = await Promise.all([requireAdmin(), searchParams, getAdminLanguage()]);
   const isTeamWorkspace = admin.isTeamWorkspace;
   const workspaceAdminId = ownerAdminId(admin);
   const activeTab: SettingsTab =
@@ -824,19 +1050,20 @@ export default async function AdminSettingsPage({
   const googleConfigured = isGoogleCalendarConfigured();
   const googleMissingConfigKeys = googleCalendarMissingConfigKeys();
   const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-5" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-4";
+  const copy = SETTINGS_COPY[language];
 
   return (
     <AdminShell>
       <div className="mb-8">
-        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Admin</p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink">Általános beállítások</h1>
+        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">{copy.area}</p>
+        <h1 className="mt-2 text-3xl font-semibold text-ink">{copy.title}</h1>
         <p className="mt-3 max-w-2xl text-graphite/70">
-          Márkaadatok, logó, elérhetőségek, biztonság és a platform külső szolgáltatói egy helyen.
+          {copy.intro}
         </p>
       </div>
 
       <div className="mb-6 rounded-md border border-ink/10 bg-white p-2">
-        <nav className={`grid gap-2 ${settingsTabColumns}`} aria-label="Beállítások fülek">
+        <nav className={`grid gap-2 ${settingsTabColumns}`} aria-label={copy.navLabel}>
           {!isTeamWorkspace ? (
             <Link
               href="/admin/settings?tab=brand"
@@ -845,7 +1072,7 @@ export default async function AdminSettingsPage({
               }`}
             >
               <Globe2 size={16} />
-              Márka
+              {copy.tabs.brand}
             </Link>
           ) : null}
           <Link
@@ -855,7 +1082,7 @@ export default async function AdminSettingsPage({
             }`}
           >
             <UserRound size={16} />
-            Fotós adatok
+            {copy.tabs.profile}
           </Link>
           <Link
             href="/admin/settings?tab=security"
@@ -864,7 +1091,7 @@ export default async function AdminSettingsPage({
             }`}
           >
             <ShieldCheck size={16} />
-            Biztonság
+            {copy.tabs.security}
           </Link>
           {!isTeamWorkspace ? (
             <Link
@@ -874,7 +1101,7 @@ export default async function AdminSettingsPage({
               }`}
             >
               <CalendarDays size={16} />
-              Integrációk
+              {copy.tabs.integrations}
             </Link>
           ) : null}
           {admin.role === "super_admin" ? (
@@ -885,46 +1112,46 @@ export default async function AdminSettingsPage({
               }`}
             >
               <Activity size={16} />
-              Szolgáltatók
+              {copy.tabs.providers}
             </Link>
           ) : null}
         </nav>
       </div>
 
       <div className="mb-5 space-y-3">
-        {params.saved ? <Alert title="Beállítások mentve." variant="success" /> : null}
+        {params.saved ? <Alert title={copy.alerts.saved} variant="success" /> : null}
         {params.error === "logo" ? (
-          <Alert title="A logó feltöltése nem sikerült." variant="error">
-            Csak képfájlt tölts fel logóként.
+          <Alert title={copy.alerts.logoTitle} variant="error">
+            {copy.alerts.logoBody}
           </Alert>
         ) : null}
         {params.error === "signature" ? (
-          <Alert title="Az aláírás feltöltése nem sikerült." variant="error">
-            PNG képfájlt tölts fel aláírásként.
+          <Alert title={copy.alerts.signatureTitle} variant="error">
+            {copy.alerts.signatureBody}
           </Alert>
         ) : null}
         {params.error === "profile_required" ? (
-          <Alert title="A fotós adatok mentése nem sikerült." variant="error">
-            A név és az email megadása kötelező.
+          <Alert title={copy.alerts.profileRequiredTitle} variant="error">
+            {copy.alerts.profileRequiredBody}
           </Alert>
         ) : null}
         {params.error === "profile_email" ? (
-          <Alert title="Az email cím nem megfelelő." variant="error">
-            Adj meg érvényes belépési email címet.
+          <Alert title={copy.alerts.profileEmailTitle} variant="error">
+            {copy.alerts.profileEmailBody}
           </Alert>
         ) : null}
         {params.error === "profile_email_taken" ? (
-          <Alert title="Ez az email cím már használatban van." variant="error">
-            Válassz másik email címet ehhez a fotós fiókhoz.
+          <Alert title={copy.alerts.profileEmailTakenTitle} variant="error">
+            {copy.alerts.profileEmailTakenBody}
           </Alert>
         ) : null}
-        {params.google === "connected" ? <Alert title="Google naptár összekötve." variant="success" /> : null}
-        {params.google === "saved" ? <Alert title="Google naptár beállítások mentve." variant="success" /> : null}
-        {params.google === "disconnected" ? <Alert title="Google naptár kapcsolat leválasztva." variant="success" /> : null}
-        {params.google === "missing-config" ? <Alert title="A Google OAuth nincs konfigurálva." variant="error">Add meg a szükséges Vercel env változókat.</Alert> : null}
-        {params.google === "state-error" ? <Alert title="A Google összekötés biztonsági ellenőrzése lejárt." variant="error">Indítsd el újra az összekötést.</Alert> : null}
-        {params.google === "no-refresh-token" ? <Alert title="A Google nem adott hosszú távú hozzáférést." variant="error">Indítsd újra az összekötést, és engedélyezd a naptár hozzáférést.</Alert> : null}
-        {params.google === "oauth-error" || params.google === "callback-error" ? <Alert title="A Google naptár összekötése nem sikerült." variant="error">Próbáld újra pár perc múlva.</Alert> : null}
+        {params.google === "connected" ? <Alert title={copy.alerts.googleConnected} variant="success" /> : null}
+        {params.google === "saved" ? <Alert title={copy.alerts.googleSaved} variant="success" /> : null}
+        {params.google === "disconnected" ? <Alert title={copy.alerts.googleDisconnected} variant="success" /> : null}
+        {params.google === "missing-config" ? <Alert title={copy.alerts.googleMissingConfigTitle} variant="error">{copy.alerts.googleMissingConfigBody}</Alert> : null}
+        {params.google === "state-error" ? <Alert title={copy.alerts.googleStateTitle} variant="error">{copy.alerts.googleStateBody}</Alert> : null}
+        {params.google === "no-refresh-token" ? <Alert title={copy.alerts.googleRefreshTitle} variant="error">{copy.alerts.googleRefreshBody}</Alert> : null}
+        {params.google === "oauth-error" || params.google === "callback-error" ? <Alert title={copy.alerts.googleErrorTitle} variant="error">{copy.alerts.googleErrorBody}</Alert> : null}
       </div>
 
       {activeTab === "brand" && !isTeamWorkspace ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
@@ -935,6 +1162,7 @@ export default async function AdminSettingsPage({
 
       {activeTab === "integrations" ? (
         <GoogleCalendarSettings
+          language={language}
           configured={googleConfigured}
           missingConfigKeys={googleMissingConfigKeys}
           integration={googleIntegration ? {

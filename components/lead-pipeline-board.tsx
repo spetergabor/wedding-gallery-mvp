@@ -54,6 +54,21 @@ const LEAD_PIPELINE_COPY = {
     description: "Hier siehst du, wo Anfragen vom ersten Kontakt bis zur Buchung stehen. Einen Kunden legst du erst an, wenn die Buchung sicher ist.",
     addLead: "Lead hinzufügen",
     locale: "de-AT"
+  },
+  en: {
+    nameRequired: "Enter a name.",
+    saveError: "Could not save.",
+    name: "Name",
+    email: "Email",
+    saving: "Saving...",
+    saveLead: "Save lead",
+    cancel: "Cancel",
+    deleteLead: "Delete lead",
+    eyebrow: "Leads",
+    title: "Lead overview",
+    description: "Track where inquiries are from first contact to confirmed booking. Create a client only when the booking is secure.",
+    addLead: "Add lead",
+    locale: "en-US"
   }
 } as const;
 

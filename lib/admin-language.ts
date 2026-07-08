@@ -1,21 +1,23 @@
 import { cookies } from "next/headers";
 
-export type AdminLanguage = "hu" | "de";
+export type AdminLanguage = "hu" | "de" | "en";
 
 export const ADMIN_LANGUAGE_COOKIE = "speter_admin_language";
 
 export const ADMIN_LANGUAGES = [
   { value: "hu", label: "Magyar", shortLabel: "HU" },
-  { value: "de", label: "Deutsch", shortLabel: "DE" }
+  { value: "de", label: "Deutsch", shortLabel: "DE" },
+  { value: "en", label: "English", shortLabel: "EN" }
 ] as const;
 
 export const ADMIN_LOCALES = {
   hu: "hu-HU",
-  de: "de-AT"
+  de: "de-AT",
+  en: "en-US"
 } as const;
 
 export function normalizeAdminLanguage(value: string | null | undefined): AdminLanguage {
-  return value === "de" ? "de" : "hu";
+  return value === "de" || value === "en" ? value : "hu";
 }
 
 export async function getAdminLanguage(): Promise<AdminLanguage> {
@@ -75,5 +77,29 @@ export const ADMIN_SHELL_COPY = {
     notifications: "Benachrichtigungen",
     settings: "Einstellungen",
     logout: "Abmelden"
+  },
+  en: {
+    appArea: "Admin",
+    navigationLabel: "Admin menu",
+    mobileNavigationLabel: "Mobile admin menu",
+    menu: "Menu",
+    language: "Interface language",
+    dashboard: "Dashboard",
+    clients: "Clients",
+    galleries: "Galleries",
+    team: "Team",
+    workspace: "Workspace",
+    activeWorkspace: "You are working here",
+    ownWorkspace: "Own",
+    teamWorkspace: "Team",
+    ownWorkspaceHint: "New clients, galleries and settings are saved to your own account.",
+    teamWorkspaceHint: "New clients, galleries and contracts are saved to the team account.",
+    switchToOwnWorkspace: "Switch to own",
+    switchToTeamWorkspace: "Switch to team",
+    photographers: "Photographers",
+    newClient: "New client",
+    notifications: "Notifications",
+    settings: "Settings",
+    logout: "Log out"
   }
 } as const;
