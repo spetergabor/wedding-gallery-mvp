@@ -22,7 +22,7 @@ NEXT_PUBLIC_R2_PUBLIC_BASE_URL="https://cdn.hochzeitsfotografgraz.at"
 NEXT_PUBLIC_APP_URL="https://gallery.hochzeitsfotografgraz.at"
 RESEND_API_KEY="re_..."
 ADMIN_NOTIFICATION_EMAIL="you@example.com"
-EMAIL_FROM="Wedding Gallery <gallery@hochzeitsfotografgraz.at>"
+EMAIL_FROM="Spetly <gallery@hochzeitsfotografgraz.at>"
 CRON_SECRET="a-long-random-worker-secret"
 MEDIA_PROCESSING_SECRET="a-long-random-media-worker-secret"
 ZIP_WORKER_DRIVER="vercel"
@@ -32,7 +32,7 @@ R2_OBJECT_READ_CHUNK_SIZE_MB="16"
 
 ## Vercel setup
 
-1. Import `spetergabor/wedding-gallery-mvp` in Vercel.
+1. Import `spetergabor/spetly` in Vercel.
 2. Add the environment variables above.
 3. Deploy.
 4. Run production migrations:

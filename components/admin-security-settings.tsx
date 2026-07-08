@@ -34,7 +34,7 @@ export async function AdminSecuritySettings({
     ? await QRCode.toDataURL(
         createTotpUri({
           accountName: admin.email,
-          issuer: "Wedding Gallery",
+          issuer: "Spetly",
           secret: setupSecret
         }),
         {

@@ -306,7 +306,7 @@ export function appBaseUrl() {
 function emailConfig() {
   return {
     apiKey: process.env.RESEND_API_KEY,
-    from: process.env.EMAIL_FROM ?? "Wedding Gallery <onboarding@resend.dev>",
+    from: process.env.EMAIL_FROM ?? "Spetly <onboarding@resend.dev>",
     adminEmail: process.env.ADMIN_NOTIFICATION_EMAIL
   };
 }
@@ -528,7 +528,7 @@ function adminPasswordResetHtml({ name, resetUrl, expiresInMinutes }: AdminPassw
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">Jelszó visszaállítása</h1>
       <p style="margin: 0 0 18px;">Szia ${escapeHtml(name)},</p>
-      <p style="margin: 0 0 18px;">Jelszó-visszaállítást kértél a Wedding Gallery admin felülethez.</p>
+      <p style="margin: 0 0 18px;">Jelszó-visszaállítást kértél a Spetly admin felülethez.</p>
       <p style="margin: 0 0 20px;">
         <a href="${escapeHtml(resetUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Új jelszó beállítása</a>
       </p>
@@ -556,12 +556,12 @@ export async function sendAdminPasswordResetEmail(payload: AdminPasswordResetEma
     body: JSON.stringify({
       from,
       to: payload.to,
-      subject: "Jelszó visszaállítása - Wedding Gallery",
+      subject: "Jelszó visszaállítása - Spetly",
       html: adminPasswordResetHtml(payload),
       text: [
         `Szia ${payload.name},`,
         "",
-        "Jelszó-visszaállítást kértél a Wedding Gallery admin felülethez.",
+        "Jelszó-visszaállítást kértél a Spetly admin felülethez.",
         `Új jelszó beállítása: ${payload.resetUrl}`,
         "",
         `A link ${payload.expiresInMinutes} percig érvényes.`,

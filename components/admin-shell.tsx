@@ -111,7 +111,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
         })
       : null
   ]);
-  const brandName = settings?.businessName || "Wedding Gallery";
+  const brandName = settings?.businessName || "Spetly";
 
   return (
     <div className="min-h-screen bg-paper">

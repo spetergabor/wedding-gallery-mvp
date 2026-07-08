@@ -27,7 +27,7 @@ export default async function AdminLoginPage({
           </div>
           <div>
             <h1 className="text-xl font-semibold text-ink">Admin belépés</h1>
-            <p className="text-sm text-graphite/70">Wedding Gallery MVP</p>
+            <p className="text-sm text-graphite/70">Spetly</p>
           </div>
         </div>
 

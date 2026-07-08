@@ -99,8 +99,8 @@ const providerLinks = [
     description: "Forráskód, commitok, deploy trigger, verziókövetés.",
     icon: GitBranch,
     links: [
-      { label: "Repository", href: "https://github.com/spetergabor/wedding-gallery-mvp" },
-      { label: "Actions", href: "https://github.com/spetergabor/wedding-gallery-mvp/actions" },
+      { label: "Repository", href: "https://github.com/spetergabor/spetly" },
+      { label: "Actions", href: "https://github.com/spetergabor/spetly/actions" },
       { label: "Billing", href: "https://github.com/settings/billing" }
     ],
     costHint: "MVP-ben főleg fejlesztési infrastruktúra, nem tipikus végfelhasználói költség."

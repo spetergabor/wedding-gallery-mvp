@@ -109,7 +109,7 @@ export default async function PublicMiniSessionPage({
     notFound();
   }
 
-  const brandName = session.admin.siteSettings?.businessName || "Wedding Gallery";
+  const brandName = session.admin.siteSettings?.businessName || "Spetly";
   const language = normalizeMiniSessionLanguage(session.language);
   const copy = MINI_SESSION_PAGE_COPY[language];
   const availableSlots = await getAvailableMiniSessionSlots(session);

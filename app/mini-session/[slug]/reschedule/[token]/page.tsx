@@ -85,7 +85,7 @@ export default async function RescheduleMiniSessionBookingPage({
 
   const language = normalizeMiniSessionLanguage(booking.miniSession.language);
   const copy = RESCHEDULE_COPY[language];
-  const brandName = booking.miniSession.admin.siteSettings?.businessName || "Wedding Gallery";
+  const brandName = booking.miniSession.admin.siteSettings?.businessName || "Spetly";
   const availableSlots = await getAvailableMiniSessionSlots(booking.miniSession, {
     excludeBookingId: booking.id,
     excludeProjectId: booking.projectId

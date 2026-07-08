@@ -1,4 +1,4 @@
-# Wedding Gallery MVP
+# Spetly
 
 Online gallery MVP for wedding photographers.
 
