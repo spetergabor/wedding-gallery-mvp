@@ -25,6 +25,7 @@ import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionCoverUploadBox } from "@/components/mini-session-cover-upload-box";
+import { MiniSessionBookingFilters } from "@/components/mini-session-booking-filters";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
@@ -48,6 +49,8 @@ import {
   miniSessionLanguageLabel,
   miniSessionMinBookingNoticeLabel,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
+  MINI_SESSION_BOOKING_SOURCE_CLIENT,
+  MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_LANGUAGES,
@@ -614,6 +617,8 @@ export default async function AdminMiniSessionsPage({
   const freeSlotCount = [...sessionMetrics.values()].reduce((total, metrics) => total + metrics.freeSlotCount, 0);
   const activeBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
   const cancelledBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
+  const clientBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_CLIENT);
+  const manualBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL);
   const activeAttendeeCount = activeBookings.reduce((total, item) => total + item.booking.attendeeCount, 0);
   const uniqueContactCount = new Set(contactBookings.map((item) => item.booking.email.toLowerCase())).size;
   const upcomingBookings = activeBookings
@@ -1059,6 +1064,14 @@ export default async function AdminMiniSessionsPage({
               </div>
             </div>
 
+            <MiniSessionBookingFilters
+              totalCount={contactBookings.length}
+              activeCount={activeBookings.length}
+              cancelledCount={cancelledBookings.length}
+              clientCount={clientBookings.length}
+              manualCount={manualBookings.length}
+            />
+
             {contactBookings.length === 0 ? (
               <p className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">Még nincs ügyfélfoglalás.</p>
             ) : (
@@ -1069,46 +1082,72 @@ export default async function AdminMiniSessionsPage({
                   <span>Időpont</span>
                   <span className="text-right">Művelet</span>
                 </div>
-                {contactBookings.map(({ session, booking }) => (
-                  <div
-                    key={booking.id}
-                    className="grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] md:items-center"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-ink">{booking.name}</p>
-                        <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-medium ${miniSessionBookingStatusClass(booking.status)}`}>
-                          {miniSessionBookingStatusLabel(booking.status)}
-                        </span>
+                {contactBookings.map(({ session, booking }) => {
+                  const slotLabel = formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt);
+                  const searchText = [
+                    booking.name,
+                    booking.email,
+                    booking.phone,
+                    session.title,
+                    session.slug,
+                    slotLabel,
+                    miniSessionBookingStatusLabel(booking.status)
+                  ].join(" ").toLowerCase();
+
+                  return (
+                    <div
+                      key={booking.id}
+                      hidden={booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED}
+                      data-mini-session-booking-item
+                      data-mini-session-booking-record={booking.id}
+                      data-mini-session-booking-status={booking.status}
+                      data-mini-session-booking-source={booking.source}
+                      data-mini-session-booking-search={searchText}
+                      className="grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] md:items-center"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-ink">{booking.name}</p>
+                          <span className={`w-fit rounded-full px-2 py-1 text-[11px] font-medium ${miniSessionBookingStatusClass(booking.status)}`}>
+                            {miniSessionBookingStatusLabel(booking.status)}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-graphite/60">{session.title}</p>
+                        <p className="mt-1 text-xs text-graphite/60">{booking.attendeeCount} fő</p>
                       </div>
-                      <p className="mt-1 truncate text-xs text-graphite/60">{session.title}</p>
-                      <p className="mt-1 text-xs text-graphite/60">{booking.attendeeCount} fő</p>
+                      <div className="min-w-0 space-y-1 text-sm text-graphite/75">
+                        <a className="flex min-w-0 items-center gap-2 hover:text-ink" href={`mailto:${booking.email}`}>
+                          <Mail size={14} className="shrink-0" />
+                          <span className="truncate">{booking.email}</span>
+                        </a>
+                        <a className="flex min-w-0 items-center gap-2 hover:text-ink" href={`tel:${booking.phone}`}>
+                          <Phone size={14} className="shrink-0" />
+                          <span className="truncate">{booking.phone}</span>
+                        </a>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm text-graphite/75">{slotLabel}</p>
+                        <p className="mt-1 truncate text-xs text-graphite/55">/mini-session/{session.slug}</p>
+                      </div>
+                      <div className="flex gap-2 md:justify-end">
+                        <Link
+                          href={`/admin/mini-sessions/${session.id}?tab=bookings`}
+                          className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 md:w-auto"
+                        >
+                          <Settings2 size={14} />
+                          Kezelés
+                        </Link>
+                      </div>
                     </div>
-                    <div className="min-w-0 space-y-1 text-sm text-graphite/75">
-                      <a className="flex min-w-0 items-center gap-2 hover:text-ink" href={`mailto:${booking.email}`}>
-                        <Mail size={14} className="shrink-0" />
-                        <span className="truncate">{booking.email}</span>
-                      </a>
-                      <a className="flex min-w-0 items-center gap-2 hover:text-ink" href={`tel:${booking.phone}`}>
-                        <Phone size={14} className="shrink-0" />
-                        <span className="truncate">{booking.phone}</span>
-                      </a>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm text-graphite/75">{formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}</p>
-                      <p className="mt-1 truncate text-xs text-graphite/55">/mini-session/{session.slug}</p>
-                    </div>
-                    <div className="flex gap-2 md:justify-end">
-                      <Link
-                        href={`/admin/mini-sessions/${session.id}?tab=bookings`}
-                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 md:w-auto"
-                      >
-                        <Settings2 size={14} />
-                        Kezelés
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
+                <p
+                  data-mini-session-booking-empty
+                  hidden={activeBookings.length > 0}
+                  className="bg-white px-4 py-5 text-sm text-graphite/70"
+                >
+                  Nincs a szűrésnek megfelelő foglalás.
+                </p>
               </div>
             )}
           </section>
