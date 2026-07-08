@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Wedding Gallery MVP",
-  description: "Private wedding galleries for photographers"
+  title: "Spetly",
+  description: "Client galleries, bookings, contracts and calendar workflows for photographers."
 };
 
 export default function RootLayout({
