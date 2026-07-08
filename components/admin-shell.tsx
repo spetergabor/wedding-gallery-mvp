@@ -177,7 +177,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
           </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/mini-sessions">
             <CalendarClock size={17} />
-            Időpontfoglaló
+            {copy.bookings}
           </Link>
           {admin && !admin.isTeamMember ? (
             <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/team">
@@ -193,7 +193,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
               </Link>
               <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/r2-storage">
                 <HardDrive size={17} />
-                R2 tárhely
+                {copy.r2Storage}
               </Link>
             </>
           ) : null}
@@ -286,7 +286,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/mini-sessions">
                     <CalendarClock size={17} />
-                    Időpontfoglaló
+                    {copy.bookings}
                   </Link>
                   {admin && !admin.isTeamMember ? (
                     <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/team">
@@ -302,7 +302,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                       </Link>
                       <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/r2-storage">
                         <HardDrive size={17} />
-                        R2 tárhely
+                        {copy.r2Storage}
                       </Link>
                     </>
                   ) : null}
