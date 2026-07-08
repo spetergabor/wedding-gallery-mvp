@@ -26,16 +26,13 @@ import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
-  CUSTOMER_PROJECT_STATUSES,
   CUSTOMER_PROJECT_TYPES,
-  customerProjectStatusLabel,
   customerProjectTypeLabel
 } from "@/lib/customer-project-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { googleCalendarUrl } from "@/lib/google-calendar";
 import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectAction } from "@/lib/customer-actions";
 import {
-  getProjectPhaseIndex,
   getProjectWorkflowSummary,
   type ProjectWorkflowIconKey,
   type ProjectWorkflowState
@@ -117,22 +114,6 @@ type UnassignedCounts = {
   albumDesigns: number;
 };
 
-const PROJECT_PHASES = [
-  { key: "planned", label: "Tervezés" },
-  { key: "shoot", label: "Fotózás" },
-  { key: "proofing", label: "Válogatás" },
-  { key: "editing", label: "Kidolgozás" },
-  { key: "delivered", label: "Átadás" }
-] as const;
-
-const ALBUM_PROJECT_PHASES = [
-  { key: "planned", label: "Tervezés" },
-  { key: "design", label: "Albumterv" },
-  { key: "review", label: "Ellenőrzés" },
-  { key: "changes", label: "Módosítás" },
-  { key: "delivered", label: "Lezárás" }
-] as const;
-
 function dateInputValue(date: Date | null | undefined) {
   if (!date) {
     return "";
@@ -164,22 +145,6 @@ function formatTimeRange(startTime: string | null | undefined, endTime: string |
   }
 
   return `${startTime} - ${endTime}`;
-}
-
-function statusClass(status: string) {
-  if (status === "delivered") {
-    return "bg-sage/15 text-sage";
-  }
-
-  if (status === "archived") {
-    return "bg-ink/5 text-graphite";
-  }
-
-  if (status === "proofing" || status === "editing" || status === "in_progress") {
-    return "bg-brass/10 text-brass";
-  }
-
-  return "bg-ink/5 text-graphite";
 }
 
 function CountPill({ icon: Icon, label, count }: { icon: LucideIcon; label: string; count: number }) {
@@ -259,29 +224,6 @@ function stepStyle(state: ProjectWorkflowState) {
   };
 }
 
-function ProjectPhaseRail({ project }: { project: CustomerProject }) {
-  const currentPhase = getProjectPhaseIndex(project);
-  const phases = project.projectType === "album" ? ALBUM_PROJECT_PHASES : PROJECT_PHASES;
-
-  return (
-    <div className="grid gap-2 sm:grid-cols-5">
-      {phases.map((phase, index) => {
-        const isDone = index < currentPhase;
-        const isCurrent = index === currentPhase;
-
-        return (
-          <div key={phase.key} className="min-w-0">
-            <div className={`h-1.5 rounded-full ${isDone || isCurrent ? "bg-brass" : "bg-ink/10"}`} />
-            <p className={`mt-2 truncate text-xs font-medium ${isCurrent ? "text-ink" : isDone ? "text-brass" : "text-graphite/55"}`}>
-              {phase.label}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export function CustomerProjectManager({
   customerId,
   projects,
@@ -335,6 +277,7 @@ export function CustomerProjectManager({
           </summary>
 
           <form action={createCustomerProjectAction.bind(null, customerId)} className="grid gap-4 border-t border-ink/10 p-4 md:grid-cols-2 xl:grid-cols-4">
+            <input type="hidden" name="status" value="planned" />
             <label className="space-y-2 xl:col-span-2">
               <span className="text-sm font-medium text-graphite">Projekt neve</span>
               <input
@@ -354,20 +297,6 @@ export function CustomerProjectManager({
                 {CUSTOMER_PROJECT_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-graphite">Státusz</span>
-              <select
-                name="status"
-                defaultValue="planned"
-                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-              >
-                {CUSTOMER_PROJECT_STATUSES.map((status) => (
-                  <option key={status.value} value={status.value}>
-                    {status.label}
                   </option>
                 ))}
               </select>
@@ -437,9 +366,15 @@ export function CustomerProjectManager({
                 const nextStep = getProjectWorkflowSummary(customerId, project);
                 const StepIcon = workflowIconMap[nextStep.iconKey];
                 const nextStepStyle = stepStyle(nextStep.state);
-                const isAlbumProject = project.projectType === "album";
                 const calendarUrl = projectGoogleCalendarUrl(project);
                 const calendarIcsUrl = projectCalendarIcsUrl(project);
+                const attachmentCounts = [
+                  { icon: Camera, label: "galéria", count: project._count.galleries },
+                  { icon: FileText, label: "szerződés", count: project._count.contracts },
+                  { icon: FileText, label: "számla", count: project._count.invoices },
+                  { icon: ImagePlus, label: "album ellenőrző", count: project._count.albumReviews },
+                  { icon: BookOpen, label: "albumterv", count: project._count.albumDesigns }
+                ].filter((item) => item.count > 0);
 
                 return (
                   <>
@@ -449,9 +384,6 @@ export function CustomerProjectManager({
                     <h3 className="text-lg font-semibold text-ink">{project.title}</h3>
                     <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
                       {customerProjectTypeLabel(project.projectType)}
-                    </span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass(project.status)}`}>
-                      {customerProjectStatusLabel(project.status)}
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-sm text-graphite/70">
@@ -471,17 +403,6 @@ export function CustomerProjectManager({
                   {project.notes ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-graphite/70">{project.notes}</p> : null}
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                  {isAlbumProject ? (
-                    <ButtonLink href={`/admin/clients/${customerId}?tab=album&albumMode=upload`}>
-                      <BookOpen size={16} />
-                      Album munka
-                    </ButtonLink>
-                  ) : (
-                    <ButtonLink href={`/admin/galleries/new?customerId=${customerId}&projectId=${project.id}`}>
-                      <Camera size={16} />
-                      Új galéria
-                    </ButtonLink>
-                  )}
                   {calendarUrl ? (
                     <a
                       href={calendarUrl}
@@ -515,43 +436,37 @@ export function CustomerProjectManager({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.6fr)]">
-                <div className="rounded-md bg-paper p-4">
-                  <div className="flex items-start gap-3">
+              <div className="mt-4 rounded-md border border-brass/15 bg-paper p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
                     <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${nextStepStyle.className}`}>
                       <StepIcon size={17} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-ink">Most ez a következő: {nextStep.title}</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">Következő lépés</p>
                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${nextStepStyle.className}`}>
                           {nextStep.stateLabel}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm leading-6 text-graphite/70">{nextStep.detail}</p>
-                      <ButtonLink href={nextStep.href} variant="secondary" className="mt-3 h-10">
-                        <ArrowRight size={16} />
-                        {nextStep.buttonLabel}
-                      </ButtonLink>
+                      <h4 className="mt-1 text-base font-semibold text-ink">{nextStep.title}</h4>
+                      <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{nextStep.detail}</p>
                     </div>
                   </div>
-                </div>
-
-                <div className="rounded-md bg-paper p-4">
-                  <p className="text-sm font-semibold text-ink">Munkafolyamat</p>
-                  <div className="mt-4">
-                    <ProjectPhaseRail project={project} />
-                  </div>
+                  <ButtonLink href={nextStep.href} className="h-10 shrink-0">
+                    <ArrowRight size={16} />
+                    {nextStep.buttonLabel}
+                  </ButtonLink>
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <CountPill icon={Camera} label="galéria" count={project._count.galleries} />
-                <CountPill icon={FileText} label="szerződés" count={project._count.contracts} />
-                <CountPill icon={FileText} label="számla" count={project._count.invoices} />
-                <CountPill icon={ImagePlus} label="album ellenőrző" count={project._count.albumReviews} />
-                <CountPill icon={BookOpen} label="albumterv" count={project._count.albumDesigns} />
-              </div>
+              {attachmentCounts.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {attachmentCounts.map((item) => (
+                    <CountPill key={item.label} icon={item.icon} label={item.label} count={item.count} />
+                  ))}
+                </div>
+              ) : null}
 
               <details className="group mt-4 rounded-md bg-paper">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-medium text-ink transition hover:bg-ink/[0.03] [&::-webkit-details-marker]:hidden">
@@ -560,6 +475,7 @@ export function CustomerProjectManager({
                   <span className="hidden text-xs text-graphite/60 group-open:inline">Bezárás</span>
                 </summary>
                 <form action={updateCustomerProjectAction.bind(null, customerId, project.id)} className="grid gap-3 border-t border-ink/10 p-3 md:grid-cols-2 xl:grid-cols-4">
+                  <input type="hidden" name="status" value={project.status} />
                   <label className="space-y-2 xl:col-span-2">
                     <span className="text-sm font-medium text-graphite">Projekt neve</span>
                     <input
@@ -579,20 +495,6 @@ export function CustomerProjectManager({
                       {CUSTOMER_PROJECT_TYPES.map((type) => (
                         <option key={type.value} value={type.value}>
                           {type.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-2">
-                    <span className="text-sm font-medium text-graphite">Státusz</span>
-                    <select
-                      name="status"
-                      defaultValue={project.status}
-                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                    >
-                      {CUSTOMER_PROJECT_STATUSES.map((status) => (
-                        <option key={status.value} value={status.value}>
-                          {status.label}
                         </option>
                       ))}
                     </select>
@@ -669,13 +571,7 @@ export function CustomerProjectManager({
                     </Link>
                   ))}
                 </div>
-              ) : (
-                <div className="mt-4 rounded-md bg-paper px-4 py-3 text-sm text-graphite/70">
-                  {isAlbumProject
-                    ? "Album projektnél nem szükséges galéria. Dolgozhatsz külső albumprogramban, majd a kész oldalpárokat az Album fülön töltheted fel ellenőrzésre."
-                    : "Ehhez a projekthez még nincs galéria kapcsolva."}
-                </div>
-              )}
+              ) : null}
                   </>
                 );
               })()}
