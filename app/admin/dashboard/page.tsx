@@ -918,7 +918,7 @@ function DashboardWorkCalendar({
   const monthEvents = events.filter(
     (event) => event.date.getTime() >= monthStart.getTime() && event.date.getTime() < monthEnd.getTime()
   );
-  const orderedEvents = sortCalendarEvents(monthEvents, today).slice(0, 14);
+  const orderedEvents = sortCalendarEvents(monthEvents, today).slice(0, 4);
   const todayEventCount = monthEvents.filter((event) => isSameCalendarDay(event.date, today)).length;
   const attentionCount = monthEvents.filter((event) => event.kind === "task").length;
 
