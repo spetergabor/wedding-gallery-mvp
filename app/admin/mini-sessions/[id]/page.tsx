@@ -448,7 +448,7 @@ export default async function AdminMiniSessionDetailPage({
                       data-mini-session-booking-source={booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL ? "manual" : "client"}
                       data-mini-session-booking-search={searchText}
                       hidden={!isActive}
-                      className="rounded-md border border-ink/10 bg-paper p-4"
+                      className={`${!isActive ? "hidden" : ""} rounded-md border border-ink/10 bg-paper p-4`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>

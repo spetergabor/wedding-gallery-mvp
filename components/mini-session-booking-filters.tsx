@@ -9,6 +9,11 @@ type BookingSourceFilter = "all" | "client" | "manual";
 const filterInputClass =
   "h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 
+function setFilteredElementHidden(element: HTMLElement, isHidden: boolean) {
+  element.hidden = isHidden;
+  element.classList.toggle("hidden", isHidden);
+}
+
 export function MiniSessionBookingFilters({
   totalCount,
   activeCount,
@@ -40,7 +45,7 @@ export function MiniSessionBookingFilters({
       const matchesQuery = !normalizedQuery || itemSearch.includes(normalizedQuery);
       const isVisible = matchesStatus && matchesSource && matchesQuery;
 
-      item.hidden = !isVisible;
+      setFilteredElementHidden(item, !isVisible);
 
       if (isVisible && item.dataset.miniSessionBookingRecord) {
         visibleBookingIds.add(item.dataset.miniSessionBookingRecord);
@@ -52,7 +57,7 @@ export function MiniSessionBookingFilters({
     });
 
     document.querySelectorAll<HTMLElement>("[data-mini-session-booking-empty]").forEach((emptyState) => {
-      emptyState.hidden = visibleBookingIds.size > 0;
+      setFilteredElementHidden(emptyState, visibleBookingIds.size > 0);
     });
   }, [query, source, status]);
 

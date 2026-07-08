@@ -1103,7 +1103,7 @@ export default async function AdminMiniSessionsPage({
                       data-mini-session-booking-status={booking.status}
                       data-mini-session-booking-source={booking.source}
                       data-mini-session-booking-search={searchText}
-                      className="grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] md:items-center"
+                      className={`${booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED ? "hidden" : ""} grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] md:items-center`}
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
