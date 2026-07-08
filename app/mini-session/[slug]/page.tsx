@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MiniSessionSlotCalendar } from "@/components/mini-session-slot-calendar";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import { bookMiniSessionAction } from "@/lib/mini-session-actions";
 import {
@@ -111,6 +112,14 @@ export default async function PublicMiniSessionPage({
   const availableSlotGroups = groupMiniSessionSlotsByDate(availableSlots, language);
   const defaultSlotToken = availableSlots[0]?.token ?? "";
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
+  const recurringSlotDays = availableSlotGroups.map((group) => ({
+    key: group.key,
+    label: group.label,
+    slots: group.slots.map((slot) => ({
+      token: slot.token,
+      label: formatMiniSessionSlot(slot.startsAt, slot.endsAt, language)
+    }))
+  }));
   const calendarHref = flags.calendar ? `/mini-session/${session.slug}/calendar/${encodeURIComponent(flags.calendar)}` : null;
   const hasCoverImage = Boolean(session.coverImageUrl);
   const eyebrowClass = hasCoverImage ? "text-white/80" : "text-brass";
@@ -216,29 +225,37 @@ export default async function PublicMiniSessionPage({
                 <CheckCircle2 size={19} />
                 {copy.chooseSlot}
               </h2>
-              <div className="mt-5 space-y-4">
-                {availableSlotGroups.map((group) => (
-                  <section key={group.key} className="rounded-md border border-ink/10 bg-paper p-3">
-                    <h3 className="text-sm font-semibold text-ink">{group.label}</h3>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {group.slots.map((slot) => (
-                        <label key={slot.token} className="relative flex min-h-12 cursor-pointer items-center rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25">
-                          <input
-                            name="slot"
-                            type="radio"
-                            value={slot.token}
-                            required
-                            defaultChecked={slot.token === defaultSlotToken}
-                            className="peer sr-only"
-                          />
-                          <span className="absolute inset-0 rounded-md ring-0 transition peer-checked:ring-2 peer-checked:ring-ink" />
-                          <span className="relative">{formatMiniSessionSlot(slot.startsAt, slot.endsAt, language)}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
+              {isRecurring ? (
+                <MiniSessionSlotCalendar
+                  days={recurringSlotDays}
+                  defaultSlotToken={defaultSlotToken}
+                  language={language}
+                />
+              ) : (
+                <div className="mt-5 space-y-4">
+                  {availableSlotGroups.map((group) => (
+                    <section key={group.key} className="rounded-md border border-ink/10 bg-paper p-3">
+                      <h3 className="text-sm font-semibold text-ink">{group.label}</h3>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {group.slots.map((slot) => (
+                          <label key={slot.token} className="relative flex min-h-12 cursor-pointer items-center rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25">
+                            <input
+                              name="slot"
+                              type="radio"
+                              value={slot.token}
+                              required
+                              defaultChecked={slot.token === defaultSlotToken}
+                              className="peer sr-only"
+                            />
+                            <span className="absolute inset-0 rounded-md ring-0 transition peer-checked:ring-2 peer-checked:ring-ink" />
+                            <span className="relative">{formatMiniSessionSlot(slot.startsAt, slot.endsAt, language)}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
