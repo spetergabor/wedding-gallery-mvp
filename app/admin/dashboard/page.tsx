@@ -28,6 +28,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { customerMeetingStatusLabel, customerMeetingTypeLabel } from "@/lib/customer-meeting-options";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { ensureLeadPipelineSchema, leadEventTypeLabel, leadStatusLabel, normalizeLeadStatus } from "@/lib/leads";
 import {
@@ -132,6 +133,22 @@ type DashboardUpcomingMiniSessionBooking = {
     id: string;
     title: string;
     location: string;
+  };
+};
+
+type DashboardUpcomingMeeting = {
+  id: string;
+  title: string;
+  meetingType: string;
+  status: string;
+  eventDate: Date;
+  startTime: string;
+  endTime: string;
+  location: string | null;
+  customer: {
+    id: string;
+    coupleName: string;
+    primaryEmail: string;
   };
 };
 
@@ -443,6 +460,7 @@ const DASHBOARD_COPY = {
       noEventsTitle: "Nincs naptári esemény",
       noEventsDescription: "Ha projekt, szerződés, számla vagy ügyfélaktivitás érkezik, itt jelenik meg időrendben.",
       project: "Projekt",
+      meeting: "Meeting",
       lead: "Érdeklődő",
       contractSent: "Szerződés kiküldve",
       contractSigned: "Szerződés aláírva",
@@ -466,13 +484,14 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Munkák",
     projectsTitle: "Következő munkák",
-    projectsDescription: "Ügyfélprojektek és egyszerű időpontfoglalások egy időrendben.",
+    projectsDescription: "Ügyfélprojektek, meetingek és egyszerű időpontfoglalások egy időrendben.",
     openAllWork: "Összes munka",
     openClients: "Ügyfelek megnyitása",
     openBookings: "Foglalások megnyitása",
     noUpcomingTitle: "Nincs közelgő munka",
     noUpcomingDescription: "A jövőbeli projektek és egyszerű foglalások itt jelennek majd meg időrendben.",
     simpleBooking: "Egyszerű foglalás",
+    clientMeeting: "Ügyfélmeeting",
     booked: "Foglalva",
     gallery: "galéria",
     missingVenue: "Nincs helyszín",
@@ -550,6 +569,7 @@ const DASHBOARD_COPY = {
       noEventsTitle: "Keine Kalendereinträge",
       noEventsDescription: "Projekte, Verträge, Rechnungen und Kundenaktivitäten erscheinen hier chronologisch.",
       project: "Projekt",
+      meeting: "Meeting",
       lead: "Anfrage",
       contractSent: "Vertrag gesendet",
       contractSigned: "Vertrag unterzeichnet",
@@ -573,13 +593,14 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Arbeiten",
     projectsTitle: "Nächste Arbeiten",
-    projectsDescription: "Kundenprojekte und einfache Terminbuchungen in chronologischer Reihenfolge.",
+    projectsDescription: "Kundenprojekte, Meetings und einfache Terminbuchungen in chronologischer Reihenfolge.",
     openAllWork: "Alle Arbeiten",
     openClients: "Kunden öffnen",
     openBookings: "Buchungen öffnen",
     noUpcomingTitle: "Keine anstehenden Arbeiten",
     noUpcomingDescription: "Zukünftige Projekte und einfache Buchungen erscheinen hier chronologisch.",
     simpleBooking: "Einfache Buchung",
+    clientMeeting: "Kundenmeeting",
     booked: "Gebucht",
     gallery: "Galerie",
     missingVenue: "Kein Ort",
@@ -657,6 +678,7 @@ const DASHBOARD_COPY = {
       noEventsTitle: "No calendar events",
       noEventsDescription: "Projects, contracts, invoices and client activity will appear here in chronological order.",
       project: "Project",
+      meeting: "Meeting",
       lead: "Lead",
       contractSent: "Contract sent",
       contractSigned: "Contract signed",
@@ -680,13 +702,14 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Work",
     projectsTitle: "Upcoming work",
-    projectsDescription: "Client projects and simple appointment bookings in chronological order.",
+    projectsDescription: "Client projects, meetings and simple appointment bookings in chronological order.",
     openAllWork: "All work",
     openClients: "Open clients",
     openBookings: "Open bookings",
     noUpcomingTitle: "No upcoming work",
     noUpcomingDescription: "Future projects and simple bookings will appear here in chronological order.",
     simpleBooking: "Simple booking",
+    clientMeeting: "Client meeting",
     booked: "Booked",
     gallery: "gallery",
     missingVenue: "No location",
@@ -711,12 +734,14 @@ function UpcomingProjectsSection({
   copy,
   language,
   projects,
-  bookings
+  bookings,
+  meetings
 }: {
   copy: DashboardCopy;
   language: AdminLanguage;
   projects: DashboardUpcomingProject[];
   bookings: DashboardUpcomingMiniSessionBooking[];
+  meetings: DashboardUpcomingMeeting[];
 }) {
   const visibleProjects = projects.filter(
     (project): project is DashboardUpcomingProject & { eventDate: Date } => project.eventDate instanceof Date
@@ -745,6 +770,18 @@ function UpcomingProjectsSection({
       badges: [copy.simpleBooking, copy.booked] as [string, string],
       footer: `${copy.calendar.miniSessionAttendees(booking.attendeeCount)} · ${booking.email}`,
       footerLabel: copy.calendar.miniSessionBooking
+    })),
+    ...meetings.map((meeting) => ({
+      key: `meeting-${meeting.id}`,
+      date: meeting.eventDate,
+      href: `/admin/clients/${meeting.customer.id}?tab=meetings`,
+      title: meeting.title,
+      subtitle: meeting.customer.coupleName,
+      time: formatProjectTimeText(meeting),
+      venue: meeting.location,
+      badges: [copy.clientMeeting, customerMeetingStatusLabel(meeting.status)] as [string, string],
+      footer: customerMeetingTypeLabel(meeting.meetingType),
+      footerLabel: copy.calendar.meeting
     }))
   ]
     .sort((left, right) => left.date.getTime() - right.date.getTime())
@@ -1050,7 +1087,9 @@ export default async function AdminDashboardPage() {
   const [
     upcomingProjects,
     upcomingMiniSessionBookings,
+    upcomingMeetings,
     calendarProjects,
+    calendarMeetings,
     calendarLeads,
     calendarContracts,
     calendarInvoices,
@@ -1127,6 +1166,32 @@ export default async function AdminDashboardPage() {
         }
       }
     }),
+    prisma.customerMeeting.findMany({
+      where: {
+        customer: adminOwnedWhere(admin),
+        eventDate: { gte: today },
+        status: { not: "cancelled" }
+      },
+      orderBy: [{ eventDate: "asc" }, { startTime: "asc" }, { createdAt: "asc" }],
+      take: 12,
+      select: {
+        id: true,
+        title: true,
+        meetingType: true,
+        status: true,
+        eventDate: true,
+        startTime: true,
+        endTime: true,
+        location: true,
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        }
+      }
+    }),
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
@@ -1135,6 +1200,24 @@ export default async function AdminDashboardPage() {
       },
       orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
       take: 30,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        }
+      }
+    }),
+    prisma.customerMeeting.findMany({
+      where: {
+        customer: adminOwnedWhere(admin),
+        eventDate: { gte: calendarStart, lt: calendarEnd },
+        status: { not: "cancelled" }
+      },
+      orderBy: [{ eventDate: "asc" }, { startTime: "asc" }, { createdAt: "desc" }],
+      take: 80,
       include: {
         customer: {
           select: {
@@ -1655,6 +1738,22 @@ export default async function AdminDashboardPage() {
         }
       ];
     }),
+    ...calendarMeetings.map((meeting): DashboardCalendarEvent => {
+      const timeText = formatProjectTimeRange(meeting);
+      const locationText = meeting.location ? ` · ${meeting.location}` : "";
+
+      return {
+        key: `calendar-meeting-${meeting.id}`,
+        date: meeting.eventDate,
+        title: meeting.title,
+        detail: `${meeting.customer.coupleName} · ${customerMeetingTypeLabel(meeting.meetingType)}${timeText}${locationText}`,
+        href: `/admin/clients/${meeting.customer.id}?tab=meetings`,
+        label: copy.calendar.meeting,
+        kind: "event",
+        tone: meeting.status === "completed" ? "sage" : "ink",
+        icon: MessageSquare
+      };
+    }),
     ...calendarLeads.flatMap((lead): DashboardCalendarEvent[] => {
       if (!lead.eventDate) {
         return [];
@@ -1843,6 +1942,7 @@ export default async function AdminDashboardPage() {
         language={language}
         projects={upcomingProjects}
         bookings={upcomingMiniSessionBookings}
+        meetings={upcomingMeetings}
       />
 
       <section className="mt-8 rounded-md border border-ink/12 bg-white">

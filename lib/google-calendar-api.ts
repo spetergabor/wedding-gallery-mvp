@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { customerMeetingStatusLabel, customerMeetingTypeLabel } from "@/lib/customer-meeting-options";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import {
   createDeliveryLog,
@@ -438,6 +439,10 @@ function projectAdminUrl(customerId: string) {
   return new URL(`/admin/clients/${customerId}?tab=projects`, appBaseUrl()).toString();
 }
 
+function meetingAdminUrl(customerId: string) {
+  return new URL(`/admin/clients/${customerId}?tab=meetings`, appBaseUrl()).toString();
+}
+
 function miniSessionBookingDescription(input: {
   sessionTitle: string;
   publicUrl: string;
@@ -475,6 +480,26 @@ function customerProjectDescription(input: {
     `Ügyfél: ${input.customerName}`,
     `Típus: ${customerProjectTypeLabel(input.projectType)}`,
     `Státusz: ${customerProjectStatusLabel(input.status)}`,
+    input.email ? `E-mail: ${input.email}` : null,
+    input.phone ? `Telefon: ${input.phone}` : null,
+    input.notes ? `Megjegyzés: ${input.notes}` : null,
+    `Admin: ${input.adminUrl}`
+  ].filter(Boolean).join("\n");
+}
+
+function customerMeetingDescription(input: {
+  customerName: string;
+  meetingType: string;
+  status: string;
+  adminUrl: string;
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+}) {
+  return [
+    `Ügyfél: ${input.customerName}`,
+    `Meeting típus: ${customerMeetingTypeLabel(input.meetingType)}`,
+    `Státusz: ${customerMeetingStatusLabel(input.status)}`,
     input.email ? `E-mail: ${input.email}` : null,
     input.phone ? `Telefon: ${input.phone}` : null,
     input.notes ? `Megjegyzés: ${input.notes}` : null,
@@ -957,6 +982,192 @@ export async function deleteCustomerProjectFromGoogleCalendar(projectId: string)
   } catch (error) {
     await markDeliveryLogFailed(deliveryLog.id, error);
     console.error("Google Calendar customer project delete failed", error);
+    return { status: "error" as const };
+  }
+}
+
+export async function syncCustomerMeetingToGoogleCalendar(meetingId: string) {
+  const meeting = await prisma.customerMeeting.findUnique({
+    where: { id: meetingId },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          adminId: true,
+          coupleName: true,
+          primaryEmail: true,
+          phone: true
+        }
+      }
+    }
+  });
+
+  if (!meeting) {
+    return { status: "skipped" as const };
+  }
+
+  const integration = await googleCalendarIntegrationForAdmin(meeting.customer.adminId);
+
+  if (!integration?.syncCustomerProjects || !integration.refreshTokenEncrypted) {
+    return { status: "not_configured" as const };
+  }
+
+  const calendarId = integration.calendarId || "primary";
+  const eventWindow = projectEventWindow(meeting);
+  const deliveryLog = await createDeliveryLog({
+    adminId: meeting.customer.adminId,
+    channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+    type: "google_calendar.customer_meeting.sync",
+    provider: "google",
+    entityType: "customer_meeting",
+    entityId: meeting.id,
+    subject: `${meeting.customer.coupleName} - ${meeting.title}`,
+    metadata: {
+      customerId: meeting.customer.id,
+      calendarId,
+      eventDate: meeting.eventDate.toISOString()
+    }
+  });
+
+  try {
+    if ((!eventWindow || meeting.status === "cancelled") && meeting.googleCalendarEventId) {
+      await deleteGoogleCalendarEvent(integration, meeting.googleCalendarId || calendarId, meeting.googleCalendarEventId);
+      await prisma.customerMeeting.update({
+        where: { id: meeting.id },
+        data: {
+          googleCalendarEventId: null,
+          googleCalendarId: calendarId,
+          googleCalendarSyncedAt: new Date(),
+          googleCalendarSyncError: null
+        }
+      });
+      await markDeliveryLogSent(deliveryLog.id, meeting.googleCalendarEventId);
+      return { status: "deleted" as const };
+    }
+
+    if (!eventWindow || meeting.status === "cancelled") {
+      await markDeliveryLogSkipped(deliveryLog.id, "A meeting állapota vagy dátuma miatt nem kell Google Calendar sync.");
+      return { status: "skipped" as const };
+    }
+
+    const event: GoogleCalendarEventPayload = {
+      summary: `${meeting.customer.coupleName} - ${meeting.title}`,
+      location: meeting.location ?? undefined,
+      description: customerMeetingDescription({
+        customerName: meeting.customer.coupleName,
+        meetingType: meeting.meetingType,
+        status: meeting.status,
+        adminUrl: meetingAdminUrl(meeting.customer.id),
+        email: meeting.customer.primaryEmail,
+        phone: meeting.customer.phone,
+        notes: meeting.notes
+      }),
+      start: eventWindow.start,
+      end: eventWindow.end
+    };
+    let eventId = meeting.googleCalendarEventId;
+
+    if (eventId) {
+      try {
+        await patchGoogleCalendarEvent(integration, meeting.googleCalendarId || calendarId, eventId, event);
+      } catch (error) {
+        if (!(error instanceof GoogleCalendarApiError) || error.status !== 404) {
+          throw error;
+        }
+
+        eventId = await insertGoogleCalendarEvent(integration, calendarId, event);
+      }
+    } else {
+      eventId = await insertGoogleCalendarEvent(integration, calendarId, event);
+    }
+
+    await prisma.customerMeeting.update({
+      where: { id: meeting.id },
+      data: {
+        googleCalendarEventId: eventId,
+        googleCalendarId: calendarId,
+        googleCalendarSyncedAt: new Date(),
+        googleCalendarSyncError: null
+      }
+    });
+
+    await markDeliveryLogSent(deliveryLog.id, eventId);
+    return { status: "synced" as const };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Google Calendar sync failed.";
+    await markDeliveryLogFailed(deliveryLog.id, error);
+    await prisma.customerMeeting.update({
+      where: { id: meeting.id },
+      data: { googleCalendarSyncError: message }
+    });
+    await prisma.googleCalendarIntegration.update({
+      where: { id: integration.id },
+      data: { lastSyncError: message }
+    });
+    await logSystemEvent({
+      targetAdminId: meeting.customer.adminId,
+      type: "google_calendar.customer_meeting.sync_failed",
+      title: "Google Calendar meeting sync hiba",
+      message,
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: meetingAdminUrl(meeting.customer.id),
+      metadata: {
+        meetingId: meeting.id,
+        customerId: meeting.customer.id,
+        calendarId
+      }
+    });
+    console.error("Google Calendar customer meeting sync failed", error);
+    return { status: "error" as const };
+  }
+}
+
+export async function deleteCustomerMeetingFromGoogleCalendar(meetingId: string) {
+  const meeting = await prisma.customerMeeting.findUnique({
+    where: { id: meetingId },
+    select: {
+      id: true,
+      googleCalendarEventId: true,
+      googleCalendarId: true,
+      customer: {
+        select: {
+          adminId: true
+        }
+      }
+    }
+  });
+
+  if (!meeting?.googleCalendarEventId) {
+    return { status: "skipped" as const };
+  }
+
+  const integration = await googleCalendarIntegrationForAdmin(meeting.customer.adminId);
+
+  if (!integration?.syncCustomerProjects || !integration.refreshTokenEncrypted) {
+    return { status: "not_configured" as const };
+  }
+
+  const calendarId = meeting.googleCalendarId || integration.calendarId || "primary";
+  const deliveryLog = await createDeliveryLog({
+    adminId: meeting.customer.adminId,
+    channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+    type: "google_calendar.customer_meeting.delete",
+    provider: "google",
+    entityType: "customer_meeting",
+    entityId: meeting.id,
+    subject: "Meeting Google Calendar esemény törlése",
+    metadata: { calendarId }
+  });
+
+  try {
+    await deleteGoogleCalendarEvent(integration, calendarId, meeting.googleCalendarEventId);
+    await markDeliveryLogSent(deliveryLog.id, meeting.googleCalendarEventId);
+    return { status: "deleted" as const };
+  } catch (error) {
+    await markDeliveryLogFailed(deliveryLog.id, error);
+    console.error("Google Calendar customer meeting delete failed", error);
     return { status: "error" as const };
   }
 }

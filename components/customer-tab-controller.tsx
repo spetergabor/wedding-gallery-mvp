@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Camera,
+  CalendarClock,
   CheckCircle2,
   FileText,
   FolderKanban,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
+type CustomerTab = "overview" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
 
 type CustomerTabItem = {
   key: CustomerTab;
@@ -35,6 +36,7 @@ type CustomerTabGroup = {
 const icons = {
   CheckCircle2,
   FolderKanban,
+  CalendarClock,
   Camera,
   Heart,
   ImagePlus,
@@ -58,7 +60,7 @@ const tabGroups: CustomerTabGroup[] = [
     label: "Munka",
     icon: "FolderKanban",
     defaultTab: "projects",
-    tabs: ["projects", "galleries", "proofing", "album"]
+    tabs: ["projects", "meetings", "galleries", "proofing", "album"]
   },
   {
     key: "business",

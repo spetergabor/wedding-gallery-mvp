@@ -5,10 +5,16 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { createCustomerPortalToken } from "@/lib/customer-portal";
+import { normalizeCustomerMeetingStatus, normalizeCustomerMeetingType } from "@/lib/customer-meeting-options";
 import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
-import { deleteCustomerProjectFromGoogleCalendar, syncCustomerProjectToGoogleCalendar } from "@/lib/google-calendar-api";
+import {
+  deleteCustomerMeetingFromGoogleCalendar,
+  deleteCustomerProjectFromGoogleCalendar,
+  syncCustomerMeetingToGoogleCalendar,
+  syncCustomerProjectToGoogleCalendar
+} from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoObject } from "@/lib/storage";
 
@@ -50,6 +56,20 @@ function projectTimePayload(formData: FormData) {
   const endTime = formTime(formData, "endTime");
 
   if (!startTime.valid || !endTime.valid || Boolean(startTime.value) !== Boolean(endTime.value)) {
+    return null;
+  }
+
+  return {
+    startTime: startTime.value,
+    endTime: endTime.value
+  };
+}
+
+function meetingTimePayload(formData: FormData) {
+  const startTime = formTime(formData, "startTime");
+  const endTime = formTime(formData, "endTime");
+
+  if (!startTime.valid || !endTime.valid || !startTime.value || !endTime.value) {
     return null;
   }
 
@@ -349,6 +369,174 @@ export async function deleteCustomerProjectAction(customerId: string, projectId:
   redirect(`/admin/clients/${customerId}?tab=projects&projectDeleted=1`);
 }
 
+export async function createCustomerMeetingAction(customerId: string, formData: FormData) {
+  const admin = await requireAdmin();
+
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  const title = formString(formData, "title");
+  const eventDate = formDate(formData, "eventDate");
+  const meetingTimes = meetingTimePayload(formData);
+
+  if (!title || !eventDate) {
+    redirect(`/admin/clients/${customerId}?tab=meetings&meetingError=missing`);
+  }
+
+  if (!meetingTimes) {
+    redirect(`/admin/clients/${customerId}?tab=meetings&meetingError=time`);
+  }
+
+  const meeting = await prisma.customerMeeting.create({
+    data: {
+      customerId: customer.id,
+      title,
+      meetingType: normalizeCustomerMeetingType(formString(formData, "meetingType")),
+      status: normalizeCustomerMeetingStatus(formString(formData, "status")),
+      eventDate,
+      startTime: meetingTimes.startTime,
+      endTime: meetingTimes.endTime,
+      location: formOptionalString(formData, "location"),
+      notes: formOptionalString(formData, "notes")
+    },
+    select: { id: true }
+  });
+
+  try {
+    await syncCustomerMeetingToGoogleCalendar(meeting.id);
+  } catch (error) {
+    console.error("Customer meeting Google Calendar sync failed", error);
+  }
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=meetings&meetingCreated=1`);
+}
+
+export async function updateCustomerMeetingAction(customerId: string, meetingId: string, formData: FormData) {
+  const admin = await requireAdmin();
+
+  const meeting = await prisma.customerMeeting.findFirst({
+    where: {
+      id: meetingId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!meeting) {
+    redirect(`/admin/clients/${customerId}?tab=meetings&meetingError=missing`);
+  }
+
+  const title = formString(formData, "title");
+  const eventDate = formDate(formData, "eventDate");
+  const meetingTimes = meetingTimePayload(formData);
+
+  if (!title || !eventDate) {
+    redirect(`/admin/clients/${customerId}?tab=meetings&meetingError=missing`);
+  }
+
+  if (!meetingTimes) {
+    redirect(`/admin/clients/${customerId}?tab=meetings&meetingError=time`);
+  }
+
+  await prisma.customerMeeting.update({
+    where: { id: meeting.id },
+    data: {
+      title,
+      meetingType: normalizeCustomerMeetingType(formString(formData, "meetingType")),
+      status: normalizeCustomerMeetingStatus(formString(formData, "status")),
+      eventDate,
+      startTime: meetingTimes.startTime,
+      endTime: meetingTimes.endTime,
+      location: formOptionalString(formData, "location"),
+      notes: formOptionalString(formData, "notes")
+    }
+  });
+
+  try {
+    await syncCustomerMeetingToGoogleCalendar(meeting.id);
+  } catch (error) {
+    console.error("Customer meeting Google Calendar sync failed", error);
+  }
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=meetings&meetingUpdated=1`);
+}
+
+export async function updateCustomerMeetingStatusAction(customerId: string, meetingId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const status = normalizeCustomerMeetingStatus(formString(formData, "status"));
+
+  const meeting = await prisma.customerMeeting.findFirst({
+    where: {
+      id: meetingId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!meeting) {
+    redirect(`/admin/clients/${customerId}?tab=meetings&meetingError=missing`);
+  }
+
+  await prisma.customerMeeting.update({
+    where: { id: meeting.id },
+    data: { status }
+  });
+
+  try {
+    await syncCustomerMeetingToGoogleCalendar(meeting.id);
+  } catch (error) {
+    console.error("Customer meeting Google Calendar status sync failed", error);
+  }
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=meetings&meetingStatusUpdated=1`);
+}
+
+export async function deleteCustomerMeetingAction(customerId: string, meetingId: string) {
+  const admin = await requireAdmin();
+
+  const meeting = await prisma.customerMeeting.findFirst({
+    where: {
+      id: meetingId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!meeting) {
+    redirect(`/admin/clients/${customerId}?tab=meetings&meetingError=missing`);
+  }
+
+  try {
+    await deleteCustomerMeetingFromGoogleCalendar(meeting.id);
+  } catch (error) {
+    console.error("Customer meeting Google Calendar delete failed", error);
+  }
+
+  await prisma.customerMeeting.delete({
+    where: { id: meeting.id }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=meetings&meetingDeleted=1`);
+}
+
 export async function deleteCustomerAction(customerId: string) {
   const admin = await requireAdmin();
 
@@ -376,6 +564,11 @@ export async function deleteCustomerAction(customerId: string) {
         select: {
           id: true
         }
+      },
+      meetings: {
+        select: {
+          id: true
+        }
       }
     }
   });
@@ -390,14 +583,20 @@ export async function deleteCustomerAction(customerId: string) {
   const invoiceObjectKeys = customer.invoices.map((invoice) => invoice.r2Key).filter(Boolean);
   const portalImageObjectKeys = customer.portalImages.map((image) => image.r2Key).filter(Boolean);
   const projectIds = customer.projects.map((project) => project.id);
+  const meetingIds = customer.meetings.map((meeting) => meeting.id);
 
-  await Promise.all(
-    projectIds.map((projectId) =>
+  await Promise.all([
+    ...projectIds.map((projectId) =>
       deleteCustomerProjectFromGoogleCalendar(projectId).catch((error) => {
         console.error("Customer project Google Calendar delete failed during customer delete", error);
       })
+    ),
+    ...meetingIds.map((meetingId) =>
+      deleteCustomerMeetingFromGoogleCalendar(meetingId).catch((error) => {
+        console.error("Customer meeting Google Calendar delete failed during customer delete", error);
+      })
     )
-  );
+  ]);
 
   await prisma.$transaction(async (tx) => {
     if (projectIds.length > 0) {

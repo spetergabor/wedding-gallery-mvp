@@ -255,6 +255,7 @@ model Customer {
   invoices       CustomerInvoice[]
   galleries      Gallery[]
   projects       CustomerProject[]
+  meetings       CustomerMeeting[]
   miniSessionBookings MiniSessionBooking[]
   albumReviews   AlbumReview[]
   albumDesigns   AlbumDesign[]
@@ -266,6 +267,32 @@ model Customer {
   @@index([status])
   @@index([weddingDate])
   @@index([primaryEmail])
+}
+
+model CustomerMeeting {
+  id           String   @id @default(cuid())
+  customerId   String
+  title        String
+  meetingType  String   @default("consultation")
+  status       String   @default("planned")
+  eventDate    DateTime
+  startTime    String
+  endTime      String
+  location     String?
+  notes        String?
+  googleCalendarEventId String?
+  googleCalendarId      String?
+  googleCalendarSyncedAt DateTime?
+  googleCalendarSyncError String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([meetingType])
+  @@index([status])
+  @@index([eventDate])
+  @@index([googleCalendarEventId])
 }
 
 model CustomerPortalImage {

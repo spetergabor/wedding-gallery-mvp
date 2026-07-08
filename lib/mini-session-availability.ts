@@ -87,7 +87,7 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
   const projectRangeStartsAt = parseMiniSessionLocalDateTime(rangeStartKey, "00:00") ?? range.startsAt;
   const projectRangeEndsAt = parseMiniSessionLocalDateTime(rangeEndKey, "23:59") ?? range.endsAt;
 
-  const [bookings, projects, calendarBlocks, googleCalendarBusyTimes] = await Promise.all([
+  const [bookings, projects, meetings, calendarBlocks, googleCalendarBusyTimes] = await Promise.all([
     prisma.miniSessionBooking.findMany({
       where: {
         ...(options.excludeBookingId ? { id: { not: options.excludeBookingId } } : {}),
@@ -116,6 +116,21 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
         endTime: true
       }
     }),
+    prisma.customerMeeting.findMany({
+      where: {
+        eventDate: {
+          gte: projectRangeStartsAt,
+          lte: projectRangeEndsAt
+        },
+        status: { not: "cancelled" },
+        customer: { adminId }
+      },
+      select: {
+        eventDate: true,
+        startTime: true,
+        endTime: true
+      }
+    }),
     prisma.adminCalendarBlock.findMany({
       where: {
         adminId,
@@ -133,11 +148,15 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
   const projectBusyTimes = projects
     .map(projectBusyTime)
     .filter((busyTime): busyTime is MiniSessionBusyTime => Boolean(busyTime));
+  const meetingBusyTimes = meetings
+    .map(projectBusyTime)
+    .filter((busyTime): busyTime is MiniSessionBusyTime => Boolean(busyTime));
 
   return [
     ...bookings.map((booking) => ({ startsAt: booking.startsAt, endsAt: booking.endsAt })),
     ...calendarBlocks.map((block) => ({ startsAt: block.startsAt, endsAt: block.endsAt })),
     ...projectBusyTimes,
+    ...meetingBusyTimes,
     ...googleCalendarBusyTimes
   ];
 }
@@ -212,7 +231,23 @@ export async function hasMiniSessionSlotConflict(
     }
   });
 
-  return projects
+  const meetings = await prisma.customerMeeting.findMany({
+    where: {
+      eventDate: {
+        gte: dayStartsAt,
+        lte: dayEndsAt
+      },
+      status: { not: "cancelled" },
+      customer: { adminId }
+    },
+    select: {
+      eventDate: true,
+      startTime: true,
+      endTime: true
+    }
+  });
+
+  return [...projects, ...meetings]
     .map(projectBusyTime)
     .some((busyTime) => busyTime ? miniSessionSlotOverlaps(slot, busyTime) : false) ||
     (await getGoogleCalendarBusyTimesForAdmin(adminId, slot.startsAt, slot.endsAt))

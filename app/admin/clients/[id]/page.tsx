@@ -28,6 +28,7 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
 import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
+import { CustomerMeetingManager } from "@/components/customer-meeting-manager";
 import { CustomerPortalManager } from "@/components/customer-portal-manager";
 import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { CustomerTabController } from "@/components/customer-tab-controller";
@@ -163,16 +164,17 @@ type CustomerProjectOverview = {
   };
 };
 
-type CustomerTab = "overview" | "projects" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
+type CustomerTab = "overview" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
 type AlbumMode = "editor" | "upload";
 
 const customerTabs: Array<{
   key: CustomerTab;
   label: string;
-  icon: "CheckCircle2" | "FolderKanban" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Globe2" | "Settings";
+  icon: "CheckCircle2" | "FolderKanban" | "CalendarClock" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Globe2" | "Settings";
 }> = [
   { key: "overview", label: "Áttekintés", icon: "CheckCircle2" },
   { key: "projects", label: "Projektek", icon: "FolderKanban" },
+  { key: "meetings", label: "Meetingek", icon: "CalendarClock" },
   { key: "galleries", label: "Galériák", icon: "Camera" },
   { key: "proofing", label: "Válogatás", icon: "Heart" },
   { key: "album", label: "Album", icon: "ImagePlus" },
@@ -612,6 +614,11 @@ function getActiveTab(flags: {
   invoiceSent?: string;
   invoiceStatusUpdated?: string;
   portalCreated?: string;
+  meetingCreated?: string;
+  meetingUpdated?: string;
+  meetingDeleted?: string;
+  meetingStatusUpdated?: string;
+  meetingError?: string;
 }): CustomerTab {
   if (flags.edit === "1") {
     return "details";
@@ -634,6 +641,10 @@ function getActiveTab(flags: {
 
   if (flags.portalCreated) {
     return "portal";
+  }
+
+  if (flags.meetingCreated || flags.meetingUpdated || flags.meetingDeleted || flags.meetingStatusUpdated || flags.meetingError) {
+    return "meetings";
   }
 
   if (customerTabs.some((tab) => tab.key === flags.tab)) {
@@ -676,6 +687,11 @@ export default async function AdminClientDetailPage({
     projectError?: string;
     projectUpdated?: string;
     projectStatusUpdated?: string;
+    meetingCreated?: string;
+    meetingUpdated?: string;
+    meetingDeleted?: string;
+    meetingStatusUpdated?: string;
+    meetingError?: string;
     statusUpdated?: string;
     tab?: string;
     albumCreated?: string;
@@ -873,6 +889,23 @@ export default async function AdminClientDetailPage({
             }
           }
         }
+      },
+      meetings: {
+        orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          title: true,
+          meetingType: true,
+          status: true,
+          eventDate: true,
+          startTime: true,
+          endTime: true,
+          location: true,
+          notes: true,
+          googleCalendarSyncedAt: true,
+          googleCalendarSyncError: true,
+          createdAt: true
+        }
       }
     }
   });
@@ -1059,6 +1092,12 @@ export default async function AdminClientDetailPage({
         {flags.projectError === "missing" ? <Alert title="A projekt nem található vagy hiányzik a neve." variant="error" /> : null}
         {flags.projectError === "time" ? <Alert title="A kezdési és befejezési időt együtt add meg." variant="error" /> : null}
         {flags.projectError === "date" ? <Alert title="Időpont mentéséhez dátumot is meg kell adni." variant="error" /> : null}
+        {flags.meetingCreated ? <Alert title="Meeting létrehozva." variant="success" /> : null}
+        {flags.meetingUpdated ? <Alert title="Meeting adatok mentve." variant="success" /> : null}
+        {flags.meetingDeleted ? <Alert title="Meeting törölve." variant="success" /> : null}
+        {flags.meetingStatusUpdated ? <Alert title="Meeting státusz mentve." variant="success" /> : null}
+        {flags.meetingError === "missing" ? <Alert title="A meeting nem található, vagy hiányzik a név/dátum." variant="error" /> : null}
+        {flags.meetingError === "time" ? <Alert title="A meetinghez kötelező érvényes kezdési és befejezési időt megadni." variant="error" /> : null}
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
@@ -1370,6 +1409,15 @@ export default async function AdminClientDetailPage({
           unassignedCounts={unassignedProjectCounts}
           defaultEventDate={customer.weddingDate}
           defaultVenue={customer.venue}
+        />
+      </div>
+
+      <div data-customer-tab-panel="meetings" hidden={activeTab !== "meetings"}>
+        <CustomerMeetingManager
+          customerId={customer.id}
+          customerName={customer.coupleName}
+          meetings={customer.meetings}
+          defaultLocation={customer.venue}
         />
       </div>
 
