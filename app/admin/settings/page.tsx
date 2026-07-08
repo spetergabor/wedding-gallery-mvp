@@ -292,6 +292,7 @@ type GoogleCalendarIntegrationSettings = {
   calendarSummary: string | null;
   syncMiniSessionBookings: boolean;
   syncCustomerProjects: boolean;
+  blockAvailabilityFromGoogleCalendar: boolean;
   deleteCancelledEvents: boolean;
   lastSyncError: string | null;
   connectedAt: Date;
@@ -352,7 +353,7 @@ function GoogleCalendarSettings({
           </div>
           <h2 className="mt-2 text-xl font-semibold text-ink">Automatikus naptár szinkron</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
-            Ha össze van kötve, az ügyfélfoglalások és a dátummal rendelkező projektek automatikusan bekerülnek a kiválasztott Google naptárba.
+            Ha össze van kötve, az ügyfélfoglalások és a dátummal rendelkező projektek automatikusan bekerülhetnek a kiválasztott Google naptárba. Külön kapcsolóval azt is beállíthatod, hogy a Google naptár foglalt eseményei blokkolják a foglalható idősávokat.
           </p>
         </div>
         {integration ? (
@@ -423,7 +424,7 @@ function GoogleCalendarSettings({
               ) : null}
             </label>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
                 <input name="syncMiniSessionBookings" type="checkbox" defaultChecked={integration.syncMiniSessionBookings} className="size-4 rounded border-ink/20" />
                 Foglalások
@@ -433,10 +434,17 @@ function GoogleCalendarSettings({
                 Projektek
               </label>
               <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
+                <input name="blockAvailabilityFromGoogleCalendar" type="checkbox" defaultChecked={integration.blockAvailabilityFromGoogleCalendar} className="size-4 rounded border-ink/20" />
+                Google események blokkolnak
+              </label>
+              <label className="flex min-h-12 items-center gap-3 rounded-md bg-white px-3 text-sm text-graphite">
                 <input name="deleteCancelledEvents" type="checkbox" defaultChecked={integration.deleteCancelledEvents} className="size-4 rounded border-ink/20" />
                 Törlés Google-ból
               </label>
             </div>
+            <p className="mt-3 rounded-md bg-white px-3 py-3 text-xs leading-5 text-graphite/65">
+              A Google blokkolás csak akkor aktív, ha ezt külön bekapcsolod. Ha régebben kötötted össze a naptárat, nyomd meg az Újra összekötés gombot, hogy a free/busy jogosultság is meglegyen.
+            </p>
 
             {integration.lastSyncError ? (
               <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm leading-6 text-red-700">
@@ -458,6 +466,7 @@ function GoogleCalendarSettings({
               <div className="mt-3 space-y-2 text-sm leading-6 text-graphite/70">
                 <p>Mini session és állandó fotózás foglalások: név, időpont, helyszín, elérhetőség.</p>
                 <p>Ügyfélprojektek: projekt neve, ügyfél, dátum, időpont, helyszín.</p>
+                <p>Bekapcsolt Google blokkolásnál a kiválasztott naptár foglalt eseményei nem lesznek foglalhatók a landing page-eken.</p>
               </div>
             </div>
             <form action={disconnectGoogleCalendarAction} className="rounded-md border border-red-200 bg-red-50 p-4">
@@ -777,6 +786,7 @@ export default async function AdminSettingsPage({
             accessTokenExpiresAt: true,
             syncMiniSessionBookings: true,
             syncCustomerProjects: true,
+            blockAvailabilityFromGoogleCalendar: true,
             deleteCancelledEvents: true,
             lastSyncError: true,
             connectedAt: true,
@@ -919,6 +929,7 @@ export default async function AdminSettingsPage({
             calendarSummary: googleIntegration.calendarSummary,
             syncMiniSessionBookings: googleIntegration.syncMiniSessionBookings,
             syncCustomerProjects: googleIntegration.syncCustomerProjects,
+            blockAvailabilityFromGoogleCalendar: googleIntegration.blockAvailabilityFromGoogleCalendar,
             deleteCancelledEvents: googleIntegration.deleteCancelledEvents,
             lastSyncError: googleIntegration.lastSyncError,
             connectedAt: googleIntegration.connectedAt,

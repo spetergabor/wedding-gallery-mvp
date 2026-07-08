@@ -9,6 +9,7 @@ import {
   type MiniSessionBusyTime,
   type MiniSessionSlot
 } from "@/lib/mini-sessions";
+import { getGoogleCalendarBusyTimesForAdmin } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 
 type MiniSessionAvailabilityInput = {
@@ -86,7 +87,7 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
   const projectRangeStartsAt = parseMiniSessionLocalDateTime(rangeStartKey, "00:00") ?? range.startsAt;
   const projectRangeEndsAt = parseMiniSessionLocalDateTime(rangeEndKey, "23:59") ?? range.endsAt;
 
-  const [bookings, projects, calendarBlocks] = await Promise.all([
+  const [bookings, projects, calendarBlocks, googleCalendarBusyTimes] = await Promise.all([
     prisma.miniSessionBooking.findMany({
       where: {
         ...(options.excludeBookingId ? { id: { not: options.excludeBookingId } } : {}),
@@ -125,7 +126,8 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
         startsAt: true,
         endsAt: true
       }
-    })
+    }),
+    getGoogleCalendarBusyTimesForAdmin(adminId, range.startsAt, range.endsAt)
   ]);
 
   const projectBusyTimes = projects
@@ -135,7 +137,8 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
   return [
     ...bookings.map((booking) => ({ startsAt: booking.startsAt, endsAt: booking.endsAt })),
     ...calendarBlocks.map((block) => ({ startsAt: block.startsAt, endsAt: block.endsAt })),
-    ...projectBusyTimes
+    ...projectBusyTimes,
+    ...googleCalendarBusyTimes
   ];
 }
 
@@ -211,5 +214,7 @@ export async function hasMiniSessionSlotConflict(
 
   return projects
     .map(projectBusyTime)
-    .some((busyTime) => busyTime ? miniSessionSlotOverlaps(slot, busyTime) : false);
+    .some((busyTime) => busyTime ? miniSessionSlotOverlaps(slot, busyTime) : false) ||
+    (await getGoogleCalendarBusyTimesForAdmin(adminId, slot.startsAt, slot.endsAt))
+      .some((busyTime) => miniSessionSlotOverlaps(slot, busyTime));
 }

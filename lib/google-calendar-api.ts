@@ -21,6 +21,7 @@ const GOOGLE_CALENDAR_SCOPES = [
   "openid",
   "email",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.freebusy",
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
 ];
 
@@ -71,6 +72,12 @@ type GoogleCalendarIntegrationForSync = GoogleCalendarIntegrationForToken & {
   deleteCancelledEvents: boolean;
 };
 
+type GoogleCalendarIntegrationForAvailability = GoogleCalendarIntegrationForToken & {
+  id: string;
+  calendarId: string;
+  blockAvailabilityFromGoogleCalendar: boolean;
+};
+
 type GoogleCalendarEventPayload = {
   summary: string;
   location?: string;
@@ -78,6 +85,13 @@ type GoogleCalendarEventPayload = {
   start: { dateTime: string; timeZone: string } | { date: string };
   end: { dateTime: string; timeZone: string } | { date: string };
   status?: "confirmed" | "cancelled" | "tentative";
+};
+
+type GoogleFreeBusyResponse = {
+  calendars?: Record<string, {
+    errors?: Array<{ domain?: string; reason?: string }>;
+    busy?: Array<{ start?: string; end?: string }>;
+  }>;
 };
 
 class GoogleCalendarApiError extends Error {
@@ -333,7 +347,11 @@ async function googleCalendarRequest<T>(
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new GoogleCalendarApiError(response.status, `Google Calendar API failed: ${response.status}`);
+    const errorMessage =
+      typeof payload === "object" && payload && "error" in payload
+        ? JSON.stringify((payload as { error?: unknown }).error)
+        : `Google Calendar API failed: ${response.status}`;
+    throw new GoogleCalendarApiError(response.status, errorMessage);
   }
 
   return payload as T;
@@ -495,6 +513,89 @@ async function googleCalendarIntegrationForAdmin(adminId: string) {
   return prisma.googleCalendarIntegration.findUnique({
     where: { adminId }
   });
+}
+
+function validGoogleBusyTime(input: { start?: string; end?: string }) {
+  if (!input.start || !input.end) {
+    return null;
+  }
+
+  const startsAt = new Date(input.start);
+  const endsAt = new Date(input.end);
+
+  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+    return null;
+  }
+
+  return { startsAt, endsAt };
+}
+
+export async function getGoogleCalendarBusyTimesForAdmin(adminId: string, startsAt: Date, endsAt: Date) {
+  if (!isGoogleCalendarConfigured() || endsAt <= startsAt) {
+    return [];
+  }
+
+  const integration = await prisma.googleCalendarIntegration.findUnique({
+    where: { adminId },
+    select: {
+      id: true,
+      calendarId: true,
+      accessTokenEncrypted: true,
+      refreshTokenEncrypted: true,
+      accessTokenExpiresAt: true,
+      blockAvailabilityFromGoogleCalendar: true,
+      lastSyncError: true
+    }
+  });
+
+  if (!integration?.blockAvailabilityFromGoogleCalendar || !integration.refreshTokenEncrypted) {
+    return [];
+  }
+
+  const calendarId = integration.calendarId || "primary";
+
+  try {
+    const payload = await googleCalendarRequest<GoogleFreeBusyResponse>(
+      integration as GoogleCalendarIntegrationForAvailability,
+      "/freeBusy",
+      {
+        method: "POST",
+        body: {
+          timeMin: startsAt.toISOString(),
+          timeMax: endsAt.toISOString(),
+          timeZone: APP_TIME_ZONE,
+          items: [{ id: calendarId }]
+        }
+      }
+    );
+    const calendar = payload.calendars?.[calendarId];
+    const errors = calendar?.errors ?? [];
+
+    if (errors.length > 0) {
+      throw new Error(errors.map((error) => error.reason || error.domain || "calendar error").join(", "));
+    }
+
+    if (integration.lastSyncError) {
+      await prisma.googleCalendarIntegration.update({
+        where: { id: integration.id },
+        data: { lastSyncError: null }
+      });
+    }
+
+    return (calendar?.busy ?? [])
+      .map(validGoogleBusyTime)
+      .filter((busyTime): busyTime is { startsAt: Date; endsAt: Date } => Boolean(busyTime));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Google Calendar free/busy query failed.";
+
+    await prisma.googleCalendarIntegration.update({
+      where: { id: integration.id },
+      data: { lastSyncError: message }
+    }).catch(() => undefined);
+    console.error("Google Calendar free/busy load failed", error);
+
+    return [];
+  }
 }
 
 export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) {

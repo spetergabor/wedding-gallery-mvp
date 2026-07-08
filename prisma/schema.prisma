@@ -120,6 +120,7 @@ model GoogleCalendarIntegration {
   scope                    String?
   syncMiniSessionBookings  Boolean  @default(true)
   syncCustomerProjects     Boolean  @default(true)
+  blockAvailabilityFromGoogleCalendar Boolean  @default(false)
   deleteCancelledEvents    Boolean  @default(true)
   lastSyncError            String?
   connectedAt              DateTime @default(now())

@@ -125,6 +125,7 @@ export async function updateGoogleCalendarSettingsAction(formData: FormData) {
       calendarSummary,
       syncMiniSessionBookings: formData.get("syncMiniSessionBookings") === "on",
       syncCustomerProjects: formData.get("syncCustomerProjects") === "on",
+      blockAvailabilityFromGoogleCalendar: formData.get("blockAvailabilityFromGoogleCalendar") === "on",
       deleteCancelledEvents: formData.get("deleteCancelledEvents") === "on",
       lastSyncError: null
     }
