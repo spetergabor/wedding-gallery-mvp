@@ -1,0 +1,2 @@
+ALTER TABLE "MiniSession"
+ADD COLUMN "minBookingNoticeMinutes" INTEGER NOT NULL DEFAULT 0;

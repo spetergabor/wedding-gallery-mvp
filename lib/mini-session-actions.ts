@@ -38,7 +38,9 @@ import {
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_WEEKDAYS,
+  isMiniSessionSlotBookable,
   normalizeBookingWindowDays,
+  normalizeMiniSessionMinBookingNoticeMinutes,
   normalizeMiniSessionLanguage,
   normalizeMiniSessionWeekday,
   parseMiniSessionLocalDateTime
@@ -99,6 +101,10 @@ function miniSessionAvailabilityRulesFromForm(formData: FormData) {
       endsAt: formString(formData, `availabilityEnd-${weekday.value}`)
     }))
     .filter((rule) => rule.startsAt && rule.endsAt && rule.endsAt > rule.startsAt);
+}
+
+function miniSessionMinBookingNoticeFromForm(formData: FormData) {
+  return normalizeMiniSessionMinBookingNoticeMinutes(parseInteger(formString(formData, "minBookingNoticeMinutes"), 0));
 }
 
 function createCancelToken() {
@@ -285,6 +291,7 @@ export async function createMiniSessionAction(formData: FormData) {
   const bookingMode = miniSessionBookingModeFromForm(formData);
   const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : formString(formData, "endDate") || date;
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
+  const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const createCustomerOnBooking = formData.get("createCustomerOnBooking") === "on";
   const language = miniSessionLanguageFromForm(formData);
@@ -317,6 +324,7 @@ export async function createMiniSessionAction(formData: FormData) {
         startsAt,
         endsAt,
         durationMinutes,
+        minBookingNoticeMinutes,
         language,
         isActive: formData.get("isActive") === "on",
         createCustomerOnBooking,
@@ -421,6 +429,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const bookingMode = miniSessionBookingModeFromForm(formData);
   const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : formString(formData, "endDate") || date;
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
+  const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const createCustomerOnBooking = formData.get("createCustomerOnBooking") === "on";
   const language = miniSessionLanguageFromForm(formData);
@@ -448,6 +457,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         startsAt,
         endsAt,
         durationMinutes,
+        minBookingNoticeMinutes,
         language,
         isActive: formData.get("isActive") === "on",
         createCustomerOnBooking,
@@ -604,6 +614,10 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=slot`);
   }
 
+  if (!isMiniSessionSlotBookable(slot, session.minBookingNoticeMinutes)) {
+    redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=notice`);
+  }
+
   if (await hasMiniSessionSlotConflict(session.adminId, slot)) {
     redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=taken`);
   }
@@ -726,6 +740,10 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
 
   if (!slot) {
     redirect(`/mini-session/${slug}?error=slot`);
+  }
+
+  if (!isMiniSessionSlotBookable(slot, session.minBookingNoticeMinutes)) {
+    redirect(`/mini-session/${slug}?error=notice`);
   }
 
   if (await hasMiniSessionSlotConflict(session.adminId, slot)) {
@@ -934,6 +952,10 @@ export async function rescheduleMiniSessionBookingAction(token: string, formData
     redirect(`/mini-session/${slug}/reschedule/${token}?error=slot`);
   }
 
+  if (!isMiniSessionSlotBookable(slot, booking.miniSession.minBookingNoticeMinutes)) {
+    redirect(`/mini-session/${slug}/reschedule/${token}?error=notice`);
+  }
+
   if (
     await hasMiniSessionSlotConflict(booking.miniSession.adminId, slot, {
       excludeBookingId: booking.id,
@@ -995,6 +1017,10 @@ export async function rescheduleMiniSessionBookingByAdminAction(bookingId: strin
 
   if (!slot) {
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=slot`);
+  }
+
+  if (!isMiniSessionSlotBookable(slot, booking.miniSession.minBookingNoticeMinutes)) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=notice`);
   }
 
   if (

@@ -26,6 +26,7 @@ import {
 } from "@/lib/mini-session-actions";
 import {
   createMiniSessionSlots,
+  filterMiniSessionSlotsByBookingNotice,
   formatMiniSessionDate,
   formatMiniSessionDateRange,
   formatMiniSessionSlot,
@@ -34,6 +35,7 @@ import {
   miniSessionDateInput,
   miniSessionEndDateInput,
   miniSessionLanguageLabel,
+  miniSessionMinBookingNoticeLabel,
   miniSessionModeLabel,
   MINI_SESSION_BOOKING_MODE_RECURRING,
   MINI_SESSION_BOOKING_MODE_SINGLE_DAY,
@@ -42,6 +44,7 @@ import {
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_LANGUAGES,
+  MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
   MINI_SESSION_WEEKDAYS,
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
@@ -110,6 +113,24 @@ function tabHref(id: string, tab: MiniSessionTab) {
   return `/admin/mini-sessions/${id}${tab === "overview" ? "" : `?tab=${tab}`}`;
 }
 
+function MinBookingNoticeSelect({ defaultValue }: { defaultValue: number }) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-sm font-medium text-graphite">Minimum előfoglalás</span>
+      <select name="minBookingNoticeMinutes" defaultValue={defaultValue} className={fieldClass}>
+        {MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.labelHu}
+          </option>
+        ))}
+      </select>
+      <span className="block text-xs leading-5 text-graphite/60">
+        A vendég csak ennél távolabbi időpontot tud lefoglalni.
+      </span>
+    </label>
+  );
+}
+
 export default async function AdminMiniSessionDetailPage({
   params,
   searchParams
@@ -155,11 +176,13 @@ export default async function AdminMiniSessionDetailPage({
   const contactBookings = [...activeContactBookings, ...cancelledContactBookings];
   const blockedBookings = booked.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED);
   const slots = createMiniSessionSlots(session);
+  const bookableSlots = filterMiniSessionSlotsByBookingNotice(slots, session.minBookingNoticeMinutes);
   const freeSlots = await getAvailableMiniSessionSlots(session);
   const freeSlotTokens = new Set(freeSlots.map((slot) => slot.token));
+  const bookableSlotTokens = new Set(bookableSlots.map((slot) => slot.token));
   const bookedBySlot = new Map(booked.map((booking) => [booking.startsAt.toISOString(), booking]));
   const freeSlotCount = freeSlots.length;
-  const externalConflictCount = slots.filter((slot) => !freeSlotTokens.has(slot.token) && !bookedBySlot.has(slot.token)).length;
+  const externalConflictCount = bookableSlots.filter((slot) => !freeSlotTokens.has(slot.token) && !bookedBySlot.has(slot.token)).length;
   const publicUrl = miniSessionPublicUrl(session.slug);
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
   const showSlotDates = isRecurring || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
@@ -198,6 +221,7 @@ export default async function AdminMiniSessionDetailPage({
         {flags.error === "cover_size" ? <Alert title="A borítókép túl nagy." variant="error">Maximum 12 MB-os képet tölts fel.</Alert> : null}
         {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
         {flags.error === "slot" ? <Alert title="Érvénytelen idősáv." variant="error">Válassz egy szabad idősávot.</Alert> : null}
+        {flags.error === "notice" ? <Alert title="Ez az idősáv már nem foglalható." variant="error">Az időpont múltbeli, vagy túl közel van a beállított minimum előfoglalási időhöz.</Alert> : null}
         {flags.error === "taken" ? <Alert title="Ez az idősáv már foglalt." variant="error">Frissítsd a listát vagy válassz másik idősávot.</Alert> : null}
         {flags.created ? <Alert title="Foglaló létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Foglaló frissítve." variant="success" /> : null}
@@ -236,6 +260,7 @@ export default async function AdminMiniSessionDetailPage({
               </span>
               <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
               <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
+              <span>Minimum foglalás: {miniSessionMinBookingNoticeLabel(session.minBookingNoticeMinutes)}</span>
               <span>{session.createCustomerOnBooking ? "Ügyfél/projekt automatikus" : "Egyszerű foglalás"}</span>
             </div>
             <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
@@ -671,12 +696,12 @@ export default async function AdminMiniSessionDetailPage({
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
                 <h2 className="text-lg font-semibold text-ink">Idősávok</h2>
-                <p className="mt-1 text-sm text-graphite/65">{freeSlotCount}/{slots.length} szabad időpont</p>
+                <p className="mt-1 text-sm text-graphite/65">{freeSlotCount}/{bookableSlots.length} jelenleg foglalható időpont szabad</p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center sm:w-[330px]">
                 <div className="rounded-md bg-paper px-2 py-2">
-                  <p className="text-lg font-semibold text-ink">{slots.length}</p>
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-graphite/55">Összes</p>
+                  <p className="text-lg font-semibold text-ink">{bookableSlots.length}</p>
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-graphite/55">Foglalható</p>
                 </div>
                 <div className="rounded-md bg-paper px-2 py-2">
                   <p className="text-lg font-semibold text-sage">{freeSlotCount}</p>
@@ -696,12 +721,15 @@ export default async function AdminMiniSessionDetailPage({
             <div className="mt-5 space-y-3">
               {slots.map((slot, index) => {
                 const booking = bookedBySlot.get(slot.token);
-                const hasExternalConflict = !booking && !freeSlotTokens.has(slot.token);
+                const isOutsideBookingNotice = !booking && !bookableSlotTokens.has(slot.token);
+                const hasExternalConflict = !booking && !isOutsideBookingNotice && !freeSlotTokens.has(slot.token);
                 const isBlocked = booking?.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED;
                 const isManual = booking?.source === MINI_SESSION_BOOKING_SOURCE_MANUAL;
-                const stateLabel = booking ? sourceLabel(booking.source) : hasExternalConflict ? "Naptárban foglalt" : "Szabad";
+                const stateLabel = booking ? sourceLabel(booking.source) : isOutsideBookingNotice ? "Lejárt / túl közeli" : hasExternalConflict ? "Naptárban foglalt" : "Szabad";
                 const lineClass = !booking
-                  ? hasExternalConflict
+                  ? isOutsideBookingNotice
+                    ? "bg-graphite/35"
+                    : hasExternalConflict
                     ? "bg-brass"
                     : "bg-sage"
                   : isBlocked
@@ -710,7 +738,9 @@ export default async function AdminMiniSessionDetailPage({
                       ? "bg-brass"
                       : "bg-ink";
                 const cardClass = !booking
-                  ? hasExternalConflict
+                  ? isOutsideBookingNotice
+                    ? "border-ink/10 bg-ink/[0.03]"
+                    : hasExternalConflict
                     ? "border-brass/20 bg-brass/5"
                     : "border-sage/25 bg-sage/5"
                   : isBlocked
@@ -827,7 +857,7 @@ export default async function AdminMiniSessionDetailPage({
                 <span className="text-sm font-medium text-graphite">Hol</span>
                 <input name="location" defaultValue={session.location} required className={fieldClass} />
               </label>
-              <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+              <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 xl:grid-cols-4">
                 <label className="block space-y-2">
                   <span className="text-sm font-medium text-graphite">Mettől</span>
                   <input name="startTime" type="time" defaultValue={miniSessionTimeInput(session.startsAt)} required className={fieldClass} />
@@ -840,6 +870,7 @@ export default async function AdminMiniSessionDetailPage({
                   <span className="text-sm font-medium text-graphite">Időtartam</span>
                   <input name="durationMinutes" type="number" min="5" step="5" defaultValue={session.durationMinutes} required className={fieldClass} />
                 </label>
+                <MinBookingNoticeSelect defaultValue={session.minBookingNoticeMinutes} />
               </div>
               <section className="rounded-md border border-ink/10 bg-paper p-4 sm:col-span-2">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">

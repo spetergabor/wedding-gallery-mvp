@@ -280,7 +280,8 @@ model MiniSession {
   sessionDate       DateTime
   startsAt          DateTime
   endsAt            DateTime
-  durationMinutes   Int
+  durationMinutes         Int
+  minBookingNoticeMinutes Int      @default(0)
   language                String   @default("hu")
   isActive                Boolean  @default(true)
   createCustomerOnBooking Boolean  @default(true)

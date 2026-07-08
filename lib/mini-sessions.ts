@@ -21,6 +21,16 @@ export const MINI_SESSION_WEEKDAYS = [
   { value: 6, label: "Szombat", shortLabel: "Szo" },
   { value: 0, label: "Vasárnap", shortLabel: "V" }
 ] as const;
+export const MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS = [
+  { value: 0, labelHu: "Nincs minimum", labelDe: "Kein Minimum" },
+  { value: 60, labelHu: "1 órával előtte", labelDe: "1 Stunde vorher" },
+  { value: 120, labelHu: "2 órával előtte", labelDe: "2 Stunden vorher" },
+  { value: 240, labelHu: "4 órával előtte", labelDe: "4 Stunden vorher" },
+  { value: 720, labelHu: "12 órával előtte", labelDe: "12 Stunden vorher" },
+  { value: 1440, labelHu: "24 órával előtte", labelDe: "24 Stunden vorher" },
+  { value: 2880, labelHu: "48 órával előtte", labelDe: "48 Stunden vorher" },
+  { value: 4320, labelHu: "72 órával előtte", labelDe: "72 Stunden vorher" }
+] as const;
 
 export type MiniSessionLanguage = CustomerLanguage;
 export type MiniSessionSlot = { startsAt: Date; endsAt: Date; token: string };
@@ -41,6 +51,7 @@ type MiniSessionLike = {
   startsAt: Date;
   endsAt: Date;
   durationMinutes: number;
+  minBookingNoticeMinutes?: number | null;
   availabilityRules?: Array<{
     weekday: number;
     startsAt: string;
@@ -277,6 +288,59 @@ export function filterMiniSessionSlotsByBusyTimes(slots: MiniSessionSlot[], busy
   }
 
   return slots.filter((slot) => !busyTimes.some((busyTime) => miniSessionSlotOverlaps(slot, busyTime)));
+}
+
+export function normalizeMiniSessionMinBookingNoticeMinutes(value: number | null | undefined) {
+  if (!value || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(30 * 24 * 60, Math.max(0, Math.trunc(value)));
+}
+
+export function miniSessionMinBookingNoticeLabel(value: number | null | undefined, language: MiniSessionLanguage = "hu") {
+  const minutes = normalizeMiniSessionMinBookingNoticeMinutes(value);
+  const option = MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS.find((candidate) => candidate.value === minutes);
+
+  if (option) {
+    return language === "de" ? option.labelDe : option.labelHu;
+  }
+
+  if (minutes < 60) {
+    return language === "de" ? `${minutes} Minuten vorher` : `${minutes} perccel előtte`;
+  }
+
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return language === "de" ? `${days} Tage vorher` : `${days} nappal előtte`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return language === "de" ? `${hours} Stunden vorher` : `${hours} órával előtte`;
+  }
+
+  return language === "de" ? `${minutes} Minuten vorher` : `${minutes} perccel előtte`;
+}
+
+export function miniSessionBookingDeadline(value: number | null | undefined, now = new Date()) {
+  return new Date(now.getTime() + normalizeMiniSessionMinBookingNoticeMinutes(value) * 60 * 1000);
+}
+
+export function isMiniSessionSlotBookable(
+  slot: Pick<MiniSessionSlot, "startsAt">,
+  minBookingNoticeMinutes: number | null | undefined,
+  now = new Date()
+) {
+  return slot.startsAt.getTime() >= miniSessionBookingDeadline(minBookingNoticeMinutes, now).getTime();
+}
+
+export function filterMiniSessionSlotsByBookingNotice(
+  slots: MiniSessionSlot[],
+  minBookingNoticeMinutes: number | null | undefined,
+  now = new Date()
+) {
+  return slots.filter((slot) => isMiniSessionSlotBookable(slot, minBookingNoticeMinutes, now));
 }
 
 export function groupMiniSessionSlotsByDate(slots: MiniSessionSlot[], language: MiniSessionLanguage = "hu") {

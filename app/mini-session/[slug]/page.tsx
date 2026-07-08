@@ -32,6 +32,8 @@ const MINI_SESSION_PAGE_COPY = {
     missing: "Kérlek tölts ki minden kötelező mezőt.",
     takenTitle: "Ez az időpont közben betelt.",
     takenText: "Válassz egy másik szabad idősávot.",
+    noticeTitle: "Ez az időpont már nem foglalható.",
+    noticeText: "Válassz egy későbbi szabad időpontot.",
     invalidSlot: "Érvénytelen időpont.",
     inactive: "Ez a foglaló jelenleg nem elérhető.",
     soldOut: "Minden időpont betelt.",
@@ -58,6 +60,8 @@ const MINI_SESSION_PAGE_COPY = {
     missing: "Bitte fülle alle Pflichtfelder aus.",
     takenTitle: "Dieser Termin wurde inzwischen gebucht.",
     takenText: "Bitte wähle einen anderen freien Zeitslot.",
+    noticeTitle: "Dieser Termin ist nicht mehr buchbar.",
+    noticeText: "Bitte wähle einen späteren freien Termin.",
     invalidSlot: "Ungültiger Termin.",
     inactive: "Diese Mini Session ist derzeit nicht buchbar.",
     soldOut: "Alle Termine sind ausgebucht.",
@@ -199,6 +203,7 @@ export default async function PublicMiniSessionPage({
           ) : null}
           {flags.error === "missing" ? <Alert title={copy.missing} variant="error" /> : null}
           {flags.error === "taken" ? <Alert title={copy.takenTitle} variant="error">{copy.takenText}</Alert> : null}
+          {flags.error === "notice" ? <Alert title={copy.noticeTitle} variant="error">{copy.noticeText}</Alert> : null}
           {flags.error === "slot" ? <Alert title={copy.invalidSlot} variant="error" /> : null}
           {flags.error === "inactive" ? <Alert title={copy.inactive} variant="error" /> : null}
         </div>

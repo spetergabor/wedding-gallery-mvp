@@ -1,5 +1,6 @@
 import {
   createMiniSessionSlots,
+  filterMiniSessionSlotsByBookingNotice,
   filterMiniSessionSlotsByBusyTimes,
   miniSessionDateKey,
   miniSessionSlotOverlaps,
@@ -19,6 +20,7 @@ type MiniSessionAvailabilityInput = {
   startsAt: Date;
   endsAt: Date;
   durationMinutes: number;
+  minBookingNoticeMinutes?: number | null;
   availabilityRules?: Array<{
     weekday: number;
     startsAt: string;
@@ -141,7 +143,10 @@ export async function getAvailableMiniSessionSlots(
   session: MiniSessionAvailabilityInput,
   options: MiniSessionAvailabilityOptions = {}
 ) {
-  const slots = createMiniSessionSlots(session, options);
+  const slots = filterMiniSessionSlotsByBookingNotice(
+    createMiniSessionSlots(session, options),
+    session.minBookingNoticeMinutes
+  );
   const busyTimes = await getMiniSessionBusyTimes(session.adminId, slots, options);
 
   return filterMiniSessionSlotsByBusyTimes(slots, busyTimes);
