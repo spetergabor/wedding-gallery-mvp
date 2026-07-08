@@ -604,6 +604,103 @@ type SettingsSystemEvent = {
   createdAt: Date;
 };
 
+type SettingsDeliveryLog = {
+  id: string;
+  channel: string;
+  type: string;
+  status: string;
+  recipient: string | null;
+  subject: string | null;
+  lastError: string | null;
+  sentAt: Date | null;
+  nextAttemptAt: Date | null;
+  createdAt: Date;
+};
+
+const DELIVERY_PANEL_COPY = {
+  hu: {
+    eyebrow: "Kézbesítések",
+    title: "E-mail és Google Calendar megbízhatóság",
+    description: "A legutóbbi elakadt vagy várakozó kézbesítések az aktuális workspace-ben.",
+    emptyTitle: "Nincs elakadt kézbesítés",
+    emptyBody: "Ha egy e-mail vagy Google Calendar sync hibázik, itt fog megjelenni.",
+    recipient: "Címzett",
+    updated: "Frissítve",
+    nextRetry: "Következő retry",
+    error: "Hiba"
+  },
+  de: {
+    eyebrow: "Zustellung",
+    title: "E-Mail- und Google-Calendar-Zuverlässigkeit",
+    description: "Die neuesten blockierten oder wartenden Zustellungen im aktuellen Workspace.",
+    emptyTitle: "Keine blockierten Zustellungen",
+    emptyBody: "Wenn eine E-Mail oder ein Google-Calendar-Sync fehlschlägt, erscheint es hier.",
+    recipient: "Empfänger",
+    updated: "Aktualisiert",
+    nextRetry: "Nächster Retry",
+    error: "Fehler"
+  },
+  en: {
+    eyebrow: "Delivery",
+    title: "E-mail and Google Calendar reliability",
+    description: "Recent failed, retrying or pending deliveries in the current workspace.",
+    emptyTitle: "No stuck deliveries",
+    emptyBody: "Failed e-mails or Google Calendar sync attempts will appear here.",
+    recipient: "Recipient",
+    updated: "Updated",
+    nextRetry: "Next retry",
+    error: "Error"
+  }
+} as const;
+
+function deliveryStatusLabel(status: string, language: AdminLanguage) {
+  const labels = {
+    hu: {
+      pending: "Függőben",
+      sent: "Elküldve",
+      failed: "Hiba",
+      retry: "Retry",
+      skipped: "Kihagyva"
+    },
+    de: {
+      pending: "Ausstehend",
+      sent: "Gesendet",
+      failed: "Fehler",
+      retry: "Retry",
+      skipped: "Übersprungen"
+    },
+    en: {
+      pending: "Pending",
+      sent: "Sent",
+      failed: "Failed",
+      retry: "Retry",
+      skipped: "Skipped"
+    }
+  } as const;
+
+  return labels[language][status as keyof (typeof labels)[AdminLanguage]] ?? status;
+}
+
+function deliveryStatusClass(status: string) {
+  if (status === "failed") {
+    return "bg-red-50 text-red-700 ring-red-200";
+  }
+
+  if (status === "retry") {
+    return "bg-brass/10 text-brass ring-brass/25";
+  }
+
+  if (status === "pending") {
+    return "bg-ink/[0.05] text-graphite ring-ink/10";
+  }
+
+  if (status === "sent") {
+    return "bg-sage/10 text-sage ring-sage/20";
+  }
+
+  return "bg-ink/[0.05] text-graphite/70 ring-ink/10";
+}
+
 const SYSTEM_EVENT_STATUS_LABELS = {
   hu: {
     started: "Elindult",
@@ -939,6 +1036,82 @@ function GoogleCalendarSettings({
   );
 }
 
+function DeliveryReliabilityPanel({
+  language,
+  deliveryLogs
+}: {
+  language: AdminLanguage;
+  deliveryLogs: SettingsDeliveryLog[];
+}) {
+  const copy = DELIVERY_PANEL_COPY[language];
+
+  return (
+    <section className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
+            <Mail size={15} />
+            {copy.eyebrow}
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
+        </div>
+        <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+          {deliveryLogs.length}
+        </span>
+      </div>
+
+      {deliveryLogs.length === 0 ? (
+        <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5">
+          <p className="text-sm font-semibold text-ink">{copy.emptyTitle}</p>
+          <p className="mt-1 text-sm leading-6 text-graphite/65">{copy.emptyBody}</p>
+        </div>
+      ) : (
+        <div className="mt-5 overflow-hidden rounded-md border border-ink/10">
+          <div className="divide-y divide-ink/10">
+            {deliveryLogs.map((deliveryLog) => (
+              <div key={deliveryLog.id} className="grid gap-3 bg-white px-4 py-4 lg:grid-cols-[minmax(0,1fr)_180px_180px] lg:items-start">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${deliveryStatusClass(deliveryLog.status)}`}>
+                      {deliveryStatusLabel(deliveryLog.status, language)}
+                    </span>
+                    <span className="rounded-full bg-ink/5 px-2 py-1 text-[11px] font-medium text-graphite">
+                      {deliveryLog.channel === "google_calendar" ? "Google Calendar" : "E-mail"}
+                    </span>
+                  </div>
+                  <p className="mt-2 truncate text-sm font-semibold text-ink">{deliveryLog.subject || deliveryLog.type}</p>
+                  <p className="mt-1 truncate text-xs text-graphite/60">{deliveryLog.type}</p>
+                  {deliveryLog.lastError ? (
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-red-700">
+                      {copy.error}: {deliveryLog.lastError}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="text-xs leading-5 text-graphite/65">
+                  <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.recipient}</p>
+                  <p className="mt-1 truncate text-sm normal-case tracking-normal text-graphite">{deliveryLog.recipient || "-"}</p>
+                </div>
+                <div className="text-xs leading-5 text-graphite/65">
+                  <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.updated}</p>
+                  <p className="mt-1 text-sm normal-case tracking-normal text-graphite">
+                    {formatSettingsDateTime(deliveryLog.sentAt ?? deliveryLog.createdAt, language, "-")}
+                  </p>
+                  {deliveryLog.nextAttemptAt ? (
+                    <p className="mt-1 text-xs text-brass">
+                      {copy.nextRetry}: {formatSettingsDateTime(deliveryLog.nextAttemptAt, language, "-")}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 async function getServiceUsageSummary(): Promise<ServiceUsageSummary> {
   const monthStart = startOfCurrentMonth();
   const monthEnd = startOfNextMonth(monthStart);
@@ -1192,7 +1365,7 @@ export default async function AdminSettingsPage({
           : params.tab === "profile" || isTeamWorkspace
             ? "profile"
             : "brand";
-  const [settings, photographerProfile, serviceUsage, googleIntegration, systemEvents] = await Promise.all([
+  const [settings, photographerProfile, serviceUsage, googleIntegration, systemEvents, deliveryLogs] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
         OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -1269,6 +1442,28 @@ export default async function AdminSettingsPage({
                 email: true
               }
             }
+          }
+        })
+      : Promise.resolve([]),
+    !isTeamWorkspace
+      ? prisma.deliveryLog.findMany({
+          where: {
+            adminId: workspaceAdminId,
+            status: { in: ["pending", "retry", "failed"] }
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            channel: true,
+            type: true,
+            status: true,
+            recipient: true,
+            subject: true,
+            lastError: true,
+            sentAt: true,
+            nextAttemptAt: true,
+            createdAt: true
           }
         })
       : Promise.resolve([])
@@ -1410,25 +1605,28 @@ export default async function AdminSettingsPage({
       {activeTab === "security" ? <AdminSecuritySettings enabled={params.enabled} disabled={params.disabled} error={params.error} /> : null}
 
       {activeTab === "integrations" ? (
-        <GoogleCalendarSettings
-          language={language}
-          configured={googleConfigured}
-          missingConfigKeys={googleMissingConfigKeys}
-          integration={googleIntegration ? {
-            googleAccountEmail: googleIntegration.googleAccountEmail,
-            calendarId: googleIntegration.calendarId,
-            calendarSummary: googleIntegration.calendarSummary,
-            syncMiniSessionBookings: googleIntegration.syncMiniSessionBookings,
-            syncCustomerProjects: googleIntegration.syncCustomerProjects,
-            blockAvailabilityFromGoogleCalendar: googleIntegration.blockAvailabilityFromGoogleCalendar,
-            deleteCancelledEvents: googleIntegration.deleteCancelledEvents,
-            lastSyncError: googleIntegration.lastSyncError,
-            connectedAt: googleIntegration.connectedAt,
-            updatedAt: googleIntegration.updatedAt
-          } : null}
-          calendarOptions={googleCalendarOptions}
-          calendarOptionsError={googleCalendarOptionsError}
-        />
+        <div className="space-y-5">
+          <GoogleCalendarSettings
+            language={language}
+            configured={googleConfigured}
+            missingConfigKeys={googleMissingConfigKeys}
+            integration={googleIntegration ? {
+              googleAccountEmail: googleIntegration.googleAccountEmail,
+              calendarId: googleIntegration.calendarId,
+              calendarSummary: googleIntegration.calendarSummary,
+              syncMiniSessionBookings: googleIntegration.syncMiniSessionBookings,
+              syncCustomerProjects: googleIntegration.syncCustomerProjects,
+              blockAvailabilityFromGoogleCalendar: googleIntegration.blockAvailabilityFromGoogleCalendar,
+              deleteCancelledEvents: googleIntegration.deleteCancelledEvents,
+              lastSyncError: googleIntegration.lastSyncError,
+              connectedAt: googleIntegration.connectedAt,
+              updatedAt: googleIntegration.updatedAt
+            } : null}
+            calendarOptions={googleCalendarOptions}
+            calendarOptionsError={googleCalendarOptionsError}
+          />
+          <DeliveryReliabilityPanel language={language} deliveryLogs={deliveryLogs} />
+        </div>
       ) : null}
 
       {activeTab === "providers" ? (

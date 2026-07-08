@@ -20,7 +20,9 @@ import {
   deleteMiniSessionAction,
   deleteMiniSessionCoverAction,
   resendMiniSessionBookingConfirmationAction,
+  resendMiniSessionAdminNotificationAction,
   rescheduleMiniSessionBookingByAdminAction,
+  retryMiniSessionBookingCalendarSyncAction,
   updateMiniSessionAction,
   updateMiniSessionCoverAction
 } from "@/lib/mini-session-actions";
@@ -51,6 +53,11 @@ import {
 import { prisma } from "@/lib/prisma";
 
 type MiniSessionTab = "overview" | "bookings" | "slots" | "settings";
+type DeliveryDisplay = {
+  status: string;
+  label: string;
+  detail: string | null;
+};
 
 const fieldClass =
   "h-12 w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
@@ -109,6 +116,122 @@ function statusBadgeClass(status: string) {
     : "bg-sage/10 text-sage";
 }
 
+function deliveryStatusLabel(status: string) {
+  if (status === "sent") {
+    return "Elküldve";
+  }
+
+  if (status === "failed") {
+    return "Hiba";
+  }
+
+  if (status === "retry") {
+    return "Retry";
+  }
+
+  if (status === "pending") {
+    return "Függőben";
+  }
+
+  if (status === "skipped") {
+    return "Kihagyva";
+  }
+
+  return "Nincs adat";
+}
+
+function deliveryStatusBadgeClass(status: string) {
+  if (status === "sent") {
+    return "bg-sage/10 text-sage";
+  }
+
+  if (status === "failed") {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (status === "retry") {
+    return "bg-brass/10 text-brass";
+  }
+
+  if (status === "pending") {
+    return "bg-ink/5 text-graphite";
+  }
+
+  if (status === "skipped") {
+    return "bg-ink/5 text-graphite/70";
+  }
+
+  return "bg-ink/5 text-graphite/60";
+}
+
+function formatDeliveryDate(date: Date) {
+  return date.toLocaleString("hu-HU", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function deliveryDisplay(input: {
+  log?: {
+    status: string;
+    lastError: string | null;
+    sentAt: Date | null;
+    nextAttemptAt: Date | null;
+    createdAt: Date;
+  };
+  sentAt?: Date | null;
+  error?: string | null;
+}): DeliveryDisplay {
+  if (input.log) {
+    const retryDetail = input.log.nextAttemptAt ? `Következő: ${formatDeliveryDate(input.log.nextAttemptAt)}` : null;
+    const sentDetail = input.log.sentAt ? formatDeliveryDate(input.log.sentAt) : null;
+
+    return {
+      status: input.log.status,
+      label: deliveryStatusLabel(input.log.status),
+      detail: input.log.lastError || retryDetail || sentDetail
+    };
+  }
+
+  if (input.sentAt) {
+    return {
+      status: "sent",
+      label: deliveryStatusLabel("sent"),
+      detail: formatDeliveryDate(input.sentAt)
+    };
+  }
+
+  if (input.error) {
+    return {
+      status: "failed",
+      label: deliveryStatusLabel("failed"),
+      detail: input.error
+    };
+  }
+
+  return {
+    status: "unknown",
+    label: deliveryStatusLabel("unknown"),
+    detail: null
+  };
+}
+
+function DeliveryStatusLine({ label, display }: { label: string; display: DeliveryDisplay }) {
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <span className="text-xs text-graphite/60">{label}</span>
+      <span className="flex min-w-0 flex-col items-end gap-0.5 text-right">
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${deliveryStatusBadgeClass(display.status)}`}>
+          {display.label}
+        </span>
+        {display.detail ? <span className="max-w-48 truncate text-[11px] text-graphite/50">{display.detail}</span> : null}
+      </span>
+    </div>
+  );
+}
+
 function tabHref(id: string, tab: MiniSessionTab) {
   return `/admin/mini-sessions/${id}${tab === "overview" ? "" : `?tab=${tab}`}`;
 }
@@ -145,6 +268,8 @@ export default async function AdminMiniSessionDetailPage({
     bookingRescheduled?: string;
     adminBooking?: string;
     confirmationSent?: string;
+    adminNotificationSent?: string;
+    calendarSynced?: string;
     coverUpdated?: string;
     coverDeleted?: string;
   }>;
@@ -183,6 +308,43 @@ export default async function AdminMiniSessionDetailPage({
   const bookedBySlot = new Map(booked.map((booking) => [booking.startsAt.toISOString(), booking]));
   const freeSlotCount = freeSlots.length;
   const externalConflictCount = bookableSlots.filter((slot) => !freeSlotTokens.has(slot.token) && !bookedBySlot.has(slot.token)).length;
+  const deliveryLogs = contactBookings.length > 0
+    ? await prisma.deliveryLog.findMany({
+        where: {
+          adminId: session.adminId,
+          entityType: "mini_session_booking",
+          entityId: { in: contactBookings.map((booking) => booking.id) }
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          entityId: true,
+          type: true,
+          status: true,
+          lastError: true,
+          sentAt: true,
+          nextAttemptAt: true,
+          createdAt: true
+        }
+      })
+    : [];
+  const latestDeliveryLogByBooking = new Map<string, Map<string, (typeof deliveryLogs)[number]>>();
+
+  for (const deliveryLog of deliveryLogs) {
+    if (!deliveryLog.entityId) {
+      continue;
+    }
+
+    const bookingLogs = latestDeliveryLogByBooking.get(deliveryLog.entityId) ?? new Map<string, (typeof deliveryLogs)[number]>();
+
+    if (!bookingLogs.has(deliveryLog.type)) {
+      bookingLogs.set(deliveryLog.type, deliveryLog);
+    }
+
+    latestDeliveryLogByBooking.set(deliveryLog.entityId, bookingLogs);
+  }
+
+  const deliveryLogFor = (bookingId: string, type: string) => latestDeliveryLogByBooking.get(bookingId)?.get(type);
   const publicUrl = miniSessionPublicUrl(session.slug);
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
   const showSlotDates = isRecurring || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
@@ -229,6 +391,9 @@ export default async function AdminMiniSessionDetailPage({
         {flags.bookingRescheduled ? <Alert title="Időpont módosítva." variant="success" /> : null}
         {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
         {flags.confirmationSent ? <Alert title="Megerősítő e-mail újraküldve." variant="success" /> : null}
+        {flags.adminNotificationSent ? <Alert title="Admin értesítő e-mail újraküldve." variant="success" /> : null}
+        {flags.calendarSynced === "1" ? <Alert title="Google Calendar újraszinkronizálva." variant="success" /> : null}
+        {flags.calendarSynced === "0" ? <Alert title="A Google Calendar szinkron nem sikerült." variant="error">Nézd meg a kézbesítési státuszt a foglalásnál.</Alert> : null}
         {flags.coverUpdated ? <Alert title="Borítókép frissítve." variant="success" /> : null}
         {flags.coverDeleted ? <Alert title="Borítókép törölve." variant="success" /> : null}
         {flags.error === "email_send" ? (
@@ -438,6 +603,19 @@ export default async function AdminMiniSessionDetailPage({
                   const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
                   const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
                   const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
+                  const customerEmailDelivery = deliveryDisplay({
+                    log: deliveryLogFor(booking.id, "email.mini_session.customer_confirmation"),
+                    sentAt: booking.customerEmailSentAt
+                  });
+                  const adminEmailDelivery = deliveryDisplay({
+                    log: deliveryLogFor(booking.id, "email.mini_session.admin_notification"),
+                    sentAt: booking.adminEmailSentAt
+                  });
+                  const calendarDelivery = deliveryDisplay({
+                    log: deliveryLogFor(booking.id, "google_calendar.mini_session_booking.sync"),
+                    sentAt: booking.googleCalendarSyncedAt,
+                    error: booking.googleCalendarSyncError
+                  });
 
                   return (
                     <div
@@ -466,6 +644,11 @@ export default async function AdminMiniSessionDetailPage({
                         <p className="flex items-center gap-2"><Users size={14} /> {booking.attendeeCount} fő</p>
                       </div>
                       {booking.adminNote ? <p className="mt-3 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
+                      <div className="mt-3 space-y-2 rounded-md border border-ink/10 bg-white px-3 py-3">
+                        <DeliveryStatusLine label="Ügyfél e-mail" display={customerEmailDelivery} />
+                        <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
+                        <DeliveryStatusLine label="Google Calendar" display={calendarDelivery} />
+                      </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <a className={smallActionLinkClass} href={`mailto:${booking.email}`}>
                           <Mail size={13} />
@@ -502,10 +685,24 @@ export default async function AdminMiniSessionDetailPage({
                           <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
                             <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
                               <Send size={13} />
-                              Újraküldés
+                              Ügyfél e-mail
                             </FormSubmitButton>
                           </form>
                         ) : null}
+                        {isActive ? (
+                          <form action={resendMiniSessionAdminNotificationAction.bind(null, booking.id)}>
+                            <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
+                              <Send size={13} />
+                              Admin e-mail
+                            </FormSubmitButton>
+                          </form>
+                        ) : null}
+                        <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, booking.id)}>
+                          <FormSubmitButton variant="secondary" pendingLabel="Sync..." className={smallActionButtonClass}>
+                            <CalendarPlus size={13} />
+                            Naptár sync
+                          </FormSubmitButton>
+                        </form>
                         {isActive ? (
                           <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)}>
                             <input type="hidden" name="returnTab" value="bookings" />
@@ -529,6 +726,7 @@ export default async function AdminMiniSessionDetailPage({
                       <th className="px-4 py-3 font-medium">Név</th>
                       <th className="px-4 py-3 font-medium">Elérhetőség</th>
                       <th className="px-4 py-3 font-medium">Állapot</th>
+                      <th className="px-4 py-3 font-medium">Kézbesítés</th>
                       <th className="px-4 py-3 font-medium">Műveletek</th>
                     </tr>
                   </thead>
@@ -544,6 +742,19 @@ export default async function AdminMiniSessionDetailPage({
                       const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
                       const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
                       const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
+                      const customerEmailDelivery = deliveryDisplay({
+                        log: deliveryLogFor(booking.id, "email.mini_session.customer_confirmation"),
+                        sentAt: booking.customerEmailSentAt
+                      });
+                      const adminEmailDelivery = deliveryDisplay({
+                        log: deliveryLogFor(booking.id, "email.mini_session.admin_notification"),
+                        sentAt: booking.adminEmailSentAt
+                      });
+                      const calendarDelivery = deliveryDisplay({
+                        log: deliveryLogFor(booking.id, "google_calendar.mini_session_booking.sync"),
+                        sentAt: booking.googleCalendarSyncedAt,
+                        error: booking.googleCalendarSyncError
+                      });
 
                       return (
                         <tr
@@ -569,6 +780,13 @@ export default async function AdminMiniSessionDetailPage({
                             <div className="flex flex-col items-start gap-1">
                               <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${statusBadgeClass(booking.status)}`}>{statusLabel(booking.status)}</span>
                               <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="min-w-48 space-y-2">
+                              <DeliveryStatusLine label="Ügyfél e-mail" display={customerEmailDelivery} />
+                              <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
+                              <DeliveryStatusLine label="Google Calendar" display={calendarDelivery} />
                             </div>
                           </td>
                           <td className="px-4 py-3">
@@ -608,10 +826,24 @@ export default async function AdminMiniSessionDetailPage({
                                 <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
                                   <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
                                     <Send size={13} />
-                                    Újraküldés
+                                    Ügyfél e-mail
                                   </FormSubmitButton>
                                 </form>
                               ) : null}
+                              {isActive ? (
+                                <form action={resendMiniSessionAdminNotificationAction.bind(null, booking.id)}>
+                                  <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
+                                    <Send size={13} />
+                                    Admin e-mail
+                                  </FormSubmitButton>
+                                </form>
+                              ) : null}
+                              <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, booking.id)}>
+                                <FormSubmitButton variant="secondary" pendingLabel="Sync..." className={smallActionButtonClass}>
+                                  <CalendarPlus size={13} />
+                                  Naptár sync
+                                </FormSubmitButton>
+                              </form>
                               {isActive ? (
                                 <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)}>
                                   <input type="hidden" name="returnTab" value="bookings" />

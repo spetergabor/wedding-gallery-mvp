@@ -1,6 +1,13 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
+import {
+  createDeliveryLog,
+  DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+  markDeliveryLogFailed,
+  markDeliveryLogSent,
+  markDeliveryLogSkipped
+} from "@/lib/delivery-log";
 import { adminMiniSessionUrl, miniSessionBookingCancelUrl, miniSessionPublicUrl } from "@/lib/email";
 import {
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
@@ -626,6 +633,21 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
   }
 
   const calendarId = integration.calendarId || "primary";
+  const deliveryLog = await createDeliveryLog({
+    adminId: booking.miniSession.adminId,
+    channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+    type: "google_calendar.mini_session_booking.sync",
+    provider: "google",
+    entityType: "mini_session_booking",
+    entityId: booking.id,
+    subject: `${booking.name} - ${booking.miniSession.title}`,
+    metadata: {
+      sessionId: booking.miniSession.id,
+      calendarId,
+      startsAt: booking.startsAt.toISOString(),
+      endsAt: booking.endsAt.toISOString()
+    }
+  });
 
   try {
     if (booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED && booking.googleCalendarEventId) {
@@ -640,6 +662,7 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
             googleCalendarSyncError: null
           }
         });
+        await markDeliveryLogSent(deliveryLog.id, booking.googleCalendarEventId);
         return { status: "deleted" as const };
       }
 
@@ -665,10 +688,12 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
         where: { id: booking.id },
         data: { googleCalendarId: calendarId, googleCalendarSyncedAt: new Date(), googleCalendarSyncError: null }
       });
+      await markDeliveryLogSent(deliveryLog.id, booking.googleCalendarEventId);
       return { status: "cancelled" as const };
     }
 
     if (booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED) {
+      await markDeliveryLogSkipped(deliveryLog.id, "A foglalás állapota miatt nem kell Google Calendar sync.");
       return { status: "skipped" as const };
     }
 
@@ -715,9 +740,11 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
       }
     });
 
+    await markDeliveryLogSent(deliveryLog.id, eventId);
     return { status: "synced" as const };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Google Calendar sync failed.";
+    await markDeliveryLogFailed(deliveryLog.id, error);
     await prisma.miniSessionBooking.update({
       where: { id: booking.id },
       data: { googleCalendarSyncError: message }
@@ -776,6 +803,20 @@ export async function syncCustomerProjectToGoogleCalendar(projectId: string) {
 
   const calendarId = integration.calendarId || "primary";
   const eventWindow = projectEventWindow(project);
+  const deliveryLog = await createDeliveryLog({
+    adminId: project.customer.adminId,
+    channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+    type: "google_calendar.customer_project.sync",
+    provider: "google",
+    entityType: "customer_project",
+    entityId: project.id,
+    subject: `${project.customer.coupleName} - ${project.title}`,
+    metadata: {
+      customerId: project.customer.id,
+      calendarId,
+      eventDate: project.eventDate?.toISOString() ?? null
+    }
+  });
 
   try {
     if ((!eventWindow || project.status === "archived") && project.googleCalendarEventId) {
@@ -789,10 +830,12 @@ export async function syncCustomerProjectToGoogleCalendar(projectId: string) {
           googleCalendarSyncError: null
         }
       });
+      await markDeliveryLogSent(deliveryLog.id, project.googleCalendarEventId);
       return { status: "deleted" as const };
     }
 
     if (!eventWindow || project.status === "archived") {
+      await markDeliveryLogSkipped(deliveryLog.id, "A projekt állapota vagy dátuma miatt nem kell Google Calendar sync.");
       return { status: "skipped" as const };
     }
 
@@ -837,9 +880,11 @@ export async function syncCustomerProjectToGoogleCalendar(projectId: string) {
       }
     });
 
+    await markDeliveryLogSent(deliveryLog.id, eventId);
     return { status: "synced" as const };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Google Calendar sync failed.";
+    await markDeliveryLogFailed(deliveryLog.id, error);
     await prisma.customerProject.update({
       where: { id: project.id },
       data: { googleCalendarSyncError: message }
@@ -893,10 +938,24 @@ export async function deleteCustomerProjectFromGoogleCalendar(projectId: string)
     return { status: "not_configured" as const };
   }
 
+  const calendarId = project.googleCalendarId || integration.calendarId || "primary";
+  const deliveryLog = await createDeliveryLog({
+    adminId: project.customer.adminId,
+    channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+    type: "google_calendar.customer_project.delete",
+    provider: "google",
+    entityType: "customer_project",
+    entityId: project.id,
+    subject: "Projekt Google Calendar esemény törlése",
+    metadata: { calendarId }
+  });
+
   try {
-    await deleteGoogleCalendarEvent(integration, project.googleCalendarId || integration.calendarId || "primary", project.googleCalendarEventId);
+    await deleteGoogleCalendarEvent(integration, calendarId, project.googleCalendarEventId);
+    await markDeliveryLogSent(deliveryLog.id, project.googleCalendarEventId);
     return { status: "deleted" as const };
   } catch (error) {
+    await markDeliveryLogFailed(deliveryLog.id, error);
     console.error("Google Calendar customer project delete failed", error);
     return { status: "error" as const };
   }

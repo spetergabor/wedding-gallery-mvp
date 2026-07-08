@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { DELIVERY_CHANNEL_EMAIL, runLoggedDelivery } from "@/lib/delivery-log";
 import {
   deleteCustomerProjectFromGoogleCalendar,
   syncMiniSessionBookingToGoogleCalendar
@@ -926,40 +927,57 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   }
 
   try {
-    const sent = await sendMiniSessionBookingConfirmationEmail({
-      to: email,
-      replyTo: session.admin.email,
-      senderName: session.admin.name,
-      sessionTitle: session.title,
-      sessionDate: booking.startsAt,
-      location: session.location,
-      startsAt: booking.startsAt,
-      endsAt: booking.endsAt,
-      name,
-      attendeeCount,
-      cancelUrl,
-      rescheduleUrl,
-      calendarUrl,
-      calendarIcs: customerCalendarIcs,
-      calendarFilename,
-      calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
-      language
+    const delivery = await runLoggedDelivery({
+      adminId: session.adminId,
+      channel: DELIVERY_CHANNEL_EMAIL,
+      type: "email.mini_session.customer_confirmation",
+      recipient: email,
+      subject: `${session.title} visszaigazolás`,
+      provider: "resend",
+      entityType: "mini_session_booking",
+      entityId: booking.id,
+      metadata: {
+        sessionId: session.id,
+        recipient: email,
+        source: "booking_created"
+      },
+      send: () => sendMiniSessionBookingConfirmationEmail({
+        to: email,
+        replyTo: session.admin.email,
+        senderName: session.admin.name,
+        sessionTitle: session.title,
+        sessionDate: booking.startsAt,
+        location: session.location,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        name,
+        attendeeCount,
+        cancelUrl,
+        rescheduleUrl,
+        calendarUrl,
+        calendarIcs: customerCalendarIcs,
+        calendarFilename,
+        calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
+        language
+      })
     });
-    customerEmailSentAt = sent ? new Date() : null;
-    if (!sent) {
+    customerEmailSentAt = delivery.ok ? delivery.log.sentAt ?? new Date() : null;
+    if (!delivery.ok) {
       await logSystemEvent({
         targetAdminId: session.adminId,
         type: "email.mini_session.customer_confirmation.failed",
         title: "Ügyfél visszaigazoló email nem ment ki",
-        message: `${name} · ${email}`,
+        message: delivery.errorMessage || `${name} · ${email}`,
         severity: "warning",
-        status: "failed",
+        status: delivery.status === "retry" ? "warning" : "failed",
         source: "email",
         href: adminUrl,
         metadata: {
           bookingId: booking.id,
           sessionId: session.id,
-          recipient: email
+          recipient: email,
+          deliveryLogId: delivery.log.id,
+          deliveryStatus: delivery.status
         }
       });
     }
@@ -983,39 +1001,56 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   }
 
   try {
-    const sent = await sendMiniSessionAdminBookingEmail({
-      to: session.admin.email,
-      replyTo: email,
-      sessionTitle: session.title,
-      sessionDate: booking.startsAt,
-      location: session.location,
-      startsAt: booking.startsAt,
-      endsAt: booking.endsAt,
-      name,
-      email,
-      phone,
-      attendeeCount,
-      adminUrl,
-      publicUrl,
-      calendarUrl,
-      calendarIcs: adminCalendarIcs,
-      calendarFilename
+    const delivery = await runLoggedDelivery({
+      adminId: session.adminId,
+      channel: DELIVERY_CHANNEL_EMAIL,
+      type: "email.mini_session.admin_notification",
+      recipient: session.admin.email,
+      subject: `Új mini session foglalás: ${session.title}`,
+      provider: "resend",
+      entityType: "mini_session_booking",
+      entityId: booking.id,
+      metadata: {
+        sessionId: session.id,
+        recipient: session.admin.email,
+        source: "booking_created"
+      },
+      send: () => sendMiniSessionAdminBookingEmail({
+        to: session.admin.email,
+        replyTo: email,
+        sessionTitle: session.title,
+        sessionDate: booking.startsAt,
+        location: session.location,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        name,
+        email,
+        phone,
+        attendeeCount,
+        adminUrl,
+        publicUrl,
+        calendarUrl,
+        calendarIcs: adminCalendarIcs,
+        calendarFilename
+      })
     });
-    adminEmailSentAt = sent ? new Date() : null;
-    if (!sent) {
+    adminEmailSentAt = delivery.ok ? delivery.log.sentAt ?? new Date() : null;
+    if (!delivery.ok) {
       await logSystemEvent({
         targetAdminId: session.adminId,
         type: "email.mini_session.admin_notification.failed",
         title: "Admin értesítő email nem ment ki",
-        message: `${session.title} · ${name}`,
+        message: delivery.errorMessage || `${session.title} · ${name}`,
         severity: "warning",
-        status: "failed",
+        status: delivery.status === "retry" ? "warning" : "failed",
         source: "email",
         href: adminUrl,
         metadata: {
           bookingId: booking.id,
           sessionId: session.id,
-          recipient: session.admin.email
+          recipient: session.admin.email,
+          deliveryLogId: delivery.log.id,
+          deliveryStatus: delivery.status
         }
       });
     }
@@ -1382,44 +1417,61 @@ export async function cancelMiniSessionBookingAction(token: string) {
           status: "cancelled"
         })
       });
-      const sent = await sendMiniSessionBookingCancelledEmail({
-        to: booking.miniSession.admin.email,
-        replyTo: booking.email,
-        sessionTitle: booking.miniSession.title,
-        sessionDate: booking.startsAt,
-        location: booking.miniSession.location,
-        startsAt: booking.startsAt,
-        endsAt: booking.endsAt,
-        name: booking.name,
-        email: booking.email,
-        phone: booking.phone,
-        attendeeCount: booking.attendeeCount,
-        adminUrl,
-        calendarUrl,
-        calendarIcs: cancellationIcs,
-        calendarFilename: miniSessionCalendarFilename(booking.miniSession.title, "CANCELLED"),
-        calendarButtonLabel: "Naptárból eltávolítás"
+      const delivery = await runLoggedDelivery({
+        adminId: booking.miniSession.adminId,
+        channel: DELIVERY_CHANNEL_EMAIL,
+        type: "email.mini_session.cancellation_notification",
+        recipient: booking.miniSession.admin.email,
+        subject: `Mini session foglalás törölve: ${booking.miniSession.title}`,
+        provider: "resend",
+        entityType: "mini_session_booking",
+        entityId: booking.id,
+        metadata: {
+          sessionId: booking.miniSession.id,
+          recipient: booking.miniSession.admin.email,
+          source: "booking_cancelled"
+        },
+        send: () => sendMiniSessionBookingCancelledEmail({
+          to: booking.miniSession.admin.email,
+          replyTo: booking.email,
+          sessionTitle: booking.miniSession.title,
+          sessionDate: booking.startsAt,
+          location: booking.miniSession.location,
+          startsAt: booking.startsAt,
+          endsAt: booking.endsAt,
+          name: booking.name,
+          email: booking.email,
+          phone: booking.phone,
+          attendeeCount: booking.attendeeCount,
+          adminUrl,
+          calendarUrl,
+          calendarIcs: cancellationIcs,
+          calendarFilename: miniSessionCalendarFilename(booking.miniSession.title, "CANCELLED"),
+          calendarButtonLabel: "Naptárból eltávolítás"
+        })
       });
 
-      if (sent) {
+      if (delivery.ok) {
         await prisma.miniSessionBooking.update({
           where: { id: booking.id },
-          data: { cancellationEmailSentAt: new Date() }
+          data: { cancellationEmailSentAt: delivery.log.sentAt ?? new Date() }
         });
       } else {
         await logSystemEvent({
           targetAdminId: booking.miniSession.adminId,
           type: "email.mini_session.cancellation_notification.failed",
           title: "Lemondási értesítő email nem ment ki",
-          message: `${booking.name} · ${booking.email}`,
+          message: delivery.errorMessage || `${booking.name} · ${booking.email}`,
           severity: "warning",
-          status: "failed",
+          status: delivery.status === "retry" ? "warning" : "failed",
           source: "email",
           href: adminUrl,
           metadata: {
             bookingId: booking.id,
             sessionId: booking.miniSession.id,
-            recipient: booking.miniSession.admin.email
+            recipient: booking.miniSession.admin.email,
+            deliveryLogId: delivery.log.id,
+            deliveryStatus: delivery.status
           }
         });
       }
@@ -1652,31 +1704,48 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
     })
   });
 
+  let resendDeliveryFailed = false;
+
   try {
-    const sent = await sendMiniSessionBookingConfirmationEmail({
-      to: booking.email,
-      replyTo: booking.miniSession.admin.email,
-      senderName: booking.miniSession.admin.name,
-      sessionTitle: booking.miniSession.title,
-      sessionDate: booking.startsAt,
-      location: booking.miniSession.location,
-      startsAt: booking.startsAt,
-      endsAt: booking.endsAt,
-      name: booking.name,
-      attendeeCount: booking.attendeeCount,
-      cancelUrl,
-      rescheduleUrl,
-      calendarUrl,
-      calendarIcs,
-      calendarFilename,
-      calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
-      language
+    const delivery = await runLoggedDelivery({
+      adminId: booking.miniSession.adminId,
+      channel: DELIVERY_CHANNEL_EMAIL,
+      type: "email.mini_session.customer_confirmation",
+      recipient: booking.email,
+      subject: `${booking.miniSession.title} visszaigazolás`,
+      provider: "resend",
+      entityType: "mini_session_booking",
+      entityId: booking.id,
+      metadata: {
+        sessionId: booking.miniSession.id,
+        recipient: booking.email,
+        source: "admin_resend"
+      },
+      send: () => sendMiniSessionBookingConfirmationEmail({
+        to: booking.email,
+        replyTo: booking.miniSession.admin.email,
+        senderName: booking.miniSession.admin.name,
+        sessionTitle: booking.miniSession.title,
+        sessionDate: booking.startsAt,
+        location: booking.miniSession.location,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        name: booking.name,
+        attendeeCount: booking.attendeeCount,
+        cancelUrl,
+        rescheduleUrl,
+        calendarUrl,
+        calendarIcs,
+        calendarFilename,
+        calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
+        language
+      })
     });
 
-    if (sent) {
+    if (delivery.ok) {
       await prisma.miniSessionBooking.update({
         where: { id: booking.id },
-        data: { customerEmailSentAt: new Date() }
+        data: { customerEmailSentAt: delivery.log.sentAt ?? new Date() }
       });
       await logSystemEvent({
         actorAdminId: admin.id,
@@ -1691,7 +1760,8 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
         metadata: {
           bookingId: booking.id,
           sessionId: booking.miniSession.id,
-          recipient: booking.email
+          recipient: booking.email,
+          deliveryLogId: delivery.log.id
         }
       });
     } else {
@@ -1700,17 +1770,20 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
         targetAdminId: booking.miniSession.adminId,
         type: "email.mini_session.customer_confirmation.failed",
         title: "Visszaigazoló email újraküldése sikertelen",
-        message: `${booking.name} · ${booking.email}`,
+        message: delivery.errorMessage || `${booking.name} · ${booking.email}`,
         severity: "warning",
-        status: "failed",
+        status: delivery.status === "retry" ? "warning" : "failed",
         source: "email",
         href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
         metadata: {
           bookingId: booking.id,
           sessionId: booking.miniSession.id,
-          recipient: booking.email
+          recipient: booking.email,
+          deliveryLogId: delivery.log.id,
+          deliveryStatus: delivery.status
         }
       });
+      resendDeliveryFailed = true;
     }
   } catch (error) {
     console.error("Mini session confirmation resend failed", error);
@@ -1733,6 +1806,215 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_send`);
   }
 
+  if (resendDeliveryFailed) {
+    revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_send`);
+  }
+
   revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
   redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&confirmationSent=1`);
+}
+
+export async function resendMiniSessionAdminNotificationAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      miniSession: adminOwnedWhere(admin)
+    },
+    include: {
+      miniSession: {
+        include: {
+          admin: {
+            select: {
+              email: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  if (booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_unavailable`);
+  }
+
+  const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
+  const publicUrl = miniSessionPublicUrl(booking.miniSession.slug);
+  const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
+  const calendarFilename = miniSessionCalendarFilename(booking.miniSession.title);
+  const adminCalendarIcs = buildMiniSessionCalendarIcs({
+    uid: miniSessionCalendarUid(booking.id),
+    sessionTitle: booking.miniSession.title,
+    location: booking.miniSession.location,
+    startsAt: booking.startsAt,
+    endsAt: booking.endsAt,
+    createdAt: booking.createdAt,
+    updatedAt: booking.updatedAt,
+    url: adminUrl,
+    description: miniSessionCalendarDescription({
+      location: booking.miniSession.location,
+      name: booking.name,
+      email: booking.email,
+      phone: booking.phone,
+      attendeeCount: booking.attendeeCount,
+      adminUrl
+    })
+  });
+  let resendDeliveryFailed = false;
+
+  try {
+    const delivery = await runLoggedDelivery({
+      adminId: booking.miniSession.adminId,
+      channel: DELIVERY_CHANNEL_EMAIL,
+      type: "email.mini_session.admin_notification",
+      recipient: booking.miniSession.admin.email,
+      subject: `Új mini session foglalás: ${booking.miniSession.title}`,
+      provider: "resend",
+      entityType: "mini_session_booking",
+      entityId: booking.id,
+      metadata: {
+        sessionId: booking.miniSession.id,
+        recipient: booking.miniSession.admin.email,
+        source: "admin_resend"
+      },
+      send: () => sendMiniSessionAdminBookingEmail({
+        to: booking.miniSession.admin.email,
+        replyTo: booking.email,
+        sessionTitle: booking.miniSession.title,
+        sessionDate: booking.startsAt,
+        location: booking.miniSession.location,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        name: booking.name,
+        email: booking.email,
+        phone: booking.phone,
+        attendeeCount: booking.attendeeCount,
+        adminUrl,
+        publicUrl,
+        calendarUrl,
+        calendarIcs: adminCalendarIcs,
+        calendarFilename
+      })
+    });
+
+    if (delivery.ok) {
+      await prisma.miniSessionBooking.update({
+        where: { id: booking.id },
+        data: { adminEmailSentAt: delivery.log.sentAt ?? new Date() }
+      });
+      await logSystemEvent({
+        actorAdminId: admin.id,
+        targetAdminId: booking.miniSession.adminId,
+        type: "email.mini_session.admin_notification.resent",
+        title: "Admin értesítő email újraküldve",
+        message: `${booking.name} · ${booking.email}`,
+        severity: "success",
+        status: "success",
+        source: "email",
+        href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          recipient: booking.miniSession.admin.email,
+          deliveryLogId: delivery.log.id
+        }
+      });
+    } else {
+      resendDeliveryFailed = true;
+      await logSystemEvent({
+        actorAdminId: admin.id,
+        targetAdminId: booking.miniSession.adminId,
+        type: "email.mini_session.admin_notification.failed",
+        title: "Admin értesítő email újraküldése sikertelen",
+        message: delivery.errorMessage || `${booking.name} · ${booking.email}`,
+        severity: "warning",
+        status: delivery.status === "retry" ? "warning" : "failed",
+        source: "email",
+        href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          recipient: booking.miniSession.admin.email,
+          deliveryLogId: delivery.log.id,
+          deliveryStatus: delivery.status
+        }
+      });
+    }
+  } catch (error) {
+    console.error("Mini session admin notification resend failed", error);
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: booking.miniSession.adminId,
+      type: "email.mini_session.admin_notification.failed",
+      title: "Admin értesítő email újraküldési hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "email",
+      href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        recipient: booking.miniSession.admin.email
+      }
+    });
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_send`);
+  }
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  if (resendDeliveryFailed) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_send`);
+  }
+  redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&adminNotificationSent=1`);
+}
+
+export async function retryMiniSessionBookingCalendarSyncAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      miniSession: adminOwnedWhere(admin)
+    },
+    select: {
+      id: true,
+      miniSession: {
+        select: {
+          id: true,
+          adminId: true
+        }
+      }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  const result = await syncMiniSessionBookingToGoogleCalendar(booking.id);
+  const syncOk = result.status !== "error" && result.status !== "not_configured";
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: booking.miniSession.adminId,
+    type: "google_calendar.mini_session_booking.retry",
+    title: "Google Calendar újraszinkronizálás",
+    message: result.status,
+    severity: syncOk ? "success" : "warning",
+    status: syncOk ? "success" : "failed",
+    source: "google_calendar",
+    href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+    metadata: {
+      bookingId: booking.id,
+      sessionId: booking.miniSession.id,
+      result: result.status
+    }
+  });
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&calendarSynced=${syncOk ? "1" : "0"}`);
 }

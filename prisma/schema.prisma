@@ -45,6 +45,7 @@ model Admin {
   passwordResetTokens AdminPasswordResetToken[]
   systemEventsAsActor SystemEvent[] @relation("SystemEventActor")
   systemEventsAsTarget SystemEvent[] @relation("SystemEventTarget")
+  deliveryLogs DeliveryLog[]
 }
 
 model AdminPasswordResetToken {
@@ -114,6 +115,36 @@ model SystemEvent {
   @@index([severity])
   @@index([status])
   @@index([createdAt])
+}
+
+model DeliveryLog {
+  id                String   @id @default(cuid())
+  adminId           String
+  channel           String
+  type              String
+  status            String   @default("pending")
+  recipient         String?
+  subject           String?
+  provider          String?
+  providerMessageId String?
+  entityType        String?
+  entityId          String?
+  attemptCount      Int      @default(0)
+  maxAttempts       Int      @default(3)
+  lastError         String?
+  nextAttemptAt     DateTime?
+  sentAt            DateTime?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  admin             Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, createdAt])
+  @@index([adminId, status])
+  @@index([channel, status])
+  @@index([entityType, entityId])
+  @@index([type])
+  @@index([nextAttemptAt])
 }
 
 model AdminCalendarBlock {
