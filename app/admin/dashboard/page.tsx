@@ -12,7 +12,6 @@ import {
   Heart,
   ImagePlus,
   Mail,
-  MapPin,
   MessageSquare,
   ReceiptText
 } from "lucide-react";
@@ -21,6 +20,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { LeadPipelineBoard } from "@/components/lead-pipeline-board";
+import { UpcomingWorkCardGrid, type UpcomingWorkCard } from "@/components/upcoming-work-card-grid";
 import { ViewLocationMap } from "@/components/view-location-map";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
@@ -514,6 +514,7 @@ const DASHBOARD_COPY = {
     projectsEyebrow: "Munkák",
     projectsTitle: "Következő munkák",
     projectsDescription: "Ügyfélprojektek és egyszerű időpontfoglalások egy időrendben.",
+    openAllWork: "Összes munka",
     openClients: "Ügyfelek megnyitása",
     openBookings: "Foglalások megnyitása",
     noUpcomingTitle: "Nincs közelgő munka",
@@ -627,6 +628,7 @@ const DASHBOARD_COPY = {
     projectsEyebrow: "Arbeiten",
     projectsTitle: "Nächste Arbeiten",
     projectsDescription: "Kundenprojekte und einfache Terminbuchungen in chronologischer Reihenfolge.",
+    openAllWork: "Alle Arbeiten",
     openClients: "Kunden öffnen",
     openBookings: "Buchungen öffnen",
     noUpcomingTitle: "Keine anstehenden Arbeiten",
@@ -740,6 +742,7 @@ const DASHBOARD_COPY = {
     projectsEyebrow: "Work",
     projectsTitle: "Upcoming work",
     projectsDescription: "Client projects and simple appointment bookings in chronological order.",
+    openAllWork: "All work",
     openClients: "Open clients",
     openBookings: "Open bookings",
     noUpcomingTitle: "No upcoming work",
@@ -779,7 +782,7 @@ function UpcomingProjectsSection({
   const visibleProjects = projects.filter(
     (project): project is DashboardUpcomingProject & { eventDate: Date } => project.eventDate instanceof Date
   );
-  const visibleWorks = [
+  const visibleWorks: UpcomingWorkCard[] = [
     ...visibleProjects.map((project) => ({
       key: `project-${project.id}`,
       date: project.eventDate,
@@ -788,7 +791,7 @@ function UpcomingProjectsSection({
       subtitle: project.customer.coupleName,
       time: formatProjectTimeText(project),
       venue: project.venue,
-      badges: [customerProjectTypeLabel(project.projectType), customerProjectStatusLabel(project.status)],
+      badges: [customerProjectTypeLabel(project.projectType), customerProjectStatusLabel(project.status)] as [string, string],
       footer: `${project._count.galleries} ${copy.gallery}`,
       footerLabel: copy.calendar.project
     })),
@@ -800,7 +803,7 @@ function UpcomingProjectsSection({
       subtitle: booking.name,
       time: formatMiniSessionSlot(booking.startsAt, booking.endsAt, miniSessionLanguageForAdmin(language)),
       venue: booking.miniSession.location,
-      badges: [copy.simpleBooking, copy.booked],
+      badges: [copy.simpleBooking, copy.booked] as [string, string],
       footer: `${copy.calendar.miniSessionAttendees(booking.attendeeCount)} · ${booking.email}`,
       footerLabel: copy.calendar.miniSessionBooking
     }))
@@ -820,6 +823,13 @@ function UpcomingProjectsSection({
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">{copy.projectsDescription}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/work"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+          >
+            {copy.openAllWork}
+            <ArrowRight size={15} />
+          </Link>
           <Link
             href="/admin/clients"
             className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
@@ -846,53 +856,12 @@ function UpcomingProjectsSection({
           />
         </div>
       ) : (
-        <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
-          {visibleWorks.map((work) => (
-              <Link
-                key={work.key}
-                href={work.href}
-                className="group rounded-md border border-ink/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brass/30 hover:shadow-sm"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-20 shrink-0 rounded-md bg-paper px-2 py-2 text-center ring-1 ring-ink/8">
-                    <p className="text-sm font-semibold text-ink">{formatShortCalendarDate(work.date, language)}</p>
-                    <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-graphite/55">
-                      {formatWeekday(work.date, language)}
-                    </p>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">{work.badges[0]}</span>
-                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">{work.badges[1]}</span>
-                    </div>
-                    <h3 className="mt-2 truncate font-semibold text-ink">{work.title}</h3>
-                    <p className="mt-1 truncate text-sm text-graphite/70">{work.subtitle}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-2 text-sm text-graphite/70">
-                  <span className="inline-flex min-w-0 items-center gap-2">
-                    <CalendarClock size={15} className="shrink-0 text-brass" />
-                    <span className="truncate">{work.time ?? copy.missingTime}</span>
-                  </span>
-                  <span className="inline-flex min-w-0 items-center gap-2">
-                    <MapPin size={15} className="shrink-0 text-brass" />
-                    <span className="truncate">{work.venue || copy.missingVenue}</span>
-                  </span>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between gap-3 border-t border-ink/8 pt-3">
-                  <span className="text-xs font-medium text-graphite/60">
-                    {work.footer}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-brass">
-                    {work.footerLabel}
-                    <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
-                  </span>
-                </div>
-              </Link>
-          ))}
-        </div>
+        <UpcomingWorkCardGrid
+          works={visibleWorks}
+          language={language}
+          missingTime={copy.missingTime}
+          missingVenue={copy.missingVenue}
+        />
       )}
     </section>
   );
