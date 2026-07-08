@@ -7,7 +7,14 @@ import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
+import {
+  CUSTOMER_STATUSES,
+  CUSTOMER_TYPES,
+  customerStatusDisplayLabel,
+  customerTypeLabel,
+  normalizeCustomerStatus,
+  normalizeCustomerType
+} from "@/lib/customer-options";
 import { CUSTOMER_WORKFLOW_LANES, getCustomerWorkflowSummary, normalizeCustomerWorkflowLane } from "@/lib/customer-workflow";
 import { prisma } from "@/lib/prisma";
 import { PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
@@ -22,6 +29,87 @@ function formatDate(date: Date | null) {
     month: "short",
     day: "numeric",
     timeZone: APP_TIME_ZONE
+  });
+}
+
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function sortedProjectsForList<T extends { createdAt: Date; eventDate: Date | null }>(projects: T[], today: Date) {
+  return [...projects].sort((left, right) => {
+    const leftTime = left.eventDate?.getTime();
+    const rightTime = right.eventDate?.getTime();
+    const leftUpcoming = typeof leftTime === "number" && leftTime >= today.getTime();
+    const rightUpcoming = typeof rightTime === "number" && rightTime >= today.getTime();
+
+    if (leftUpcoming !== rightUpcoming) {
+      return leftUpcoming ? -1 : 1;
+    }
+
+    if (typeof leftTime === "number" && typeof rightTime === "number") {
+      return leftUpcoming ? leftTime - rightTime : rightTime - leftTime;
+    }
+
+    if (typeof leftTime === "number") {
+      return -1;
+    }
+
+    if (typeof rightTime === "number") {
+      return 1;
+    }
+
+    return right.createdAt.getTime() - left.createdAt.getTime();
+  });
+}
+
+function nextListProject<T extends { createdAt: Date; eventDate: Date | null }>(projects: T[], today: Date) {
+  return sortedProjectsForList(projects, today)[0] ?? null;
+}
+
+function customerWorkDate(
+  customer: {
+    weddingDate: Date | null;
+    projects: Array<{ createdAt: Date; eventDate: Date | null }>;
+  },
+  today: Date
+) {
+  const nextProject = nextListProject(customer.projects, today);
+  return nextProject?.eventDate ?? customer.weddingDate;
+}
+
+function hasKnownWorkDate(customer: { weddingDate: Date | null; projects: Array<{ eventDate: Date | null }> }) {
+  return Boolean(customer.weddingDate || customer.projects.some((project) => project.eventDate));
+}
+
+function customerHasUpcomingWork(
+  customer: {
+    weddingDate: Date | null;
+    projects: Array<{ eventDate: Date | null }>;
+  },
+  today: Date
+) {
+  const dates = [customer.weddingDate, ...customer.projects.map((project) => project.eventDate)].filter(
+    (date): date is Date => Boolean(date)
+  );
+
+  return dates.some((date) => date.getTime() >= today.getTime());
+}
+
+function customerListStatusLabel(
+  customer: {
+    status: string;
+    weddingDate: Date | null;
+    projects: Array<{ createdAt: Date; eventDate: Date | null }>;
+  },
+  today: Date
+) {
+  return customerStatusDisplayLabel(customer.status, {
+    hasKnownWorkDate: hasKnownWorkDate(customer),
+    referenceDate: today,
+    workDate: customerHasUpcomingWork(customer, today) ? customerWorkDate(customer, today) : null
   });
 }
 
@@ -102,6 +190,15 @@ export default async function AdminClientsPage({
           }
         }
       },
+      projects: {
+        where: { status: { not: "archived" } },
+        orderBy: [{ eventDate: "asc" }, { createdAt: "desc" }],
+        select: {
+          eventDate: true,
+          venue: true,
+          createdAt: true
+        }
+      },
       _count: {
         select: {
           galleries: true,
@@ -110,6 +207,7 @@ export default async function AdminClientsPage({
       }
     }
   });
+  const today = startOfToday();
   const customersWithWorkflow = customers.map((customer) => ({
     ...customer,
     workflow: getCustomerWorkflowSummary(customer)
@@ -264,52 +362,58 @@ export default async function AdminClientsPage({
       ) : (
         <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
           <div className="divide-y divide-ink/10">
-            {visibleCustomers.map((customer) => (
-              <Link
-                key={customer.id}
-                href={`/admin/clients/${customer.id}`}
-                className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] md:grid-cols-[1fr_auto] md:items-center"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <p className="truncate text-sm font-semibold text-ink sm:text-base">{customer.coupleName}</p>
-                    <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
-                      {customerStatusLabel(customer.status)}
-                    </span>
-                    <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
-                      {customerTypeLabel(customer.customerType)}
-                    </span>
-                    <span className="rounded-full bg-sage/10 px-2 py-0.5 text-[11px] font-medium text-sage">
-                      {customer.workflow.laneLabel}
-                    </span>
-                    {customer.tags.map((tag) => (
-                      <span key={tag} className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-ink">
-                        {tag}
+            {visibleCustomers.map((customer) => {
+              const nextProject = nextListProject(customer.projects, today);
+              const displayDate = customerWorkDate(customer, today);
+              const displayVenue = customer.venue || nextProject?.venue || "Nincs helyszín";
+
+              return (
+                <Link
+                  key={customer.id}
+                  href={`/admin/clients/${customer.id}`}
+                  className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] md:grid-cols-[1fr_auto] md:items-center"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate text-sm font-semibold text-ink sm:text-base">{customer.coupleName}</p>
+                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                        {customerListStatusLabel(customer, today)}
                       </span>
-                    ))}
+                      <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
+                        {customerTypeLabel(customer.customerType)}
+                      </span>
+                      <span className="rounded-full bg-sage/10 px-2 py-0.5 text-[11px] font-medium text-sage">
+                        {customer.workflow.laneLabel}
+                      </span>
+                      {customer.tags.map((tag) => (
+                        <span key={tag} className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-ink">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-1.5 flex flex-col gap-1 text-xs text-graphite/70 sm:flex-row sm:items-center sm:gap-4">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Mail size={14} />
+                        {customer.primaryEmail}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <CalendarDays size={14} />
+                        {formatDate(displayDate)}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-ink">
+                      {customer.workflow.title}
+                      <ArrowRight size={14} />
+                    </p>
                   </div>
-                  <div className="mt-1.5 flex flex-col gap-1 text-xs text-graphite/70 sm:flex-row sm:items-center sm:gap-4">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Mail size={14} />
-                      {customer.primaryEmail}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <CalendarDays size={14} />
-                      {formatDate(customer.weddingDate)}
-                    </span>
+                  <div className="text-xs text-graphite/65 md:text-right">
+                    <p className="font-medium text-graphite">{displayVenue}</p>
+                    <p>Létrehozva: {formatDate(customer.createdAt)}</p>
+                    <p>{customer._count.galleries} galéria · {customer._count.contracts} szerződés</p>
                   </div>
-                  <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-ink">
-                    {customer.workflow.title}
-                    <ArrowRight size={14} />
-                  </p>
-                </div>
-                <div className="text-xs text-graphite/65 md:text-right">
-                  <p className="font-medium text-graphite">{customer.venue || "Nincs helyszín"}</p>
-                  <p>Létrehozva: {formatDate(customer.createdAt)}</p>
-                  <p>{customer._count.galleries} galéria · {customer._count.contracts} szerződés</p>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </section>
       )}

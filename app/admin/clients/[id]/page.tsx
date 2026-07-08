@@ -39,7 +39,7 @@ import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
-import { CUSTOMER_STATUSES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
+import { CUSTOMER_STATUSES, customerStatusDisplayLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 import { customerPortalUrl } from "@/lib/email";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { getProjectWorkflowSummary } from "@/lib/project-workflow";
@@ -1032,6 +1032,11 @@ export default async function AdminClientDetailPage({
   const today = startOfToday();
   const projectsByDate = sortProjectsForOverview(customer.projects, today);
   const nextProject = getNextProject(customer.projects, today);
+  const statusLabel = customerStatusDisplayLabel(customer.status, {
+    hasKnownWorkDate: Boolean(customer.weddingDate || customer.projects.some((project) => project.eventDate)),
+    referenceDate: today,
+    workDate: nextProject?.eventDate ?? customer.weddingDate
+  });
   const projectWorkflowSummaries = new Map(
     projectsByDate.map((project) => [project.id, getProjectWorkflowSummary(customer.id, project, { today })])
   );
@@ -1046,7 +1051,7 @@ export default async function AdminClientDetailPage({
           <div>
             <h1 className="text-3xl font-semibold text-ink">{customer.coupleName}</h1>
             <p className="mt-3 text-sm text-graphite/70">
-              {typeLabel} · {customerStatusLabel(customer.status)} · {formatDate(customer.weddingDate)}
+              {typeLabel} · {statusLabel} · {formatDate(nextProject?.eventDate ?? customer.weddingDate)}
             </p>
             {customer.tags.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1624,7 +1629,7 @@ export default async function AdminClientDetailPage({
 
       <div data-customer-tab-panel="details" hidden={activeTab !== "details"}>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div>{isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} />}</div>
+          <div>{isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} statusLabel={statusLabel} />}</div>
           <aside className="space-y-6">
             <section className="rounded-md border border-ink/10 bg-white p-5">
               <h2 className="text-base font-semibold text-ink">Gyors adatok</h2>

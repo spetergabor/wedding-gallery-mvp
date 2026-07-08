@@ -66,8 +66,8 @@ function DetailItem({
   );
 }
 
-export function CustomerProfileCard({ customer }: { customer: CustomerFormValue }) {
-  const status = customerStatusLabel(customer.status);
+export function CustomerProfileCard({ customer, statusLabel }: { customer: CustomerFormValue; statusLabel?: string }) {
+  const status = statusLabel ?? customerStatusLabel(customer.status);
   const typeLabel = customerTypeLabel(customer.customerType);
 
   return (
