@@ -10,6 +10,7 @@ import {
   parseMiniSessionLocalDateTime
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { logSystemEvent } from "@/lib/system-events";
 
 export const GOOGLE_CALENDAR_OAUTH_STATE_COOKIE = "wgm_google_calendar_oauth_state";
 
@@ -725,6 +726,23 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
       where: { id: integration.id },
       data: { lastSyncError: message }
     });
+    await logSystemEvent({
+      targetAdminId: booking.miniSession.adminId,
+      type: "google_calendar.mini_session_booking.sync_failed",
+      title: "Google Calendar mini session sync hiba",
+      message,
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: adminMiniSessionUrl(booking.miniSession.id),
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        calendarId,
+        startsAt: booking.startsAt.toISOString(),
+        endsAt: booking.endsAt.toISOString()
+      }
+    });
     console.error("Google Calendar mini session sync failed", error);
     return { status: "error" as const };
   }
@@ -829,6 +847,21 @@ export async function syncCustomerProjectToGoogleCalendar(projectId: string) {
     await prisma.googleCalendarIntegration.update({
       where: { id: integration.id },
       data: { lastSyncError: message }
+    });
+    await logSystemEvent({
+      targetAdminId: project.customer.adminId,
+      type: "google_calendar.customer_project.sync_failed",
+      title: "Google Calendar projekt sync hiba",
+      message,
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: projectAdminUrl(project.customer.id),
+      metadata: {
+        projectId: project.id,
+        customerId: project.customer.id,
+        calendarId
+      }
     });
     console.error("Google Calendar customer project sync failed", error);
     return { status: "error" as const };

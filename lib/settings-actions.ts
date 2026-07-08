@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logSystemEvent } from "@/lib/system-events";
 import {
   createBrandAssetObjectKey,
   deletePhotoObject,
@@ -131,6 +132,26 @@ export async function updateGoogleCalendarSettingsAction(formData: FormData) {
     }
   });
 
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: adminId,
+    type: "google_calendar.settings.updated",
+    title: "Google naptár beállítások módosítva",
+    message: calendarSummary || calendarId,
+    severity: "success",
+    status: "success",
+    source: "google_calendar",
+    href: "/admin/settings?tab=integrations",
+    metadata: {
+      calendarId,
+      calendarSummary,
+      syncMiniSessionBookings: formData.get("syncMiniSessionBookings") === "on",
+      syncCustomerProjects: formData.get("syncCustomerProjects") === "on",
+      blockAvailabilityFromGoogleCalendar: formData.get("blockAvailabilityFromGoogleCalendar") === "on",
+      deleteCancelledEvents: formData.get("deleteCancelledEvents") === "on"
+    }
+  });
+
   revalidatePath("/admin/settings");
   redirect("/admin/settings?tab=integrations&google=saved");
 }
@@ -144,6 +165,17 @@ export async function disconnectGoogleCalendarAction() {
 
   await prisma.googleCalendarIntegration.deleteMany({
     where: { adminId: ownerAdminId(admin) }
+  });
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: ownerAdminId(admin),
+    type: "google_calendar.disconnected",
+    title: "Google naptár kapcsolat leválasztva",
+    severity: "warning",
+    status: "success",
+    source: "google_calendar",
+    href: "/admin/settings?tab=integrations"
   });
 
   revalidatePath("/admin/settings");

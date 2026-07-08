@@ -3,6 +3,7 @@ import {
   Activity,
   CalendarDays,
   CheckCircle2,
+  ClipboardList,
   Cloud,
   Database,
   ExternalLink,
@@ -37,7 +38,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { disconnectGoogleCalendarAction, updateGoogleCalendarSettingsAction } from "@/lib/settings-actions";
 
-type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security";
+type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security" | "logs";
 
 const providerLinks = [
   {
@@ -310,7 +311,8 @@ const SETTINGS_COPY = {
       profile: "Fotós adatok",
       security: "Biztonság",
       integrations: "Integrációk",
-      providers: "Szolgáltatók"
+      providers: "Szolgáltatók",
+      logs: "Napló"
     },
     navLabel: "Beállítások fülek",
     alerts: {
@@ -372,6 +374,22 @@ const SETTINGS_COPY = {
       disconnectConfirm: "Biztosan leválasztod a Google naptár kapcsolatot?",
       disconnectButton: "Google kapcsolat leválasztása",
       noData: "Nincs adat"
+    },
+    logs: {
+      eyebrow: "Szuperadmin",
+      title: "Rendszernapló",
+      description: "A legutóbbi platformszintű események egy helyen: foglalások, Google szinkronok, email hibák és admin műveletek.",
+      latest: "Legutóbbi 100 esemény",
+      emptyTitle: "Még nincs naplózott esemény",
+      emptyBody: "Ahogy történnek foglalások, szinkronok vagy hibák, itt jelennek meg.",
+      actor: "Műveletet végző",
+      target: "Érintett fotós",
+      source: "Forrás",
+      type: "Típus",
+      metadata: "Részletek",
+      open: "Megnyitás",
+      noActor: "Publikus / rendszer",
+      noTarget: "Nincs megadva"
     }
   },
   de: {
@@ -383,7 +401,8 @@ const SETTINGS_COPY = {
       profile: "Fotografendaten",
       security: "Sicherheit",
       integrations: "Integrationen",
-      providers: "Dienste"
+      providers: "Dienste",
+      logs: "Protokoll"
     },
     navLabel: "Einstellungsbereiche",
     alerts: {
@@ -445,6 +464,22 @@ const SETTINGS_COPY = {
       disconnectConfirm: "Google Kalender-Verbindung wirklich trennen?",
       disconnectButton: "Google-Verbindung trennen",
       noData: "Keine Daten"
+    },
+    logs: {
+      eyebrow: "Superadmin",
+      title: "Systemprotokoll",
+      description: "Die neuesten plattformweiten Ereignisse: Buchungen, Google-Synchronisierungen, E-Mail-Fehler und Admin-Aktionen.",
+      latest: "Letzte 100 Ereignisse",
+      emptyTitle: "Noch keine protokollierten Ereignisse",
+      emptyBody: "Sobald Buchungen, Synchronisierungen oder Fehler auftreten, erscheinen sie hier.",
+      actor: "Ausgeführt von",
+      target: "Betroffener Fotograf",
+      source: "Quelle",
+      type: "Typ",
+      metadata: "Details",
+      open: "Öffnen",
+      noActor: "Öffentlich / System",
+      noTarget: "Nicht angegeben"
     }
   },
   en: {
@@ -456,7 +491,8 @@ const SETTINGS_COPY = {
       profile: "Photographer details",
       security: "Security",
       integrations: "Integrations",
-      providers: "Providers"
+      providers: "Providers",
+      logs: "Logs"
     },
     navLabel: "Settings tabs",
     alerts: {
@@ -518,6 +554,22 @@ const SETTINGS_COPY = {
       disconnectConfirm: "Are you sure you want to disconnect Google Calendar?",
       disconnectButton: "Disconnect Google Calendar",
       noData: "No data"
+    },
+    logs: {
+      eyebrow: "Super admin",
+      title: "System log",
+      description: "Recent platform-level events in one place: bookings, Google syncs, e-mail failures and admin actions.",
+      latest: "Latest 100 events",
+      emptyTitle: "No logged events yet",
+      emptyBody: "Bookings, syncs and failures will appear here as they happen.",
+      actor: "Actor",
+      target: "Affected photographer",
+      source: "Source",
+      type: "Type",
+      metadata: "Details",
+      open: "Open",
+      noActor: "Public / system",
+      noTarget: "Not specified"
     }
   }
 } as const;
@@ -535,6 +587,170 @@ function formatSettingsDateTime(date: Date | null | undefined, language: AdminLa
     minute: "2-digit",
     timeZone: APP_TIME_ZONE
   });
+}
+
+type SettingsSystemEvent = {
+  id: string;
+  actorAdmin: { name: string; email: string } | null;
+  targetAdmin: { name: string; email: string } | null;
+  type: string;
+  title: string;
+  message: string | null;
+  severity: string;
+  status: string;
+  source: string | null;
+  href: string | null;
+  metadata: unknown;
+  createdAt: Date;
+};
+
+const SYSTEM_EVENT_STATUS_LABELS = {
+  hu: {
+    started: "Elindult",
+    success: "Sikeres",
+    failed: "Hiba",
+    skipped: "Kihagyva",
+    warning: "Figyelmeztetés"
+  },
+  de: {
+    started: "Gestartet",
+    success: "Erfolgreich",
+    failed: "Fehler",
+    skipped: "Übersprungen",
+    warning: "Warnung"
+  },
+  en: {
+    started: "Started",
+    success: "Successful",
+    failed: "Failed",
+    skipped: "Skipped",
+    warning: "Warning"
+  }
+} as const;
+
+function systemEventStatusLabel(status: string, language: AdminLanguage) {
+  const labels = SYSTEM_EVENT_STATUS_LABELS[language];
+  return labels[status as keyof typeof labels] ?? status;
+}
+
+function systemEventBadgeClass(event: { severity: string; status: string }) {
+  if (event.severity === "error" || event.status === "failed") {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  if (event.severity === "warning" || event.status === "warning") {
+    return "border-brass/25 bg-brass/10 text-brass";
+  }
+
+  if (event.severity === "success" || event.status === "success") {
+    return "border-sage/25 bg-sage/10 text-sage";
+  }
+
+  return "border-ink/10 bg-ink/5 text-graphite";
+}
+
+function adminIdentity(admin: { name: string; email: string } | null, fallback: string) {
+  return admin ? `${admin.name} · ${admin.email}` : fallback;
+}
+
+function metadataText(metadata: unknown) {
+  if (!metadata) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(metadata, null, 2);
+  } catch {
+    return String(metadata);
+  }
+}
+
+function SystemEventLog({ events, language }: { events: SettingsSystemEvent[]; language: AdminLanguage }) {
+  const copy = SETTINGS_COPY[language].logs;
+
+  return (
+    <section className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brass">
+            <ClipboardList size={15} />
+            {copy.eyebrow}
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
+        </div>
+        <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+          {copy.latest}
+        </span>
+      </div>
+
+      {events.length === 0 ? (
+        <div className="mt-6 rounded-md border border-dashed border-ink/15 bg-paper px-5 py-8 text-center">
+          <p className="text-sm font-semibold text-ink">{copy.emptyTitle}</p>
+          <p className="mt-2 text-sm text-graphite/65">{copy.emptyBody}</p>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-3">
+          {events.map((event) => {
+            const details = metadataText(event.metadata);
+
+            return (
+              <article key={event.id} className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${systemEventBadgeClass(event)}`}>
+                        {systemEventStatusLabel(event.status, language)}
+                      </span>
+                      {event.source ? (
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite ring-1 ring-ink/10">
+                          {event.source}
+                        </span>
+                      ) : null}
+                    </div>
+                    <h3 className="mt-3 text-base font-semibold text-ink">{event.title}</h3>
+                    {event.message ? <p className="mt-1 text-sm leading-6 text-graphite/70">{event.message}</p> : null}
+                  </div>
+                  <time className="shrink-0 text-sm text-graphite/60" dateTime={event.createdAt.toISOString()}>
+                    {formatSettingsDateTime(event.createdAt, language, "-")}
+                  </time>
+                </div>
+
+                <div className="mt-4 grid gap-3 text-xs text-graphite/65 md:grid-cols-3">
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.actor}</span>
+                    <span className="mt-1 block truncate font-medium text-graphite">{adminIdentity(event.actorAdmin, copy.noActor)}</span>
+                  </div>
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.target}</span>
+                    <span className="mt-1 block truncate font-medium text-graphite">{adminIdentity(event.targetAdmin, copy.noTarget)}</span>
+                  </div>
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.type}</span>
+                    <span className="mt-1 block truncate font-medium text-graphite">{event.type}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  {event.href ? (
+                    <Link href={event.href} className="inline-flex h-9 items-center justify-center rounded-md border border-ink/10 bg-white px-3 text-xs font-medium text-ink transition hover:bg-ink/5">
+                      {copy.open}
+                    </Link>
+                  ) : null}
+                  {details ? (
+                    <details className="min-w-0 flex-1">
+                      <summary className="cursor-pointer text-xs font-medium text-graphite hover:text-ink">{copy.metadata}</summary>
+                      <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-white p-3 text-xs leading-5 text-graphite/75">{details}</pre>
+                    </details>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function calendarOptionValue(option: { id: string; summary: string }) {
@@ -965,6 +1181,8 @@ export default async function AdminSettingsPage({
   const activeTab: SettingsTab =
     params.tab === "security"
       ? "security"
+      : params.tab === "logs" && admin.role === "super_admin"
+        ? "logs"
       : params.tab === "integrations" && !isTeamWorkspace
         ? "integrations"
       : params.tab === "providers" && admin.role === "super_admin"
@@ -974,7 +1192,7 @@ export default async function AdminSettingsPage({
           : params.tab === "profile" || isTeamWorkspace
             ? "profile"
             : "brand";
-  const [settings, photographerProfile, serviceUsage, googleIntegration] = await Promise.all([
+  const [settings, photographerProfile, serviceUsage, googleIntegration, systemEvents] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
         OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -1033,7 +1251,27 @@ export default async function AdminSettingsPage({
             updatedAt: true
           }
         })
-      : Promise.resolve(null)
+      : Promise.resolve(null),
+    admin.role === "super_admin"
+      ? prisma.systemEvent.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 100,
+          include: {
+            actorAdmin: {
+              select: {
+                name: true,
+                email: true
+              }
+            },
+            targetAdmin: {
+              select: {
+                name: true,
+                email: true
+              }
+            }
+          }
+        })
+      : Promise.resolve([])
   ]);
   let googleCalendarOptions: GoogleCalendarOption[] = [];
   let googleCalendarOptionsError = false;
@@ -1049,7 +1287,7 @@ export default async function AdminSettingsPage({
 
   const googleConfigured = isGoogleCalendarConfigured();
   const googleMissingConfigKeys = googleCalendarMissingConfigKeys();
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-5" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-4";
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-6" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-4";
   const copy = SETTINGS_COPY[language];
 
   return (
@@ -1113,6 +1351,17 @@ export default async function AdminSettingsPage({
             >
               <Activity size={16} />
               {copy.tabs.providers}
+            </Link>
+          ) : null}
+          {admin.role === "super_admin" ? (
+            <Link
+              href="/admin/settings?tab=logs"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                activeTab === "logs" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <ClipboardList size={16} />
+              {copy.tabs.logs}
             </Link>
           ) : null}
         </nav>
@@ -1345,6 +1594,8 @@ export default async function AdminSettingsPage({
           </div>
         </div>
       ) : null}
+
+      {activeTab === "logs" && admin.role === "super_admin" ? <SystemEventLog events={systemEvents} language={language} /> : null}
     </AdminShell>
   );
 }

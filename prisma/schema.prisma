@@ -43,6 +43,8 @@ model Admin {
   teamMembers  AdminTeamMembership[] @relation("TeamOwner")
   teamMembership AdminTeamMembership? @relation("TeamMember")
   passwordResetTokens AdminPasswordResetToken[]
+  systemEventsAsActor SystemEvent[] @relation("SystemEventActor")
+  systemEventsAsTarget SystemEvent[] @relation("SystemEventTarget")
 }
 
 model AdminPasswordResetToken {
@@ -87,6 +89,30 @@ model AdminNotification {
 
   @@index([adminId])
   @@index([readAt])
+  @@index([createdAt])
+}
+
+model SystemEvent {
+  id            String   @id @default(cuid())
+  actorAdminId  String?
+  targetAdminId String?
+  type          String
+  title         String
+  message       String?
+  severity      String   @default("info")
+  status        String   @default("success")
+  source        String?
+  href          String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  actorAdmin    Admin?   @relation("SystemEventActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
+  targetAdmin   Admin?   @relation("SystemEventTarget", fields: [targetAdminId], references: [id], onDelete: SetNull)
+
+  @@index([actorAdminId, createdAt])
+  @@index([targetAdminId, createdAt])
+  @@index([type])
+  @@index([severity])
+  @@index([status])
   @@index([createdAt])
 }
 

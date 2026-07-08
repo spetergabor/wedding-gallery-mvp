@@ -11,6 +11,7 @@ import {
   isGoogleCalendarConfigured
 } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
+import { logSystemEvent, systemEventErrorMessage } from "@/lib/system-events";
 
 function settingsUrl(params: Record<string, string>) {
   const url = new URL("/admin/settings", process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? "http://localhost:3000");
@@ -72,6 +73,17 @@ export async function GET(request: NextRequest) {
       : existing?.refreshTokenEncrypted ?? null;
 
     if (!refreshTokenEncrypted) {
+      await logSystemEvent({
+        actorAdminId: admin.id,
+        targetAdminId: adminId,
+        type: "google_calendar.connect_failed",
+        title: "Google naptár összekötés sikertelen",
+        message: "A Google nem adott refresh tokent.",
+        severity: "warning",
+        status: "failed",
+        source: "google_calendar",
+        href: "/admin/settings?tab=integrations"
+      });
       const response = NextResponse.redirect(settingsUrl({ google: "no-refresh-token" }));
       response.cookies.delete(GOOGLE_CALENDAR_OAUTH_STATE_COOKIE);
       return response;
@@ -105,11 +117,40 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: adminId,
+      type: "google_calendar.connected",
+      title: "Google naptár összekötve",
+      message: profile.email ?? selectedCalendar?.summary ?? "Google Calendar",
+      severity: "success",
+      status: "success",
+      source: "google_calendar",
+      href: "/admin/settings?tab=integrations",
+      metadata: {
+        googleAccountEmail: profile.email ?? null,
+        calendarId: selectedCalendar?.id ?? "primary",
+        calendarSummary: selectedCalendar?.summary ?? null,
+        scope: token.scope ?? null
+      }
+    });
+
     const response = NextResponse.redirect(settingsUrl({ google: "connected" }));
     response.cookies.delete(GOOGLE_CALENDAR_OAUTH_STATE_COOKIE);
     return response;
   } catch (error) {
     console.error("Google Calendar OAuth callback failed", error);
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: adminId,
+      type: "google_calendar.connect_failed",
+      title: "Google naptár összekötési hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: "/admin/settings?tab=integrations"
+    });
     const response = NextResponse.redirect(settingsUrl({ google: "callback-error" }));
     response.cookies.delete(GOOGLE_CALENDAR_OAUTH_STATE_COOKIE);
     return response;

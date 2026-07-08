@@ -48,6 +48,7 @@ import {
 import { syncMiniSessionBookingLead } from "@/lib/mini-session-leads";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
+import { logSystemEvent, systemEventErrorMessage } from "@/lib/system-events";
 import {
   createMiniSessionCoverObjectKey,
   deletePhotoObject,
@@ -696,11 +697,54 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     console.error("Mini session lead sync failed", error);
   }
 
+  let googleCalendarSyncStatus = "not_run";
+
   try {
-    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    const googleCalendarSync = await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    googleCalendarSyncStatus = googleCalendarSync.status;
   } catch (error) {
+    googleCalendarSyncStatus = "failed";
     console.error("Mini session Google Calendar sync failed", error);
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: session.adminId,
+      type: "google_calendar.mini_session_booking.sync_failed",
+      title: "Google Calendar szinkron hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: `/admin/mini-sessions/${session.id}`,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: session.id,
+        startsAt: booking.startsAt.toISOString(),
+        endsAt: booking.endsAt.toISOString()
+      }
+    });
   }
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: session.adminId,
+    type: source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ? "mini_session.slot.blocked" : "mini_session.booking.created_by_admin",
+    title: source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ? "Idősáv blokkolva" : "Admin foglalás létrehozva",
+    message: `${name} · ${session.title}`,
+    severity: "success",
+    status: "success",
+    source: "mini_session",
+    href: `/admin/mini-sessions/${session.id}?tab=bookings`,
+    metadata: {
+      bookingId: booking.id,
+      sessionId: session.id,
+      bookingSource: source,
+      startsAt: booking.startsAt.toISOString(),
+      endsAt: booking.endsAt.toISOString(),
+      googleCalendarSyncStatus,
+      customerId: booking.customerId ?? null,
+      projectId: booking.projectId ?? null
+    }
+  });
 
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${session.id}`);
@@ -855,10 +899,30 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     console.error("Mini session lead sync failed", error);
   }
 
+  let googleCalendarSyncStatus = "not_run";
+
   try {
-    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    const googleCalendarSync = await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    googleCalendarSyncStatus = googleCalendarSync.status;
   } catch (error) {
+    googleCalendarSyncStatus = "failed";
     console.error("Mini session Google Calendar sync failed", error);
+    await logSystemEvent({
+      targetAdminId: session.adminId,
+      type: "google_calendar.mini_session_booking.sync_failed",
+      title: "Google Calendar szinkron hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: adminUrl,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: session.id,
+        startsAt: booking.startsAt.toISOString(),
+        endsAt: booking.endsAt.toISOString()
+      }
+    });
   }
 
   try {
@@ -882,8 +946,40 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       language
     });
     customerEmailSentAt = sent ? new Date() : null;
+    if (!sent) {
+      await logSystemEvent({
+        targetAdminId: session.adminId,
+        type: "email.mini_session.customer_confirmation.failed",
+        title: "Ügyfél visszaigazoló email nem ment ki",
+        message: `${name} · ${email}`,
+        severity: "warning",
+        status: "failed",
+        source: "email",
+        href: adminUrl,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: session.id,
+          recipient: email
+        }
+      });
+    }
   } catch (error) {
     console.error("Mini session customer email failed", error);
+    await logSystemEvent({
+      targetAdminId: session.adminId,
+      type: "email.mini_session.customer_confirmation.failed",
+      title: "Ügyfél visszaigazoló email hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "email",
+      href: adminUrl,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: session.id,
+        recipient: email
+      }
+    });
   }
 
   try {
@@ -906,8 +1002,40 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       calendarFilename
     });
     adminEmailSentAt = sent ? new Date() : null;
+    if (!sent) {
+      await logSystemEvent({
+        targetAdminId: session.adminId,
+        type: "email.mini_session.admin_notification.failed",
+        title: "Admin értesítő email nem ment ki",
+        message: `${session.title} · ${name}`,
+        severity: "warning",
+        status: "failed",
+        source: "email",
+        href: adminUrl,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: session.id,
+          recipient: session.admin.email
+        }
+      });
+    }
   } catch (error) {
     console.error("Mini session admin email failed", error);
+    await logSystemEvent({
+      targetAdminId: session.adminId,
+      type: "email.mini_session.admin_notification.failed",
+      title: "Admin értesítő email hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "email",
+      href: adminUrl,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: session.id,
+        recipient: session.admin.email
+      }
+    });
   }
 
   if (customerEmailSentAt || adminEmailSentAt) {
@@ -916,6 +1044,31 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       data: { customerEmailSentAt, adminEmailSentAt }
     });
   }
+
+  await logSystemEvent({
+    targetAdminId: session.adminId,
+    type: "mini_session.booking.created",
+    title: "Új mini session foglalás",
+    message: `${name} · ${session.title}`,
+    severity: "success",
+    status: "success",
+    source: "mini_session",
+    href: adminUrl,
+    metadata: {
+      bookingId: booking.id,
+      sessionId: session.id,
+      email,
+      phone,
+      attendeeCount,
+      startsAt: booking.startsAt.toISOString(),
+      endsAt: booking.endsAt.toISOString(),
+      googleCalendarSyncStatus,
+      customerEmailSent: Boolean(customerEmailSentAt),
+      adminEmailSent: Boolean(adminEmailSentAt),
+      customerId: booking.customerId ?? null,
+      projectId: booking.projectId ?? null
+    }
+  });
 
   revalidatePath(`/mini-session/${slug}`);
   revalidatePath("/admin/mini-sessions");
@@ -971,11 +1124,52 @@ export async function rescheduleMiniSessionBookingAction(token: string, formData
     session: booking.miniSession
   });
 
+  let googleCalendarSyncStatus = "not_run";
+
   try {
-    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    const googleCalendarSync = await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    googleCalendarSyncStatus = googleCalendarSync.status;
   } catch (error) {
+    googleCalendarSyncStatus = "failed";
     console.error("Mini session Google Calendar reschedule sync failed", error);
+    await logSystemEvent({
+      targetAdminId: booking.miniSession.adminId,
+      type: "google_calendar.mini_session_booking.sync_failed",
+      title: "Google Calendar átütemezési sync hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: `/admin/mini-sessions/${booking.miniSession.id}`,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        startsAt: slot.startsAt.toISOString(),
+        endsAt: slot.endsAt.toISOString()
+      }
+    });
   }
+
+  await logSystemEvent({
+    targetAdminId: booking.miniSession.adminId,
+    type: "mini_session.booking.rescheduled",
+    title: "Foglalás átütemezve",
+    message: `${booking.name} · ${booking.miniSession.title}`,
+    severity: "success",
+    status: "success",
+    source: "mini_session",
+    href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+    metadata: {
+      bookingId: booking.id,
+      sessionId: booking.miniSession.id,
+      email: booking.email,
+      previousStartsAt: booking.startsAt.toISOString(),
+      previousEndsAt: booking.endsAt.toISOString(),
+      newStartsAt: slot.startsAt.toISOString(),
+      newEndsAt: slot.endsAt.toISOString(),
+      googleCalendarSyncStatus
+    }
+  });
 
   revalidatePath(`/mini-session/${slug}`);
   revalidatePath(`/mini-session/${slug}/reschedule/${token}`);
@@ -1038,11 +1232,54 @@ export async function rescheduleMiniSessionBookingByAdminAction(bookingId: strin
     session: booking.miniSession
   });
 
+  let googleCalendarSyncStatus = "not_run";
+
   try {
-    await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    const googleCalendarSync = await syncMiniSessionBookingToGoogleCalendar(booking.id);
+    googleCalendarSyncStatus = googleCalendarSync.status;
   } catch (error) {
+    googleCalendarSyncStatus = "failed";
     console.error("Mini session Google Calendar admin reschedule sync failed", error);
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: booking.miniSession.adminId,
+      type: "google_calendar.mini_session_booking.sync_failed",
+      title: "Google Calendar admin átütemezési sync hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: `/admin/mini-sessions/${booking.miniSession.id}`,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        startsAt: slot.startsAt.toISOString(),
+        endsAt: slot.endsAt.toISOString()
+      }
+    });
   }
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: booking.miniSession.adminId,
+    type: "mini_session.booking.rescheduled_by_admin",
+    title: "Admin módosította a foglalás időpontját",
+    message: `${booking.name} · ${booking.miniSession.title}`,
+    severity: "success",
+    status: "success",
+    source: "mini_session",
+    href: `/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}`,
+    metadata: {
+      bookingId: booking.id,
+      sessionId: booking.miniSession.id,
+      email: booking.email,
+      previousStartsAt: booking.startsAt.toISOString(),
+      previousEndsAt: booking.endsAt.toISOString(),
+      newStartsAt: slot.startsAt.toISOString(),
+      newEndsAt: slot.endsAt.toISOString(),
+      googleCalendarSyncStatus
+    }
+  });
 
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
@@ -1094,10 +1331,30 @@ export async function cancelMiniSessionBookingAction(token: string) {
       });
     });
 
+    let googleCalendarSyncStatus = "not_run";
+
     try {
-      await syncMiniSessionBookingToGoogleCalendar(booking.id);
+      const googleCalendarSync = await syncMiniSessionBookingToGoogleCalendar(booking.id);
+      googleCalendarSyncStatus = googleCalendarSync.status;
     } catch (error) {
+      googleCalendarSyncStatus = "failed";
       console.error("Mini session Google Calendar cancellation sync failed", error);
+      await logSystemEvent({
+        targetAdminId: booking.miniSession.adminId,
+        type: "google_calendar.mini_session_booking.sync_failed",
+        title: "Google Calendar törlési sync hiba",
+        message: systemEventErrorMessage(error),
+        severity: "error",
+        status: "failed",
+        source: "google_calendar",
+        href: `/admin/mini-sessions/${booking.miniSession.id}`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          startsAt: booking.startsAt.toISOString(),
+          endsAt: booking.endsAt.toISOString()
+        }
+      });
     }
 
     try {
@@ -1149,10 +1406,60 @@ export async function cancelMiniSessionBookingAction(token: string) {
           where: { id: booking.id },
           data: { cancellationEmailSentAt: new Date() }
         });
+      } else {
+        await logSystemEvent({
+          targetAdminId: booking.miniSession.adminId,
+          type: "email.mini_session.cancellation_notification.failed",
+          title: "Lemondási értesítő email nem ment ki",
+          message: `${booking.name} · ${booking.email}`,
+          severity: "warning",
+          status: "failed",
+          source: "email",
+          href: adminUrl,
+          metadata: {
+            bookingId: booking.id,
+            sessionId: booking.miniSession.id,
+            recipient: booking.miniSession.admin.email
+          }
+        });
       }
     } catch (error) {
       console.error("Mini session cancellation email failed", error);
+      await logSystemEvent({
+        targetAdminId: booking.miniSession.adminId,
+        type: "email.mini_session.cancellation_notification.failed",
+        title: "Lemondási értesítő email hiba",
+        message: systemEventErrorMessage(error),
+        severity: "error",
+        status: "failed",
+        source: "email",
+        href: `/admin/mini-sessions/${booking.miniSession.id}`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          recipient: booking.miniSession.admin.email
+        }
+      });
     }
+
+    await logSystemEvent({
+      targetAdminId: booking.miniSession.adminId,
+      type: "mini_session.booking.cancelled",
+      title: "Foglalás törölve ügyfél által",
+      message: `${booking.name} · ${booking.miniSession.title}`,
+      severity: "warning",
+      status: "success",
+      source: "mini_session",
+      href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        email: booking.email,
+        startsAt: booking.startsAt.toISOString(),
+        endsAt: booking.endsAt.toISOString(),
+        googleCalendarSyncStatus
+      }
+    });
   } else {
     await deleteLinkedMiniSessionProjectCalendarEvent(booking.projectId);
 
@@ -1184,12 +1491,18 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
     },
     select: {
       id: true,
+      name: true,
+      email: true,
+      startsAt: true,
+      endsAt: true,
       status: true,
       customerId: true,
       projectId: true,
       miniSession: {
         select: {
           id: true,
+          adminId: true,
+          title: true,
           slug: true
         }
       }
@@ -1218,11 +1531,52 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
       });
     });
 
+    let googleCalendarSyncStatus = "not_run";
+
     try {
-      await syncMiniSessionBookingToGoogleCalendar(booking.id);
+      const googleCalendarSync = await syncMiniSessionBookingToGoogleCalendar(booking.id);
+      googleCalendarSyncStatus = googleCalendarSync.status;
     } catch (error) {
+      googleCalendarSyncStatus = "failed";
       console.error("Mini session Google Calendar admin cancellation sync failed", error);
+      await logSystemEvent({
+        actorAdminId: admin.id,
+        targetAdminId: booking.miniSession.adminId,
+        type: "google_calendar.mini_session_booking.sync_failed",
+        title: "Google Calendar admin törlési sync hiba",
+        message: systemEventErrorMessage(error),
+        severity: "error",
+        status: "failed",
+        source: "google_calendar",
+        href: `/admin/mini-sessions/${booking.miniSession.id}`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          startsAt: booking.startsAt.toISOString(),
+          endsAt: booking.endsAt.toISOString()
+        }
+      });
     }
+
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: booking.miniSession.adminId,
+      type: "mini_session.booking.cancelled_by_admin",
+      title: "Admin törölte a foglalást",
+      message: `${booking.name} · ${booking.miniSession.title}`,
+      severity: "warning",
+      status: "success",
+      source: "mini_session",
+      href: `/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}`,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        email: booking.email,
+        startsAt: booking.startsAt.toISOString(),
+        endsAt: booking.endsAt.toISOString(),
+        googleCalendarSyncStatus
+      }
+    });
   } else {
     await deleteLinkedMiniSessionProjectCalendarEvent(booking.projectId);
 
@@ -1324,9 +1678,58 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
         where: { id: booking.id },
         data: { customerEmailSentAt: new Date() }
       });
+      await logSystemEvent({
+        actorAdminId: admin.id,
+        targetAdminId: booking.miniSession.adminId,
+        type: "email.mini_session.customer_confirmation.resent",
+        title: "Visszaigazoló email újraküldve",
+        message: `${booking.name} · ${booking.email}`,
+        severity: "success",
+        status: "success",
+        source: "email",
+        href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          recipient: booking.email
+        }
+      });
+    } else {
+      await logSystemEvent({
+        actorAdminId: admin.id,
+        targetAdminId: booking.miniSession.adminId,
+        type: "email.mini_session.customer_confirmation.failed",
+        title: "Visszaigazoló email újraküldése sikertelen",
+        message: `${booking.name} · ${booking.email}`,
+        severity: "warning",
+        status: "failed",
+        source: "email",
+        href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          recipient: booking.email
+        }
+      });
     }
   } catch (error) {
     console.error("Mini session confirmation resend failed", error);
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: booking.miniSession.adminId,
+      type: "email.mini_session.customer_confirmation.failed",
+      title: "Visszaigazoló email újraküldési hiba",
+      message: systemEventErrorMessage(error),
+      severity: "error",
+      status: "failed",
+      source: "email",
+      href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        recipient: booking.email
+      }
+    });
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_send`);
   }
 
