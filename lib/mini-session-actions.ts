@@ -46,7 +46,6 @@ import {
   normalizeMiniSessionWeekday,
   parseMiniSessionLocalDateTime
 } from "@/lib/mini-sessions";
-import { syncMiniSessionBookingLead } from "@/lib/mini-session-leads";
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug } from "@/lib/slug";
 import { logSystemEvent, systemEventErrorMessage } from "@/lib/system-events";
@@ -691,13 +690,6 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=taken`);
   }
 
-  try {
-    await syncMiniSessionBookingLead({ booking, miniSession: session });
-    revalidatePath("/admin/dashboard");
-  } catch (error) {
-    console.error("Mini session lead sync failed", error);
-  }
-
   let googleCalendarSyncStatus = "not_run";
 
   try {
@@ -892,13 +884,6 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   });
   let customerEmailSentAt: Date | null = null;
   let adminEmailSentAt: Date | null = null;
-
-  try {
-    await syncMiniSessionBookingLead({ booking, miniSession: session });
-    revalidatePath("/admin/dashboard");
-  } catch (error) {
-    console.error("Mini session lead sync failed", error);
-  }
 
   let googleCalendarSyncStatus = "not_run";
 

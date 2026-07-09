@@ -1659,7 +1659,13 @@ export default async function AdminDashboardPage() {
       }
     }),
     prisma.lead.findMany({
-      where: adminOwnedWhere(admin),
+      where: {
+        ...adminOwnedWhere(admin),
+        NOT: {
+          eventType: "mini_session",
+          notes: { startsWith: "Mini session foglalás (" }
+        }
+      },
       orderBy: [{ status: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
