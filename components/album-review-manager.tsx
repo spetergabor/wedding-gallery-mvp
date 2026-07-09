@@ -1,13 +1,24 @@
 import Image from "next/image";
-import { CheckCircle2, ExternalLink, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, FolderKanban, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { AlbumSpreadUploadForm } from "@/components/album-spread-upload-form";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { createAlbumReviewAction, deleteAlbumReviewAction, deleteAlbumReviewSpreadAction } from "@/lib/album-review-actions";
+import {
+  createAlbumReviewAction,
+  deleteAlbumReviewAction,
+  deleteAlbumReviewSpreadAction,
+  updateAlbumReviewProjectAction
+} from "@/lib/album-review-actions";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+
+type AlbumProjectOption = {
+  id: string;
+  title: string;
+};
 
 type AlbumReview = {
   id: string;
+  projectId: string | null;
   title: string;
   status: string;
   accessToken: string;
@@ -59,11 +70,15 @@ function albumLink(token: string) {
 
 export function AlbumReviewManager({
   customerId,
-  reviews
+  reviews,
+  projects
 }: {
   customerId: string;
   reviews: AlbumReview[];
+  projects: AlbumProjectOption[];
 }) {
+  const projectById = new Map(projects.map((project) => [project.id, project]));
+
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
       <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-start">
@@ -77,12 +92,24 @@ export function AlbumReviewManager({
             Tölts fel SmartAlbumsból vagy más programból exportált JPG oldalpárokat. Az ügyfél a privát linken bárhova kattinthat a képen, és címkés megjegyzést írhat képcseréhez vagy javításhoz.
           </p>
         </div>
-        <form action={createAlbumReviewAction.bind(null, customerId)} className="flex min-w-72 gap-2">
+        <form action={createAlbumReviewAction.bind(null, customerId)} className="grid min-w-72 gap-2 rounded-md border border-ink/10 bg-paper p-3">
           <input
             name="title"
             placeholder="pl. Album v1"
-            className="h-11 min-w-0 flex-1 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
           />
+          <select
+            name="projectId"
+            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            defaultValue=""
+          >
+            <option value="">Nincs projekthez kapcsolva</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.title}
+              </option>
+            ))}
+          </select>
           <FormSubmitButton>
             <Plus size={16} />
             Új ellenőrző
@@ -101,6 +128,7 @@ export function AlbumReviewManager({
             const orderedSpreads = [...review.spreads].sort(compareAlbumSpreadFilenames);
             const commentCount = orderedSpreads.reduce((total, spread) => total + spread.comments.length, 0);
             const approvedCount = orderedSpreads.filter((spread) => spread.approvedAt).length;
+            const linkedProject = review.projectId ? projectById.get(review.projectId) : null;
 
             return (
               <article key={review.id} className="rounded-lg border border-ink/10 bg-paper p-4">
@@ -119,6 +147,17 @@ export function AlbumReviewManager({
                           {approvedCount}/{orderedSpreads.length} rendben
                         </span>
                       ) : null}
+                      {linkedProject ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
+                          <FolderKanban size={13} />
+                          {linkedProject.title}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          <FolderKanban size={13} />
+                          Nincs projekthez kapcsolva
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">Létrehozva: {formatDate(review.createdAt)}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -142,6 +181,23 @@ export function AlbumReviewManager({
                         </ConfirmSubmitButton>
                       </form>
                     </div>
+                    <form action={updateAlbumReviewProjectAction.bind(null, customerId, review.id)} className="mt-3 flex max-w-xl flex-col gap-2 sm:flex-row">
+                      <select
+                        name="projectId"
+                        defaultValue={review.projectId ?? ""}
+                        className="h-10 min-w-0 flex-1 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                      >
+                        <option value="">Nincs projekthez kapcsolva</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.title}
+                          </option>
+                        ))}
+                      </select>
+                      <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
+                        Projekt mentése
+                      </FormSubmitButton>
+                    </form>
                   </div>
                   <AlbumSpreadUploadForm customerId={customerId} reviewId={review.id} />
                 </div>

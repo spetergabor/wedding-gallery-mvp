@@ -40,6 +40,23 @@ function createAlbumAccessToken() {
   return randomBytes(32).toString("base64url");
 }
 
+async function albumProjectIdForCustomer(admin: Awaited<ReturnType<typeof requireAdmin>>, customerId: string, projectId: string) {
+  if (!projectId) {
+    return null;
+  }
+
+  const project = await prisma.customerProject.findFirst({
+    where: {
+      id: projectId,
+      customer: customerAccessWhere(admin, customerId),
+      projectType: "album"
+    },
+    select: { id: true }
+  });
+
+  return project?.id ?? null;
+}
+
 function normalizePoint(value: number) {
   if (!Number.isFinite(value)) {
     return 0;
@@ -78,6 +95,7 @@ async function requireAlbumReviewAccess(customerId: string, reviewId: string) {
 export async function createAlbumReviewAction(customerId: string, formData: FormData) {
   const admin = await requireAdmin();
   const title = formString(formData, "title") || "Album ellenőrző";
+  const requestedProjectId = formString(formData, "projectId");
   const customer = await prisma.customer.findFirst({
     where: customerAccessWhere(admin, customerId),
     select: { id: true, primaryEmail: true }
@@ -87,9 +105,16 @@ export async function createAlbumReviewAction(customerId: string, formData: Form
     redirect("/admin/clients");
   }
 
+  const projectId = await albumProjectIdForCustomer(admin, customer.id, requestedProjectId);
+
+  if (requestedProjectId && !projectId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumError=project`);
+  }
+
   await prisma.albumReview.create({
     data: {
       customerId: customer.id,
+      projectId,
       title,
       clientEmail: customer.primaryEmail,
       accessToken: createAlbumAccessToken()
@@ -97,7 +122,27 @@ export async function createAlbumReviewAction(customerId: string, formData: Form
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/clients");
   redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumCreated=1`);
+}
+
+export async function updateAlbumReviewProjectAction(customerId: string, reviewId: string, formData: FormData) {
+  const { admin, review } = await requireAlbumReviewAccess(customerId, reviewId);
+  const requestedProjectId = formString(formData, "projectId");
+  const projectId = await albumProjectIdForCustomer(admin, review.customerId, requestedProjectId);
+
+  if (requestedProjectId && !projectId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumError=project`);
+  }
+
+  await prisma.albumReview.update({
+    where: { id: review.id },
+    data: { projectId }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/clients");
+  redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumUpdated=1`);
 }
 
 export async function deleteAlbumReviewAction(customerId: string, reviewId: string) {

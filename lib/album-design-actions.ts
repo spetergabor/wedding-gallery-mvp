@@ -104,6 +104,23 @@ async function requireCustomerAccess(customerId: string) {
   return { admin, customer };
 }
 
+async function albumProjectIdForCustomer(admin: Awaited<ReturnType<typeof requireAdmin>>, customerId: string, projectId: string) {
+  if (!projectId) {
+    return null;
+  }
+
+  const project = await prisma.customerProject.findFirst({
+    where: {
+      id: projectId,
+      customer: customerAccessWhere(admin, customerId),
+      projectType: "album"
+    },
+    select: { id: true }
+  });
+
+  return project?.id ?? null;
+}
+
 async function requireAlbumDesignAccess(customerId: string, designId: string) {
   const { admin } = await requireCustomerAccess(customerId);
   const design = await prisma.albumDesign.findFirst({
@@ -115,7 +132,8 @@ async function requireAlbumDesignAccess(customerId: string, designId: string) {
     select: {
       id: true,
       customerId: true,
-      favoriteListId: true
+      favoriteListId: true,
+      projectId: true
     }
   });
 
@@ -196,6 +214,7 @@ export async function createAlbumDesignAction(customerId: string, formData: Form
   const { admin, customer } = await requireCustomerAccess(customerId);
   const title = formString(formData, "title") || "Albumterv";
   const favoriteListId = formString(formData, "favoriteListId");
+  const requestedProjectId = formString(formData, "projectId");
   const favoriteList = await prisma.galleryFavoriteList.findFirst({
     where: {
       id: favoriteListId,
@@ -210,16 +229,43 @@ export async function createAlbumDesignAction(customerId: string, formData: Form
     redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
   }
 
+  const projectId = await albumProjectIdForCustomer(admin, customer.id, requestedProjectId);
+
+  if (requestedProjectId && !projectId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumMode=editor&albumDesignError=project`);
+  }
+
   await prisma.albumDesign.create({
     data: {
       customerId: customer.id,
+      projectId,
       favoriteListId: favoriteList.id,
       title
     }
   });
 
   revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/clients");
   redirect(`/admin/clients/${customerId}?tab=album&albumDesignCreated=1`);
+}
+
+export async function updateAlbumDesignProjectAction(customerId: string, designId: string, formData: FormData) {
+  const { admin, design } = await requireAlbumDesignAccess(customerId, designId);
+  const requestedProjectId = formString(formData, "projectId");
+  const projectId = await albumProjectIdForCustomer(admin, design.customerId, requestedProjectId);
+
+  if (requestedProjectId && !projectId) {
+    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=project`);
+  }
+
+  await prisma.albumDesign.update({
+    where: { id: design.id },
+    data: { projectId }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/clients");
+  redirect(`/admin/clients/${customerId}?tab=album&albumMode=editor&albumDesignUpdated=1`);
 }
 
 export async function createAlbumDesignSpreadAction(customerId: string, designId: string, formData: FormData) {
@@ -407,6 +453,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string, design
       id: true,
       title: true,
       customerId: true,
+      projectId: true,
       customer: {
         select: {
           primaryEmail: true
@@ -464,6 +511,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string, design
   const review = await prisma.albumReview.create({
     data: {
       customerId: albumDesign.customerId,
+      projectId: albumDesign.projectId,
       title: `${albumDesign.title} ellenőrző`,
       status: "ready",
       clientEmail: albumDesign.customer.primaryEmail,

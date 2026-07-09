@@ -336,6 +336,7 @@ export async function updateCustomerProjectStatusAction(customerId: string, proj
   }
 
   revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/clients");
   redirect(`/admin/clients/${customerId}?tab=projects&projectStatusUpdated=1`);
 }
 

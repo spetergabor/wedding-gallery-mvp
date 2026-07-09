@@ -159,6 +159,10 @@ function approvedAlbumSpreadCount(project: ProjectWorkflowProject) {
   }, 0);
 }
 
+function albumSpreadCount(project: ProjectWorkflowProject) {
+  return (project.albumReviews ?? []).reduce((total, review) => total + (review.spreads?.length ?? 0), 0);
+}
+
 export function getProjectPhaseIndex(project: ProjectWorkflowProject) {
   if (project.projectType === "album") {
     if (project.status === "delivered") {
@@ -208,7 +212,7 @@ export function getProjectPhaseIndex(project: ProjectWorkflowProject) {
 export function getProjectWorkflowSummary(
   customerId: string,
   project: ProjectWorkflowProject,
-  options: { today?: Date } = {}
+  options: { today?: Date; unassignedAlbumReviews?: number; unassignedAlbumDesigns?: number } = {}
 ): ProjectWorkflowSummary {
   const today = options.today ?? new Date();
   const proofingGallery = project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING) ?? null;
@@ -223,6 +227,7 @@ export function getProjectWorkflowSummary(
   const unsentInvoice = openInvoices.find((invoice) => !invoice.sentAt);
   const openComments = openAlbumCommentCount(project);
   const approvedSpreads = approvedAlbumSpreadCount(project);
+  const totalAlbumSpreads = albumSpreadCount(project);
   const isFutureEvent = Boolean(project.eventDate && project.eventDate.getTime() >= today.getTime());
 
   if (project.status === "archived") {
@@ -323,6 +328,18 @@ export function getProjectWorkflowSummary(
     }
 
     if (countAlbumReviews(project) > 0) {
+      if (totalAlbumSpreads > 0 && approvedSpreads === totalAlbumSpreads) {
+        return {
+          title: "Album jóváhagyva",
+          detail: `${approvedSpreads} oldalpárt jóváhagyott az ügyfél. Ha a rendelés vagy gyártás is rendben van, zárd le a projektet a Készre állítás gombbal.`,
+          href: `/admin/clients/${customerId}?tab=album&albumMode=upload`,
+          buttonLabel: "Album ellenőrző megnyitása",
+          state: "action",
+          stateLabel: stateLabel("action"),
+          iconKey: "check"
+        };
+      }
+
       return {
         title: "Album ellenőrzés követése",
         detail: approvedSpreads > 0
@@ -348,13 +365,30 @@ export function getProjectWorkflowSummary(
       };
     }
 
+    if ((options.unassignedAlbumReviews ?? 0) > 0 || (options.unassignedAlbumDesigns ?? 0) > 0) {
+      const albumPieces = [
+        (options.unassignedAlbumReviews ?? 0) > 0 ? `${options.unassignedAlbumReviews} album ellenőrző` : "",
+        (options.unassignedAlbumDesigns ?? 0) > 0 ? `${options.unassignedAlbumDesigns} albumterv` : ""
+      ].filter(Boolean);
+
+      return {
+        title: "Album anyag kapcsolása",
+        detail: `Az ügyfélnél van kapcsolatlan ${albumPieces.join(" és ")}. Kapcsold ehhez az album projekthez, hogy pontos legyen a következő lépés.`,
+        href: `/admin/clients/${customerId}?tab=album&albumMode=upload`,
+        buttonLabel: "Album fül megnyitása",
+        state: "action",
+        stateLabel: stateLabel("action"),
+        iconKey: "book"
+      };
+    }
+
     return {
-      title: "Album munka indítása",
-      detail: "Album projektnél nem kötelező galériát létrehozni. Készítheted külső programban, majd a kész oldalpárokat töltheted fel ellenőrzésre.",
+      title: "Nincs album anyag kapcsolva",
+      detail: "Ez az album projekt még nincs összekötve album ellenőrzővel vagy albumtervvel. Kapcsolj hozzá meglévőt, vagy hozz létre újat az Album fülön.",
       href: `/admin/clients/${customerId}?tab=album&albumMode=upload`,
-      buttonLabel: "Album oldalpárok feltöltése",
-      state: "action",
-      stateLabel: stateLabel("action"),
+      buttonLabel: "Album fül megnyitása",
+      state: "info",
+      stateLabel: stateLabel("info"),
       iconKey: "book"
     };
   }

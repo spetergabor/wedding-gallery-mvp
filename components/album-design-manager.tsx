@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
+import { FolderKanban, Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -8,7 +8,8 @@ import {
   createAutoAlbumDesignSpreadAction,
   createAlbumDesignSpreadAction,
   deleteAlbumDesignAction,
-  exportAlbumDesignToReviewAction
+  exportAlbumDesignToReviewAction,
+  updateAlbumDesignProjectAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -38,8 +39,14 @@ type FavoriteList = {
   }>;
 };
 
+type AlbumProjectOption = {
+  id: string;
+  title: string;
+};
+
 type AlbumDesign = {
   id: string;
+  projectId: string | null;
   title: string;
   status: string;
   createdAt: Date;
@@ -221,12 +228,16 @@ function AlbumSpreadCreateForm({
 export function AlbumDesignManager({
   customerId,
   favoriteLists,
-  designs
+  designs,
+  projects
 }: {
   customerId: string;
   favoriteLists: FavoriteList[];
   designs: AlbumDesign[];
+  projects: AlbumProjectOption[];
 }) {
+  const projectById = new Map(projects.map((project) => [project.id, project]));
+
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
       <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start">
@@ -262,6 +273,18 @@ export function AlbumDesignManager({
               </option>
             ))}
           </select>
+          <select
+            name="projectId"
+            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            defaultValue=""
+          >
+            <option value="">Nincs projekthez kapcsolva</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.title}
+              </option>
+            ))}
+          </select>
           <FormSubmitButton disabled={favoriteLists.length === 0} pendingLabel="Létrehozás...">
             <Plus size={16} />
             Új albumterv
@@ -287,6 +310,7 @@ export function AlbumDesignManager({
         <div className="mt-5 space-y-6">
           {designs.map((design) => {
             const sourcePhotos = design.favoriteList?.items.map((item) => item.photo) ?? [];
+            const linkedProject = design.projectId ? projectById.get(design.projectId) : null;
 
             return (
               <article key={design.id} className="rounded-lg border border-ink/10 bg-paper p-4">
@@ -300,6 +324,17 @@ export function AlbumDesignManager({
                       <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                         {design.spreads.length} oldalpár
                       </span>
+                      {linkedProject ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
+                          <FolderKanban size={13} />
+                          {linkedProject.title}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          <FolderKanban size={13} />
+                          Nincs projekthez kapcsolva
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">
                       Forrás: {design.favoriteList ? `${design.favoriteList.gallery.title} · ${design.favoriteList.name}` : "hiányzó lista"}
@@ -314,6 +349,23 @@ export function AlbumDesignManager({
                         Minden oldalpár teljes szélességben látszik, a képcserét az adott oldalpár alatt nyithatod meg.
                       </p>
                     ) : null}
+                    <form action={updateAlbumDesignProjectAction.bind(null, customerId, design.id)} className="mt-3 flex max-w-xl flex-col gap-2 sm:flex-row">
+                      <select
+                        name="projectId"
+                        defaultValue={design.projectId ?? ""}
+                        className="h-10 min-w-0 flex-1 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                      >
+                        <option value="">Nincs projekthez kapcsolva</option>
+                        {projects.map((project) => (
+                          <option key={project.id} value={project.id}>
+                            {project.title}
+                          </option>
+                        ))}
+                      </select>
+                      <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
+                        Projekt mentése
+                      </FormSubmitButton>
+                    </form>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {design.spreads.length > 0 ? (

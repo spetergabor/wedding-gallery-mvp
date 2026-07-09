@@ -26,12 +26,19 @@ import { ButtonLink } from "@/components/button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
+  CUSTOMER_PROJECT_STATUSES,
   CUSTOMER_PROJECT_TYPES,
+  customerProjectStatusLabel,
   customerProjectTypeLabel
 } from "@/lib/customer-project-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { googleCalendarUrl } from "@/lib/google-calendar";
-import { deleteCustomerProjectAction, createCustomerProjectAction, updateCustomerProjectAction } from "@/lib/customer-actions";
+import {
+  deleteCustomerProjectAction,
+  createCustomerProjectAction,
+  updateCustomerProjectAction,
+  updateCustomerProjectStatusAction
+} from "@/lib/customer-actions";
 import {
   getProjectWorkflowSummary,
   type ProjectWorkflowIconKey,
@@ -363,7 +370,10 @@ export function CustomerProjectManager({
           {projects.map((project) => (
             <article key={project.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
               {(() => {
-                const nextStep = getProjectWorkflowSummary(customerId, project);
+                const nextStep = getProjectWorkflowSummary(customerId, project, {
+                  unassignedAlbumReviews: unassignedCounts.albumReviews,
+                  unassignedAlbumDesigns: unassignedCounts.albumDesigns
+                });
                 const StepIcon = workflowIconMap[nextStep.iconKey];
                 const nextStepStyle = stepStyle(nextStep.state);
                 const calendarUrl = projectGoogleCalendarUrl(project);
@@ -384,6 +394,9 @@ export function CustomerProjectManager({
                     <h3 className="text-lg font-semibold text-ink">{project.title}</h3>
                     <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
                       {customerProjectTypeLabel(project.projectType)}
+                    </span>
+                    <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                      {customerProjectStatusLabel(project.status)}
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2 text-sm text-graphite/70">
@@ -423,6 +436,15 @@ export function CustomerProjectManager({
                       <Download size={16} />
                       Apple / Outlook
                     </a>
+                  ) : null}
+                  {project.status !== "delivered" && project.status !== "archived" ? (
+                    <form action={updateCustomerProjectStatusAction.bind(null, customerId, project.id)}>
+                      <input type="hidden" name="status" value="delivered" />
+                      <FormSubmitButton variant="secondary" className="h-11 px-4" pendingLabel="Lezárás...">
+                        <CheckCircle2 size={16} />
+                        Készre állítás
+                      </FormSubmitButton>
+                    </form>
                   ) : null}
                   <form action={deleteCustomerProjectAction.bind(null, customerId, project.id)}>
                     <ConfirmSubmitButton
@@ -475,7 +497,6 @@ export function CustomerProjectManager({
                   <span className="hidden text-xs text-graphite/60 group-open:inline">Bezárás</span>
                 </summary>
                 <form action={updateCustomerProjectAction.bind(null, customerId, project.id)} className="grid gap-3 border-t border-ink/10 p-3 md:grid-cols-2 xl:grid-cols-4">
-                  <input type="hidden" name="status" value={project.status} />
                   <label className="space-y-2 xl:col-span-2">
                     <span className="text-sm font-medium text-graphite">Projekt neve</span>
                     <input
@@ -495,6 +516,20 @@ export function CustomerProjectManager({
                       {CUSTOMER_PROJECT_TYPES.map((type) => (
                         <option key={type.value} value={type.value}>
                           {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">Státusz</span>
+                    <select
+                      name="status"
+                      defaultValue={project.status}
+                      className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    >
+                      {CUSTOMER_PROJECT_STATUSES.map((status) => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
                         </option>
                       ))}
                     </select>

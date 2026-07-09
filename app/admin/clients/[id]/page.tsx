@@ -696,11 +696,13 @@ export default async function AdminClientDetailPage({
     tab?: string;
     albumCreated?: string;
     albumDeleted?: string;
+    albumUpdated?: string;
     albumMode?: string;
     albumUploaded?: string;
     albumError?: string;
     albumDesignCreated?: string;
     albumDesignDeleted?: string;
+    albumDesignUpdated?: string;
     albumDesignExported?: string;
     albumSpreadAutoCreated?: string;
     albumSpreadCreated?: string;
@@ -1032,13 +1034,23 @@ export default async function AdminClientDetailPage({
   const today = startOfToday();
   const projectsByDate = sortProjectsForOverview(customer.projects, today);
   const nextProject = getNextProject(customer.projects, today);
+  const albumProjectOptions = projectsByDate
+    .filter((project) => project.projectType === "album" && project.status !== "archived")
+    .map((project) => ({ id: project.id, title: project.title }));
   const statusLabel = customerStatusDisplayLabel(customer.status, {
     hasKnownWorkDate: Boolean(customer.weddingDate || customer.projects.some((project) => project.eventDate)),
     referenceDate: today,
     workDate: nextProject?.eventDate ?? customer.weddingDate
   });
   const projectWorkflowSummaries = new Map(
-    projectsByDate.map((project) => [project.id, getProjectWorkflowSummary(customer.id, project, { today })])
+    projectsByDate.map((project) => [
+      project.id,
+      getProjectWorkflowSummary(customer.id, project, {
+        today,
+        unassignedAlbumReviews: unassignedProjectCounts.albumReviews,
+        unassignedAlbumDesigns: unassignedProjectCounts.albumDesigns
+      })
+    ])
   );
   const nextProjectWorkflow = nextProject ? projectWorkflowSummaries.get(nextProject.id) : null;
   const portalUrl = customer.portalToken ? customerPortalUrl(customer.portalToken) : null;
@@ -1116,9 +1128,11 @@ export default async function AdminClientDetailPage({
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
         {flags.albumDeleted ? <Alert title="Album ellenőrző törölve." variant="success" /> : null}
+        {flags.albumUpdated ? <Alert title="Album ellenőrző projektkapcsolata mentve." variant="success" /> : null}
         {flags.albumUploaded ? <Alert title={`${flags.albumUploaded} album oldalpár feltöltve.`} variant="success" /> : null}
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
         {flags.albumDesignDeleted ? <Alert title="Albumterv törölve." variant="success" /> : null}
+        {flags.albumDesignUpdated ? <Alert title="Albumterv projektkapcsolata mentve." variant="success" /> : null}
         {flags.albumDesignExported ? <Alert title={`${flags.albumDesignExported} albumterv oldalpár bekerült az album ellenőrzőbe.`} variant="success" /> : null}
         {flags.albumSpreadAutoCreated ? <Alert title="Automatikus album oldalpár létrehozva." variant="success" /> : null}
         {flags.albumSpreadCreated ? <Alert title="Album oldalpár létrehozva." variant="success" /> : null}
@@ -1128,7 +1142,9 @@ export default async function AdminClientDetailPage({
         {flags.albumSpreadDeleted ? <Alert title="Album oldalpár törölve." variant="success" /> : null}
         {flags.albumError === "no-files" ? <Alert title="Nem választottál ki album oldalpár képet." variant="error" /> : null}
         {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
+        {flags.albumError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
+        {flags.albumDesignError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
         {flags.albumDesignError === "layout-count" ? <Alert title="Ehhez a képszámhoz még nincs album layout sablon." variant="error" /> : null}
         {flags.albumDesignError === "no-spreads" ? <Alert title="Nincs exportálható album oldalpár ebben a tervben." variant="error" /> : null}
@@ -1540,9 +1556,10 @@ export default async function AdminClientDetailPage({
               customerId={customer.id}
               favoriteLists={albumFavoriteLists.filter((list) => list._count.items > 0)}
               designs={albumDesigns}
+              projects={albumProjectOptions}
             />
           }
-          uploadContent={<AlbumReviewManager customerId={customer.id} reviews={albumReviews} />}
+          uploadContent={<AlbumReviewManager customerId={customer.id} reviews={albumReviews} projects={albumProjectOptions} />}
         />
       </div>
 
