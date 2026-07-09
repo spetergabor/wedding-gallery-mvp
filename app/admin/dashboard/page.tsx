@@ -11,6 +11,7 @@ import {
   FolderKanban,
   Heart,
   ImagePlus,
+  ListChecks,
   Mail,
   MessageSquare,
   ReceiptText
@@ -30,6 +31,7 @@ import { createViewLocationPoints } from "@/lib/view-location-points";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerMeetingStatusLabel, customerMeetingTypeLabel } from "@/lib/customer-meeting-options";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
+import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel } from "@/lib/customer-task-options";
 import { ensureLeadPipelineSchema, leadEventTypeLabel, leadStatusLabel, normalizeLeadStatus } from "@/lib/leads";
 import {
   formatMiniSessionSlot,
@@ -150,6 +152,24 @@ type DashboardUpcomingMeeting = {
     coupleName: string;
     primaryEmail: string;
   };
+};
+
+type DashboardUpcomingTask = {
+  id: string;
+  title: string;
+  taskType: string;
+  status: string;
+  priority: string;
+  dueDate: Date | null;
+  dueTime: string | null;
+  customer: {
+    id: string;
+    coupleName: string;
+    primaryEmail: string;
+  };
+  project: {
+    title: string;
+  } | null;
 };
 
 const sectionMetaClass = "flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brass";
@@ -492,6 +512,7 @@ const DASHBOARD_COPY = {
     noUpcomingDescription: "A jövőbeli projektek és egyszerű foglalások itt jelennek majd meg időrendben.",
     simpleBooking: "Egyszerű foglalás",
     clientMeeting: "Ügyfélmeeting",
+    clientTask: "Feladat",
     booked: "Foglalva",
     gallery: "galéria",
     missingVenue: "Nincs helyszín",
@@ -601,6 +622,7 @@ const DASHBOARD_COPY = {
     noUpcomingDescription: "Zukünftige Projekte und einfache Buchungen erscheinen hier chronologisch.",
     simpleBooking: "Einfache Buchung",
     clientMeeting: "Kundenmeeting",
+    clientTask: "Aufgabe",
     booked: "Gebucht",
     gallery: "Galerie",
     missingVenue: "Kein Ort",
@@ -710,6 +732,7 @@ const DASHBOARD_COPY = {
     noUpcomingDescription: "Future projects and simple bookings will appear here in chronological order.",
     simpleBooking: "Simple booking",
     clientMeeting: "Client meeting",
+    clientTask: "Task",
     booked: "Booked",
     gallery: "gallery",
     missingVenue: "No location",
@@ -735,13 +758,15 @@ function UpcomingProjectsSection({
   language,
   projects,
   bookings,
-  meetings
+  meetings,
+  tasks
 }: {
   copy: DashboardCopy;
   language: AdminLanguage;
   projects: DashboardUpcomingProject[];
   bookings: DashboardUpcomingMiniSessionBooking[];
   meetings: DashboardUpcomingMeeting[];
+  tasks: DashboardUpcomingTask[];
 }) {
   const visibleProjects = projects.filter(
     (project): project is DashboardUpcomingProject & { eventDate: Date } => project.eventDate instanceof Date
@@ -782,6 +807,20 @@ function UpcomingProjectsSection({
       badges: [copy.clientMeeting, customerMeetingStatusLabel(meeting.status)] as [string, string],
       footer: customerMeetingTypeLabel(meeting.meetingType),
       footerLabel: copy.calendar.meeting
+    })),
+    ...tasks
+      .filter((task): task is DashboardUpcomingTask & { dueDate: Date } => task.dueDate instanceof Date)
+      .map((task) => ({
+        key: `task-${task.id}`,
+        date: task.dueDate,
+        href: `/admin/clients/${task.customer.id}?tab=tasks`,
+        title: task.title,
+        subtitle: task.customer.coupleName,
+        time: task.dueTime,
+        venue: task.project?.title ?? null,
+        badges: [customerTaskTypeLabel(task.taskType), customerTaskStatusLabel(task.status)] as [string, string],
+        footer: customerTaskPriorityLabel(task.priority),
+        footerLabel: copy.clientTask
     }))
   ]
     .sort((left, right) => left.date.getTime() - right.date.getTime())
@@ -1088,8 +1127,10 @@ export default async function AdminDashboardPage() {
     upcomingProjects,
     upcomingMiniSessionBookings,
     upcomingMeetings,
+    upcomingTasks,
     calendarProjects,
     calendarMeetings,
+    calendarCustomerTasks,
     calendarLeads,
     calendarContracts,
     calendarInvoices,
@@ -1192,6 +1233,36 @@ export default async function AdminDashboardPage() {
         }
       }
     }),
+    prisma.customerTask.findMany({
+      where: {
+        customer: adminOwnedWhere(admin),
+        dueDate: { not: null },
+        status: { notIn: ["done", "cancelled"] }
+      },
+      orderBy: [{ dueDate: "asc" }, { dueTime: "asc" }, { createdAt: "asc" }],
+      take: 12,
+      select: {
+        id: true,
+        title: true,
+        taskType: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        dueTime: true,
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        project: {
+          select: {
+            title: true
+          }
+        }
+      }
+    }),
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
@@ -1224,6 +1295,29 @@ export default async function AdminDashboardPage() {
             id: true,
             coupleName: true,
             primaryEmail: true
+          }
+        }
+      }
+    }),
+    prisma.customerTask.findMany({
+      where: {
+        customer: adminOwnedWhere(admin),
+        dueDate: { gte: calendarStart, lt: calendarEnd },
+        status: { notIn: ["done", "cancelled"] }
+      },
+      orderBy: [{ dueDate: "asc" }, { dueTime: "asc" }, { createdAt: "desc" }],
+      take: 80,
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true,
+            primaryEmail: true
+          }
+        },
+        project: {
+          select: {
+            title: true
           }
         }
       }
@@ -1754,6 +1848,28 @@ export default async function AdminDashboardPage() {
         icon: MessageSquare
       };
     }),
+    ...calendarCustomerTasks.flatMap((task): DashboardCalendarEvent[] => {
+      if (!task.dueDate) {
+        return [];
+      }
+
+      const timeText = task.dueTime ? ` · ${task.dueTime}` : "";
+      const projectText = task.project ? ` · ${task.project.title}` : "";
+
+      return [
+        {
+          key: `calendar-customer-task-${task.id}`,
+          date: task.dueDate,
+          title: task.title,
+          detail: `${task.customer.coupleName}${projectText}${timeText}`,
+          href: `/admin/clients/${task.customer.id}?tab=tasks`,
+          label: customerTaskTypeLabel(task.taskType),
+          kind: "task",
+          tone: task.priority === "high" ? "danger" : "brass",
+          icon: ListChecks
+        }
+      ];
+    }),
     ...calendarLeads.flatMap((lead): DashboardCalendarEvent[] => {
       if (!lead.eventDate) {
         return [];
@@ -1943,6 +2059,7 @@ export default async function AdminDashboardPage() {
         projects={upcomingProjects}
         bookings={upcomingMiniSessionBookings}
         meetings={upcomingMeetings}
+        tasks={upcomingTasks}
       />
 
       <section className="mt-8 rounded-md border border-ink/12 bg-white">

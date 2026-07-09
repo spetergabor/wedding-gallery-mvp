@@ -8,6 +8,7 @@ import { getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { requireAdmin } from "@/lib/auth";
 import { customerMeetingStatusLabel, customerMeetingTypeLabel } from "@/lib/customer-meeting-options";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
+import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel } from "@/lib/customer-task-options";
 import { formatMiniSessionSlot, MINI_SESSION_BOOKING_SOURCE_BLOCKED, MINI_SESSION_BOOKING_STATUS_BOOKED } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
@@ -23,6 +24,7 @@ const WORK_PAGE_COPY = {
     gallery: "galéria",
     project: "Projekt",
     clientMeeting: "Ügyfélmeeting",
+    task: "Feladat",
     meeting: "Meeting",
     miniSessionBooking: "Mini session foglalás",
     attendees: (count: number) => `${count} fő`,
@@ -42,6 +44,7 @@ const WORK_PAGE_COPY = {
     gallery: "Galerie",
     project: "Projekt",
     clientMeeting: "Kundenmeeting",
+    task: "Aufgabe",
     meeting: "Meeting",
     miniSessionBooking: "Mini-Session-Buchung",
     attendees: (count: number) => `${count} ${count === 1 ? "Person" : "Personen"}`,
@@ -61,6 +64,7 @@ const WORK_PAGE_COPY = {
     gallery: "gallery",
     project: "Project",
     clientMeeting: "Client meeting",
+    task: "Task",
     meeting: "Meeting",
     miniSessionBooking: "Mini session booking",
     attendees: (count: number) => `${count} attendee${count === 1 ? "" : "s"}`,
@@ -95,7 +99,7 @@ export default async function AdminWorkPage() {
   const today = startOfToday();
   const projectWhere = { customer: adminOwnedWhere(admin) };
 
-  const [projects, bookings, meetings] = await Promise.all([
+  const [projects, bookings, meetings, tasks] = await Promise.all([
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
@@ -174,6 +178,34 @@ export default async function AdminWorkPage() {
           }
         }
       }
+    }),
+    prisma.customerTask.findMany({
+      where: {
+        customer: adminOwnedWhere(admin),
+        dueDate: { not: null },
+        status: { notIn: ["done", "cancelled"] }
+      },
+      orderBy: [{ dueDate: "asc" }, { dueTime: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        title: true,
+        taskType: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        dueTime: true,
+        customer: {
+          select: {
+            id: true,
+            coupleName: true
+          }
+        },
+        project: {
+          select: {
+            title: true
+          }
+        }
+      }
     })
   ]);
 
@@ -215,6 +247,20 @@ export default async function AdminWorkPage() {
       badges: [copy.clientMeeting, customerMeetingStatusLabel(meeting.status)] as [string, string],
       footer: customerMeetingTypeLabel(meeting.meetingType),
       footerLabel: copy.meeting
+    })),
+    ...tasks
+      .filter((task): task is typeof task & { dueDate: Date } => task.dueDate instanceof Date)
+      .map((task) => ({
+        key: `task-${task.id}`,
+        date: task.dueDate,
+        href: `/admin/clients/${task.customer.id}?tab=tasks`,
+        title: task.title,
+        subtitle: task.customer.coupleName,
+        time: task.dueTime,
+        venue: task.project?.title ?? null,
+        badges: [customerTaskTypeLabel(task.taskType), customerTaskStatusLabel(task.status)] as [string, string],
+        footer: customerTaskPriorityLabel(task.priority),
+        footerLabel: copy.task
     }))
   ].sort((left, right) => left.date.getTime() - right.date.getTime());
 

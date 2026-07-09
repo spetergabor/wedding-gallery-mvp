@@ -12,6 +12,7 @@ import {
   FolderKanban,
   Heart,
   ImagePlus,
+  ListChecks,
   Mail,
   MessageSquare,
   Plus,
@@ -32,6 +33,7 @@ import { CustomerMeetingManager } from "@/components/customer-meeting-manager";
 import { CustomerPortalManager } from "@/components/customer-portal-manager";
 import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { CustomerTabController } from "@/components/customer-tab-controller";
+import { CustomerTaskManager } from "@/components/customer-task-manager";
 import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { InvoiceManager } from "@/components/invoice-manager";
 import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
@@ -39,6 +41,7 @@ import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
+import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel, isClosedCustomerTaskStatus } from "@/lib/customer-task-options";
 import { CUSTOMER_STATUSES, customerStatusDisplayLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
 import { customerPortalUrl } from "@/lib/email";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
@@ -164,15 +167,16 @@ type CustomerProjectOverview = {
   };
 };
 
-type CustomerTab = "overview" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
+type CustomerTab = "overview" | "tasks" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
 type AlbumMode = "editor" | "upload";
 
 const customerTabs: Array<{
   key: CustomerTab;
   label: string;
-  icon: "CheckCircle2" | "FolderKanban" | "CalendarClock" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Globe2" | "Settings";
+  icon: "CheckCircle2" | "ListChecks" | "FolderKanban" | "CalendarClock" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Globe2" | "Settings";
 }> = [
   { key: "overview", label: "Áttekintés", icon: "CheckCircle2" },
+  { key: "tasks", label: "Feladatok", icon: "ListChecks" },
   { key: "projects", label: "Projektek", icon: "FolderKanban" },
   { key: "meetings", label: "Meetingek", icon: "CalendarClock" },
   { key: "galleries", label: "Galériák", icon: "Camera" },
@@ -692,6 +696,11 @@ export default async function AdminClientDetailPage({
     meetingDeleted?: string;
     meetingStatusUpdated?: string;
     meetingError?: string;
+    taskCreated?: string;
+    taskUpdated?: string;
+    taskDeleted?: string;
+    taskStatusUpdated?: string;
+    taskError?: string;
     statusUpdated?: string;
     tab?: string;
     albumCreated?: string;
@@ -908,6 +917,27 @@ export default async function AdminClientDetailPage({
           googleCalendarSyncError: true,
           createdAt: true
         }
+      },
+      tasks: {
+        orderBy: [{ dueDate: "asc" }, { priority: "desc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          title: true,
+          taskType: true,
+          status: true,
+          priority: true,
+          dueDate: true,
+          dueTime: true,
+          notes: true,
+          completedAt: true,
+          createdAt: true,
+          project: {
+            select: {
+              id: true,
+              title: true
+            }
+          }
+        }
       }
     }
   });
@@ -1037,6 +1067,9 @@ export default async function AdminClientDetailPage({
   const albumProjectOptions = projectsByDate
     .filter((project) => project.projectType === "album" && project.status !== "archived")
     .map((project) => ({ id: project.id, title: project.title }));
+  const taskProjectOptions = projectsByDate
+    .filter((project) => project.status !== "archived")
+    .map((project) => ({ id: project.id, title: project.title }));
   const statusLabel = customerStatusDisplayLabel(customer.status, {
     hasKnownWorkDate: Boolean(customer.weddingDate || customer.projects.some((project) => project.eventDate)),
     referenceDate: today,
@@ -1115,6 +1148,13 @@ export default async function AdminClientDetailPage({
         {flags.meetingStatusUpdated ? <Alert title="Meeting státusz mentve." variant="success" /> : null}
         {flags.meetingError === "missing" ? <Alert title="A meeting nem található, vagy hiányzik a név/dátum." variant="error" /> : null}
         {flags.meetingError === "time" ? <Alert title="A meetinghez kötelező érvényes kezdési és befejezési időt megadni." variant="error" /> : null}
+        {flags.taskCreated ? <Alert title="Feladat létrehozva." variant="success" /> : null}
+        {flags.taskUpdated ? <Alert title="Feladat mentve." variant="success" /> : null}
+        {flags.taskDeleted ? <Alert title="Feladat törölve." variant="success" /> : null}
+        {flags.taskStatusUpdated ? <Alert title="Feladat státusz mentve." variant="success" /> : null}
+        {flags.taskError === "missing" ? <Alert title="A feladat nem található, vagy hiányzik a címe." variant="error" /> : null}
+        {flags.taskError === "time" ? <Alert title="A feladat időpontja nem érvényes." variant="error" /> : null}
+        {flags.taskError === "project" ? <Alert title="A kiválasztott projekt nem ehhez az ügyfélhez tartozik." variant="error" /> : null}
         {flags.contractUploaded ? <Alert title="Szerződés feltöltve." variant="success" /> : null}
         {flags.contractWritten ? <Alert title="Saját szerződés létrehozva." variant="success" /> : null}
         {flags.contractSent ? <Alert title="Szerződés elküldve emailben." variant="success" /> : null}
@@ -1421,6 +1461,10 @@ export default async function AdminClientDetailPage({
             </div>
           </section>
         </div>
+      </div>
+
+      <div data-customer-tab-panel="tasks" hidden={activeTab !== "tasks"}>
+        <CustomerTaskManager customerId={customer.id} tasks={customer.tasks} projects={taskProjectOptions} />
       </div>
 
       <div data-customer-tab-panel="projects" hidden={activeTab !== "projects"}>

@@ -11,13 +11,14 @@ import {
   Globe2,
   Heart,
   ImagePlus,
+  ListChecks,
   MessageSquare,
   ReceiptText,
   Settings
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type CustomerTab = "overview" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
+type CustomerTab = "overview" | "tasks" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
 
 type CustomerTabItem = {
   key: CustomerTab;
@@ -40,6 +41,7 @@ const icons = {
   Camera,
   Heart,
   ImagePlus,
+  ListChecks,
   FileText,
   ReceiptText,
   MessageSquare,
@@ -59,8 +61,8 @@ const tabGroups: CustomerTabGroup[] = [
     key: "work",
     label: "Munka",
     icon: "FolderKanban",
-    defaultTab: "projects",
-    tabs: ["projects", "meetings", "galleries", "proofing", "album"]
+    defaultTab: "tasks",
+    tabs: ["tasks", "projects", "meetings", "galleries", "proofing", "album"]
   },
   {
     key: "business",

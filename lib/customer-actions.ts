@@ -7,6 +7,7 @@ import { customerAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { createCustomerPortalToken } from "@/lib/customer-portal";
 import { normalizeCustomerMeetingStatus, normalizeCustomerMeetingType } from "@/lib/customer-meeting-options";
 import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
+import { normalizeCustomerTaskPriority, normalizeCustomerTaskStatus, normalizeCustomerTaskType } from "@/lib/customer-task-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
@@ -77,6 +78,28 @@ function meetingTimePayload(formData: FormData) {
     startTime: startTime.value,
     endTime: endTime.value
   };
+}
+
+function taskDueTimePayload(formData: FormData) {
+  const dueTime = formTime(formData, "dueTime");
+
+  return dueTime.valid ? dueTime.value : undefined;
+}
+
+async function projectIdForCustomer(admin: Awaited<ReturnType<typeof requireAdmin>>, customerId: string, projectId: string) {
+  if (!projectId) {
+    return null;
+  }
+
+  const project = await prisma.customerProject.findFirst({
+    where: {
+      id: projectId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  return project?.id ?? null;
 }
 
 function customerPayload(formData: FormData) {
@@ -536,6 +559,172 @@ export async function deleteCustomerMeetingAction(customerId: string, meetingId:
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/work");
   redirect(`/admin/clients/${customerId}?tab=meetings&meetingDeleted=1`);
+}
+
+export async function createCustomerTaskAction(customerId: string, formData: FormData) {
+  const admin = await requireAdmin();
+
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  const title = formString(formData, "title");
+  const dueDate = formDate(formData, "dueDate");
+  const dueTime = taskDueTimePayload(formData);
+
+  if (!title) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=missing`);
+  }
+
+  if (dueTime === undefined) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=time`);
+  }
+
+  const requestedProjectId = formString(formData, "projectId");
+  const projectId = await projectIdForCustomer(admin, customer.id, requestedProjectId);
+
+  if (requestedProjectId && !projectId) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=project`);
+  }
+
+  const status = normalizeCustomerTaskStatus(formString(formData, "status"));
+
+  await prisma.customerTask.create({
+    data: {
+      customerId: customer.id,
+      projectId,
+      title,
+      taskType: normalizeCustomerTaskType(formString(formData, "taskType")),
+      status,
+      priority: normalizeCustomerTaskPriority(formString(formData, "priority")),
+      dueDate,
+      dueTime,
+      notes: formOptionalString(formData, "notes"),
+      completedAt: status === "done" ? new Date() : null
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=tasks&taskCreated=1`);
+}
+
+export async function updateCustomerTaskAction(customerId: string, taskId: string, formData: FormData) {
+  const admin = await requireAdmin();
+
+  const task = await prisma.customerTask.findFirst({
+    where: {
+      id: taskId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true, customerId: true, status: true, completedAt: true }
+  });
+
+  if (!task) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=missing`);
+  }
+
+  const title = formString(formData, "title");
+  const dueDate = formDate(formData, "dueDate");
+  const dueTime = taskDueTimePayload(formData);
+
+  if (!title) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=missing`);
+  }
+
+  if (dueTime === undefined) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=time`);
+  }
+
+  const requestedProjectId = formString(formData, "projectId");
+  const projectId = await projectIdForCustomer(admin, task.customerId, requestedProjectId);
+
+  if (requestedProjectId && !projectId) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=project`);
+  }
+
+  const status = normalizeCustomerTaskStatus(formString(formData, "status"));
+
+  await prisma.customerTask.update({
+    where: { id: task.id },
+    data: {
+      projectId,
+      title,
+      taskType: normalizeCustomerTaskType(formString(formData, "taskType")),
+      status,
+      priority: normalizeCustomerTaskPriority(formString(formData, "priority")),
+      dueDate,
+      dueTime,
+      notes: formOptionalString(formData, "notes"),
+      completedAt: status === "done" ? task.completedAt ?? new Date() : null
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=tasks&taskUpdated=1`);
+}
+
+export async function updateCustomerTaskStatusAction(customerId: string, taskId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const status = normalizeCustomerTaskStatus(formString(formData, "status"));
+
+  const task = await prisma.customerTask.findFirst({
+    where: {
+      id: taskId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true, completedAt: true }
+  });
+
+  if (!task) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=missing`);
+  }
+
+  await prisma.customerTask.update({
+    where: { id: task.id },
+    data: {
+      status,
+      completedAt: status === "done" ? task.completedAt ?? new Date() : null
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=tasks&taskStatusUpdated=1`);
+}
+
+export async function deleteCustomerTaskAction(customerId: string, taskId: string) {
+  const admin = await requireAdmin();
+
+  const task = await prisma.customerTask.findFirst({
+    where: {
+      id: taskId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!task) {
+    redirect(`/admin/clients/${customerId}?tab=tasks&taskError=missing`);
+  }
+
+  await prisma.customerTask.delete({
+    where: { id: task.id }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=tasks&taskDeleted=1`);
 }
 
 export async function deleteCustomerAction(customerId: string) {
