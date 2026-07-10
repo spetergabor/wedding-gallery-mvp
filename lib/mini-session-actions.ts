@@ -764,9 +764,10 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   const email = normalizeEmail(formString(formData, "email"));
   const phone = formString(formData, "phone");
   const attendeeCount = Math.max(1, parseInteger(formString(formData, "attendeeCount"), 1));
+  const bookingPath = formString(formData, "returnTo") === "embed" ? `/mini-session/${slug}/embed` : `/mini-session/${slug}`;
 
   if (!selectedSlot || !name || !isValidEmail(email) || !phone) {
-    redirect(`/mini-session/${slug}?error=missing`);
+    redirect(`${bookingPath}?error=missing`);
   }
 
   const session = await prisma.miniSession.findUnique({
@@ -783,21 +784,21 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   });
 
   if (!session || !session.isActive) {
-    redirect(`/mini-session/${slug}?error=inactive`);
+    redirect(`${bookingPath}?error=inactive`);
   }
 
   const slot = createMiniSessionSlots(session).find((candidate) => candidate.token === selectedSlot);
 
   if (!slot) {
-    redirect(`/mini-session/${slug}?error=slot`);
+    redirect(`${bookingPath}?error=slot`);
   }
 
   if (!isMiniSessionSlotBookable(slot, session.minBookingNoticeMinutes)) {
-    redirect(`/mini-session/${slug}?error=notice`);
+    redirect(`${bookingPath}?error=notice`);
   }
 
   if (await hasMiniSessionSlotConflict(session.adminId, slot)) {
-    redirect(`/mini-session/${slug}?error=taken`);
+    redirect(`${bookingPath}?error=taken`);
   }
 
   const cancelToken = createCancelToken();
@@ -841,14 +842,14 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     });
   }).catch((error) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirect(`/mini-session/${slug}?error=taken`);
+      redirect(`${bookingPath}?error=taken`);
     }
 
     throw error;
   });
 
   if (!booking) {
-    redirect(`/mini-session/${slug}?error=taken`);
+    redirect(`${bookingPath}?error=taken`);
   }
 
   const cancelUrl = miniSessionBookingCancelUrl(slug, cancelToken);
@@ -1104,9 +1105,10 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   });
 
   revalidatePath(`/mini-session/${slug}`);
+  revalidatePath(`/mini-session/${slug}/embed`);
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${session.id}`);
-  redirect(`/mini-session/${slug}?booked=1&calendar=${cancelToken}`);
+  redirect(`${bookingPath}?booked=1&calendar=${cancelToken}`);
 }
 
 export async function rescheduleMiniSessionBookingAction(token: string, formData: FormData) {
