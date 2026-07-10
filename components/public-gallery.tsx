@@ -1096,7 +1096,7 @@ export function PublicGallery({
         {sectionBlocks.length > 0 ? (
           <div className="space-y-16">
             {sectionBlocks.map((block) => (
-              <section key={block.key} id={block.anchorId} className="scroll-mt-24 space-y-5" aria-labelledby={`${block.anchorId}-title`}>
+              <section key={block.key} id={block.anchorId} className="scroll-mt-32 space-y-5" aria-labelledby={`${block.anchorId}-title`}>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">
                     {block.count} {language === "hu" ? "média" : "Medien"}

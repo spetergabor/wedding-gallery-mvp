@@ -277,26 +277,31 @@ export default async function PublicGalleryPage({
 
       <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
         {visibleSections.length > 0 ? (
-          <nav className="mb-8 flex flex-wrap items-center justify-center gap-2 border-b border-ink/10 py-5" aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}>
-            {visibleSections.map((section) => (
-              <a
-                key={section.id}
-                href={`#gallery-section-${section.slug}`}
-                className="inline-flex min-h-11 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite transition hover:border-ink/25 hover:text-ink"
-              >
-                {section.title}
-                <span className="ml-2 text-xs opacity-70">{sectionPhotoCounts.get(section.id) ?? 0}</span>
-              </a>
-            ))}
-            {unsectionedPhotoCount > 0 ? (
-              <a
-                href="#gallery-section-rest"
-                className="inline-flex min-h-11 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite transition hover:border-ink/25 hover:text-ink"
-              >
-                {language === "hu" ? "További képek" : "Weitere Bilder"}
-                <span className="ml-2 text-xs opacity-70">{unsectionedPhotoCount}</span>
-              </a>
-            ) : null}
+          <nav
+            className="sticky top-0 z-30 -mx-5 mb-8 border-b border-ink/10 bg-paper/95 px-5 py-3 shadow-[0_12px_28px_rgba(17,17,17,0.05)] backdrop-blur lg:-mx-8 lg:px-8"
+            aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
+          >
+            <div className="flex min-w-full gap-2 overflow-x-auto [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden">
+              {visibleSections.map((section) => (
+                <a
+                  key={section.id}
+                  href={`#gallery-section-${section.slug}`}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite shadow-sm transition hover:border-ink/25 hover:text-ink"
+                >
+                  {section.title}
+                  <span className="ml-2 text-xs opacity-70">{sectionPhotoCounts.get(section.id) ?? 0}</span>
+                </a>
+              ))}
+              {unsectionedPhotoCount > 0 ? (
+                <a
+                  href="#gallery-section-rest"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite shadow-sm transition hover:border-ink/25 hover:text-ink"
+                >
+                  {language === "hu" ? "További képek" : "Weitere Bilder"}
+                  <span className="ml-2 text-xs opacity-70">{unsectionedPhotoCount}</span>
+                </a>
+              ) : null}
+            </div>
           </nav>
         ) : null}
         {visiblePhotos.length > 0 ? (
