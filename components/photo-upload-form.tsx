@@ -50,6 +50,8 @@ type PhotoDuplicateMode = "skip" | "replace";
 
 type ResumableUploadSession = {
   id: string;
+  sectionId: string | null;
+  sectionTitle: string | null;
   status: string;
   deliveryStage: string;
   totalCount: number;
@@ -58,6 +60,11 @@ type ResumableUploadSession = {
   failedCount: number;
   createdAt: string;
   updatedAt: string;
+};
+
+type GallerySectionOption = {
+  id: string;
+  title: string;
 };
 
 type SelectedPhotoFile = {
@@ -238,6 +245,7 @@ export function PhotoUploadForm({
   galleryMode,
   defaultDeliveryStage,
   deliveryStageMode = "select",
+  sections = [],
   resumableSessions = [],
   title = "Fotók és videók feltöltése",
   description = "Húzd ide a képeket és videókat, vagy kattints a fájlok kiválasztásához. A videók a galéria elejére kerülnek."
@@ -246,6 +254,7 @@ export function PhotoUploadForm({
   galleryMode: string;
   defaultDeliveryStage: string;
   deliveryStageMode?: "select" | "fixed";
+  sections?: GallerySectionOption[];
   resumableSessions?: ResumableUploadSession[];
   title?: string;
   description?: string;
@@ -254,6 +263,7 @@ export function PhotoUploadForm({
   const isProofingUpload = galleryMode === GALLERY_MODE_PROOFING;
   const showDeliveryStageSelect = isProofingUpload && deliveryStageMode !== "fixed";
   const [deliveryStage, setDeliveryStage] = useState(normalizePhotoDeliveryStage(defaultDeliveryStage));
+  const [selectedSectionId, setSelectedSectionId] = useState("__all__");
   const [duplicateMode, setDuplicateMode] = useState<PhotoDuplicateMode>("skip");
   const [selectedFiles, setSelectedFiles] = useState<SelectedPhotoFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -1016,7 +1026,13 @@ export function PhotoUploadForm({
 
       if (!sessionId) {
         const sessionResult = await runWithConnectionResume({
-          operation: () => createPhotoUploadSessionAction(galleryId, selectedFiles.length, deliveryStage),
+          operation: () =>
+            createPhotoUploadSessionAction(
+              galleryId,
+              selectedFiles.length,
+              deliveryStage,
+              selectedSectionId === "__all__" ? null : selectedSectionId
+            ),
           onWaiting: () => setUploadError("Kapcsolatra vár a feltöltés indításához..."),
           onResume: () => setUploadError("")
         });
@@ -1133,6 +1149,9 @@ export function PhotoUploadForm({
                       {suggestedResumeSession.completedCount}/{suggestedResumeSession.totalCount} már mentve ·{" "}
                       {suggestedResumeSession.failedCount} hibás · frissítve: {formatDateTime(suggestedResumeSession.updatedAt)}
                     </p>
+                    {suggestedResumeSession.sectionTitle ? (
+                      <p className="mt-1 text-xs font-medium text-brass">Szekció: {suggestedResumeSession.sectionTitle}</p>
+                    ) : null}
                     <p className="mt-2 text-xs leading-5 text-graphite/70">
                       Válaszd ki újra ugyanazokat a fájlokat vagy a maradékot. A már mentett képeket kihagyjuk, csak a hiányzókat küldjük fel.
                     </p>
@@ -1157,6 +1176,7 @@ export function PhotoUploadForm({
                         onClick={() => {
                           setResumeSessionId(suggestedResumeSession.id);
                           setUploadSessionId(suggestedResumeSession.id);
+                          setSelectedSectionId(suggestedResumeSession.sectionId ?? "__all__");
                           setDuplicateMode("skip");
                           setUploadError("");
                         }}
@@ -1175,6 +1195,31 @@ export function PhotoUploadForm({
                   </p>
                 ) : null}
               </div>
+            ) : null}
+            {sections.length > 0 ? (
+              <label className="mb-5 block space-y-2">
+                <span className="text-sm font-medium text-graphite">Feltöltés ide</span>
+                <select
+                  value={selectedSectionId}
+                  onChange={(event) => {
+                    setSelectedSectionId(event.target.value);
+                    setUploadSessionId(null);
+                    setResumeSessionId(null);
+                  }}
+                  disabled={isUploading || Boolean(selectedResumeSession)}
+                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:opacity-60"
+                >
+                  <option value="__all__">Nincs külön szekció</option>
+                  {sections.map((section) => (
+                    <option key={section.id} value={section.id}>
+                      {section.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs leading-5 text-graphite/70">
+                  Üres választásnál a képek az általános galériába kerülnek. A szekciók a publikus galériában külön fülként jelennek meg.
+                </p>
+              </label>
             ) : null}
             <label className="mb-5 block space-y-2">
               <span className="text-sm font-medium text-graphite">Duplikált fájlok kezelése</span>

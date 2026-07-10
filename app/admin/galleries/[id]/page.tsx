@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, UserRound } from "lucide-react";
+import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Plus, Trash2, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { CoverPositionControl } from "@/components/cover-position-control";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
@@ -28,6 +29,8 @@ import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { clientGalleryUrl, publicGalleryUrl } from "@/lib/email";
 import {
+  createGallerySectionAction,
+  deleteGallerySectionAction,
   generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
@@ -114,6 +117,9 @@ export default async function GalleryDetailPage({
     photoSet?: string;
     proofingInvite?: string;
     proofingStatus?: string;
+    sectionCreated?: string;
+    sectionDeleted?: string;
+    sectionError?: string;
     saved?: string;
     tab?: string;
   }>;
@@ -163,7 +169,19 @@ export default async function GalleryDetailPage({
           updatedAt: true
         }
       },
-      photos: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      sections: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      photos: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        include: {
+          section: {
+            select: {
+              id: true,
+              title: true,
+              slug: true
+            }
+          }
+        }
+      },
       customer: {
         select: {
           id: true,
@@ -185,6 +203,12 @@ export default async function GalleryDetailPage({
         orderBy: { createdAt: "desc" },
         take: 5,
         include: {
+          section: {
+            select: {
+              id: true,
+              title: true
+            }
+          },
           items: {
             where: { status: "failed" },
             orderBy: { updatedAt: "desc" },
@@ -276,9 +300,18 @@ export default async function GalleryDetailPage({
       uploadedCount: session.uploadedCount,
       completedCount: session.completedCount,
       failedCount: session.failedCount,
+      sectionId: session.sectionId,
+      sectionTitle: session.section?.title ?? null,
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString()
     }));
+  const sectionPhotoCounts = new Map<string, number>();
+
+  for (const photo of gallery.photos) {
+    if (photo.sectionId) {
+      sectionPhotoCounts.set(photo.sectionId, (sectionPhotoCounts.get(photo.sectionId) ?? 0) + 1);
+    }
+  }
   const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
   const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
   const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
@@ -344,6 +377,9 @@ export default async function GalleryDetailPage({
       <div className="mb-5 space-y-3">
         {flags.saved ? <Alert title="Galéria mentve." variant="success" /> : null}
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
+        {flags.sectionCreated ? <Alert title="Szekció létrehozva." variant="success" /> : null}
+        {flags.sectionDeleted ? <Alert title="Szekció törölve." variant="success">A benne lévő képek az általános galériában maradtak.</Alert> : null}
+        {flags.sectionError === "missing" ? <Alert title="Adj meg egy szekció nevet." variant="error" /> : null}
         {flags.duplicateCleanup && flags.duplicateCleanup !== "none" ? (
           <Alert title={`${flags.duplicateCleanup} duplikált fotó törölve.`} variant="success" />
         ) : null}
@@ -411,10 +447,58 @@ export default async function GalleryDetailPage({
       <div className="space-y-6">
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
+            <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                <div>
+                  <p className={sectionMetaClass}>Galéria szekciók</p>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">Fülek a publikus galériában</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
+                    Hozz létre szekciókat feltöltés előtt, majd az upload panelen válaszd ki, hova kerüljenek az új képek. Ha nem hozol létre szekciót, minden egy galériában marad.
+                  </p>
+                </div>
+                <form action={createGallerySectionAction.bind(null, gallery.id)} className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-md">
+                  <input
+                    name="title"
+                    placeholder="pl. Készülődés"
+                    className="h-11 min-w-0 flex-1 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
+                  />
+                  <FormSubmitButton className="h-11 px-4" pendingLabel="Mentés...">
+                    <Plus size={16} />
+                    Szekció
+                  </FormSubmitButton>
+                </form>
+              </div>
+              {gallery.sections.length > 0 ? (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {gallery.sections.map((section) => (
+                    <div key={section.id} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-ink/10 bg-paper px-3 py-2 text-sm text-ink">
+                      <span className="font-medium">{section.title}</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-xs text-graphite/70">
+                        {sectionPhotoCounts.get(section.id) ?? 0}
+                      </span>
+                      <form action={deleteGallerySectionAction.bind(null, gallery.id, section.id)}>
+                        <ConfirmSubmitButton
+                          message={`Biztosan törlöd ezt a szekciót? A képek nem törlődnek, csak visszakerülnek az általános galériába.`}
+                          variant="ghost"
+                          className="h-8 px-2 text-graphite hover:text-red-700"
+                        >
+                          <Trash2 size={14} />
+                        </ConfirmSubmitButton>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-4 text-sm text-graphite/70">
+                  Még nincs szekció. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
+                </div>
+              )}
+            </section>
             <PhotoUploadForm
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
               defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+              sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
               resumableSessions={resumableUploadSessions}
             />
             {!proofingGallery ? <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} /> : null}
@@ -540,6 +624,7 @@ export default async function GalleryDetailPage({
                 galleryMode={gallery.galleryMode}
                 defaultDeliveryStage={PHOTO_DELIVERY_STAGE_FINAL}
                 deliveryStageMode="fixed"
+                sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
                 resumableSessions={resumableUploadSessions}
                 title="Kész képek feltöltése"
                 description="Ide töltsd fel a kidolgozott képeket, amelyeket az ügyfél kiválasztott. Ezek külön kész képként kerülnek a galériába."

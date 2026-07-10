@@ -168,6 +168,7 @@ const GALLERY_COPY = {
 
 type PublicPhoto = {
   id: string;
+  sectionId?: string | null;
   filename: string;
   imageUrl: string;
   thumbnailUrl: string;

@@ -22,6 +22,12 @@ import {
 
 export type SortablePhoto = {
   id: string;
+  sectionId?: string | null;
+  section?: {
+    id: string;
+    title: string;
+    slug: string;
+  } | null;
   filename: string;
   imageUrl: string;
   thumbnailUrl: string;

@@ -723,6 +723,7 @@ model Gallery {
   finalDeliveryEmailError String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  sections     GallerySection[]
   photos       Photo[]
   downloads    GalleryDownload[]
   downloadPackages GalleryDownloadPackage[]
@@ -741,9 +742,27 @@ model Gallery {
   @@index([proofingStatus])
 }
 
+model GallerySection {
+  id        String   @id @default(cuid())
+  galleryId String
+  title     String
+  slug      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photos    Photo[]
+  uploadSessions GalleryUploadSession[]
+
+  @@unique([galleryId, slug])
+  @@index([galleryId])
+  @@index([galleryId, sortOrder])
+}
+
 model Photo {
   id           String   @id @default(cuid())
   galleryId    String
+  sectionId    String?
   filename     String
   r2Key        String   @default("")
   imageUrl     String
@@ -764,13 +783,16 @@ model Photo {
   clientHiddenAt DateTime?
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  section      GallerySection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   favoriteItems GalleryFavoriteItem[]
   processingJobs MediaProcessingJob[]
   albumDesignItems AlbumDesignSpreadItem[]
 
   @@index([galleryId])
+  @@index([sectionId])
   @@index([r2Key])
   @@index([galleryId, sortOrder])
+  @@index([galleryId, sectionId])
   @@index([galleryId, deliveryStage])
   @@index([capturedAt])
   @@index([processingStatus])
@@ -924,6 +946,7 @@ model GalleryFavoriteItem {
 model GalleryUploadSession {
   id             String   @id @default(cuid())
   galleryId      String
+  sectionId      String?
   status         String   @default("pending")
   deliveryStage  String   @default("final")
   totalCount     Int      @default(0)
@@ -934,9 +957,11 @@ model GalleryUploadSession {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   gallery        Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  section        GallerySection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   items          GalleryUploadItem[]
 
   @@index([galleryId])
+  @@index([sectionId])
   @@index([status])
   @@index([createdAt])
 }

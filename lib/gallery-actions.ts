@@ -367,6 +367,58 @@ type CompletedPhotoUpload = {
   replacePhotoId?: string | null;
 };
 
+function normalizeGallerySectionTitle(value: string) {
+  return value.trim().replace(/\s+/g, " ").slice(0, 80);
+}
+
+function normalizeGallerySectionSlug(title: string) {
+  return normalizeSlug(title).slice(0, 60);
+}
+
+function formSectionId(formData: FormData) {
+  const value = formString(formData, "sectionId");
+  return value === "__all__" ? "" : value;
+}
+
+async function validateGallerySectionId(galleryId: string, sectionId: string | null | undefined) {
+  const normalizedSectionId = sectionId?.trim();
+
+  if (!normalizedSectionId) {
+    return null;
+  }
+
+  const section = await prisma.gallerySection.findFirst({
+    where: { id: normalizedSectionId, galleryId },
+    select: { id: true }
+  });
+
+  return section?.id ?? null;
+}
+
+async function nextGallerySectionSlug(galleryId: string, title: string) {
+  const baseSlug = normalizeGallerySectionSlug(title) || "szekcio";
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const suffix = attempt === 0 ? "" : `-${attempt + 1}`;
+    const slug = `${baseSlug.slice(0, 60 - suffix.length)}${suffix}`;
+    const existing = await prisma.gallerySection.findUnique({
+      where: {
+        galleryId_slug: {
+          galleryId,
+          slug
+        }
+      },
+      select: { id: true }
+    });
+
+    if (!existing) {
+      return slug;
+    }
+  }
+
+  return `${baseSlug.slice(0, 50)}-${randomUUID().slice(0, 8)}`;
+}
+
 function normalizePhotoDuplicateMode(value: string | null | undefined): PhotoDuplicateMode {
   return value === "replace" ? "replace" : "skip";
 }
@@ -1134,9 +1186,62 @@ export async function deleteGalleryAction(id: string) {
   redirect("/admin/galleries?deleted=1");
 }
 
+export async function createGallerySectionAction(galleryId: string, formData: FormData) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const title = normalizeGallerySectionTitle(formString(formData, "title"));
+
+  if (!title) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&sectionError=missing`);
+  }
+
+  const [latestSection, slug] = await Promise.all([
+    prisma.gallerySection.findFirst({
+      where: { galleryId },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true }
+    }),
+    nextGallerySectionSlug(galleryId, title)
+  ]);
+
+  await prisma.gallerySection.create({
+    data: {
+      galleryId,
+      title,
+      slug,
+      sortOrder: (latestSection?.sortOrder ?? 0) + 1
+    }
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&sectionCreated=1`);
+}
+
+export async function deleteGallerySectionAction(galleryId: string, sectionId: string) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const section = await prisma.gallerySection.findFirst({
+    where: { id: sectionId, galleryId },
+    select: { id: true }
+  });
+
+  if (!section) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&sectionError=missing`);
+  }
+
+  await prisma.gallerySection.delete({
+    where: { id: section.id }
+  });
+
+  await invalidatePublicGalleryDownloadPackages(galleryId);
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&sectionDeleted=1`);
+}
+
 export async function addPhotoAction(galleryId: string, formData: FormData) {
   const { gallery } = await requireGalleryAccess(galleryId);
   const deliveryStage = defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode);
+  const sectionId = await validateGallerySectionId(galleryId, formSectionId(formData));
 
   const uploads = formData
     .getAll("photos")
@@ -1181,6 +1286,7 @@ export async function addPhotoAction(galleryId: string, formData: FormData) {
       return {
         galleryId,
         filename: file.name,
+        sectionId,
         r2Key,
         imageUrl: publicUrl,
         thumbnailUrl: publicUrl,
@@ -1207,12 +1313,14 @@ export async function createPhotoUploadSessionAction(
   galleryId: string,
   totalCount: number,
   deliveryStage?: string,
+  sectionId?: string | null,
   clientEmail?: string
 ): Promise<{ ok: boolean; message?: string; sessionId: string | null }> {
   const { gallery } = await requireGalleryAccess(galleryId);
   const normalizedDeliveryStage = isProofingGallery(gallery.galleryMode)
     ? normalizePhotoDeliveryStage(deliveryStage)
     : PHOTO_DELIVERY_STAGE_FINAL;
+  const normalizedSectionId = await validateGallerySectionId(galleryId, sectionId);
   const proofingRawUpload = isProofingGallery(gallery.galleryMode) && normalizedDeliveryStage === PHOTO_DELIVERY_STAGE_RAW;
   const normalizedClientEmail = normalizeEmail(clientEmail ?? gallery.clientEmail);
 
@@ -1243,6 +1351,7 @@ export async function createPhotoUploadSessionAction(
   const session = await prisma.galleryUploadSession.create({
     data: {
       galleryId,
+      sectionId: normalizedSectionId,
       deliveryStage: normalizedDeliveryStage,
       totalCount: Math.max(0, totalCount),
       baseSortOrder: (latestPhoto?.sortOrder ?? 0) + 1,
@@ -1276,6 +1385,7 @@ export async function createPhotoUploadTargetsAction(
     where: { id: sessionId, galleryId },
     select: {
       id: true,
+      sectionId: true,
       deliveryStage: true,
       gallery: {
         select: {
@@ -1625,6 +1735,7 @@ export async function completePhotoUploadsAction(
     select: {
       id: true,
       baseSortOrder: true,
+      sectionId: true,
       deliveryStage: true,
       gallery: {
         select: {
@@ -1699,6 +1810,7 @@ export async function completePhotoUploadsAction(
           },
           select: {
             id: true,
+            sectionId: true,
             r2Key: true,
             imageUrl: true,
             thumbnailUrl: true,
@@ -1756,6 +1868,7 @@ export async function completePhotoUploadsAction(
       return {
         id,
         galleryId,
+        sectionId: session.sectionId,
         filename: upload.filename,
         r2Key: upload.r2Key,
         imageUrl: upload.imageUrl,
@@ -1784,6 +1897,7 @@ export async function completePhotoUploadsAction(
       return {
         id,
         galleryId,
+        sectionId: session.sectionId,
         filename: upload.filename,
         r2Key: upload.r2Key,
         imageUrl: upload.imageUrl,
@@ -1811,6 +1925,7 @@ export async function completePhotoUploadsAction(
           data: createdPhotos.map((photo) => ({
             id: photo.id,
             galleryId: photo.galleryId,
+            sectionId: photo.sectionId,
             filename: photo.filename,
             r2Key: photo.r2Key,
             imageUrl: photo.imageUrl,
@@ -1834,6 +1949,7 @@ export async function completePhotoUploadsAction(
           where: { id: photo.id },
           data: {
             filename: photo.filename,
+            sectionId: photo.sectionId,
             r2Key: photo.r2Key,
             imageUrl: photo.imageUrl,
             thumbnailUrl: photo.thumbnailUrl,
