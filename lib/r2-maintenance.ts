@@ -1,10 +1,13 @@
 import {
   AbortMultipartUploadCommand,
+  GetBucketCorsCommand,
   ListMultipartUploadsCommand,
   ListObjectsV2Command,
   ListPartsCommand,
+  PutBucketCorsCommand,
   S3Client
 } from "@aws-sdk/client-s3";
+import type { CORSRule } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/prisma";
 
 export type R2MultipartUploadAudit = {
@@ -70,6 +73,14 @@ export type R2CleanupRunSummary = {
   skippedUnknownAgeUploads: number | null;
 };
 
+export type R2CorsUpdateResult = {
+  bucket: string;
+  ruleCount: number;
+  origins: string[];
+  methods: string[];
+  exposeHeaders: string[];
+};
+
 function r2Endpoint() {
   const explicit = process.env.R2_ENDPOINT?.trim();
 
@@ -117,6 +128,106 @@ function r2Client(config = r2Config()) {
       secretAccessKey: config.secretAccessKey
     }
   });
+}
+
+function uniqueList(values: Array<string | null | undefined>) {
+  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
+}
+
+function appOrigin() {
+  const value = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function r2ErrorStatusCode(error: unknown) {
+  if (!error || typeof error !== "object" || !("$metadata" in error)) {
+    return undefined;
+  }
+
+  return (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+}
+
+export async function updateR2BrowserUploadCors(): Promise<R2CorsUpdateResult> {
+  const config = r2Config();
+
+  if (config.missingConfig.length > 0) {
+    throw new Error(`Missing R2 configuration: ${config.missingConfig.join(", ")}`);
+  }
+
+  const client = r2Client(config);
+  const origins = uniqueList([
+    appOrigin(),
+    "https://spetly.app",
+    "https://www.spetly.app",
+    "https://*.spetly.app",
+    "https://gallery.hochzeitsfotografgraz.at",
+    "https://wedding-gallery-mvp.vercel.app",
+    "https://wedding-gallery-mvp-spetergabor-s-projects.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ]);
+  const methods = ["GET", "HEAD", "PUT", "POST"];
+  const exposeHeaders = ["ETag"];
+  const desiredRule = {
+    ID: "spetly-browser-uploads",
+    AllowedHeaders: ["*"],
+    AllowedMethods: methods,
+    AllowedOrigins: origins,
+    ExposeHeaders: exposeHeaders,
+    MaxAgeSeconds: 3600
+  };
+
+  let existingRules: CORSRule[] = [];
+
+  try {
+    const current = await client.send(new GetBucketCorsCommand({ Bucket: config.bucket }));
+    existingRules = current.CORSRules ?? [];
+  } catch (error) {
+    if (error instanceof Error && error.name !== "NoSuchCORSConfiguration") {
+      const statusCode = r2ErrorStatusCode(error);
+
+      if (statusCode !== 404) {
+        throw error;
+      }
+    }
+  }
+
+  const managedOrigins = new Set(["https://spetly.app", "https://*.spetly.app", "https://gallery.hochzeitsfotografgraz.at"]);
+  const preservedRules = existingRules.filter((rule) => {
+    if (rule.ID === desiredRule.ID) {
+      return false;
+    }
+
+    return !(rule.AllowedOrigins ?? []).some((origin) => managedOrigins.has(origin));
+  });
+
+  await client.send(
+    new PutBucketCorsCommand({
+      Bucket: config.bucket,
+      CORSConfiguration: {
+        CORSRules: [desiredRule, ...preservedRules]
+      }
+    })
+  );
+
+  const updated = await client.send(new GetBucketCorsCommand({ Bucket: config.bucket }));
+
+  return {
+    bucket: config.bucket,
+    ruleCount: updated.CORSRules?.length ?? 0,
+    origins,
+    methods,
+    exposeHeaders
+  };
 }
 
 function addSummary(map: Map<string, R2ObjectSummary>, key: string, bytes: number) {

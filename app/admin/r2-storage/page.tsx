@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { AlertTriangle, Clock3, Database, HardDrive, PackageX, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Clock3, Database, HardDrive, PackageX, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { requireSuperAdmin } from "@/lib/auth";
-import { abortAllR2MultipartUploadsAction, abortR2MultipartUploadAction } from "@/lib/r2-maintenance-actions";
+import { abortAllR2MultipartUploadsAction, abortR2MultipartUploadAction, updateR2BrowserUploadCorsAction } from "@/lib/r2-maintenance-actions";
 import { getLatestR2CleanupRun, getR2StorageAudit, type R2CleanupRunSummary } from "@/lib/r2-maintenance";
 
 function formatBytes(bytes: number) {
@@ -82,7 +82,7 @@ function cleanupStatus(run: R2CleanupRunSummary | null) {
 export default async function AdminR2StoragePage({
   searchParams
 }: {
-  searchParams: Promise<{ aborted?: string; objects?: string }>;
+  searchParams: Promise<{ aborted?: string; cors?: string; objects?: string; origins?: string }>;
 }) {
   await requireSuperAdmin();
   const flags = await searchParams;
@@ -114,6 +114,11 @@ export default async function AdminR2StoragePage({
           Naponta lefut, és megszakítja a 24 óránál régebbi félbemaradt multipart feltöltéseket.
         </Alert>
         {flags.aborted ? <Alert title={`${flags.aborted} félbemaradt feltöltés megszakítva.`} variant="success" /> : null}
+        {flags.cors === "1" ? (
+          <Alert title="R2 CORS frissítve." variant="success">
+            A böngészős feltöltés engedélyezve lett a Spetly domainre és subdomainekre.
+          </Alert>
+        ) : null}
         {!audit.configured ? (
           <Alert title="Hiányos R2 konfiguráció." variant="error">
             Hiányzik: {audit.missingConfig.join(", ")}
@@ -152,6 +157,29 @@ export default async function AdminR2StoragePage({
           value={latestCleanupStatus.value}
           detail={latestCleanupRun?.errorMessage ?? latestCleanupStatus.detail}
         />
+      </section>
+
+      <section className="mt-6 rounded-md border border-ink/10 bg-white p-5">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
+              <ShieldCheck size={18} />
+              Direkt böngészős feltöltés
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
+              Ha új domainről nem mennek a képfeltöltések, frissítsd a bucket CORS szabályát. Ez engedi a Spetly appot és a fotós aldomaines linkeket közvetlenül R2-be tölteni.
+            </p>
+          </div>
+          <form action={updateR2BrowserUploadCorsAction}>
+            <button
+              type="submit"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-ink/10 bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-graphite md:w-auto"
+            >
+              <ShieldCheck size={16} />
+              CORS frissítése
+            </button>
+          </form>
+        </div>
       </section>
 
       <section className="mt-6 rounded-md border border-red-200 bg-red-50 p-5">
