@@ -119,6 +119,16 @@ export default async function AdminR2StoragePage({
             A böngészős feltöltés engedélyezve lett a Spetly domainre és subdomainekre.
           </Alert>
         ) : null}
+        {flags.cors === "denied" ? (
+          <Alert title="Az R2 API kulcs nem módosíthat bucket CORS-t." variant="error">
+            A feltöltéshez használt R2 kulcs működik objektumokra, de bucket-szintű CORS írásra nincs jogosultsága. Ilyenkor a Cloudflare dashboardban kell menteni a CORS policyt.
+          </Alert>
+        ) : null}
+        {flags.cors === "failed" ? (
+          <Alert title="Az R2 CORS frissítés nem sikerült." variant="error">
+            Nézd meg a Vercel logot, vagy állítsd be a CORS policyt közvetlenül a Cloudflare dashboardban.
+          </Alert>
+        ) : null}
         {!audit.configured ? (
           <Alert title="Hiányos R2 konfiguráció." variant="error">
             Hiányzik: {audit.missingConfig.join(", ")}
