@@ -612,7 +612,12 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
       admin: {
         select: {
           name: true,
-          email: true
+          email: true,
+          siteSettings: {
+            select: {
+              publicSubdomain: true
+            }
+          }
         }
       }
     }
@@ -777,7 +782,12 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       admin: {
         select: {
           name: true,
-          email: true
+          email: true,
+          siteSettings: {
+            select: {
+              publicSubdomain: true
+            }
+          }
         }
       }
     }
@@ -852,11 +862,12 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     redirect(`${bookingPath}?error=taken`);
   }
 
-  const cancelUrl = miniSessionBookingCancelUrl(slug, cancelToken);
-  const rescheduleUrl = miniSessionBookingRescheduleUrl(slug, cancelToken);
-  const calendarUrl = miniSessionBookingCalendarUrl(slug, cancelToken);
+  const publicSubdomain = session.admin.siteSettings?.publicSubdomain ?? null;
+  const cancelUrl = miniSessionBookingCancelUrl(slug, cancelToken, publicSubdomain);
+  const rescheduleUrl = miniSessionBookingRescheduleUrl(slug, cancelToken, publicSubdomain);
+  const calendarUrl = miniSessionBookingCalendarUrl(slug, cancelToken, publicSubdomain);
   const adminUrl = adminMiniSessionUrl(session.id);
-  const publicUrl = miniSessionPublicUrl(session.slug);
+  const publicUrl = miniSessionPublicUrl(session.slug, publicSubdomain);
   const calendarFilename = miniSessionCalendarFilename(session.title);
   const language = normalizeMiniSessionLanguage(session.language);
   const customerCalendarIcs = buildMiniSessionCalendarIcs({
@@ -1334,7 +1345,12 @@ export async function cancelMiniSessionBookingAction(token: string) {
           admin: {
             select: {
               name: true,
-              email: true
+              email: true,
+              siteSettings: {
+                select: {
+                  publicSubdomain: true
+                }
+              }
             }
           }
         }
@@ -1393,7 +1409,8 @@ export async function cancelMiniSessionBookingAction(token: string) {
     }
 
     try {
-      const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
+      const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
+      const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
       const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
       const cancellationIcs = buildMiniSessionCalendarIcs({
         uid: miniSessionCalendarUid(booking.id),
@@ -1754,7 +1771,12 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
           admin: {
             select: {
               name: true,
-              email: true
+              email: true,
+              siteSettings: {
+                select: {
+                  publicSubdomain: true
+                }
+              }
             }
           }
         }
@@ -1771,9 +1793,10 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
   }
 
   const language = normalizeMiniSessionLanguage(booking.miniSession.language);
-  const cancelUrl = miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken);
-  const rescheduleUrl = miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken);
-  const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
+  const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
+  const cancelUrl = miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
+  const rescheduleUrl = miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
+  const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
   const calendarFilename = miniSessionCalendarFilename(booking.miniSession.title);
   const calendarIcs = buildMiniSessionCalendarIcs({
     uid: miniSessionCalendarUid(booking.id),
@@ -1918,7 +1941,12 @@ export async function resendMiniSessionAdminNotificationAction(bookingId: string
         include: {
           admin: {
             select: {
-              email: true
+              email: true,
+              siteSettings: {
+                select: {
+                  publicSubdomain: true
+                }
+              }
             }
           }
         }
@@ -1935,8 +1963,9 @@ export async function resendMiniSessionAdminNotificationAction(bookingId: string
   }
 
   const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
-  const publicUrl = miniSessionPublicUrl(booking.miniSession.slug);
-  const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken);
+  const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
+  const publicUrl = miniSessionPublicUrl(booking.miniSession.slug, publicSubdomain);
+  const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
   const calendarFilename = miniSessionCalendarFilename(booking.miniSession.title);
   const adminCalendarIcs = buildMiniSessionCalendarIcs({
     uid: miniSessionCalendarUid(booking.id),

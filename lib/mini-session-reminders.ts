@@ -56,7 +56,12 @@ export async function sendMiniSessionReminderEmails({
           admin: {
             select: {
               name: true,
-              email: true
+              email: true,
+              siteSettings: {
+                select: {
+                  publicSubdomain: true
+                }
+              }
             }
           }
         }
@@ -78,6 +83,7 @@ export async function sendMiniSessionReminderEmails({
     }
 
     const language = normalizeMiniSessionLanguage(booking.miniSession.language);
+    const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
 
     try {
       const wasSent = await sendMiniSessionReminderEmail({
@@ -91,9 +97,9 @@ export async function sendMiniSessionReminderEmails({
         endsAt: booking.endsAt,
         name: booking.name,
         attendeeCount: booking.attendeeCount,
-        cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken),
-        rescheduleUrl: miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken),
-        calendarUrl: miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken),
+        cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
+        rescheduleUrl: miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
+        calendarUrl: miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
         calendarButtonLabel: language === "de" ? "Zum Kalender hinzufügen" : "Naptárhoz adás",
         language
       });

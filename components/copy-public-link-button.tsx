@@ -6,11 +6,13 @@ import { Button } from "@/components/button";
 
 export function CopyPublicLinkButton({
   slug,
+  url,
   label = "Publikus link másolása",
   variant = "secondary",
   className
 }: {
   slug: string;
+  url?: string;
   label?: string;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   className?: string;
@@ -18,10 +20,10 @@ export function CopyPublicLinkButton({
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
-    const publicUrl = new URL(`/g/${slug}`, window.location.origin);
+    const publicUrl = url ?? new URL(`/g/${slug}`, window.location.origin).toString();
 
     try {
-      await window.navigator.clipboard.writeText(publicUrl.toString());
+      await window.navigator.clipboard.writeText(publicUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {

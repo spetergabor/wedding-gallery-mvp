@@ -54,6 +54,15 @@ export async function GET(
       id: true,
       coupleName: true,
       preferredLanguage: true,
+      admin: {
+        select: {
+          siteSettings: {
+            select: {
+              publicSubdomain: true
+            }
+          }
+        }
+      },
       projects: {
         where: {
           id: projectId,
@@ -70,7 +79,8 @@ export async function GET(
   }
 
   const language = customer.preferredLanguage === "hu" ? "hu" : "de";
-  const url = customerPortalUrl(token);
+  const publicSubdomain = customer.admin.siteSettings?.publicSubdomain ?? null;
+  const url = customerPortalUrl(token, publicSubdomain);
   const description = [
     language === "de" ? `Paar: ${customer.coupleName}` : `Pár: ${customer.coupleName}`,
     `${language === "de" ? "Typ" : "Típus"}: ${projectTypeLabel(project.projectType, language)}`,

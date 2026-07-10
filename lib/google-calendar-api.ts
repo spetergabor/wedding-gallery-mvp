@@ -641,7 +641,16 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
           adminId: true,
           title: true,
           slug: true,
-          location: true
+          location: true,
+          admin: {
+            select: {
+              siteSettings: {
+                select: {
+                  publicSubdomain: true
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -658,6 +667,7 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
   }
 
   const calendarId = integration.calendarId || "primary";
+  const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
   const deliveryLog = await createDeliveryLog({
     adminId: booking.miniSession.adminId,
     channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
@@ -696,9 +706,9 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
         location: booking.miniSession.location,
         description: miniSessionBookingDescription({
           sessionTitle: booking.miniSession.title,
-          publicUrl: miniSessionPublicUrl(booking.miniSession.slug),
+          publicUrl: miniSessionPublicUrl(booking.miniSession.slug, publicSubdomain),
           adminUrl: adminMiniSessionUrl(booking.miniSession.id),
-          cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken),
+          cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
           name: booking.name,
           email: booking.email,
           phone: booking.phone,
@@ -727,9 +737,9 @@ export async function syncMiniSessionBookingToGoogleCalendar(bookingId: string) 
       location: booking.miniSession.location,
       description: miniSessionBookingDescription({
         sessionTitle: booking.miniSession.title,
-        publicUrl: miniSessionPublicUrl(booking.miniSession.slug),
+        publicUrl: miniSessionPublicUrl(booking.miniSession.slug, publicSubdomain),
         adminUrl: adminMiniSessionUrl(booking.miniSession.id),
-        cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken),
+        cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
         name: booking.name,
         email: booking.email,
         phone: booking.phone,

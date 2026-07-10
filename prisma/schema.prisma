@@ -193,6 +193,7 @@ model SiteSettings {
   id             String   @id @default("default")
   adminId        String?  @unique
   businessName   String   @default("")
+  publicSubdomain String?  @unique
   logoUrl        String?
   logoR2Key      String?
   logoHeight     Int      @default(80)

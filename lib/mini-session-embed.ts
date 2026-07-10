@@ -8,8 +8,8 @@ function escapeHtmlAttribute(value: string) {
     .replace(/>/g, "&gt;");
 }
 
-export function miniSessionEmbedCode(slug: string, title: string) {
-  const embedUrl = escapeHtmlAttribute(miniSessionEmbedUrl(slug));
+export function miniSessionEmbedCode(slug: string, title: string, publicSubdomain?: string | null) {
+  const embedUrl = escapeHtmlAttribute(miniSessionEmbedUrl(slug, publicSubdomain));
   const safeTitle = escapeHtmlAttribute(`${title} időpontfoglaló`);
 
   return `<iframe src="${embedUrl}" title="${safeTitle}" style="width:100%;max-width:720px;height:860px;border:0;border-radius:12px;overflow:hidden;" loading="lazy"></iframe>`;

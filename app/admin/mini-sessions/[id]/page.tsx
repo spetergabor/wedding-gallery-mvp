@@ -466,7 +466,14 @@ export default async function AdminMiniSessionDetailPage({
   const blockedBookings = booked.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED);
   const slots = createMiniSessionSlots(session);
   const bookableSlots = filterMiniSessionSlotsByBookingNotice(slots, session.minBookingNoticeMinutes);
-  const freeSlots = await getAvailableMiniSessionSlots(session);
+  const [freeSlots, siteSettings] = await Promise.all([
+    getAvailableMiniSessionSlots(session),
+    prisma.siteSettings.findUnique({
+      where: { adminId: session.adminId },
+      select: { publicSubdomain: true }
+    })
+  ]);
+  const publicSubdomain = siteSettings?.publicSubdomain ?? null;
   const freeSlotTokens = new Set(freeSlots.map((slot) => slot.token));
   const bookableSlotTokens = new Set(bookableSlots.map((slot) => slot.token));
   const bookedBySlot = new Map(booked.map((booking) => [booking.startsAt.toISOString(), booking]));
@@ -509,9 +516,9 @@ export default async function AdminMiniSessionDetailPage({
   }
 
   const deliveryLogFor = (bookingId: string, type: string) => latestDeliveryLogByBooking.get(bookingId)?.get(type);
-  const publicUrl = miniSessionPublicUrl(session.slug);
-  const embedUrl = miniSessionEmbedUrl(session.slug);
-  const embedCode = miniSessionEmbedCode(session.slug, session.title);
+  const publicUrl = miniSessionPublicUrl(session.slug, publicSubdomain);
+  const embedUrl = miniSessionEmbedUrl(session.slug, publicSubdomain);
+  const embedCode = miniSessionEmbedCode(session.slug, session.title, publicSubdomain);
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
   const showSlotDates = isRecurring || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
   const sessionDateLabel = formatMiniSessionDateRange(session.startsAt, session.endsAt);

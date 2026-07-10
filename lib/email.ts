@@ -303,6 +303,26 @@ export function appBaseUrl() {
   return `https://${rawUrl}`;
 }
 
+export function appPublicBaseUrl(publicSubdomain?: string | null) {
+  const baseUrl = appBaseUrl();
+  const normalizedSubdomain = publicSubdomain?.trim().toLowerCase();
+
+  if (!normalizedSubdomain) {
+    return baseUrl;
+  }
+
+  const url = new URL(baseUrl);
+
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname.endsWith(".local")) {
+    return baseUrl;
+  }
+
+  const rootHost = url.hostname.startsWith("www.") ? url.hostname.slice(4) : url.hostname;
+  url.hostname = `${normalizedSubdomain}.${rootHost}`;
+
+  return url.toString().replace(/\/$/, "");
+}
+
 function emailConfig() {
   return {
     apiKey: process.env.RESEND_API_KEY,
@@ -447,42 +467,49 @@ export function adminGalleryUrl(galleryId: string) {
   return `${appBaseUrl()}/admin/galleries/${galleryId}`;
 }
 
-export function publicGalleryUrl(slug: string, language?: CustomerLanguage) {
-  const publicUrl = new URL(`/g/${slug}`, appBaseUrl());
+export function publicGalleryUrl(slug: string, _language?: string | null, publicSubdomain?: string | null) {
+  const publicUrl = new URL(`/g/${slug}`, appPublicBaseUrl(publicSubdomain));
 
   return publicUrl.toString();
+}
+
+export function clientGalleryUrl(slug: string, token: string, publicSubdomain?: string | null) {
+  const clientUrl = new URL(`/client/${slug}`, appPublicBaseUrl(publicSubdomain));
+  clientUrl.searchParams.set("token", token);
+
+  return clientUrl.toString();
 }
 
 export function galleryDownloadUrl(token: string) {
   return `${appBaseUrl()}/download/${token}`;
 }
 
-export function miniSessionPublicUrl(slug: string) {
-  return `${appBaseUrl()}/mini-session/${slug}`;
+export function miniSessionPublicUrl(slug: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/mini-session/${slug}`;
 }
 
-export function miniSessionEmbedUrl(slug: string) {
-  return `${appBaseUrl()}/mini-session/${slug}/embed`;
+export function miniSessionEmbedUrl(slug: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/mini-session/${slug}/embed`;
 }
 
-export function miniSessionBookingCancelUrl(slug: string, token: string) {
-  return `${appBaseUrl()}/mini-session/${slug}/cancel/${token}`;
+export function miniSessionBookingCancelUrl(slug: string, token: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/mini-session/${slug}/cancel/${token}`;
 }
 
-export function miniSessionBookingRescheduleUrl(slug: string, token: string) {
-  return `${appBaseUrl()}/mini-session/${slug}/reschedule/${token}`;
+export function miniSessionBookingRescheduleUrl(slug: string, token: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/mini-session/${slug}/reschedule/${token}`;
 }
 
-export function miniSessionBookingCalendarUrl(slug: string, token: string) {
-  return `${appBaseUrl()}/mini-session/${slug}/calendar/${token}`;
+export function miniSessionBookingCalendarUrl(slug: string, token: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/mini-session/${slug}/calendar/${token}`;
 }
 
 export function adminPasswordResetUrl(token: string) {
   return `${appBaseUrl()}/admin/reset-password/${encodeURIComponent(token)}`;
 }
 
-export function customerPortalUrl(token: string) {
-  return `${appBaseUrl()}/portal/${token}`;
+export function customerPortalUrl(token: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/portal/${token}`;
 }
 
 export function adminMiniSessionUrl(miniSessionId: string) {

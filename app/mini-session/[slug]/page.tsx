@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionSlotCalendar } from "@/components/mini-session-slot-calendar";
+import { miniSessionBookingCalendarUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import { bookMiniSessionAction } from "@/lib/mini-session-actions";
 import {
@@ -97,7 +98,8 @@ export default async function PublicMiniSessionPage({
             select: {
               businessName: true,
               contactEmail: true,
-              contactPhone: true
+              contactPhone: true,
+              publicSubdomain: true
             }
           }
         }
@@ -125,7 +127,8 @@ export default async function PublicMiniSessionPage({
       label: formatMiniSessionSlot(slot.startsAt, slot.endsAt, language)
     }))
   }));
-  const calendarHref = flags.calendar ? `/mini-session/${session.slug}/calendar/${encodeURIComponent(flags.calendar)}` : null;
+  const publicSubdomain = session.admin.siteSettings?.publicSubdomain ?? null;
+  const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(session.slug, flags.calendar, publicSubdomain) : null;
   const hasCoverImage = Boolean(session.coverImageUrl);
   const eyebrowClass = hasCoverImage ? "text-white/80" : "text-brass";
   const headingClass = hasCoverImage ? "text-white drop-shadow-sm" : "text-ink";

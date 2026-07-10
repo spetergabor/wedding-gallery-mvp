@@ -789,7 +789,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
           email: true,
           siteSettings: {
             select: {
-              contactEmail: true
+              contactEmail: true,
+              publicSubdomain: true
             }
           }
         }
@@ -983,6 +984,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         recipient: gallery.admin?.siteSettings?.contactEmail || gallery.admin?.email,
         galleryTitle: gallery.title,
         gallerySlug: gallery.slug,
+        publicSubdomain: gallery.admin?.siteSettings?.publicSubdomain ?? null,
         photoCount: totalPhotoCount,
         fileSizeBytes: bytesWritten,
         generatedAt
@@ -1276,6 +1278,7 @@ async function notifyGalleryZipReady({
   recipient,
   galleryTitle,
   gallerySlug,
+  publicSubdomain,
   photoCount,
   fileSizeBytes,
   generatedAt
@@ -1285,6 +1288,7 @@ async function notifyGalleryZipReady({
   recipient?: string;
   galleryTitle: string;
   gallerySlug: string;
+  publicSubdomain?: string | null;
   photoCount: number;
   fileSizeBytes: bigint;
   generatedAt: Date;
@@ -1318,7 +1322,7 @@ async function notifyGalleryZipReady({
       to: recipient,
       galleryTitle,
       galleryAdminUrl: adminGalleryUrl(galleryId),
-      galleryPublicUrl: publicGalleryUrl(gallerySlug),
+      galleryPublicUrl: publicGalleryUrl(gallerySlug, undefined, publicSubdomain),
       photoCount,
       fileSizeBytes,
       generatedAt

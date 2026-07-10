@@ -122,6 +122,7 @@ const providerLinks = [
 
 const emptySettings = {
   businessName: "",
+  publicSubdomain: null,
   logoUrl: null,
   logoHeight: 80,
   signatureUrl: null,
@@ -334,6 +335,10 @@ const SETTINGS_COPY = {
       profileEmailBody: "Adj meg érvényes belépési email címet.",
       profileEmailTakenTitle: "Ez az email cím már használatban van.",
       profileEmailTakenBody: "Válassz másik email címet ehhez a fotós fiókhoz.",
+      publicSubdomainTitle: "Ez a Spetly publikus név nem használható.",
+      publicSubdomainBody: "Legalább 3 karakteres, egyedi nevet adj meg. A rendszernevek, mint www vagy admin, foglaltak.",
+      publicSubdomainTakenTitle: "Ez a Spetly publikus név már foglalt.",
+      publicSubdomainTakenBody: "Válassz másik nevet a spetly.app elé.",
       googleConnected: "Google naptár összekötve.",
       googleSaved: "Google naptár beállítások mentve.",
       googleDisconnected: "Google naptár kapcsolat leválasztva.",
@@ -424,6 +429,10 @@ const SETTINGS_COPY = {
       profileEmailBody: "Bitte gib eine gültige Login-E-Mail-Adresse ein.",
       profileEmailTakenTitle: "Diese E-Mail-Adresse wird bereits verwendet.",
       profileEmailTakenBody: "Wähle eine andere E-Mail-Adresse für dieses Fotografenkonto.",
+      publicSubdomainTitle: "Dieser öffentliche Spetly-Name kann nicht verwendet werden.",
+      publicSubdomainBody: "Bitte verwende einen eindeutigen Namen mit mindestens 3 Zeichen. Systemnamen wie www oder admin sind reserviert.",
+      publicSubdomainTakenTitle: "Dieser öffentliche Spetly-Name ist bereits vergeben.",
+      publicSubdomainTakenBody: "Wähle einen anderen Namen vor spetly.app.",
       googleConnected: "Google Kalender verbunden.",
       googleSaved: "Google Kalender-Einstellungen gespeichert.",
       googleDisconnected: "Google Kalender-Verbindung getrennt.",
@@ -514,6 +523,10 @@ const SETTINGS_COPY = {
       profileEmailBody: "Enter a valid login e-mail address.",
       profileEmailTakenTitle: "This e-mail address is already in use.",
       profileEmailTakenBody: "Choose another e-mail address for this photographer account.",
+      publicSubdomainTitle: "This public Spetly name cannot be used.",
+      publicSubdomainBody: "Use a unique name with at least 3 characters. System names like www or admin are reserved.",
+      publicSubdomainTakenTitle: "This public Spetly name is already taken.",
+      publicSubdomainTakenBody: "Choose another name before spetly.app.",
       googleConnected: "Google Calendar connected.",
       googleSaved: "Google Calendar settings saved.",
       googleDisconnected: "Google Calendar disconnected.",
@@ -1496,6 +1509,7 @@ export default async function AdminSettingsPage({
       },
       select: {
         businessName: true,
+        publicSubdomain: true,
         logoUrl: true,
         logoHeight: true,
         signatureUrl: true,
@@ -1712,6 +1726,16 @@ export default async function AdminSettingsPage({
         {params.error === "profile_email_taken" ? (
           <Alert title={copy.alerts.profileEmailTakenTitle} variant="error">
             {copy.alerts.profileEmailTakenBody}
+          </Alert>
+        ) : null}
+        {params.error === "public_subdomain" ? (
+          <Alert title={copy.alerts.publicSubdomainTitle} variant="error">
+            {copy.alerts.publicSubdomainBody}
+          </Alert>
+        ) : null}
+        {params.error === "public_subdomain_taken" ? (
+          <Alert title={copy.alerts.publicSubdomainTakenTitle} variant="error">
+            {copy.alerts.publicSubdomainTakenBody}
           </Alert>
         ) : null}
         {params.google === "connected" ? <Alert title={copy.alerts.googleConnected} variant="success" /> : null}

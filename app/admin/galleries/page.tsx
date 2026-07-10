@@ -6,8 +6,9 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { requireAdmin } from "@/lib/auth";
-import { adminOwnedWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
+import { publicGalleryUrl } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminGalleriesPage({
@@ -18,26 +19,35 @@ export default async function AdminGalleriesPage({
   const admin = await requireAdmin();
   const flags = await searchParams;
   const galleryWhere = adminOwnedWhere(admin);
+  const workspaceAdminId = ownerAdminId(admin);
 
-  const galleries = await prisma.gallery.findMany({
-    where: galleryWhere,
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { photos: true } },
-      customer: {
-        select: {
-          id: true,
-          customerType: true,
-          coupleName: true
+  const [galleries, siteSettings] = await Promise.all([
+    prisma.gallery.findMany({
+      where: galleryWhere,
+      orderBy: { createdAt: "desc" },
+      include: {
+        _count: { select: { photos: true } },
+        customer: {
+          select: {
+            id: true,
+            customerType: true,
+            coupleName: true,
+            preferredLanguage: true
+          }
+        },
+        photos: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: { id: true, imageUrl: true, thumbnailUrl: true, filename: true, mediaType: true },
+          take: 4
         }
-      },
-      photos: {
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { id: true, imageUrl: true, thumbnailUrl: true, filename: true, mediaType: true },
-        take: 4
       }
-    }
-  });
+    }),
+    prisma.siteSettings.findUnique({
+      where: { adminId: workspaceAdminId },
+      select: { publicSubdomain: true }
+    })
+  ]);
+  const publicSubdomain = siteSettings?.publicSubdomain ?? null;
 
   return (
     <AdminShell>
@@ -73,62 +83,74 @@ export default async function AdminGalleriesPage({
           }
         />
       ) : (
-      <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
-        <div className="divide-y divide-ink/10">
-          {galleries.map((gallery) => (
-            <div key={gallery.id} className="grid gap-4 px-5 py-5 md:grid-cols-[1fr_auto] md:items-center">
-              <Link href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[86px_1fr] sm:items-center">
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-ink/10 bg-paper sm:w-20">
-                  {(() => {
-                    const cover =
-                      gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
-                      gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
+        <section className="overflow-hidden rounded-md border border-ink/10 bg-white">
+          <div className="divide-y divide-ink/10">
+            {galleries.map((gallery) => {
+              const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
 
-                    return cover ? (
-                      cover.mediaType === "video" ? (
-                        <div className="grid h-full place-items-center bg-ink text-white">
-                          <Film size={20} />
-                        </div>
-                      ) : (
-                        <Image
-                          src={cover.thumbnailUrl}
-                          alt={cover.filename}
-                          fill
-                          unoptimized
-                          className="object-cover"
-                          sizes="96px"
-                          style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
-                        />
-                      )
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-graphite/50">
-                        <Camera size={20} />
-                      </div>
-                    );
-                  })()}
+              return (
+                <div key={gallery.id} className="grid gap-4 px-5 py-5 md:grid-cols-[1fr_auto] md:items-center">
+                  <Link href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[86px_1fr] sm:items-center">
+                    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-ink/10 bg-paper sm:w-20">
+                      {(() => {
+                        const cover =
+                          gallery.photos.find((photo) => photo.id === gallery.coverPhotoId && photo.thumbnailUrl !== photo.imageUrl) ??
+                          gallery.photos.find((photo) => photo.thumbnailUrl !== photo.imageUrl);
+
+                        return cover ? (
+                          cover.mediaType === "video" ? (
+                            <div className="grid h-full place-items-center bg-ink text-white">
+                              <Film size={20} />
+                            </div>
+                          ) : (
+                            <Image
+                              src={cover.thumbnailUrl}
+                              alt={cover.filename}
+                              fill
+                              unoptimized
+                              className="object-cover"
+                              sizes="96px"
+                              style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
+                            />
+                          )
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-graphite/50">
+                            <Camera size={20} />
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-ink">{gallery.title}</p>
+                      <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
+                      <p className="mt-1 text-sm text-graphite/60">
+                        {gallery.customer
+                          ? `Ügyfél: ${gallery.customer.coupleName} · ${customerTypeLabel(gallery.customer.customerType)}`
+                          : "Nincs ügyfélhez rendelve"}
+                      </p>
+                    </div>
+                  </Link>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"
+                      }`}
+                    >
+                      {gallery.isActive ? "Aktív" : "Archivált"}
+                    </span>
+                    <a
+                      className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5"
+                      href={galleryPublicUrl}
+                      target="_blank"
+                    >
+                      <ExternalLink size={16} />
+                    </a>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-lg font-semibold text-ink">{gallery.title}</p>
-                  <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
-                  <p className="mt-1 text-sm text-graphite/60">
-                    {gallery.customer
-                      ? `Ügyfél: ${gallery.customer.coupleName} · ${customerTypeLabel(gallery.customer.customerType)}`
-                      : "Nincs ügyfélhez rendelve"}
-                  </p>
-                </div>
-              </Link>
-              <div className="flex items-center gap-3">
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
-                  {gallery.isActive ? "Aktív" : "Archivált"}
-                </span>
-                <a className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5" href={`/g/${gallery.slug}`} target="_blank">
-                  <ExternalLink size={16} />
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+              );
+            })}
+          </div>
+        </section>
       )}
     </AdminShell>
   );

@@ -577,7 +577,7 @@ export default async function AdminMiniSessionsPage({
   const today = startOfDay(now);
   const tomorrow = addDays(today, 1);
   const weekEnd = addDays(today, 7);
-  const [sessions, calendarBlocks, weekProjects] = await Promise.all([
+  const [sessions, calendarBlocks, weekProjects, siteSettings] = await Promise.all([
     prisma.miniSession.findMany({
       where: adminOwnedWhere(admin),
       orderBy: [{ startsAt: "desc" }],
@@ -620,8 +620,13 @@ export default async function AdminMiniSessionsPage({
           }
         }
       }
+    }),
+    prisma.siteSettings.findUnique({
+      where: { adminId: workspaceAdminId },
+      select: { publicSubdomain: true }
     })
   ]);
+  const publicSubdomain = siteSettings?.publicSubdomain ?? null;
   const sessionMetrics = new Map(
     await Promise.all(
       sessions.map(async (session) => {
@@ -982,8 +987,8 @@ export default async function AdminMiniSessionsPage({
                 const metrics = sessionMetrics.get(session.id);
                 const bookableSlotCount = metrics?.bookableSlotCount ?? 0;
                 const freeSessionSlotCount = metrics?.freeSlotCount ?? 0;
-                const publicUrl = miniSessionPublicUrl(session.slug);
-                const embedCode = miniSessionEmbedCode(session.slug, session.title);
+                const publicUrl = miniSessionPublicUrl(session.slug, publicSubdomain);
+                const embedCode = miniSessionEmbedCode(session.slug, session.title, publicSubdomain);
                 const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
 
                 return (

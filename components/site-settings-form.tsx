@@ -8,6 +8,7 @@ type SiteSettingsFormProps = {
   adminName: string;
   settings: {
     businessName: string;
+    publicSubdomain: string | null;
     logoUrl: string | null;
     logoHeight: number;
     signatureUrl: string | null;
@@ -48,6 +49,24 @@ export function SiteSettingsForm({ adminName, settings }: SiteSettingsFormProps)
                 placeholder="pl. Hochzeitsfotograf Graz"
                 className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
               />
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Spetly publikus név</span>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <input
+                  name="publicSubdomain"
+                  defaultValue={settings.publicSubdomain ?? ""}
+                  placeholder="pl. peter"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 font-mono text-sm lowercase outline-none transition focus:border-ink/50"
+                />
+                <span className="text-sm font-medium text-graphite/70">.spetly.app</span>
+              </div>
+              <p className="text-xs leading-5 text-graphite/60">
+                Ha beállítod, a publikus galéria, ügyfélportál és időpontfoglaló linkek ezt az aldomaint használják.
+              </p>
             </label>
 
             <label className="block space-y-2">

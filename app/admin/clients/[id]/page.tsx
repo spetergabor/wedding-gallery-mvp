@@ -739,6 +739,15 @@ export default async function AdminClientDetailPage({
       venue: true,
       preferredLanguage: true,
       portalToken: true,
+      admin: {
+        select: {
+          siteSettings: {
+            select: {
+              publicSubdomain: true
+            }
+          }
+        }
+      },
       wifeName: true,
       wifeEmail: true,
       wifePhone: true,
@@ -1086,7 +1095,8 @@ export default async function AdminClientDetailPage({
     ])
   );
   const nextProjectWorkflow = nextProject ? projectWorkflowSummaries.get(nextProject.id) : null;
-  const portalUrl = customer.portalToken ? customerPortalUrl(customer.portalToken) : null;
+  const publicSubdomain = customer.admin.siteSettings?.publicSubdomain ?? null;
+  const portalUrl = customer.portalToken ? customerPortalUrl(customer.portalToken, publicSubdomain) : null;
 
   return (
     <AdminShell>

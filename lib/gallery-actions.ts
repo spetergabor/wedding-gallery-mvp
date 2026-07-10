@@ -178,6 +178,15 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
         select: {
           preferredLanguage: true
         }
+      },
+      admin: {
+        select: {
+          siteSettings: {
+            select: {
+              publicSubdomain: true
+            }
+          }
+        }
       }
     }
   });
@@ -197,11 +206,13 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
   }
 
   try {
+    const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage);
+    const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
     const sent = await sendClientProofingInviteEmail({
       to: recipient,
       galleryTitle: gallery.title,
-      proofingGalleryUrl: publicGalleryUrl(gallery.slug, normalizeCustomerLanguage(gallery.customer?.preferredLanguage)),
-      language: normalizeCustomerLanguage(gallery.customer?.preferredLanguage)
+      proofingGalleryUrl: publicGalleryUrl(gallery.slug, language, publicSubdomain),
+      language
     });
 
     if (!sent) {
@@ -250,6 +261,15 @@ async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = fal
         select: {
           preferredLanguage: true
         }
+      },
+      admin: {
+        select: {
+          siteSettings: {
+            select: {
+              publicSubdomain: true
+            }
+          }
+        }
       }
     }
   });
@@ -273,12 +293,14 @@ async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = fal
   }
 
   try {
+    const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage);
+    const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
     const sent = await sendClientFinalDeliveryEmail({
       to: recipient,
       galleryTitle: gallery.title,
-      galleryUrl: publicGalleryUrl(gallery.slug, normalizeCustomerLanguage(gallery.customer?.preferredLanguage)),
+      galleryUrl: publicGalleryUrl(gallery.slug, language, publicSubdomain),
       downloadsEnabled: gallery.downloadsEnabled,
-      language: normalizeCustomerLanguage(gallery.customer?.preferredLanguage)
+      language
     });
 
     if (!sent) {

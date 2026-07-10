@@ -58,7 +58,19 @@ export async function GET(
   const booking = await prisma.miniSessionBooking.findUnique({
     where: { cancelToken: token },
     include: {
-      miniSession: true
+      miniSession: {
+        include: {
+          admin: {
+            select: {
+              siteSettings: {
+                select: {
+                  publicSubdomain: true
+                }
+              }
+            }
+          }
+        }
+      }
     }
   });
 
@@ -67,8 +79,9 @@ export async function GET(
   }
 
   const isCancelled = booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED;
-  const calendarUrl = miniSessionBookingCalendarUrl(slug, token);
-  const cancelUrl = miniSessionBookingCancelUrl(slug, token);
+  const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
+  const calendarUrl = miniSessionBookingCalendarUrl(slug, token, publicSubdomain);
+  const cancelUrl = miniSessionBookingCancelUrl(slug, token, publicSubdomain);
   const language = normalizeMiniSessionLanguage(booking.miniSession.language);
   const copy = calendarDescriptionCopy(language);
   const description = [

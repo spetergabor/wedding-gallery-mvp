@@ -69,7 +69,8 @@ export default async function RescheduleMiniSessionBookingPage({
             select: {
               siteSettings: {
                 select: {
-                  businessName: true
+                  businessName: true,
+                  publicSubdomain: true
                 }
               }
             }
@@ -104,7 +105,8 @@ export default async function RescheduleMiniSessionBookingPage({
       label: formatMiniSessionSlot(slot.startsAt, slot.endsAt, language)
     }))
   }));
-  const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(booking.miniSession.slug, flags.calendar) : null;
+  const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
+  const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(booking.miniSession.slug, flags.calendar, publicSubdomain) : null;
 
   return (
     <main className="min-h-screen bg-paper px-5 py-8 text-ink lg:px-10">

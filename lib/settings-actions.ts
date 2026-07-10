@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { normalizeSlug } from "@/lib/slug";
 import { logSystemEvent } from "@/lib/system-events";
 import {
   createBrandAssetObjectKey,
@@ -57,6 +58,27 @@ function formOptionalDate(formData: FormData, key: string) {
 
 function formNullableString(formData: FormData, key: string) {
   return formString(formData, key) || null;
+}
+
+const RESERVED_PUBLIC_SUBDOMAINS = new Set([
+  "admin",
+  "api",
+  "app",
+  "assets",
+  "blog",
+  "cdn",
+  "dashboard",
+  "help",
+  "mail",
+  "smtp",
+  "spetly",
+  "static",
+  "support",
+  "www"
+]);
+
+function normalizePublicSubdomain(value: string) {
+  return normalizeSlug(value).slice(0, 40);
 }
 
 export async function updatePhotographerProfileAction(formData: FormData) {
@@ -191,6 +213,11 @@ export async function updateSiteSettingsAction(formData: FormData) {
 
   const logoHeight = formClampedNumber(formData, "logoHeight", 80, 32, 140);
   const adminName = formString(formData, "adminName") || admin.name;
+  const publicSubdomain = normalizePublicSubdomain(formString(formData, "publicSubdomain"));
+
+  if (publicSubdomain && (publicSubdomain.length < 3 || RESERVED_PUBLIC_SUBDOMAINS.has(publicSubdomain))) {
+    redirect("/admin/settings?tab=brand&error=public_subdomain");
+  }
 
   const existingSettings = await prisma.siteSettings.findFirst({
     where: {
@@ -198,6 +225,17 @@ export async function updateSiteSettingsAction(formData: FormData) {
     },
     select: { id: true, logoR2Key: true, signatureR2Key: true }
   });
+
+  if (publicSubdomain) {
+    const existingSubdomain = await prisma.siteSettings.findUnique({
+      where: { publicSubdomain },
+      select: { id: true }
+    });
+
+    if (existingSubdomain && existingSubdomain.id !== (existingSettings?.id ?? admin.id)) {
+      redirect("/admin/settings?tab=brand&error=public_subdomain_taken");
+    }
+  }
   const logoFile = formData.get("logo");
   const signatureFile = formData.get("signature");
   const shouldRemoveLogo = formData.get("removeLogo") === "on";
@@ -268,6 +306,7 @@ export async function updateSiteSettingsAction(formData: FormData) {
       id: admin.id,
       adminId: admin.id,
       businessName: formString(formData, "businessName"),
+      publicSubdomain: publicSubdomain || null,
       logoUrl: logoUrl ?? null,
       logoR2Key: logoR2Key ?? null,
       logoHeight,
@@ -284,6 +323,7 @@ export async function updateSiteSettingsAction(formData: FormData) {
     update: {
       adminId: admin.id,
       businessName: formString(formData, "businessName"),
+      publicSubdomain: publicSubdomain || null,
       ...(logoUrl !== undefined ? { logoUrl } : {}),
       ...(logoR2Key !== undefined ? { logoR2Key } : {}),
       logoHeight,

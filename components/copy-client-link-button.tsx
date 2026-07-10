@@ -7,12 +7,14 @@ import { Button } from "@/components/button";
 export function CopyClientLinkButton({
   slug,
   token,
+  url,
   label = "Privát kezelő link másolása",
   variant = "secondary",
   className
 }: {
   slug: string;
   token: string;
+  url?: string;
   label?: string;
   variant?: "primary" | "secondary" | "ghost" | "danger";
   className?: string;
@@ -20,11 +22,14 @@ export function CopyClientLinkButton({
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
-    const clientUrl = new URL(`/client/${slug}`, window.location.origin);
-    clientUrl.searchParams.set("token", token);
+    const clientUrl = url ?? (() => {
+      const fallbackUrl = new URL(`/client/${slug}`, window.location.origin);
+      fallbackUrl.searchParams.set("token", token);
+      return fallbackUrl.toString();
+    })();
 
     try {
-      await window.navigator.clipboard.writeText(clientUrl.toString());
+      await window.navigator.clipboard.writeText(clientUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {

@@ -26,6 +26,7 @@ import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { clientGalleryUrl, publicGalleryUrl } from "@/lib/email";
 import {
   generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
@@ -200,6 +201,15 @@ export default async function GalleryDetailPage({
       views: {
         orderBy: { createdAt: "desc" },
         take: 25
+      },
+      admin: {
+        select: {
+          siteSettings: {
+            select: {
+              publicSubdomain: true
+            }
+          }
+        }
       }
     }
   });
@@ -270,6 +280,9 @@ export default async function GalleryDetailPage({
       updatedAt: session.updatedAt.toISOString()
     }));
   const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
+  const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
+  const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
+  const galleryClientUrl = gallery.clientAccessToken ? clientGalleryUrl(gallery.slug, gallery.clientAccessToken, publicSubdomain) : null;
 
   return (
     <AdminShell>
@@ -308,8 +321,8 @@ export default async function GalleryDetailPage({
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
-          <CopyPublicLinkButton slug={gallery.slug} variant="primary" />
-          <ButtonLink href={`/g/${gallery.slug}`} variant="secondary">
+          <CopyPublicLinkButton slug={gallery.slug} url={galleryPublicUrl} variant="primary" />
+          <ButtonLink href={galleryPublicUrl} variant="secondary">
             <ExternalLink size={16} />
             Publikus nézet
           </ButtonLink>
@@ -619,7 +632,7 @@ export default async function GalleryDetailPage({
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     {gallery.clientAccessToken ? (
-                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} variant="secondary" />
+                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} url={galleryClientUrl ?? undefined} variant="secondary" />
                     ) : (
                       <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
                         <FormSubmitButton variant="secondary" pendingLabel="Link készítése...">
