@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarClock, CalendarPlus, CheckCircle2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarClock, CheckCircle2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,7 +12,7 @@ import { MiniSessionBookingFilters } from "@/components/mini-session-booking-fil
 import { MiniSessionTabController } from "@/components/mini-session-tab-controller";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { miniSessionBookingCalendarUrl, miniSessionBookingCancelUrl, miniSessionBookingRescheduleUrl, miniSessionPublicUrl } from "@/lib/email";
+import { miniSessionPublicUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
   cancelMiniSessionBookingByAdminAction,
@@ -69,10 +69,8 @@ const headerActionLinkClass =
   "inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-ink/10 px-2.5 text-xs font-medium text-ink transition hover:bg-ink/5 sm:px-3 sm:text-sm md:w-auto";
 const headerActionButtonClass =
   "h-9 w-full min-w-0 whitespace-nowrap px-2.5 text-xs sm:px-3 sm:text-sm md:w-auto";
-const smallActionLinkClass =
-  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-ink/10 bg-white px-2.5 text-xs font-medium text-ink transition hover:bg-ink/5";
-const smallActionButtonClass =
-  "h-8 whitespace-nowrap px-2.5 text-xs";
+const bookingActionButtonClass =
+  "h-9 w-full whitespace-nowrap px-3 text-xs";
 
 function activeTab(value: string | undefined): MiniSessionTab {
   if (value === "bookings" || value === "slots" || value === "settings") {
@@ -228,6 +226,102 @@ function DeliveryStatusLine({ label, display }: { label: string; display: Delive
         </span>
         {display.detail ? <span className="max-w-48 truncate text-[11px] text-graphite/50">{display.detail}</span> : null}
       </span>
+    </div>
+  );
+}
+
+type BookingActionSlot = {
+  token: string;
+  startsAt: Date;
+  endsAt: Date;
+};
+
+function needsManualRetry(display: DeliveryDisplay) {
+  return display.status === "failed" || display.status === "retry";
+}
+
+function BookingManagementActions({
+  bookingId,
+  isActive,
+  currentSlot,
+  rescheduleSlots,
+  showSlotDates,
+  customerEmailDelivery,
+  adminEmailDelivery,
+  calendarDelivery
+}: {
+  bookingId: string;
+  isActive: boolean;
+  currentSlot: BookingActionSlot;
+  rescheduleSlots: BookingActionSlot[];
+  showSlotDates: boolean;
+  customerEmailDelivery: DeliveryDisplay;
+  adminEmailDelivery: DeliveryDisplay;
+  calendarDelivery: DeliveryDisplay;
+}) {
+  const showCustomerEmailRetry = isActive && needsManualRetry(customerEmailDelivery);
+  const showAdminEmailRetry = isActive && needsManualRetry(adminEmailDelivery);
+  const showCalendarRetry = isActive && needsManualRetry(calendarDelivery);
+  const hasRetryActions = showCustomerEmailRetry || showAdminEmailRetry || showCalendarRetry;
+
+  if (!isActive) {
+    return <span className="text-xs font-medium text-graphite/50">Törölt foglalás</span>;
+  }
+
+  return (
+    <div className="ml-auto grid w-full max-w-80 gap-2">
+      <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, bookingId)} className="grid gap-2">
+        <input type="hidden" name="returnTab" value="bookings" />
+        <select name="slot" required defaultValue={currentSlot.token} className="h-9 w-full rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none">
+          {rescheduleSlots.map((slot) => (
+            <option key={slot.token} value={slot.token}>
+              {showSlotDates
+                ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
+                : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
+            </option>
+          ))}
+        </select>
+        <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
+          Áthelyezés
+        </FormSubmitButton>
+      </form>
+
+      {hasRetryActions ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
+          {showCustomerEmailRetry ? (
+            <form action={resendMiniSessionBookingConfirmationAction.bind(null, bookingId)}>
+              <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={bookingActionButtonClass}>
+                <Send size={13} />
+                Ügyfél e-mail
+              </FormSubmitButton>
+            </form>
+          ) : null}
+          {showAdminEmailRetry ? (
+            <form action={resendMiniSessionAdminNotificationAction.bind(null, bookingId)}>
+              <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={bookingActionButtonClass}>
+                <Send size={13} />
+                Admin e-mail
+              </FormSubmitButton>
+            </form>
+          ) : null}
+          {showCalendarRetry ? (
+            <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, bookingId)}>
+              <FormSubmitButton variant="secondary" pendingLabel="Sync..." className={bookingActionButtonClass}>
+                <CalendarClock size={13} />
+                Naptár sync
+              </FormSubmitButton>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+
+      <form action={cancelMiniSessionBookingByAdminAction.bind(null, bookingId)}>
+        <input type="hidden" name="returnTab" value="bookings" />
+        <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className={bookingActionButtonClass}>
+          <XCircle size={13} />
+          Törlés
+        </ConfirmSubmitButton>
+      </form>
     </div>
   );
 }
@@ -596,9 +690,6 @@ export default async function AdminMiniSessionDetailPage({
                   const slotLabel = showSlotDates
                     ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
                     : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
-                  const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
-                  const rescheduleUrl = miniSessionBookingRescheduleUrl(session.slug, booking.cancelToken);
-                  const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
                   const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
                   const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
                   const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
@@ -649,69 +740,17 @@ export default async function AdminMiniSessionDetailPage({
                         <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
                         <DeliveryStatusLine label="Google Calendar" display={calendarDelivery} />
                       </div>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <a className={smallActionLinkClass} href={`mailto:${booking.email}`}>
-                          <Mail size={13} />
-                          E-mail
-                        </a>
-                        <a className={smallActionLinkClass} href={`tel:${booking.phone}`}>
-                          <Phone size={13} />
-                          Telefon
-                        </a>
-                        <Link className={smallActionLinkClass} href={calendarUrl} target="_blank">
-                          <CalendarPlus size={13} />
-                          Naptár
-                        </Link>
-                        <CopyLinkButton url={rescheduleUrl} label="Módosító link" className={smallActionButtonClass} />
-                        <CopyLinkButton url={cancelUrl} label="Törlő link" className={smallActionButtonClass} />
-                        {isActive ? (
-                          <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, booking.id)} className="flex w-full flex-col gap-2 rounded-md border border-ink/10 bg-white p-2">
-                            <input type="hidden" name="returnTab" value="bookings" />
-                            <select name="slot" required defaultValue={currentSlot.token} className="h-9 rounded-md border border-ink/15 bg-paper px-2 text-xs text-ink outline-none">
-                              {rescheduleSlots.map((slot) => (
-                                <option key={slot.token} value={slot.token}>
-                                  {showSlotDates
-                                    ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
-                                    : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
-                                </option>
-                              ))}
-                            </select>
-                            <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className="h-9 px-2 text-xs">
-                              Áthelyezés
-                            </FormSubmitButton>
-                          </form>
-                        ) : null}
-                        {isActive ? (
-                          <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
-                            <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
-                              <Send size={13} />
-                              Ügyfél e-mail
-                            </FormSubmitButton>
-                          </form>
-                        ) : null}
-                        {isActive ? (
-                          <form action={resendMiniSessionAdminNotificationAction.bind(null, booking.id)}>
-                            <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
-                              <Send size={13} />
-                              Admin e-mail
-                            </FormSubmitButton>
-                          </form>
-                        ) : null}
-                        <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, booking.id)}>
-                          <FormSubmitButton variant="secondary" pendingLabel="Sync..." className={smallActionButtonClass}>
-                            <CalendarPlus size={13} />
-                            Naptár sync
-                          </FormSubmitButton>
-                        </form>
-                        {isActive ? (
-                          <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)}>
-                            <input type="hidden" name="returnTab" value="bookings" />
-                            <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className={smallActionButtonClass}>
-                              <XCircle size={13} />
-                              Törlés
-                            </ConfirmSubmitButton>
-                          </form>
-                        ) : null}
+                      <div className="mt-4">
+                        <BookingManagementActions
+                          bookingId={booking.id}
+                          isActive={isActive}
+                          currentSlot={currentSlot}
+                          rescheduleSlots={rescheduleSlots}
+                          showSlotDates={showSlotDates}
+                          customerEmailDelivery={customerEmailDelivery}
+                          adminEmailDelivery={adminEmailDelivery}
+                          calendarDelivery={calendarDelivery}
+                        />
                       </div>
                     </div>
                   );
@@ -735,9 +774,6 @@ export default async function AdminMiniSessionDetailPage({
                       const slotLabel = showSlotDates
                         ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
                         : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
-                      const cancelUrl = miniSessionBookingCancelUrl(session.slug, booking.cancelToken);
-                      const rescheduleUrl = miniSessionBookingRescheduleUrl(session.slug, booking.cancelToken);
-                      const calendarUrl = miniSessionBookingCalendarUrl(session.slug, booking.cancelToken);
                       const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
                       const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
                       const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
@@ -790,70 +826,16 @@ export default async function AdminMiniSessionDetailPage({
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <a className={smallActionLinkClass} href={`mailto:${booking.email}`}>
-                                <Mail size={13} />
-                                E-mail
-                              </a>
-                              <a className={smallActionLinkClass} href={`tel:${booking.phone}`}>
-                                <Phone size={13} />
-                                Telefon
-                              </a>
-                              <Link className={smallActionLinkClass} href={calendarUrl} target="_blank">
-                                <CalendarPlus size={13} />
-                                Naptár
-                              </Link>
-                              <CopyLinkButton url={rescheduleUrl} label="Módosító link" className={smallActionButtonClass} />
-                              <CopyLinkButton url={cancelUrl} label="Törlő link" className={smallActionButtonClass} />
-                              {isActive ? (
-                                <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, booking.id)} className="flex items-center gap-1">
-                                  <input type="hidden" name="returnTab" value="bookings" />
-                                  <select name="slot" required defaultValue={currentSlot.token} className="h-8 max-w-44 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none">
-                                    {rescheduleSlots.map((slot) => (
-                                      <option key={slot.token} value={slot.token}>
-                                        {showSlotDates
-                                          ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
-                                          : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <FormSubmitButton variant="secondary" pendingLabel="..." className="h-8 px-2 text-xs">
-                                    Áthelyezés
-                                  </FormSubmitButton>
-                                </form>
-                              ) : null}
-                              {isActive ? (
-                                <form action={resendMiniSessionBookingConfirmationAction.bind(null, booking.id)}>
-                                  <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
-                                    <Send size={13} />
-                                    Ügyfél e-mail
-                                  </FormSubmitButton>
-                                </form>
-                              ) : null}
-                              {isActive ? (
-                                <form action={resendMiniSessionAdminNotificationAction.bind(null, booking.id)}>
-                                  <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={smallActionButtonClass}>
-                                    <Send size={13} />
-                                    Admin e-mail
-                                  </FormSubmitButton>
-                                </form>
-                              ) : null}
-                              <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, booking.id)}>
-                                <FormSubmitButton variant="secondary" pendingLabel="Sync..." className={smallActionButtonClass}>
-                                  <CalendarPlus size={13} />
-                                  Naptár sync
-                                </FormSubmitButton>
-                              </form>
-                              {isActive ? (
-                                <form action={cancelMiniSessionBookingByAdminAction.bind(null, booking.id)}>
-                                  <input type="hidden" name="returnTab" value="bookings" />
-                                  <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className={smallActionButtonClass}>
-                                    <XCircle size={13} />
-                                    Törlés
-                                  </ConfirmSubmitButton>
-                                </form>
-                              ) : null}
-                            </div>
+                            <BookingManagementActions
+                              bookingId={booking.id}
+                              isActive={isActive}
+                              currentSlot={currentSlot}
+                              rescheduleSlots={rescheduleSlots}
+                              showSlotDates={showSlotDates}
+                              customerEmailDelivery={customerEmailDelivery}
+                              adminEmailDelivery={adminEmailDelivery}
+                              calendarDelivery={calendarDelivery}
+                            />
                           </td>
                         </tr>
                       );
