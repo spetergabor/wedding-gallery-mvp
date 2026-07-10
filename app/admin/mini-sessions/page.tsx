@@ -30,6 +30,7 @@ import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { miniSessionPublicUrl } from "@/lib/email";
+import { miniSessionEmbedCode } from "@/lib/mini-session-embed";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
   createAdminCalendarBlockAction,
@@ -982,6 +983,7 @@ export default async function AdminMiniSessionsPage({
                 const bookableSlotCount = metrics?.bookableSlotCount ?? 0;
                 const freeSessionSlotCount = metrics?.freeSlotCount ?? 0;
                 const publicUrl = miniSessionPublicUrl(session.slug);
+                const embedCode = miniSessionEmbedCode(session.slug, session.title);
                 const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
 
                 return (
@@ -1016,7 +1018,7 @@ export default async function AdminMiniSessionsPage({
                           </p>
                         ) : null}
                       </div>
-                      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 xl:w-auto xl:flex xl:flex-nowrap">
+                      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-5 xl:w-auto xl:flex xl:flex-nowrap">
                         <Link className="inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-ink px-2.5 text-xs font-medium text-white transition hover:bg-graphite sm:px-3 sm:text-sm xl:w-auto" href={`/admin/mini-sessions/${session.id}`}>
                           <Settings2 size={14} />
                           Kezelés
@@ -1026,6 +1028,7 @@ export default async function AdminMiniSessionsPage({
                           Megnyitás
                         </Link>
                         <CopyLinkButton url={publicUrl} label="Link másolása" className={sessionActionButtonClass} />
+                        <CopyLinkButton url={embedCode} label="HTML kód" className={sessionActionButtonClass} />
                         <Link className={sessionActionLinkClass} href={`/admin/mini-sessions/${session.id}/export`}>
                           <Download size={14} />
                           CSV export

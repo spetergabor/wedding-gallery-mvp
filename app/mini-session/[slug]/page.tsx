@@ -83,7 +83,7 @@ export default async function PublicMiniSessionPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ booked?: string; cancelled?: string; error?: string; calendar?: string }>;
+  searchParams: Promise<{ booked?: string; cancelled?: string; error?: string; calendar?: string; slot?: string }>;
 }) {
   const { slug } = await params;
   const flags = await searchParams;
@@ -114,7 +114,8 @@ export default async function PublicMiniSessionPage({
   const copy = MINI_SESSION_PAGE_COPY[language];
   const availableSlots = await getAvailableMiniSessionSlots(session);
   const availableSlotGroups = groupMiniSessionSlotsByDate(availableSlots, language);
-  const defaultSlotToken = availableSlots[0]?.token ?? "";
+  const requestedSlotToken = typeof flags.slot === "string" && availableSlots.some((slot) => slot.token === flags.slot) ? flags.slot : "";
+  const defaultSlotToken = requestedSlotToken || availableSlots[0]?.token || "";
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
   const recurringSlotDays = availableSlotGroups.map((group) => ({
     key: group.key,

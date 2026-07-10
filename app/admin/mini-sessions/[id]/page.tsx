@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarClock, CheckCircle2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
+import { ArrowLeft, CalendarClock, CheckCircle2, Code2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,7 +12,8 @@ import { MiniSessionBookingFilters } from "@/components/mini-session-booking-fil
 import { MiniSessionTabController } from "@/components/mini-session-tab-controller";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { miniSessionPublicUrl } from "@/lib/email";
+import { miniSessionEmbedUrl, miniSessionPublicUrl } from "@/lib/email";
+import { miniSessionEmbedCode } from "@/lib/mini-session-embed";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
   cancelMiniSessionBookingByAdminAction,
@@ -509,6 +510,8 @@ export default async function AdminMiniSessionDetailPage({
 
   const deliveryLogFor = (bookingId: string, type: string) => latestDeliveryLogByBooking.get(bookingId)?.get(type);
   const publicUrl = miniSessionPublicUrl(session.slug);
+  const embedUrl = miniSessionEmbedUrl(session.slug);
+  const embedCode = miniSessionEmbedCode(session.slug, session.title);
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
   const showSlotDates = isRecurring || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
   const sessionDateLabel = formatMiniSessionDateRange(session.startsAt, session.endsAt);
@@ -595,12 +598,13 @@ export default async function AdminMiniSessionDetailPage({
             </div>
             <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 xl:w-auto xl:flex xl:flex-nowrap">
+          <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-5 xl:w-auto xl:flex xl:flex-nowrap">
             <Link className={headerActionLinkClass} href={publicUrl} target="_blank">
               <ExternalLink size={14} />
               Megnyitás
             </Link>
             <CopyLinkButton url={publicUrl} label="Link másolása" className={headerActionButtonClass} />
+            <CopyLinkButton url={embedCode} label="HTML kód" className={headerActionButtonClass} />
             <Link className={headerActionLinkClass} href={`/admin/mini-sessions/${session.id}/export`}>
               <Download size={14} />
               CSV export
@@ -682,6 +686,27 @@ export default async function AdminMiniSessionDetailPage({
                   Megnyitás
                 </Link>
                 <CopyLinkButton url={publicUrl} label="Másolás" className={headerActionButtonClass} />
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
+                <Code2 size={18} />
+                Beágyazható foglaló
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-graphite/65">
+                Ezt a HTML kódot illeszd be a saját weboldaladba. Csak a dátum- és idősávválasztó jelenik meg.
+              </p>
+              <p className="mt-3 break-all text-xs text-graphite/55">{embedUrl}</p>
+              <pre className="mt-4 max-h-36 overflow-auto rounded-md border border-ink/10 bg-paper p-3 text-xs leading-5 text-graphite/75">
+                <code>{embedCode}</code>
+              </pre>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Link className={headerActionLinkClass} href={embedUrl} target="_blank">
+                  <ExternalLink size={14} />
+                  Előnézet
+                </Link>
+                <CopyLinkButton url={embedCode} label="HTML kód" className={headerActionButtonClass} />
               </div>
             </section>
 

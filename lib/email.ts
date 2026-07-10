@@ -461,6 +461,10 @@ export function miniSessionPublicUrl(slug: string) {
   return `${appBaseUrl()}/mini-session/${slug}`;
 }
 
+export function miniSessionEmbedUrl(slug: string) {
+  return `${appBaseUrl()}/mini-session/${slug}/embed`;
+}
+
 export function miniSessionBookingCancelUrl(slug: string, token: string) {
   return `${appBaseUrl()}/mini-session/${slug}/cancel/${token}`;
 }
