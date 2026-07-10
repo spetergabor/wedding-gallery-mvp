@@ -1238,6 +1238,43 @@ export async function deleteGallerySectionAction(galleryId: string, sectionId: s
   redirect(`/admin/galleries/${galleryId}?tab=photos&sectionDeleted=1`);
 }
 
+export async function saveGallerySectionOrderAction(galleryId: string, formData: FormData) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const orderedSectionIds = formData
+    .getAll("sectionIds")
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  const currentSections = await prisma.gallerySection.findMany({
+    where: { galleryId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: { id: true }
+  });
+  const currentSectionIds = currentSections.map((section) => section.id);
+  const currentSectionIdSet = new Set(currentSectionIds);
+  const uniqueOrderedSectionIds = [...new Set(orderedSectionIds)].filter((sectionId) => currentSectionIdSet.has(sectionId));
+
+  if (uniqueOrderedSectionIds.length !== currentSectionIds.length) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&sectionError=order`);
+  }
+
+  const unchanged = uniqueOrderedSectionIds.every((sectionId, index) => sectionId === currentSectionIds[index]);
+
+  if (!unchanged) {
+    await prisma.$transaction(
+      uniqueOrderedSectionIds.map((sectionId, index) =>
+        prisma.gallerySection.update({
+          where: { id: sectionId },
+          data: { sortOrder: index + 1 }
+        })
+      )
+    );
+  }
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&sectionOrdered=1`);
+}
+
 export async function addPhotoAction(galleryId: string, formData: FormData) {
   const { gallery } = await requireGalleryAccess(galleryId);
   const deliveryStage = defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode);

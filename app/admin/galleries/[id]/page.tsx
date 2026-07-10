@@ -1,16 +1,16 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Plus, Trash2, UserRound } from "lucide-react";
+import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Plus, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { CoverPositionControl } from "@/components/cover-position-control";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
+import { GallerySectionSortableList } from "@/components/gallery-section-sortable-list";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryForm } from "@/components/gallery-form";
 import { GalleryTabController } from "@/components/gallery-tab-controller";
@@ -30,7 +30,6 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import { clientGalleryUrl, publicGalleryUrl } from "@/lib/email";
 import {
   createGallerySectionAction,
-  deleteGallerySectionAction,
   generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
@@ -119,6 +118,7 @@ export default async function GalleryDetailPage({
     proofingStatus?: string;
     sectionCreated?: string;
     sectionDeleted?: string;
+    sectionOrdered?: string;
     sectionError?: string;
     saved?: string;
     tab?: string;
@@ -377,9 +377,11 @@ export default async function GalleryDetailPage({
       <div className="mb-5 space-y-3">
         {flags.saved ? <Alert title="Galéria mentve." variant="success" /> : null}
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
-        {flags.sectionCreated ? <Alert title="Szekció létrehozva." variant="success" /> : null}
-        {flags.sectionDeleted ? <Alert title="Szekció törölve." variant="success">A benne lévő képek az általános galériában maradtak.</Alert> : null}
-        {flags.sectionError === "missing" ? <Alert title="Adj meg egy szekció nevet." variant="error" /> : null}
+        {flags.sectionCreated ? <Alert title="Címke létrehozva." variant="success" /> : null}
+        {flags.sectionDeleted ? <Alert title="Címke törölve." variant="success">A benne lévő képek az általános galériában maradtak.</Alert> : null}
+        {flags.sectionOrdered ? <Alert title="Címke sorrend mentve." variant="success" /> : null}
+        {flags.sectionError === "missing" ? <Alert title="Adj meg egy címke nevet." variant="error" /> : null}
+        {flags.sectionError === "order" ? <Alert title="A címkék sorrendjét nem sikerült menteni." variant="error" /> : null}
         {flags.duplicateCleanup && flags.duplicateCleanup !== "none" ? (
           <Alert title={`${flags.duplicateCleanup} duplikált fotó törölve.`} variant="success" />
         ) : null}
@@ -450,10 +452,10 @@ export default async function GalleryDetailPage({
             <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
-                  <p className={sectionMetaClass}>Galéria szekciók</p>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">Fülek a publikus galériában</h2>
+                  <p className={sectionMetaClass}>Galéria címkék</p>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">Anchor blokkok a publikus galériában</h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
-                    Hozz létre szekciókat feltöltés előtt, majd az upload panelen válaszd ki, hova kerüljenek az új képek. Ha nem hozol létre szekciót, minden egy galériában marad.
+                    Hozz létre címkéket feltöltés előtt, majd az upload panelen válaszd ki, hova kerüljenek az új képek. A címkék sorrendje lesz a publikus galéria blokk-sorrendje is.
                   </p>
                 </div>
                 <form action={createGallerySectionAction.bind(null, gallery.id)} className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-md">
@@ -464,33 +466,22 @@ export default async function GalleryDetailPage({
                   />
                   <FormSubmitButton className="h-11 px-4" pendingLabel="Mentés...">
                     <Plus size={16} />
-                    Szekció
+                    Címke
                   </FormSubmitButton>
                 </form>
               </div>
               {gallery.sections.length > 0 ? (
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {gallery.sections.map((section) => (
-                    <div key={section.id} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-ink/10 bg-paper px-3 py-2 text-sm text-ink">
-                      <span className="font-medium">{section.title}</span>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-xs text-graphite/70">
-                        {sectionPhotoCounts.get(section.id) ?? 0}
-                      </span>
-                      <form action={deleteGallerySectionAction.bind(null, gallery.id, section.id)}>
-                        <ConfirmSubmitButton
-                          message={`Biztosan törlöd ezt a szekciót? A képek nem törlődnek, csak visszakerülnek az általános galériába.`}
-                          variant="ghost"
-                          className="h-8 px-2 text-graphite hover:text-red-700"
-                        >
-                          <Trash2 size={14} />
-                        </ConfirmSubmitButton>
-                      </form>
-                    </div>
-                  ))}
-                </div>
+                <GallerySectionSortableList
+                  galleryId={gallery.id}
+                  sections={gallery.sections.map((section) => ({
+                    id: section.id,
+                    title: section.title,
+                    count: sectionPhotoCounts.get(section.id) ?? 0
+                  }))}
+                />
               ) : (
                 <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-4 text-sm text-graphite/70">
-                  Még nincs szekció. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
+                  Még nincs címke. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
                 </div>
               )}
             </section>
