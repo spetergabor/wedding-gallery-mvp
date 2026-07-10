@@ -10,6 +10,7 @@ import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
+import { ensureDefaultPublicSubdomainForAdmin } from "@/lib/public-subdomain";
 import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
 import { adminOwnedWhere, galleryAccessWhere, galleryPhotoAccessWhere, notificationWhere, ownerAdminId } from "@/lib/admin-scope";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -629,7 +630,7 @@ export async function registerAdminAction(formData: FormData) {
 
   const passwordHash = await hashPassword(password);
 
-  await prisma.admin.create({
+  const createdAdmin = await prisma.admin.create({
     data: {
       name,
       email,
@@ -637,8 +638,16 @@ export async function registerAdminAction(formData: FormData) {
       role: alreadyHasAdmin ? "photographer" : "super_admin",
       status: alreadyHasAdmin ? "pending" : "approved",
       approvedAt: alreadyHasAdmin ? null : new Date()
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true
     }
   });
+
+  await ensureDefaultPublicSubdomainForAdmin(createdAdmin);
 
   if (alreadyHasAdmin) {
     redirect("/admin/login?registered=pending");

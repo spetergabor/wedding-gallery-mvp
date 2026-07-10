@@ -4,6 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { verifyTotpCode } from "@/lib/totp";
+import { ensureDefaultPublicSubdomainForAdmin } from "@/lib/public-subdomain";
 
 const ADMIN_COOKIE = "wgm_admin";
 const PENDING_2FA_COOKIE = "wgm_pending_2fa";
@@ -31,6 +32,11 @@ const ADMIN_SESSION_SELECT = {
         }
       }
     }
+  },
+  siteSettings: {
+    select: {
+      publicSubdomain: true
+    }
   }
 } as const;
 
@@ -48,6 +54,9 @@ type RawAdminSession = {
       status: string;
     };
   } | null;
+  siteSettings: {
+    publicSubdomain: string | null;
+  } | null;
 };
 
 export type AdminSession = {
@@ -64,6 +73,7 @@ export type AdminSession = {
   teamOwnerEmail: string | null;
   isTeamMember: boolean;
   isTeamWorkspace: boolean;
+  publicSubdomain: string | null;
 };
 
 function normalizeWorkspaceMode(value: string | undefined, hasTeam: boolean): AdminWorkspaceMode {
@@ -93,7 +103,8 @@ function toAdminSession(admin: RawAdminSession, workspaceCookieValue?: string): 
     teamOwnerName: activeOwner?.name ?? null,
     teamOwnerEmail: activeOwner?.email ?? null,
     isTeamMember: Boolean(activeOwner),
-    isTeamWorkspace: Boolean(teamWorkspaceOwner)
+    isTeamWorkspace: Boolean(teamWorkspaceOwner),
+    publicSubdomain: admin.siteSettings?.publicSubdomain ?? null
   };
 }
 
@@ -245,6 +256,10 @@ export async function requireAdmin() {
 
   if (admin.status !== "approved") {
     redirect("/admin/login?approval=pending");
+  }
+
+  if (admin.role !== "super_admin" && !admin.publicSubdomain) {
+    await ensureDefaultPublicSubdomainForAdmin(admin);
   }
 
   return admin;

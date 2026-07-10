@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { normalizeSlug } from "@/lib/slug";
+import {
+  ensureDefaultPublicSubdomainForAdmin,
+  isValidPublicSubdomain,
+  normalizePublicSubdomain
+} from "@/lib/public-subdomain";
 import { logSystemEvent } from "@/lib/system-events";
 import {
   createBrandAssetObjectKey,
@@ -58,27 +62,6 @@ function formOptionalDate(formData: FormData, key: string) {
 
 function formNullableString(formData: FormData, key: string) {
   return formString(formData, key) || null;
-}
-
-const RESERVED_PUBLIC_SUBDOMAINS = new Set([
-  "admin",
-  "api",
-  "app",
-  "assets",
-  "blog",
-  "cdn",
-  "dashboard",
-  "help",
-  "mail",
-  "smtp",
-  "spetly",
-  "static",
-  "support",
-  "www"
-]);
-
-function normalizePublicSubdomain(value: string) {
-  return normalizeSlug(value).slice(0, 40);
 }
 
 export async function updatePhotographerProfileAction(formData: FormData) {
@@ -213,9 +196,9 @@ export async function updateSiteSettingsAction(formData: FormData) {
 
   const logoHeight = formClampedNumber(formData, "logoHeight", 80, 32, 140);
   const adminName = formString(formData, "adminName") || admin.name;
-  const publicSubdomain = normalizePublicSubdomain(formString(formData, "publicSubdomain"));
+  let publicSubdomain = normalizePublicSubdomain(formString(formData, "publicSubdomain"));
 
-  if (publicSubdomain && (publicSubdomain.length < 3 || RESERVED_PUBLIC_SUBDOMAINS.has(publicSubdomain))) {
+  if (publicSubdomain && !isValidPublicSubdomain(publicSubdomain)) {
     redirect("/admin/settings?tab=brand&error=public_subdomain");
   }
 
@@ -225,6 +208,16 @@ export async function updateSiteSettingsAction(formData: FormData) {
     },
     select: { id: true, logoR2Key: true, signatureR2Key: true }
   });
+
+  if (!publicSubdomain && admin.role !== "super_admin") {
+    publicSubdomain =
+      (await ensureDefaultPublicSubdomainForAdmin({
+        id: admin.id,
+        name: adminName,
+        email: admin.email,
+        role: admin.role
+      })) ?? "";
+  }
 
   if (publicSubdomain) {
     const existingSubdomain = await prisma.siteSettings.findUnique({
