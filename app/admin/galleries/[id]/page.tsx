@@ -488,14 +488,17 @@ export default async function GalleryDetailPage({
                 </div>
               )}
             </section>
-            <PhotoUploadForm
-              galleryId={gallery.id}
-              galleryMode={gallery.galleryMode}
-              defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
-              sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
-              resumableSessions={resumableUploadSessions}
-            />
-            {!proofingGallery ? <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} /> : null}
+            <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+              <PhotoUploadForm
+                galleryId={gallery.id}
+                galleryMode={gallery.galleryMode}
+                defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+                framed={false}
+                sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
+                resumableSessions={resumableUploadSessions}
+              />
+              {!proofingGallery ? <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} variant="compact" /> : null}
+            </section>
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
               coverPhotoId={gallery.coverPhotoId}

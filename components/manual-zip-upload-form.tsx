@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -178,10 +178,12 @@ async function uploadMultipartFile({
 
 export function ManualZipUploadForm({
   galleryId,
-  disabled = false
+  disabled = false,
+  variant = "card"
 }: {
   galleryId: string;
   disabled?: boolean;
+  variant?: "card" | "compact";
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -189,13 +191,14 @@ export function ManualZipUploadForm({
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [bytesSent, setBytesSent] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   const isWorking = status === "preparing" || status === "uploading" || status === "saving";
   const progress = selectedFile && selectedFile.size > 0 ? Math.round((Math.min(bytesSent, selectedFile.size) / selectedFile.size) * 100) : 0;
   const StatusIcon = status === "completed" ? CheckCircle2 : status === "failed" ? AlertCircle : isWorking ? Loader2 : UploadCloud;
+  const compact = variant === "compact";
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
+  function setZipFile(file: File | null) {
     setSelectedFile(file);
     setErrorMessage("");
     setBytesSent(0);
@@ -205,6 +208,34 @@ export function ManualZipUploadForm({
       setStatus("failed");
       setErrorMessage("Csak .zip fájlt válassz ki.");
     }
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setZipFile(event.target.files?.[0] ?? null);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+
+    if (!disabled && !isWorking) {
+      setIsDragging(true);
+    }
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+
+    if (disabled || isWorking) {
+      return;
+    }
+
+    setZipFile(event.dataTransfer.files?.[0] ?? null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -312,17 +343,16 @@ export function ManualZipUploadForm({
     }
   }
 
-  return (
-    <section className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
-      <form onSubmit={handleSubmit} className="space-y-4">
+  const content = (
+    <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
-            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+            <div className={`flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass ${compact ? "text-xs" : ""}`}>
               <UploadCloud size={15} />
               Letöltési átadás
             </div>
-            <h2 className="mt-2 text-xl font-semibold text-ink">Kész ZIP feltöltése</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">
+            <h2 className={`${compact ? "mt-1 text-lg" : "mt-2 text-xl"} font-semibold text-ink`}>Kész ZIP feltöltése</h2>
+            <p className={`mt-1 max-w-3xl text-sm leading-6 text-graphite/70 ${compact ? "max-w-2xl" : ""}`}>
               Ha a Macen elkészített ZIP-et töltöd fel, a pár azonnal letöltheti a kész csomagot. A rendszer közben automatikusan elkészíti a
               kompakt, webes méretű vendég ZIP-et is.
             </p>
@@ -333,13 +363,27 @@ export function ManualZipUploadForm({
           </span>
         </div>
 
-        <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-ink/20 bg-paper px-4 py-4 text-center transition hover:border-ink/35 sm:flex-row sm:gap-3 sm:text-left">
-          <UploadCloud size={22} className="text-graphite/70" />
-          <span className="mt-2 text-sm font-medium text-ink sm:mt-0">
-            {selectedFile ? selectedFile.name : "ZIP fájl kiválasztása"}
+        <label
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`flex cursor-pointer flex-col rounded-md border border-dashed px-4 py-4 transition sm:flex-row sm:items-center sm:gap-4 ${
+            isDragging ? "border-ink bg-ink/[0.03]" : "border-ink/20 bg-paper hover:border-ink/35"
+          } ${disabled || isWorking ? "pointer-events-none opacity-60" : ""}`}
+        >
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-ink shadow-sm">
+            <UploadCloud size={22} />
           </span>
-          <span className="mt-1 text-xs text-graphite/60 sm:ml-auto sm:mt-0">
-            {selectedFile ? formatBytes(selectedFile.size) : ".zip fájl, közvetlen R2 feltöltéssel"}
+          <span className="mt-3 min-w-0 flex-1 sm:mt-0">
+            <span className="block truncate text-sm font-semibold text-ink">
+              {selectedFile ? selectedFile.name : "Kattints a ZIP fájl kiválasztásához"}
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-graphite/65">
+              {selectedFile ? `${formatBytes(selectedFile.size)} · közvetlen R2 feltöltés` : "Vagy húzd ide a kész .zip fájlt."}
+            </span>
+          </span>
+          <span className="mt-3 inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-ink px-3 text-sm font-medium text-white sm:mt-0">
+            Fájl kiválasztása
           </span>
           <input
             ref={inputRef}
@@ -389,10 +433,7 @@ export function ManualZipUploadForm({
               className="text-sm font-medium text-graphite hover:text-ink"
               disabled={isWorking}
               onClick={() => {
-                setSelectedFile(null);
-                setErrorMessage("");
-                setBytesSent(0);
-                setStatus("idle");
+                setZipFile(null);
                 if (inputRef.current) {
                   inputRef.current.value = "";
                 }
@@ -403,6 +444,19 @@ export function ManualZipUploadForm({
           ) : null}
         </div>
       </form>
+  );
+
+  if (compact) {
+    return (
+      <div className="mt-6 border-t border-ink/10 pt-6">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
+      {content}
     </section>
   );
 }

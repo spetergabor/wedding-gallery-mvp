@@ -245,6 +245,7 @@ export function PhotoUploadForm({
   galleryMode,
   defaultDeliveryStage,
   deliveryStageMode = "select",
+  framed = true,
   sections = [],
   resumableSessions = [],
   title = "Fotók és videók feltöltése",
@@ -254,6 +255,7 @@ export function PhotoUploadForm({
   galleryMode: string;
   defaultDeliveryStage: string;
   deliveryStageMode?: "select" | "fixed";
+  framed?: boolean;
   sections?: GallerySectionOption[];
   resumableSessions?: ResumableUploadSession[];
   title?: string;
@@ -1081,7 +1083,7 @@ export function PhotoUploadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+    <form onSubmit={handleSubmit} className={framed ? "rounded-lg border border-ink/10 bg-white p-6 shadow-soft" : ""}>
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-stretch">
         <label
           onDragOver={handleDragOver}
