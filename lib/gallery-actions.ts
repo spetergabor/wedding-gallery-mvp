@@ -2150,6 +2150,75 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   }
 }
 
+export async function deleteSelectedPhotosAction(galleryId: string, formData: FormData) {
+  const { admin } = await requireGalleryAccess(galleryId);
+  const requestedPhotoIds = formData
+    .getAll("photoIds")
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const uniqueRequestedPhotoIds = [...new Set(requestedPhotoIds)];
+
+  if (uniqueRequestedPhotoIds.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&bulkDelete=none`);
+  }
+
+  const gallery = await prisma.gallery.findFirst({
+    where: galleryAccessWhere(admin, galleryId),
+    select: { coverPhotoId: true, slug: true }
+  });
+  const photos = await prisma.photo.findMany({
+    where: {
+      id: { in: uniqueRequestedPhotoIds },
+      galleryId,
+      gallery: adminOwnedWhere(admin)
+    },
+    select: {
+      id: true,
+      r2Key: true,
+      imageUrl: true,
+      thumbnailUrl: true,
+      previewUrl: true
+    }
+  });
+
+  if (!gallery || photos.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&bulkDelete=none`);
+  }
+
+  const photoIds = photos.map((photo) => photo.id);
+  const deletedPhotoIdSet = new Set(photoIds);
+  const objectKeys = Array.from(new Set(photos.flatMap(photoObjectKeys)));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.photo.deleteMany({
+      where: {
+        id: { in: photoIds },
+        galleryId
+      }
+    });
+
+    if (gallery.coverPhotoId && deletedPhotoIdSet.has(gallery.coverPhotoId)) {
+      const nextCover = await tx.photo.findFirst({
+        where: { galleryId },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true }
+      });
+
+      await tx.gallery.update({
+        where: { id: galleryId },
+        data: { coverPhotoId: nextCover?.id ?? null }
+      });
+    }
+  }, { timeout: 30000 });
+
+  await Promise.all(objectKeys.map((key) => deletePhotoObject(key)));
+  await invalidatePublicGalleryDownloadPackages(galleryId);
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/client/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&bulkDelete=${photos.length}`);
+}
+
 export async function cleanupDuplicatePhotosAction(galleryId: string) {
   const { gallery } = await requireGalleryAccess(galleryId);
 

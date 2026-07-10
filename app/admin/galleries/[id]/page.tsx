@@ -116,6 +116,7 @@ export default async function GalleryDetailPage({
     photoSet?: string;
     proofingInvite?: string;
     proofingStatus?: string;
+    bulkDelete?: string;
     sectionCreated?: string;
     sectionDeleted?: string;
     sectionOrdered?: string;
@@ -377,6 +378,8 @@ export default async function GalleryDetailPage({
       <div className="mb-5 space-y-3">
         {flags.saved ? <Alert title="Galéria mentve." variant="success" /> : null}
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
+        {flags.bulkDelete && flags.bulkDelete !== "none" ? <Alert title={`${flags.bulkDelete} kép törölve.`} variant="success" /> : null}
+        {flags.bulkDelete === "none" ? <Alert title="Nem volt törölhető kijelölt kép." variant="error" /> : null}
         {flags.sectionCreated ? <Alert title="Címke létrehozva." variant="success" /> : null}
         {flags.sectionDeleted ? <Alert title="Címke törölve." variant="success">A benne lévő képek az általános galériában maradtak.</Alert> : null}
         {flags.sectionOrdered ? <Alert title="Címke sorrend mentve." variant="success" /> : null}

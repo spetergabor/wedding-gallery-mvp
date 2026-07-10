@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, EyeOff, Film, GripVertical, ImageIcon, Star, Trash2, Undo2 } from "lucide-react";
+import { CheckSquare, Eye, EyeOff, Film, GripVertical, ImageIcon, Square, Star, Trash2, Undo2 } from "lucide-react";
 import {
+  deleteSelectedPhotosAction,
   deletePhotoAction,
   restoreClientHiddenPhotoAction,
   saveGalleryPhotoOrderAction,
@@ -114,6 +115,7 @@ export function PhotoSortableGrid({
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [dropTargetPhotoId, setDropTargetPhotoId] = useState<string | null>(null);
   const [gridColumnCount, setGridColumnCount] = useState<PhotoGridColumnCount>(3);
+  const [bulkSelectedPhotoIds, setBulkSelectedPhotoIds] = useState<Set<string>>(() => new Set());
   const lastLiveMoveRef = useRef<{ draggedId: string; targetId: string } | null>(null);
   const proofingGallery = isProofingGallery(galleryMode);
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
@@ -144,6 +146,10 @@ export function PhotoSortableGrid({
   const displayedPhotos = normalizedSearch
     ? basePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedSearch))
     : basePhotos;
+  const displayedPhotoIds = useMemo(() => displayedPhotos.map((photo) => photo.id), [displayedPhotos]);
+  const bulkSelectedCount = bulkSelectedPhotoIds.size;
+  const selectedVisibleCount = displayedPhotoIds.filter((photoId) => bulkSelectedPhotoIds.has(photoId)).length;
+  const allDisplayedSelected = displayedPhotoIds.length > 0 && selectedVisibleCount === displayedPhotoIds.length;
 
   useEffect(() => {
     const storedColumnCount = Number(window.localStorage.getItem(PHOTO_GRID_COLUMN_STORAGE_KEY));
@@ -152,6 +158,15 @@ export function PhotoSortableGrid({
       setGridColumnCount(storedColumnCount as PhotoGridColumnCount);
     }
   }, []);
+
+  useEffect(() => {
+    const currentPhotoIds = new Set(photos.map((photo) => photo.id));
+    setBulkSelectedPhotoIds((current) => {
+      const next = new Set([...current].filter((photoId) => currentPhotoIds.has(photoId)));
+
+      return next.size === current.size ? current : next;
+    });
+  }, [photos]);
 
   function updateGridColumnCount(columnCount: PhotoGridColumnCount) {
     setGridColumnCount(columnCount);
@@ -188,6 +203,32 @@ export function PhotoSortableGrid({
     });
   }
 
+  function toggleBulkSelection(photoId: string) {
+    setBulkSelectedPhotoIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        next.add(photoId);
+      }
+
+      return next;
+    });
+  }
+
+  function selectDisplayedPhotos() {
+    setBulkSelectedPhotoIds((current) => {
+      const next = new Set(current);
+
+      for (const photoId of displayedPhotoIds) {
+        next.add(photoId);
+      }
+
+      return next;
+    });
+  }
+
   return (
     <>
       <div className="mb-4 flex flex-col gap-3 rounded-lg border border-ink/10 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -220,6 +261,38 @@ export function PhotoSortableGrid({
         </div>
       </div>
 
+      <div className="mb-4 flex flex-col gap-3 rounded-lg border border-ink/10 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-ink">Tömeges műveletek</p>
+          <p className="mt-0.5 text-xs text-graphite/70">
+            {bulkSelectedCount > 0
+              ? `${bulkSelectedCount} kép kijelölve törléshez.`
+              : "Jelölj ki több képet, majd töröld őket egyszerre."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={selectDisplayedPhotos}
+            disabled={displayedPhotoIds.length === 0 || allDisplayedSelected}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <CheckSquare size={15} />
+            Láthatók kijelölése
+          </button>
+          {bulkSelectedCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setBulkSelectedPhotoIds(new Set())}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
+            >
+              <Undo2 size={15} />
+              Kijelölés törlése
+            </button>
+          ) : null}
+        </div>
+      </div>
+
       <div
         className="grid gap-4 sm:grid-cols-2 xl:[grid-template-columns:repeat(var(--photo-grid-columns),minmax(0,1fr))]"
         style={{ "--photo-grid-columns": gridColumnCount } as CSSProperties}
@@ -228,6 +301,7 @@ export function PhotoSortableGrid({
           const currentIndex = orderedPhotos.findIndex((orderedPhoto) => orderedPhoto.id === photo.id);
           const isDragging = draggedPhotoId === photo.id;
           const isDropTarget = dropTargetPhotoId === photo.id && !isDragging;
+          const isBulkSelected = bulkSelectedPhotoIds.has(photo.id);
 
           return (
             <div
@@ -281,7 +355,9 @@ export function PhotoSortableGrid({
                   ? "scale-[1.02] rotate-[0.35deg] border-brass/70 opacity-85 shadow-[0_18px_45px_rgba(17,17,17,0.16)] ring-2 ring-brass/25"
                   : isDropTarget
                     ? "-translate-y-0.5 border-brass/45 shadow-[0_12px_30px_rgba(178,139,78,0.16)]"
-                    : "border-ink/10 hover:-translate-y-0.5 hover:border-brass/25 hover:shadow-soft"
+                    : isBulkSelected
+                      ? "border-brass/50 shadow-soft ring-2 ring-brass/20"
+                      : "border-ink/10 hover:-translate-y-0.5 hover:border-brass/25 hover:shadow-soft"
               }`}
             >
               {isDropTarget ? (
@@ -363,7 +439,23 @@ export function PhotoSortableGrid({
                   ) : null}
                 </div>
 
-                <div className="grid grid-cols-[1fr_auto] gap-2">
+                <div className="grid grid-cols-[auto_1fr_auto] gap-2">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleBulkSelection(photo.id);
+                    }}
+                    className={`flex size-9 items-center justify-center rounded-md border text-sm transition ${
+                      isBulkSelected
+                        ? "border-brass/40 bg-brass/15 text-brass"
+                        : "border-ink/10 text-graphite hover:bg-ink/5"
+                    }`}
+                    aria-pressed={isBulkSelected}
+                    title={isBulkSelected ? "Kijelölés megszüntetése" : "Kijelölés tömeges törléshez"}
+                  >
+                    {isBulkSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                  </button>
                   <form action={setCoverPhotoAction.bind(null, galleryId, photo.id)}>
                     <button
                       disabled={coverPhotoId === photo.id}
@@ -416,7 +508,9 @@ export function PhotoSortableGrid({
       {hasUnsavedOrder ? (
         <form
           action={saveGalleryPhotoOrderAction.bind(null, galleryId)}
-          className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border border-brass/25 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between"
+          className={`fixed inset-x-4 z-40 mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border border-brass/25 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between ${
+            bulkSelectedCount > 0 ? "bottom-28" : "bottom-4"
+          }`}
         >
           <div>
             <p className="text-sm font-semibold text-ink">A képsorrend módosult</p>
@@ -437,6 +531,39 @@ export function PhotoSortableGrid({
             <FormSubmitButton className="h-10 px-4" pendingLabel="Mentés...">
               Sorrend mentése
             </FormSubmitButton>
+          </div>
+        </form>
+      ) : null}
+
+      {bulkSelectedCount > 0 ? (
+        <form
+          action={deleteSelectedPhotosAction.bind(null, galleryId)}
+          className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border border-red-200 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between"
+        >
+          <div>
+            <p className="text-sm font-semibold text-ink">{bulkSelectedCount} kép kijelölve</p>
+            <p className="mt-0.5 text-xs text-graphite/70">A tömeges törlés az adatbázisból és az R2 tárhelyről is törli a fájlokat.</p>
+          </div>
+          {[...bulkSelectedPhotoIds].map((photoId) => (
+            <input key={photoId} type="hidden" name="photoIds" value={photoId} />
+          ))}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkSelectedPhotoIds(new Set())}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
+            >
+              <Undo2 size={15} />
+              Mégse
+            </button>
+            <ConfirmSubmitButton
+              message={`Biztosan törlöd a kijelölt ${bulkSelectedCount} képet? A feltöltött fájlok is törlődnek.`}
+              variant="danger"
+              className="h-10 px-4"
+            >
+              <Trash2 size={16} />
+              Kijelöltek törlése
+            </ConfirmSubmitButton>
           </div>
         </form>
       ) : null}
