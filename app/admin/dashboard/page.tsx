@@ -49,6 +49,7 @@ import {
   PROOFING_STATUS_SUBMITTED,
   proofingStatusLabel
 } from "@/lib/proofing";
+import { workEndsAfterNow } from "@/lib/work-date";
 
 type DashboardTaskPriority = "high" | "medium" | "low";
 type DashboardCalendarKind = "task" | "event" | "activity";
@@ -756,6 +757,7 @@ type DashboardCopy = (typeof DASHBOARD_COPY)[AdminLanguage];
 function UpcomingProjectsSection({
   copy,
   language,
+  now,
   projects,
   bookings,
   meetings,
@@ -763,13 +765,15 @@ function UpcomingProjectsSection({
 }: {
   copy: DashboardCopy;
   language: AdminLanguage;
+  now: Date;
   projects: DashboardUpcomingProject[];
   bookings: DashboardUpcomingMiniSessionBooking[];
   meetings: DashboardUpcomingMeeting[];
   tasks: DashboardUpcomingTask[];
 }) {
   const visibleProjects = projects.filter(
-    (project): project is DashboardUpcomingProject & { eventDate: Date } => project.eventDate instanceof Date
+    (project): project is DashboardUpcomingProject & { eventDate: Date } =>
+      project.eventDate instanceof Date && workEndsAfterNow(project.eventDate, project.endTime, now)
   );
   const visibleWorks: UpcomingWorkCard[] = [
     ...visibleProjects.map((project) => ({
@@ -784,32 +788,38 @@ function UpcomingProjectsSection({
       footer: `${project._count.galleries} ${copy.gallery}`,
       footerLabel: copy.calendar.project
     })),
-    ...bookings.map((booking) => ({
-      key: `booking-${booking.id}`,
-      date: booking.startsAt,
-      href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
-      title: booking.miniSession.title,
-      subtitle: booking.name,
-      time: formatMiniSessionSlot(booking.startsAt, booking.endsAt, miniSessionLanguageForAdmin(language)),
-      venue: booking.miniSession.location,
-      badges: [copy.simpleBooking, copy.booked] as [string, string],
-      footer: `${copy.calendar.miniSessionAttendees(booking.attendeeCount)} · ${booking.email}`,
-      footerLabel: copy.calendar.miniSessionBooking
-    })),
-    ...meetings.map((meeting) => ({
-      key: `meeting-${meeting.id}`,
-      date: meeting.eventDate,
-      href: `/admin/clients/${meeting.customer.id}?tab=meetings`,
-      title: meeting.title,
-      subtitle: meeting.customer.coupleName,
-      time: formatProjectTimeText(meeting),
-      venue: meeting.location,
-      badges: [copy.clientMeeting, customerMeetingStatusLabel(meeting.status)] as [string, string],
-      footer: customerMeetingTypeLabel(meeting.meetingType),
-      footerLabel: copy.calendar.meeting
-    })),
+    ...bookings
+      .filter((booking) => booking.endsAt.getTime() > now.getTime())
+      .map((booking) => ({
+        key: `booking-${booking.id}`,
+        date: booking.startsAt,
+        href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
+        title: booking.miniSession.title,
+        subtitle: booking.name,
+        time: formatMiniSessionSlot(booking.startsAt, booking.endsAt, miniSessionLanguageForAdmin(language)),
+        venue: booking.miniSession.location,
+        badges: [copy.simpleBooking, copy.booked] as [string, string],
+        footer: `${copy.calendar.miniSessionAttendees(booking.attendeeCount)} · ${booking.email}`,
+        footerLabel: copy.calendar.miniSessionBooking
+      })),
+    ...meetings
+      .filter((meeting) => workEndsAfterNow(meeting.eventDate, meeting.endTime, now))
+      .map((meeting) => ({
+        key: `meeting-${meeting.id}`,
+        date: meeting.eventDate,
+        href: `/admin/clients/${meeting.customer.id}?tab=meetings`,
+        title: meeting.title,
+        subtitle: meeting.customer.coupleName,
+        time: formatProjectTimeText(meeting),
+        venue: meeting.location,
+        badges: [copy.clientMeeting, customerMeetingStatusLabel(meeting.status)] as [string, string],
+        footer: customerMeetingTypeLabel(meeting.meetingType),
+        footerLabel: copy.calendar.meeting
+      })),
     ...tasks
-      .filter((task): task is DashboardUpcomingTask & { dueDate: Date } => task.dueDate instanceof Date)
+      .filter((task): task is DashboardUpcomingTask & { dueDate: Date } =>
+        task.dueDate instanceof Date && workEndsAfterNow(task.dueDate, task.dueTime, now)
+      )
       .map((task) => ({
         key: `task-${task.id}`,
         date: task.dueDate,
@@ -1114,6 +1124,7 @@ export default async function AdminDashboardPage() {
   const galleryWhere = adminOwnedWhere(admin);
   const photoWhere = { gallery: adminOwnedWhere(admin) };
   const projectWhere = { customer: adminOwnedWhere(admin) };
+  const now = new Date();
   const today = startOfToday();
   const calendarStart = startOfMonth(today);
   const calendarEnd = addMonths(calendarStart, 1);
@@ -1156,7 +1167,7 @@ export default async function AdminDashboardPage() {
         status: { not: "archived" }
       },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
-      take: 12,
+      take: 50,
       select: {
         id: true,
         title: true,
@@ -1184,7 +1195,7 @@ export default async function AdminDashboardPage() {
       where: {
         status: MINI_SESSION_BOOKING_STATUS_BOOKED,
         source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
-        startsAt: { gte: today },
+        endsAt: { gt: now },
         customerId: null,
         projectId: null,
         miniSession: adminOwnedWhere(admin)
@@ -1214,7 +1225,7 @@ export default async function AdminDashboardPage() {
         status: { not: "cancelled" }
       },
       orderBy: [{ eventDate: "asc" }, { startTime: "asc" }, { createdAt: "asc" }],
-      take: 12,
+      take: 50,
       select: {
         id: true,
         title: true,
@@ -1236,11 +1247,11 @@ export default async function AdminDashboardPage() {
     prisma.customerTask.findMany({
       where: {
         customer: adminOwnedWhere(admin),
-        dueDate: { not: null },
+        dueDate: { gte: today },
         status: { notIn: ["done", "cancelled"] }
       },
       orderBy: [{ dueDate: "asc" }, { dueTime: "asc" }, { createdAt: "asc" }],
-      take: 12,
+      take: 50,
       select: {
         id: true,
         title: true,
@@ -2062,6 +2073,7 @@ export default async function AdminDashboardPage() {
       <UpcomingProjectsSection
         copy={copy}
         language={language}
+        now={now}
         projects={upcomingProjects}
         bookings={upcomingMiniSessionBookings}
         meetings={upcomingMeetings}

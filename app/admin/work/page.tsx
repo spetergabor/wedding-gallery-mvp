@@ -11,16 +11,22 @@ import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/cust
 import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel } from "@/lib/customer-task-options";
 import { formatMiniSessionSlot, MINI_SESSION_BOOKING_SOURCE_BLOCKED, MINI_SESSION_BOOKING_STATUS_BOOKED } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { workEndDate } from "@/lib/work-date";
 
 const WORK_PAGE_COPY = {
   hu: {
     area: "Munkák",
-    title: "Elkövetkező munkák",
-    description: "Ügyfélprojektek, meetingek és egyszerű időpontfoglalások teljes időrendi listája.",
+    title: "Munkák",
+    description: "Ügyfélprojektek, meetingek, feladatok és egyszerű időpontfoglalások időrendi listája.",
     back: "Vissza a dashboardra",
     total: (count: number) => `${count} munka`,
+    upcomingTitle: "Elkövetkező",
+    upcomingDescription: "Csak azok a munkák, amelyek idősávja még nem járt le.",
+    pastTitle: "Elmúlt / lezárt",
+    pastDescription: "A már lejárt idősávú munkák itt maradnak visszakereshetően.",
     simpleBooking: "Egyszerű foglalás",
     booked: "Foglalva",
+    past: "Elmúlt",
     gallery: "galéria",
     project: "Projekt",
     clientMeeting: "Ügyfélmeeting",
@@ -31,16 +37,23 @@ const WORK_PAGE_COPY = {
     missingVenue: "Nincs helyszín",
     missingTime: "Nincs időpont",
     emptyTitle: "Nincs elkövetkező munka",
-    emptyDescription: "A jövőbeli ügyfélprojektek és egyszerű foglalások itt jelennek majd meg."
+    emptyDescription: "A jövőbeli ügyfélprojektek, meetingek és egyszerű foglalások itt jelennek majd meg.",
+    pastEmptyTitle: "Nincs elmúlt munka",
+    pastEmptyDescription: "A lejárt idősávú munkák itt jelennek majd meg."
   },
   de: {
     area: "Arbeiten",
-    title: "Anstehende Arbeiten",
-    description: "Vollständige chronologische Liste der Kundenprojekte, Meetings und einfachen Terminbuchungen.",
+    title: "Arbeiten",
+    description: "Chronologische Liste der Kundenprojekte, Meetings, Aufgaben und einfachen Terminbuchungen.",
     back: "Zurück zum Dashboard",
     total: (count: number) => `${count} Arbeiten`,
+    upcomingTitle: "Anstehend",
+    upcomingDescription: "Nur Arbeiten, deren Zeitfenster noch nicht vorbei ist.",
+    pastTitle: "Vergangen / abgeschlossen",
+    pastDescription: "Abgelaufene Arbeiten bleiben hier auffindbar.",
     simpleBooking: "Einfache Buchung",
     booked: "Gebucht",
+    past: "Vergangen",
     gallery: "Galerie",
     project: "Projekt",
     clientMeeting: "Kundenmeeting",
@@ -51,16 +64,23 @@ const WORK_PAGE_COPY = {
     missingVenue: "Kein Ort",
     missingTime: "Keine Uhrzeit",
     emptyTitle: "Keine anstehenden Arbeiten",
-    emptyDescription: "Zukünftige Kundenprojekte und einfache Buchungen erscheinen hier."
+    emptyDescription: "Zukünftige Kundenprojekte, Meetings und einfache Buchungen erscheinen hier.",
+    pastEmptyTitle: "Keine vergangenen Arbeiten",
+    pastEmptyDescription: "Abgelaufene Arbeiten erscheinen hier."
   },
   en: {
     area: "Work",
-    title: "Upcoming work",
-    description: "Full chronological list of client projects, meetings and simple appointment bookings.",
+    title: "Work",
+    description: "Chronological list of client projects, meetings, tasks and simple appointment bookings.",
     back: "Back to dashboard",
     total: (count: number) => `${count} work items`,
+    upcomingTitle: "Upcoming",
+    upcomingDescription: "Only work whose time slot has not passed yet.",
+    pastTitle: "Past / closed",
+    pastDescription: "Expired work stays here for reference.",
     simpleBooking: "Simple booking",
     booked: "Booked",
+    past: "Past",
     gallery: "gallery",
     project: "Project",
     clientMeeting: "Client meeting",
@@ -71,15 +91,11 @@ const WORK_PAGE_COPY = {
     missingVenue: "No location",
     missingTime: "No time",
     emptyTitle: "No upcoming work",
-    emptyDescription: "Future client projects and simple bookings will appear here."
+    emptyDescription: "Future client projects, meetings and simple bookings will appear here.",
+    pastEmptyTitle: "No past work",
+    pastEmptyDescription: "Expired work will appear here."
   }
 } as const;
-
-function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
 
 function miniSessionLanguageForAdmin(language: AdminLanguage) {
   return language === "hu" ? "hu" : "de";
@@ -96,14 +112,14 @@ function formatProjectTimeText(project: { startTime: string | null; endTime: str
 export default async function AdminWorkPage() {
   const [admin, language] = await Promise.all([requireAdmin(), getAdminLanguage()]);
   const copy = WORK_PAGE_COPY[language];
-  const today = startOfToday();
+  const now = new Date();
   const projectWhere = { customer: adminOwnedWhere(admin) };
 
   const [projects, bookings, meetings, tasks] = await Promise.all([
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
-        eventDate: { gte: today },
+        eventDate: { not: null },
         status: { not: "archived" }
       },
       orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
@@ -133,7 +149,6 @@ export default async function AdminWorkPage() {
       where: {
         status: MINI_SESSION_BOOKING_STATUS_BOOKED,
         source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
-        startsAt: { gte: today },
         customerId: null,
         projectId: null,
         miniSession: adminOwnedWhere(admin)
@@ -158,7 +173,6 @@ export default async function AdminWorkPage() {
     prisma.customerMeeting.findMany({
       where: {
         customer: adminOwnedWhere(admin),
-        eventDate: { gte: today },
         status: { not: "cancelled" }
       },
       orderBy: [{ eventDate: "asc" }, { startTime: "asc" }, { createdAt: "asc" }],
@@ -209,12 +223,20 @@ export default async function AdminWorkPage() {
     })
   ]);
 
-  const works: UpcomingWorkCard[] = [
+  type WorkCardWithEnd = UpcomingWorkCard & { endsAt: Date };
+
+  function withoutEndDate(work: WorkCardWithEnd): UpcomingWorkCard {
+    const { endsAt, ...card } = work;
+    return card;
+  }
+
+  const allWorks: WorkCardWithEnd[] = [
     ...projects
       .filter((project): project is typeof project & { eventDate: Date } => project.eventDate instanceof Date)
       .map((project) => ({
         key: `project-${project.id}`,
         date: project.eventDate,
+        endsAt: workEndDate(project.eventDate, project.endTime),
         href: `/admin/clients/${project.customer.id}?tab=projects`,
         title: project.title,
         subtitle: project.customer.coupleName,
@@ -227,6 +249,7 @@ export default async function AdminWorkPage() {
     ...bookings.map((booking) => ({
       key: `booking-${booking.id}`,
       date: booking.startsAt,
+      endsAt: booking.endsAt,
       href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`,
       title: booking.miniSession.title,
       subtitle: booking.name,
@@ -239,6 +262,7 @@ export default async function AdminWorkPage() {
     ...meetings.map((meeting) => ({
       key: `meeting-${meeting.id}`,
       date: meeting.eventDate,
+      endsAt: workEndDate(meeting.eventDate, meeting.endTime),
       href: `/admin/clients/${meeting.customer.id}?tab=meetings`,
       title: meeting.title,
       subtitle: meeting.customer.coupleName,
@@ -253,6 +277,7 @@ export default async function AdminWorkPage() {
       .map((task) => ({
         key: `task-${task.id}`,
         date: task.dueDate,
+        endsAt: workEndDate(task.dueDate, task.dueTime),
         href: `/admin/clients/${task.customer.id}?tab=tasks`,
         title: task.title,
         subtitle: task.customer.coupleName,
@@ -262,7 +287,21 @@ export default async function AdminWorkPage() {
         footer: customerTaskPriorityLabel(task.priority),
         footerLabel: copy.task
     }))
-  ].sort((left, right) => left.date.getTime() - right.date.getTime());
+  ];
+
+  const upcomingWorks = allWorks
+    .filter((work) => work.endsAt.getTime() > now.getTime())
+    .sort((left, right) => left.date.getTime() - right.date.getTime())
+    .map(withoutEndDate);
+  const pastWorks = allWorks
+    .filter((work) => work.endsAt.getTime() <= now.getTime())
+    .sort((left, right) => right.endsAt.getTime() - left.endsAt.getTime())
+    .map((work) =>
+      withoutEndDate({
+        ...work,
+        badges: [work.badges[0], copy.past] as [string, string]
+      })
+    );
 
   return (
     <AdminShell>
@@ -278,7 +317,7 @@ export default async function AdminWorkPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex h-9 items-center rounded-full bg-brass/10 px-3 text-xs font-medium text-brass">
-              {copy.total(works.length)}
+              {copy.total(allWorks.length)}
             </span>
             <Link
               href="/admin/dashboard"
@@ -292,7 +331,14 @@ export default async function AdminWorkPage() {
       </div>
 
       <section className="rounded-md border border-ink/12 bg-white">
-        {works.length === 0 ? (
+        <div className="flex flex-col justify-between gap-2 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">{copy.upcomingTitle}</h2>
+            <p className="mt-1 text-sm text-graphite/65">{copy.upcomingDescription}</p>
+          </div>
+          <span className="w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">{copy.total(upcomingWorks.length)}</span>
+        </div>
+        {upcomingWorks.length === 0 ? (
           <div className="p-5">
             <EmptyState
               icon={<CalendarClock size={18} className="text-ink" />}
@@ -302,7 +348,33 @@ export default async function AdminWorkPage() {
           </div>
         ) : (
           <UpcomingWorkCardGrid
-            works={works}
+            works={upcomingWorks}
+            language={language}
+            missingTime={copy.missingTime}
+            missingVenue={copy.missingVenue}
+          />
+        )}
+      </section>
+
+      <section className="mt-6 rounded-md border border-ink/12 bg-white">
+        <div className="flex flex-col justify-between gap-2 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">{copy.pastTitle}</h2>
+            <p className="mt-1 text-sm text-graphite/65">{copy.pastDescription}</p>
+          </div>
+          <span className="w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">{copy.total(pastWorks.length)}</span>
+        </div>
+        {pastWorks.length === 0 ? (
+          <div className="p-5">
+            <EmptyState
+              icon={<CalendarClock size={18} className="text-ink" />}
+              title={copy.pastEmptyTitle}
+              description={copy.pastEmptyDescription}
+            />
+          </div>
+        ) : (
+          <UpcomingWorkCardGrid
+            works={pastWorks}
             language={language}
             missingTime={copy.missingTime}
             missingVenue={copy.missingVenue}
