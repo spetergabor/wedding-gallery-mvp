@@ -226,7 +226,7 @@ export function MiniSessionEmbedBookingWizard({
                             selectDay(availableDay);
                           }
                         }}
-                        className={`grid aspect-square min-h-10 place-items-center rounded-md border text-sm font-semibold transition ${
+                        className={`grid aspect-square w-full min-w-0 place-items-center rounded-md border text-sm font-semibold transition ${
                           isSelected
                             ? "border-ink bg-ink text-white shadow-sm"
                             : availableDay
