@@ -34,7 +34,8 @@ import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
   createAdminCalendarBlockAction,
   createMiniSessionAction,
-  deleteAdminCalendarBlockAction
+  deleteAdminCalendarBlockAction,
+  updateMiniSessionBookingStatusAction
 } from "@/lib/mini-session-actions";
 import {
   createMiniSessionSlots,
@@ -52,6 +53,8 @@ import {
   MINI_SESSION_BOOKING_SOURCE_CLIENT,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
+  MINI_SESSION_BOOKING_STATUS_COMPLETED,
+  MINI_SESSION_BOOKING_STATUS_NO_SHOW,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_LANGUAGES,
   MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
@@ -146,13 +149,35 @@ function formatProjectTime(project: { startTime: string | null; endTime: string 
 }
 
 function miniSessionBookingStatusLabel(status: string) {
-  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED ? "Törölt" : "Aktív";
+  if (status === MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    return "Törölt";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_COMPLETED) {
+    return "Kész";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_NO_SHOW) {
+    return "Nem jelent meg";
+  }
+
+  return "Aktív";
 }
 
 function miniSessionBookingStatusClass(status: string) {
-  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED
-    ? "bg-red-50 text-red-700"
-    : "bg-sage/10 text-sage";
+  if (status === MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_COMPLETED) {
+    return "bg-sage/10 text-sage";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_NO_SHOW) {
+    return "bg-brass/10 text-brass";
+  }
+
+  return "bg-ink/5 text-graphite";
 }
 
 function calendarBlockStatus(block: { startsAt: Date; endsAt: Date }, now: Date) {
@@ -538,6 +563,8 @@ export default async function AdminMiniSessionsPage({
     calendarBlocked?: string;
     calendarDeleted?: string;
     calendarError?: string;
+    bookingStatusUpdated?: string;
+    bookingStatusError?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -616,6 +643,8 @@ export default async function AdminMiniSessionsPage({
     .sort((a, b) => b.booking.startsAt.getTime() - a.booking.startsAt.getTime());
   const freeSlotCount = [...sessionMetrics.values()].reduce((total, metrics) => total + metrics.freeSlotCount, 0);
   const activeBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
+  const completedBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_COMPLETED);
+  const noShowBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_NO_SHOW);
   const cancelledBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
   const clientBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_CLIENT);
   const manualBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL);
@@ -662,6 +691,8 @@ export default async function AdminMiniSessionsPage({
         {flags.error === "cover_size" ? <Alert title="A borítókép túl nagy." variant="error">Maximum 12 MB-os képet tölts fel.</Alert> : null}
         {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
         {flags.calendarError === "missing" ? <Alert title="Hibás naptár tiltás." variant="error">Adj meg érvényes kezdő és záró időpontot.</Alert> : null}
+        {flags.bookingStatusError ? <Alert title="A foglalás állapota nem módosítható." variant="error">Törölt vagy blokkolt időpontnál nem lehet ezt az állapotot beállítani.</Alert> : null}
+        {flags.bookingStatusUpdated ? <Alert title="Foglalás állapota frissítve." variant="success" /> : null}
         {flags.deleted ? <Alert title="Foglaló törölve." variant="success" /> : null}
         {flags.calendarBlocked ? <Alert title="Naptár tiltás hozzáadva." variant="success">Az érintett idősávok egyik foglalóban sem lesznek elérhetők.</Alert> : null}
         {flags.calendarDeleted ? <Alert title="Naptár tiltás törölve." variant="success" /> : null}
@@ -1067,6 +1098,8 @@ export default async function AdminMiniSessionsPage({
             <MiniSessionBookingFilters
               totalCount={contactBookings.length}
               activeCount={activeBookings.length}
+              completedCount={completedBookings.length}
+              noShowCount={noShowBookings.length}
               cancelledCount={cancelledBookings.length}
               clientCount={clientBookings.length}
               manualCount={manualBookings.length}
@@ -1084,6 +1117,11 @@ export default async function AdminMiniSessionsPage({
                 </div>
                 {contactBookings.map(({ session, booking }) => {
                   const slotLabel = formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt);
+                  const isBooked = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
+                  const isClosedStatus =
+                    booking.status === MINI_SESSION_BOOKING_STATUS_COMPLETED ||
+                    booking.status === MINI_SESSION_BOOKING_STATUS_NO_SHOW;
+                  const canCloseBooking = isBooked && booking.endsAt <= now;
                   const searchText = [
                     booking.name,
                     booking.email,
@@ -1097,13 +1135,13 @@ export default async function AdminMiniSessionsPage({
                   return (
                     <div
                       key={booking.id}
-                      hidden={booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED}
+                      hidden={!isBooked}
                       data-mini-session-booking-item
                       data-mini-session-booking-record={booking.id}
                       data-mini-session-booking-status={booking.status}
                       data-mini-session-booking-source={booking.source}
                       data-mini-session-booking-search={searchText}
-                      className={`${booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED ? "hidden" : ""} grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] md:items-center`}
+                      className={`${!isBooked ? "hidden" : ""} grid gap-3 bg-white px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.05fr)_minmax(0,1.1fr)_auto] md:items-center`}
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1129,7 +1167,36 @@ export default async function AdminMiniSessionsPage({
                         <p className="text-sm text-graphite/75">{slotLabel}</p>
                         <p className="mt-1 truncate text-xs text-graphite/55">/mini-session/{session.slug}</p>
                       </div>
-                      <div className="flex gap-2 md:justify-end">
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        {canCloseBooking ? (
+                          <>
+                            <form action={updateMiniSessionBookingStatusAction.bind(null, booking.id)}>
+                              <input type="hidden" name="returnScope" value="hub" />
+                              <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_COMPLETED} />
+                              <FormSubmitButton variant="secondary" pendingLabel="..." className="h-9 px-3 text-sm">
+                                <CheckCircle2 size={14} />
+                                Kész
+                              </FormSubmitButton>
+                            </form>
+                            <form action={updateMiniSessionBookingStatusAction.bind(null, booking.id)}>
+                              <input type="hidden" name="returnScope" value="hub" />
+                              <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_NO_SHOW} />
+                              <FormSubmitButton variant="secondary" pendingLabel="..." className="h-9 px-3 text-sm">
+                                <Ban size={14} />
+                                Nem jelent meg
+                              </FormSubmitButton>
+                            </form>
+                          </>
+                        ) : null}
+                        {isClosedStatus ? (
+                          <form action={updateMiniSessionBookingStatusAction.bind(null, booking.id)}>
+                            <input type="hidden" name="returnScope" value="hub" />
+                            <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_BOOKED} />
+                            <FormSubmitButton variant="secondary" pendingLabel="..." className="h-9 px-3 text-sm">
+                              Aktívra
+                            </FormSubmitButton>
+                          </form>
+                        ) : null}
                         <Link
                           href={`/admin/mini-sessions/${session.id}?tab=bookings`}
                           className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 md:w-auto"

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 
-type BookingStatusFilter = "booked" | "cancelled" | "all";
+type BookingStatusFilter = "booked" | "completed" | "no_show" | "cancelled" | "all";
 type BookingSourceFilter = "all" | "client" | "manual";
 
 const filterInputClass =
@@ -17,12 +17,16 @@ function setFilteredElementHidden(element: HTMLElement, isHidden: boolean) {
 export function MiniSessionBookingFilters({
   totalCount,
   activeCount,
+  completedCount,
+  noShowCount,
   cancelledCount,
   clientCount,
   manualCount
 }: {
   totalCount: number;
   activeCount: number;
+  completedCount: number;
+  noShowCount: number;
   cancelledCount: number;
   clientCount: number;
   manualCount: number;
@@ -89,6 +93,8 @@ export function MiniSessionBookingFilters({
           aria-label="Foglalás státusz"
         >
           <option value="booked">Csak aktív ({activeCount})</option>
+          <option value="completed">Kész ({completedCount})</option>
+          <option value="no_show">Nem jelent meg ({noShowCount})</option>
           <option value="cancelled">Törölt ({cancelledCount})</option>
           <option value="all">Összes ({totalCount})</option>
         </select>

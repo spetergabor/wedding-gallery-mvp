@@ -23,6 +23,7 @@ import {
   resendMiniSessionAdminNotificationAction,
   rescheduleMiniSessionBookingByAdminAction,
   retryMiniSessionBookingCalendarSyncAction,
+  updateMiniSessionBookingStatusAction,
   updateMiniSessionAction,
   updateMiniSessionCoverAction
 } from "@/lib/mini-session-actions";
@@ -44,6 +45,8 @@ import {
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
+  MINI_SESSION_BOOKING_STATUS_COMPLETED,
+  MINI_SESSION_BOOKING_STATUS_NO_SHOW,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_LANGUAGES,
   MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
@@ -105,13 +108,35 @@ function sourceBadgeClass(source: string) {
 }
 
 function statusLabel(status: string) {
-  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED ? "Törölt" : "Aktív";
+  if (status === MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    return "Törölt";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_COMPLETED) {
+    return "Kész";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_NO_SHOW) {
+    return "Nem jelent meg";
+  }
+
+  return "Aktív";
 }
 
 function statusBadgeClass(status: string) {
-  return status === MINI_SESSION_BOOKING_STATUS_CANCELLED
-    ? "bg-red-50 text-red-700"
-    : "bg-sage/10 text-sage";
+  if (status === MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    return "bg-red-50 text-red-700";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_COMPLETED) {
+    return "bg-sage/10 text-sage";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_NO_SHOW) {
+    return "bg-brass/10 text-brass";
+  }
+
+  return "bg-ink/5 text-graphite";
 }
 
 function deliveryStatusLabel(status: string) {
@@ -242,7 +267,8 @@ function needsManualRetry(display: DeliveryDisplay) {
 
 function BookingManagementActions({
   bookingId,
-  isActive,
+  status,
+  canCloseBooking,
   currentSlot,
   rescheduleSlots,
   showSlotDates,
@@ -251,7 +277,8 @@ function BookingManagementActions({
   calendarDelivery
 }: {
   bookingId: string;
-  isActive: boolean;
+  status: string;
+  canCloseBooking: boolean;
   currentSlot: BookingActionSlot;
   rescheduleSlots: BookingActionSlot[];
   showSlotDates: boolean;
@@ -259,17 +286,52 @@ function BookingManagementActions({
   adminEmailDelivery: DeliveryDisplay;
   calendarDelivery: DeliveryDisplay;
 }) {
-  const showCustomerEmailRetry = isActive && needsManualRetry(customerEmailDelivery);
-  const showAdminEmailRetry = isActive && needsManualRetry(adminEmailDelivery);
-  const showCalendarRetry = isActive && needsManualRetry(calendarDelivery);
+  const isBooked = status === MINI_SESSION_BOOKING_STATUS_BOOKED;
+  const isClosedStatus = status === MINI_SESSION_BOOKING_STATUS_COMPLETED || status === MINI_SESSION_BOOKING_STATUS_NO_SHOW;
+  const showCustomerEmailRetry = isBooked && needsManualRetry(customerEmailDelivery);
+  const showAdminEmailRetry = isBooked && needsManualRetry(adminEmailDelivery);
+  const showCalendarRetry = isBooked && needsManualRetry(calendarDelivery);
   const hasRetryActions = showCustomerEmailRetry || showAdminEmailRetry || showCalendarRetry;
 
-  if (!isActive) {
+  if (isClosedStatus) {
+    return (
+      <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)} className="ml-auto w-full max-w-80">
+        <input type="hidden" name="returnTab" value="bookings" />
+        <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_BOOKED} />
+        <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
+          Aktívra vissza
+        </FormSubmitButton>
+      </form>
+    );
+  }
+
+  if (!isBooked) {
     return <span className="text-xs font-medium text-graphite/50">Törölt foglalás</span>;
   }
 
   return (
     <div className="ml-auto grid w-full max-w-80 gap-2">
+      {canCloseBooking ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
+          <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)}>
+            <input type="hidden" name="returnTab" value="bookings" />
+            <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_COMPLETED} />
+            <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
+              <CheckCircle2 size={13} />
+              Kész
+            </FormSubmitButton>
+          </form>
+          <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)}>
+            <input type="hidden" name="returnTab" value="bookings" />
+            <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_NO_SHOW} />
+            <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
+              <XCircle size={13} />
+              Nem jelent meg
+            </FormSubmitButton>
+          </form>
+        </div>
+      ) : null}
+
       <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, bookingId)} className="grid gap-2">
         <input type="hidden" name="returnTab" value="bookings" />
         <select name="slot" required defaultValue={currentSlot.token} className="h-9 w-full rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none">
@@ -359,6 +421,8 @@ export default async function AdminMiniSessionDetailPage({
     created?: string;
     updated?: string;
     bookingCancelled?: string;
+    bookingStatusUpdated?: string;
+    bookingStatusError?: string;
     bookingRescheduled?: string;
     adminBooking?: string;
     confirmationSent?: string;
@@ -388,11 +452,16 @@ export default async function AdminMiniSessionDetailPage({
     notFound();
   }
 
+  const now = new Date();
   const booked = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
+  const completed = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_COMPLETED);
+  const noShow = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_NO_SHOW);
   const cancelled = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
   const activeContactBookings = booked.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED);
+  const completedContactBookings = completed.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED);
+  const noShowContactBookings = noShow.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED);
   const cancelledContactBookings = cancelled.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED);
-  const contactBookings = [...activeContactBookings, ...cancelledContactBookings];
+  const contactBookings = [...activeContactBookings, ...completedContactBookings, ...noShowContactBookings, ...cancelledContactBookings];
   const blockedBookings = booked.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED);
   const slots = createMiniSessionSlots(session);
   const bookableSlots = filterMiniSessionSlotsByBookingNotice(slots, session.minBookingNoticeMinutes);
@@ -482,6 +551,8 @@ export default async function AdminMiniSessionDetailPage({
         {flags.created ? <Alert title="Foglaló létrehozva." variant="success" /> : null}
         {flags.updated ? <Alert title="Foglaló frissítve." variant="success" /> : null}
         {flags.bookingCancelled ? <Alert title="Idősáv törölve, újra foglalható." variant="success" /> : null}
+        {flags.bookingStatusUpdated ? <Alert title="Foglalás állapota frissítve." variant="success" /> : null}
+        {flags.bookingStatusError ? <Alert title="A foglalás állapota nem módosítható." variant="error">Törölt vagy blokkolt időpontnál nem lehet ezt az állapotot beállítani.</Alert> : null}
         {flags.bookingRescheduled ? <Alert title="Időpont módosítva." variant="success" /> : null}
         {flags.adminBooking ? <Alert title="Idősáv rögzítve." variant="success" /> : null}
         {flags.confirmationSent ? <Alert title="Megerősítő e-mail újraküldve." variant="success" /> : null}
@@ -677,6 +748,8 @@ export default async function AdminMiniSessionDetailPage({
               <MiniSessionBookingFilters
                 totalCount={contactBookings.length}
                 activeCount={activeContactBookings.length}
+                completedCount={completedContactBookings.length}
+                noShowCount={noShowContactBookings.length}
                 cancelledCount={cancelledContactBookings.length}
                 clientCount={clientContactCount}
                 manualCount={manualContactCount}
@@ -691,7 +764,8 @@ export default async function AdminMiniSessionDetailPage({
                     ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
                     : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                   const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
-                  const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
+                  const canCloseBooking = isActive && booking.endsAt <= now;
+                  const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
                   const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
                   const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
                   const customerEmailDelivery = deliveryDisplay({
@@ -743,7 +817,8 @@ export default async function AdminMiniSessionDetailPage({
                       <div className="mt-4">
                         <BookingManagementActions
                           bookingId={booking.id}
-                          isActive={isActive}
+                          status={booking.status}
+                          canCloseBooking={canCloseBooking}
                           currentSlot={currentSlot}
                           rescheduleSlots={rescheduleSlots}
                           showSlotDates={showSlotDates}
@@ -775,7 +850,8 @@ export default async function AdminMiniSessionDetailPage({
                         ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
                         : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                       const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
-                      const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel].join(" ").toLowerCase();
+                      const canCloseBooking = isActive && booking.endsAt <= now;
+                      const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
                       const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
                       const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
                       const customerEmailDelivery = deliveryDisplay({
@@ -828,7 +904,8 @@ export default async function AdminMiniSessionDetailPage({
                           <td className="px-4 py-3">
                             <BookingManagementActions
                               bookingId={booking.id}
-                              isActive={isActive}
+                              status={booking.status}
+                              canCloseBooking={canCloseBooking}
                               currentSlot={currentSlot}
                               rescheduleSlots={rescheduleSlots}
                               showSlotDates={showSlotDates}

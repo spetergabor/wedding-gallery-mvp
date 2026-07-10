@@ -37,6 +37,8 @@ import {
   MINI_SESSION_BOOKING_SOURCE_CLIENT,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
+  MINI_SESSION_BOOKING_STATUS_COMPLETED,
+  MINI_SESSION_BOOKING_STATUS_NO_SHOW,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_WEEKDAYS,
   isMiniSessionSlotBookable,
@@ -57,6 +59,17 @@ import {
 } from "@/lib/storage";
 
 const MINI_SESSION_COVER_MAX_BYTES = 12 * 1024 * 1024;
+const MINI_SESSION_ADMIN_STATUS_VALUES = [
+  MINI_SESSION_BOOKING_STATUS_BOOKED,
+  MINI_SESSION_BOOKING_STATUS_COMPLETED,
+  MINI_SESSION_BOOKING_STATUS_NO_SHOW
+] as const;
+
+function normalizeAdminBookingStatus(value: FormDataEntryValue | null) {
+  return typeof value === "string" && MINI_SESSION_ADMIN_STATUS_VALUES.includes(value as (typeof MINI_SESSION_ADMIN_STATUS_VALUES)[number])
+    ? value
+    : null;
+}
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -1633,6 +1646,97 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
     revalidatePath(`/admin/clients/${booking.customerId}`);
   }
   redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&bookingCancelled=1`);
+}
+
+export async function updateMiniSessionBookingStatusAction(bookingId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const status = normalizeAdminBookingStatus(formData.get("status"));
+  const returnScope = formString(formData, "returnScope");
+  const returnTab = formData.get("returnTab") === "slots" ? "slots" : "bookings";
+
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      miniSession: adminOwnedWhere(admin)
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      startsAt: true,
+      endsAt: true,
+      source: true,
+      status: true,
+      miniSession: {
+        select: {
+          id: true,
+          adminId: true,
+          title: true,
+          slug: true
+        }
+      }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  const detailRedirect = `/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}`;
+  const hubRedirect = "/admin/mini-sessions?tab=bookings";
+  const redirectBase = returnScope === "hub" ? hubRedirect : detailRedirect;
+
+  if (!status || booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED || booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    redirect(`${redirectBase}&bookingStatusError=1`);
+  }
+
+  if (status !== MINI_SESSION_BOOKING_STATUS_BOOKED && booking.endsAt > new Date()) {
+    redirect(`${redirectBase}&bookingStatusError=1`);
+  }
+
+  if (booking.status !== status) {
+    await prisma.miniSessionBooking.update({
+      where: { id: booking.id },
+      data: {
+        status,
+        cancelledAt: null
+      }
+    });
+
+    const statusLabel =
+      status === MINI_SESSION_BOOKING_STATUS_COMPLETED
+        ? "Kész"
+        : status === MINI_SESSION_BOOKING_STATUS_NO_SHOW
+          ? "Nem jelent meg"
+          : "Aktív";
+
+    await logSystemEvent({
+      actorAdminId: admin.id,
+      targetAdminId: booking.miniSession.adminId,
+      type: "mini_session.booking.status_updated",
+      title: "Foglalás állapota frissítve",
+      message: `${booking.name} · ${booking.miniSession.title} · ${statusLabel}`,
+      severity: status === MINI_SESSION_BOOKING_STATUS_NO_SHOW ? "warning" : "info",
+      status: "success",
+      source: "mini_session",
+      href: detailRedirect,
+      metadata: {
+        bookingId: booking.id,
+        sessionId: booking.miniSession.id,
+        email: booking.email,
+        startsAt: booking.startsAt.toISOString(),
+        endsAt: booking.endsAt.toISOString(),
+        previousStatus: booking.status,
+        status
+      }
+    });
+  }
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`${redirectBase}&bookingStatusUpdated=1`);
 }
 
 export async function resendMiniSessionBookingConfirmationAction(bookingId: string) {

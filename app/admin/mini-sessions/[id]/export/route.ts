@@ -8,6 +8,8 @@ import {
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
+  MINI_SESSION_BOOKING_STATUS_COMPLETED,
+  MINI_SESSION_BOOKING_STATUS_NO_SHOW,
   MINI_SESSION_BOOKING_STATUS_CANCELLED
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
@@ -57,6 +59,14 @@ function bookingStatusLabel(status: string) {
 
   if (status === MINI_SESSION_BOOKING_STATUS_CANCELLED) {
     return "Törölt";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_COMPLETED) {
+    return "Kész";
+  }
+
+  if (status === MINI_SESSION_BOOKING_STATUS_NO_SHOW) {
+    return "Nem jelent meg";
   }
 
   return status;
