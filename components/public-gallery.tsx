@@ -179,6 +179,17 @@ type PublicPhoto = {
   imageHeight: number;
 };
 
+type PublicGallerySection = {
+  id: string;
+  title: string;
+  slug: string;
+};
+
+type PublicPhotoItem = {
+  photo: PublicPhoto;
+  index: number;
+};
+
 type FavoriteListState = {
   id: string;
   name: string;
@@ -225,10 +236,29 @@ function getColumnCount(width: number) {
   return 1;
 }
 
+function createPhotoColumns(items: PublicPhotoItem[], columnCount: number) {
+  const safeColumnCount = Math.max(1, columnCount);
+  const columns = Array.from({ length: safeColumnCount }, () => [] as PublicPhotoItem[]);
+  const columnHeights = Array.from({ length: safeColumnCount }, () => 0);
+
+  items.forEach(({ photo, index }) => {
+    const shortestColumnIndex = columnHeights.reduce((shortestIndex, height, currentIndex) => {
+      return height < columnHeights[shortestIndex] ? currentIndex : shortestIndex;
+    }, 0);
+    const estimatedRatio = isVideo(photo) ? 9 / 16 : hasImageDimensions(photo) ? photo.imageHeight / photo.imageWidth : 1;
+
+    columns[shortestColumnIndex].push({ photo, index });
+    columnHeights[shortestColumnIndex] += estimatedRatio;
+  });
+
+  return columns;
+}
+
 export function PublicGallery({
   galleryId,
   title,
   photos,
+  sections = [],
   downloadsEnabled,
   favoritesEnabled = true,
   favoriteMode = "favorites",
@@ -238,6 +268,7 @@ export function PublicGallery({
   galleryId: string;
   title: string;
   photos: PublicPhoto[];
+  sections?: PublicGallerySection[];
   downloadsEnabled: boolean;
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
@@ -288,13 +319,17 @@ export function PublicGallery({
 
     return photos.filter((photo) => favoriteIds.has(photo.id));
   }, [favoriteIds, favoritesEnabled, photos, showFavoritesOnly]);
-  const visibleVideoItems = useMemo(
-    () => visiblePhotos.map((photo, index) => ({ photo, index })).filter(({ photo }) => isVideo(photo)),
+  const visibleItems = useMemo(
+    () => visiblePhotos.map((photo, index) => ({ photo, index })),
     [visiblePhotos]
   );
+  const visibleVideoItems = useMemo(
+    () => visibleItems.filter(({ photo }) => isVideo(photo)),
+    [visibleItems]
+  );
   const visibleImageItems = useMemo(
-    () => visiblePhotos.map((photo, index) => ({ photo, index })).filter(({ photo }) => !isVideo(photo)),
-    [visiblePhotos]
+    () => visibleItems.filter(({ photo }) => !isVideo(photo)),
+    [visibleItems]
   );
 
   const selectedPhoto = useMemo(() => {
@@ -315,22 +350,51 @@ export function PublicGallery({
     gridTemplateColumns: `repeat(${Math.max(1, columnCount)}, minmax(0, 1fr))`
   };
   const photoColumns = useMemo(() => {
-    const safeColumnCount = Math.max(1, columnCount);
-    const columns = Array.from({ length: safeColumnCount }, () => [] as Array<{ photo: PublicPhoto; index: number }>);
-    const columnHeights = Array.from({ length: safeColumnCount }, () => 0);
-
-    visibleImageItems.forEach(({ photo, index }) => {
-      const shortestColumnIndex = columnHeights.reduce((shortestIndex, height, currentIndex) => {
-        return height < columnHeights[shortestIndex] ? currentIndex : shortestIndex;
-      }, 0);
-      const estimatedRatio = isVideo(photo) ? 9 / 16 : hasImageDimensions(photo) ? photo.imageHeight / photo.imageWidth : 1;
-
-      columns[shortestColumnIndex].push({ photo, index });
-      columnHeights[shortestColumnIndex] += estimatedRatio;
-    });
-
-    return columns;
+    return createPhotoColumns(visibleImageItems, columnCount);
   }, [columnCount, visibleImageItems]);
+  const sectionBlocks = useMemo(() => {
+    if (sections.length === 0) {
+      return [];
+    }
+
+    const knownSectionIds = new Set(sections.map((section) => section.id));
+    const blocks = sections
+      .map((section) => {
+        const items = visibleItems.filter(({ photo }) => photo.sectionId === section.id);
+
+        if (items.length === 0) {
+          return null;
+        }
+
+        const imageItems = items.filter(({ photo }) => !isVideo(photo));
+
+        return {
+          key: section.id,
+          anchorId: `gallery-section-${section.slug}`,
+          title: section.title,
+          count: items.length,
+          videoItems: items.filter(({ photo }) => isVideo(photo)),
+          imageColumns: createPhotoColumns(imageItems, columnCount)
+        };
+      })
+      .filter((block): block is NonNullable<typeof block> => Boolean(block));
+    const remainderItems = visibleItems.filter(({ photo }) => !photo.sectionId || !knownSectionIds.has(photo.sectionId));
+
+    if (remainderItems.length > 0) {
+      const imageItems = remainderItems.filter(({ photo }) => !isVideo(photo));
+
+      blocks.push({
+        key: "rest",
+        anchorId: "gallery-section-rest",
+        title: language === "hu" ? "További képek" : "Weitere Bilder",
+        count: remainderItems.length,
+        videoItems: remainderItems.filter(({ photo }) => isVideo(photo)),
+        imageColumns: createPhotoColumns(imageItems, columnCount)
+      });
+    }
+
+    return blocks;
+  }, [columnCount, language, sections, visibleItems]);
 
   useEffect(() => {
     if (!favoritesEnabled) {
@@ -822,6 +886,130 @@ export function PublicGallery({
     });
   }
 
+  function renderVideoItem({ photo, index }: PublicPhotoItem) {
+    return (
+      <div
+        key={photo.id}
+        className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
+          favoritesEnabled && favoriteIds.has(photo.id)
+            ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
+            : "ring-0"
+        } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
+      >
+        <span className="relative block w-full">
+          <button
+            type="button"
+            title={copy.openPhoto}
+            aria-label={`${copy.openPhoto}: ${photo.filename}`}
+            onClick={() => setSelectedIndex(index)}
+            className="relative z-0 block w-full text-left"
+          >
+            <span className="relative block aspect-video w-full overflow-hidden bg-ink">
+              <video
+                src={photo.imageUrl}
+                preload="metadata"
+                muted
+                playsInline
+                className="h-full w-full object-cover opacity-90 transition duration-500 ease-out group-hover:scale-[1.025]"
+              />
+              <span className="absolute inset-0 grid place-items-center bg-ink/20 text-white">
+                <span className="grid size-14 place-items-center rounded-full bg-white/90 text-ink shadow-soft">
+                  <Play size={22} fill="currentColor" />
+                </span>
+              </span>
+            </span>
+            <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
+              <Maximize2 size={16} />
+            </span>
+          </button>
+          {favoritesEnabled ? (
+            <button
+              type="button"
+              title={proofingSelection ? "Auswählen" : "Favorit"}
+              aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
+              onClick={() => void toggleFavorite(photo.id)}
+              className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
+                pendingFavoriteId === photo.id ? "opacity-80" : ""
+              } ${
+                lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
+              }`}
+            >
+              <Heart
+                size={17}
+                className="transition-transform duration-150"
+                fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
+              />
+            </button>
+          ) : null}
+        </span>
+      </div>
+    );
+  }
+
+  function renderImageItem({ photo, index }: PublicPhotoItem) {
+    return (
+      <div
+        key={photo.id}
+        className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
+          favoritesEnabled && favoriteIds.has(photo.id)
+            ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
+            : "ring-0"
+        } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
+      >
+        <span className="relative block w-full">
+          <button
+            type="button"
+            title={copy.openPhoto}
+            aria-label={`${copy.openPhoto}: ${photo.filename}`}
+            onClick={() => setSelectedIndex(index)}
+            className="relative z-0 block w-full text-left"
+          >
+            {hasImageDimensions(photo) ? (
+              <Image
+                src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
+                alt={photo.filename}
+                width={photo.imageWidth}
+                height={photo.imageHeight}
+                unoptimized
+                className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
+                sizes={imageSizes}
+              />
+            ) : (
+              <img
+                src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
+                alt={photo.filename}
+                loading="lazy"
+                className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
+              />
+            )}
+            <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
+              <Maximize2 size={16} />
+            </span>
+          </button>
+          {favoritesEnabled ? (
+            <button
+              type="button"
+              title={proofingSelection ? "Auswählen" : "Favorit"}
+              aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
+              onClick={() => void toggleFavorite(photo.id)}
+              className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
+                pendingFavoriteId === photo.id ? "opacity-80" : ""
+              } ${
+                lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
+              }`}
+            >
+              <Heart
+                size={17}
+                className="transition-transform duration-150"
+                fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
+              />
+            </button>
+          ) : null}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <>
       <section className="space-y-10">
@@ -905,7 +1093,36 @@ export function PublicGallery({
           </div>
         ) : null}
 
-        {visibleVideoItems.length > 0 ? (
+        {sectionBlocks.length > 0 ? (
+          <div className="space-y-16">
+            {sectionBlocks.map((block) => (
+              <section key={block.key} id={block.anchorId} className="scroll-mt-24 space-y-5" aria-labelledby={`${block.anchorId}-title`}>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">
+                    {block.count} {language === "hu" ? "média" : "Medien"}
+                  </p>
+                  <h2 id={`${block.anchorId}-title`} className="font-playfair mt-1 text-3xl font-semibold text-ink md:text-4xl">
+                    {block.title}
+                  </h2>
+                </div>
+                {block.videoItems.length > 0 ? (
+                  <div className="grid gap-2" style={galleryGridStyle}>
+                    {block.videoItems.map((item) => renderVideoItem(item))}
+                  </div>
+                ) : null}
+                {block.imageColumns.some((column) => column.length > 0) ? (
+                  <div className="grid gap-2" style={galleryGridStyle}>
+                    {block.imageColumns.map((column, columnIndex) => (
+                      <div key={columnIndex} className="grid content-start gap-2">
+                        {column.map((item) => renderImageItem(item))}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            ))}
+          </div>
+        ) : visibleVideoItems.length > 0 ? (
           <section className="space-y-4" aria-labelledby="public-gallery-videos">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">{copy.videoCount(visibleVideoItems.length)}</p>
@@ -914,132 +1131,16 @@ export function PublicGallery({
               </h2>
             </div>
             <div className="grid gap-2" style={galleryGridStyle}>
-              {visibleVideoItems.map(({ photo, index }) => (
-                <div
-                  key={photo.id}
-                  className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
-                    favoritesEnabled && favoriteIds.has(photo.id)
-                      ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
-                      : "ring-0"
-                  } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
-                >
-                  <span className="relative block w-full">
-                    <button
-                      type="button"
-                      title={copy.openPhoto}
-                      aria-label={`${copy.openPhoto}: ${photo.filename}`}
-                      onClick={() => setSelectedIndex(index)}
-                      className="relative z-0 block w-full text-left"
-                    >
-                      <span className="relative block aspect-video w-full overflow-hidden bg-ink">
-                        <video
-                          src={photo.imageUrl}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          className="h-full w-full object-cover opacity-90 transition duration-500 ease-out group-hover:scale-[1.025]"
-                        />
-                        <span className="absolute inset-0 grid place-items-center bg-ink/20 text-white">
-                          <span className="grid size-14 place-items-center rounded-full bg-white/90 text-ink shadow-soft">
-                            <Play size={22} fill="currentColor" />
-                          </span>
-                        </span>
-                      </span>
-                      <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
-                        <Maximize2 size={16} />
-                      </span>
-                    </button>
-                    {favoritesEnabled ? (
-                      <button
-                        type="button"
-                        title={proofingSelection ? "Auswählen" : "Favorit"}
-                        aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
-                        onClick={() => void toggleFavorite(photo.id)}
-                        className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
-                          pendingFavoriteId === photo.id ? "opacity-80" : ""
-                        } ${
-                          lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
-                        }`}
-                      >
-                        <Heart
-                          size={17}
-                          className="transition-transform duration-150"
-                          fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
-                        />
-                      </button>
-                    ) : null}
-                  </span>
-                </div>
-              ))}
+              {visibleVideoItems.map((item) => renderVideoItem(item))}
             </div>
           </section>
         ) : null}
 
-        {visibleImageItems.length > 0 ? (
+        {sectionBlocks.length === 0 && visibleImageItems.length > 0 ? (
           <section className="grid gap-2" style={galleryGridStyle}>
             {photoColumns.map((column, columnIndex) => (
               <div key={columnIndex} className="grid content-start gap-2">
-                {column.map(({ photo, index }) => (
-                  <div
-                    key={photo.id}
-                    className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
-                      favoritesEnabled && favoriteIds.has(photo.id)
-                        ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
-                        : "ring-0"
-                    } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
-                  >
-                    <span className="relative block w-full">
-                      <button
-                        type="button"
-                        title={copy.openPhoto}
-                        aria-label={`${copy.openPhoto}: ${photo.filename}`}
-                        onClick={() => setSelectedIndex(index)}
-                        className="relative z-0 block w-full text-left"
-                      >
-                        {hasImageDimensions(photo) ? (
-                          <Image
-                            src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
-                            alt={photo.filename}
-                            width={photo.imageWidth}
-                            height={photo.imageHeight}
-                            unoptimized
-                            className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
-                            sizes={imageSizes}
-                          />
-                        ) : (
-                          <img
-                            src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
-                            alt={photo.filename}
-                            loading="lazy"
-                            className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
-                          />
-                        )}
-                        <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
-                          <Maximize2 size={16} />
-                        </span>
-                      </button>
-                      {favoritesEnabled ? (
-                        <button
-                          type="button"
-                          title={proofingSelection ? "Auswählen" : "Favorit"}
-                          aria-label={`${photo.filename} ${proofingSelection ? "auswählen" : "zu den Favoriten hinzufügen"}`}
-                          onClick={() => void toggleFavorite(photo.id)}
-                          className={`absolute left-3 top-3 z-10 flex size-10 items-center justify-center rounded-md transition duration-150 ease-out active:scale-95 ${favoriteButtonClass(photo.id)} ${
-                            pendingFavoriteId === photo.id ? "opacity-80" : ""
-                          } ${
-                            lastFavoritePulseId === photo.id ? "scale-110" : "scale-100"
-                          }`}
-                        >
-                          <Heart
-                            size={17}
-                            className="transition-transform duration-150"
-                            fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
-                          />
-                        </button>
-                      ) : null}
-                    </span>
-                  </div>
-                ))}
+                {column.map((item) => renderImageItem(item))}
               </div>
             ))}
           </section>

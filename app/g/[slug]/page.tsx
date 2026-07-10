@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import { Facebook, Instagram, Lock, Mail, Music2, Phone, Youtube, type LucideIcon } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
 import { PublicGallery } from "@/components/public-gallery";
@@ -59,7 +58,7 @@ export default async function PublicGalleryPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; lang?: string; section?: string }>;
+  searchParams: Promise<{ error?: string; lang?: string }>;
 }) {
   const { slug } = await params;
   const flags = await searchParams;
@@ -121,10 +120,8 @@ export default async function PublicGalleryPage({
   const publicPhotos = [...visibleVideos, ...visibleImages];
   const visibleSectionIds = new Set(visiblePhotos.map((photo) => photo.sectionId).filter((sectionId): sectionId is string => Boolean(sectionId)));
   const visibleSections = gallery.sections.filter((section) => visibleSectionIds.has(section.id));
-  const activeSection = visibleSections.find((section) => section.slug === flags.section) ?? null;
-  const sectionFilteredPhotos = activeSection
-    ? publicPhotos.filter((photo) => photo.sectionId === activeSection.id)
-    : publicPhotos;
+  const knownSectionIds = new Set(gallery.sections.map((section) => section.id));
+  const unsectionedPhotoCount = visiblePhotos.filter((photo) => !photo.sectionId || !knownSectionIds.has(photo.sectionId)).length;
   const sectionPhotoCounts = new Map<string, number>();
 
   for (const photo of visiblePhotos) {
@@ -146,21 +143,6 @@ export default async function PublicGalleryPage({
   const logoHeight = Math.min(140, Math.max(32, settings?.logoHeight ?? 80));
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
-  const sectionHref = (sectionSlug?: string) => {
-    const query = new URLSearchParams();
-
-    if (flags.lang) {
-      query.set("lang", flags.lang);
-    }
-
-    if (sectionSlug) {
-      query.set("section", sectionSlug);
-    }
-
-    const queryString = query.toString();
-
-    return queryString ? `${publicGalleryPath}?${queryString}` : publicGalleryPath;
-  };
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
   const contactText = language === "hu" ? "Kérdésed van a galériával kapcsolatban?" : "Fragen zur Galerie?";
   const contactLinks: ContactQuickLink[] = [
@@ -296,42 +278,33 @@ export default async function PublicGalleryPage({
       <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
         {visibleSections.length > 0 ? (
           <nav className="mb-8 flex flex-wrap items-center justify-center gap-2 border-b border-ink/10 py-5" aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}>
-            <Link
-              href={sectionHref()}
-              className={`inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm font-semibold transition ${
-                !activeSection
-                  ? "border-ink bg-ink text-white"
-                  : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
-              }`}
-            >
-              {language === "hu" ? "Összes" : "Alle"}
-              <span className="ml-2 text-xs opacity-70">{visiblePhotos.length}</span>
-            </Link>
-            {visibleSections.map((section) => {
-              const isActive = activeSection?.id === section.id;
-
-              return (
-                <Link
-                  key={section.id}
-                  href={sectionHref(section.slug)}
-                  className={`inline-flex min-h-11 items-center justify-center rounded-md border px-4 text-sm font-semibold transition ${
-                    isActive
-                      ? "border-ink bg-ink text-white"
-                      : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
-                  }`}
-                >
-                  {section.title}
-                  <span className="ml-2 text-xs opacity-70">{sectionPhotoCounts.get(section.id) ?? 0}</span>
-                </Link>
-              );
-            })}
+            {visibleSections.map((section) => (
+              <a
+                key={section.id}
+                href={`#gallery-section-${section.slug}`}
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite transition hover:border-ink/25 hover:text-ink"
+              >
+                {section.title}
+                <span className="ml-2 text-xs opacity-70">{sectionPhotoCounts.get(section.id) ?? 0}</span>
+              </a>
+            ))}
+            {unsectionedPhotoCount > 0 ? (
+              <a
+                href="#gallery-section-rest"
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite transition hover:border-ink/25 hover:text-ink"
+              >
+                {language === "hu" ? "További képek" : "Weitere Bilder"}
+                <span className="ml-2 text-xs opacity-70">{unsectionedPhotoCount}</span>
+              </a>
+            ) : null}
           </nav>
         ) : null}
         {visiblePhotos.length > 0 ? (
           <PublicGallery
             galleryId={gallery.id}
             title={gallery.title}
-            photos={sectionFilteredPhotos}
+            photos={publicPhotos}
+            sections={visibleSections}
             downloadsEnabled={downloadsEnabled}
             favoritesEnabled={favoritesEnabled}
             favoriteMode={proofingSelection ? "proofing" : "favorites"}
