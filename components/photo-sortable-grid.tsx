@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare, Eye, EyeOff, Film, GripVertical, ImageIcon, Square, Star, Trash2, Undo2 } from "lucide-react";
+import { CheckSquare, Eye, EyeOff, Film, GripVertical, ImageIcon, Square, Star, Trash2, Undo2, X } from "lucide-react";
 import {
   deleteSelectedPhotosAction,
   deletePhotoAction,
@@ -475,9 +475,9 @@ export function PhotoSortableGrid({
                       title="Fotó törlése"
                       message="Biztosan törlöd ezt a fotót? A feltöltött képfájl is törlődik."
                       variant="danger"
-                      className="size-9 px-0"
+                      className="!size-9 shrink-0 !p-0"
                     >
-                      <Trash2 size={16} />
+                      <X size={18} strokeWidth={2.4} />
                     </ConfirmSubmitButton>
                   </form>
                 </div>
