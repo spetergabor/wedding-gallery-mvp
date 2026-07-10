@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import L from "leaflet";
+import { useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
+import type { LayerGroup as LeafletLayerGroup, Map as LeafletMap } from "leaflet";
 import type { ViewLocationPoint } from "@/lib/view-location-points";
+
+type LeafletModule = typeof import("leaflet");
 
 export function ViewLocationMap({
   points,
@@ -16,48 +18,71 @@ export function ViewLocationMap({
 }) {
   const totalViews = points.reduce((sum, point) => sum + point.count, 0);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
+  const leafletRef = useRef<LeafletModule | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const markerLayerRef = useRef<LeafletLayerGroup | null>(null);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
-    if (!mapElementRef.current || mapRef.current) {
-      return;
+    let cancelled = false;
+
+    async function initializeMap() {
+      if (!mapElementRef.current || mapRef.current) {
+        return;
+      }
+
+      const L = await import("leaflet");
+
+      if (cancelled || !mapElementRef.current) {
+        return;
+      }
+
+      leafletRef.current = L;
+
+      const map = L.map(mapElementRef.current, {
+        attributionControl: false,
+        doubleClickZoom: true,
+        dragging: true,
+        scrollWheelZoom: true,
+        touchZoom: true,
+        zoomControl: true
+      });
+
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(map);
+
+      L.control.attribution({ position: "bottomright" }).addTo(map);
+
+      const markerLayer = L.layerGroup().addTo(map);
+      mapRef.current = map;
+      markerLayerRef.current = markerLayer;
+      setMapReady(true);
+      window.setTimeout(() => map.invalidateSize(), 0);
     }
 
-    mapRef.current = L.map(mapElementRef.current, {
-      attributionControl: false,
-      doubleClickZoom: true,
-      dragging: true,
-      scrollWheelZoom: true,
-      touchZoom: true,
-      zoomControl: true
-    });
-
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(mapRef.current);
-
-    L.control.attribution({ position: "bottomright" }).addTo(mapRef.current);
-    window.setTimeout(() => mapRef.current?.invalidateSize(), 0);
+    void initializeMap();
 
     return () => {
+      cancelled = true;
       mapRef.current?.remove();
       mapRef.current = null;
+      markerLayerRef.current = null;
+      leafletRef.current = null;
     };
   }, []);
 
   useEffect(() => {
+    const L = leafletRef.current;
     const map = mapRef.current;
+    const markerLayer = markerLayerRef.current;
 
-    if (!map) {
+    if (!L || !map || !markerLayer) {
       return;
     }
 
-    map.eachLayer((layer) => {
-      if (layer instanceof L.Marker) {
-        layer.remove();
-      }
-    });
+    markerLayer.clearLayers();
 
     if (points.length === 0) {
       map.setView([47.5162, 14.5501], 4);
@@ -79,7 +104,7 @@ export function ViewLocationMap({
         })
       })
         .bindPopup(`<strong>${escapeHtml(point.label)}</strong><br>${point.count} megtekintés`)
-        .addTo(map);
+        .addTo(markerLayer);
     }
 
     if (points.length === 1) {
@@ -90,7 +115,7 @@ export function ViewLocationMap({
         maxZoom: 8
       });
     }
-  }, [points]);
+  }, [mapReady, points]);
 
   return (
     <section className="mt-8 overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
