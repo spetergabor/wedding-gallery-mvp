@@ -103,20 +103,17 @@ ZIP_WORKER_DRIVER="external"
 With this mode, the app creates `BackgroundJob` rows but does not process ZIPs inside Vercel. `/api/jobs/process` still runs ZIP maintenance,
 but skips the heavy ZIP generation.
 
-Build the worker image:
+Copy the example env file and fill it with production values:
 
 ```bash
-docker build -f Dockerfile.zip-worker -t spetly-zip-worker .
+cp .env.zip-worker.example .env.zip-worker
+nano .env.zip-worker
 ```
 
-Run it on Hetzner with an env file:
+Build and run the worker with Docker Compose:
 
 ```bash
-docker run -d \
-  --name spetly-zip-worker \
-  --restart unless-stopped \
-  --env-file .env.zip-worker \
-  spetly-zip-worker
+docker compose -f docker-compose.zip-worker.yml up -d --build
 ```
 
 Minimum `.env.zip-worker` values:
@@ -139,7 +136,19 @@ R2_MULTIPART_UPLOAD_PART_SIZE_MB="64"
 R2_OBJECT_READ_CHUNK_SIZE_MB="16"
 ```
 
-Use `npm run zip-worker -- --once` locally or inside the container to process a single batch for smoke testing.
+Smoke checks:
+
+```bash
+docker compose -f docker-compose.zip-worker.yml ps
+docker compose -f docker-compose.zip-worker.yml logs -f --tail=100
+docker compose -f docker-compose.zip-worker.yml run --rm zip-worker npm run zip-worker -- --check
+docker compose -f docker-compose.zip-worker.yml run --rm zip-worker npm run zip-worker -- --once
+```
+
+Only switch Vercel to `ZIP_WORKER_DRIVER="external"` after the worker is healthy. If no worker is running, ZIP jobs will stay queued.
+
+The compose file uses a two-hour `stop_grace_period` so Docker updates do not kill a long ZIP generation immediately. The worker listens for
+`SIGTERM`/`SIGINT` and stops after the current job.
 
 ## Media processing queue
 

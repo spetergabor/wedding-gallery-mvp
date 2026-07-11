@@ -1,0 +1,16 @@
+services:
+  zip-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.zip-worker
+    image: spetly-zip-worker:latest
+    container_name: spetly-zip-worker
+    restart: unless-stopped
+    env_file:
+      - .env.zip-worker
+    stop_grace_period: 2h
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
