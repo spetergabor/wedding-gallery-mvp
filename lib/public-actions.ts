@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
+import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
@@ -207,6 +208,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       slug: true,
       isActive: true,
       galleryMode: true,
+      deliveryMode: true,
       proofingStatus: true,
       downloadsEnabled: true,
       photos: {
@@ -235,7 +237,7 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     };
   }
 
-  if (!gallery.downloadsEnabled) {
+  if (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode)) {
     return {
       ok: false,
       message: "Downloads sind für diese Galerie derzeit deaktiviert.",

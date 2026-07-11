@@ -24,7 +24,7 @@ import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
-import { adminOwnedWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { clientGalleryUrl, publicGalleryUrl } from "@/lib/email";
@@ -36,6 +36,7 @@ import {
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
+import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel } from "@/lib/gallery-delivery";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -244,6 +245,11 @@ export default async function GalleryDetailPage({
     notFound();
   }
 
+  const stripeIntegration = await prisma.stripeConnectIntegration.findUnique({
+    where: { adminId: ownerAdminId(admin) },
+    select: { chargesEnabled: true }
+  });
+
   const customers = await prisma.customer.findMany({
     where: adminOwnedWhere(admin),
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
@@ -290,6 +296,7 @@ export default async function GalleryDetailPage({
   const submittedListCount = gallery.favoriteLists.filter((list) => list.submittedAt).length;
   const canPrepareZip =
     gallery.downloadsEnabled &&
+    galleryDeliveryAllowsDownloads(gallery.deliveryMode) &&
     gallery.photos.length > 0 &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const resumableUploadSessions = gallery.uploadSessions
@@ -329,6 +336,9 @@ export default async function GalleryDetailPage({
             <p className="text-sm text-graphite/70">/g/{gallery.slug}</p>
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
               {gallery.isActive ? "Aktív" : "Archivált"}
+            </span>
+            <span className="rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass">
+              {galleryDeliveryLabel(gallery.deliveryMode)}
             </span>
             {gallery.customer ? (
               <Link
@@ -445,6 +455,11 @@ export default async function GalleryDetailPage({
         {flags.error === "email" ? <Alert title="Érvénytelen email cím." variant="error" /> : null}
         {flags.error === "customer" ? <Alert title="Válassz érvényes ügyfelet." variant="error" /> : null}
         {flags.error === "project" ? <Alert title="Válassz az ügyfélhez tartozó projektet." variant="error" /> : null}
+        {flags.error === "stripe_required" ? (
+          <Alert title="A fizetős galériához előbb Stripe kapcsolat kell." variant="error">
+            Kösd össze a saját Stripe fiókodat a Beállítások / Integrációk alatt, utána választható a megvásárolható galéria mód.
+          </Alert>
+        ) : null}
         {flags.photoError === "missing" ? <Alert title="Nem választottál ki fotót." variant="error" /> : null}
         {flags.photoError === "storage" ? (
           <Alert title="A feltöltés nem sikerült." variant="error">
@@ -703,7 +718,14 @@ export default async function GalleryDetailPage({
 
         <div data-gallery-tab-panel="settings" hidden={activeTab !== "settings"}>
           <div className="space-y-8">
-            <GalleryForm gallery={gallery} customers={customers} projects={projects} selectedCustomerId={gallery.customerId} selectedProjectId={gallery.projectId} />
+            <GalleryForm
+              gallery={gallery}
+              customers={customers}
+              projects={projects}
+              selectedCustomerId={gallery.customerId}
+              selectedProjectId={gallery.projectId}
+              stripeReady={Boolean(stripeIntegration?.chargesEnabled)}
+            />
             {!proofingGallery ? (
               <section className="rounded-md border border-ink/12 bg-white p-4">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">

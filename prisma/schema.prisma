@@ -46,6 +46,7 @@ model Admin {
   systemEventsAsActor SystemEvent[] @relation("SystemEventActor")
   systemEventsAsTarget SystemEvent[] @relation("SystemEventTarget")
   deliveryLogs DeliveryLog[]
+  stripeConnectIntegration StripeConnectIntegration?
 }
 
 model AdminPasswordResetToken {
@@ -189,6 +190,28 @@ model GoogleCalendarIntegration {
   @@index([googleAccountEmail])
 }
 
+model StripeConnectIntegration {
+  id                  String   @id @default(cuid())
+  adminId             String   @unique
+  stripeAccountId     String   @unique
+  stripeAccountEmail  String?
+  country             String?
+  defaultCurrency     String?
+  chargesEnabled      Boolean  @default(false)
+  payoutsEnabled      Boolean  @default(false)
+  detailsSubmitted    Boolean  @default(false)
+  onboardingCompletedAt DateTime?
+  lastSyncError       String?
+  connectedAt         DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  admin               Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([stripeAccountId])
+  @@index([chargesEnabled])
+}
+
 model SiteSettings {
   id             String   @id @default("default")
   adminId        String?  @unique
@@ -206,6 +229,10 @@ model SiteSettings {
   youtubeUrl     String?
   contactEmail   String?
   contactPhone   String?
+  galleryWatermarkEnabled Boolean @default(false)
+  galleryWatermarkText    String?
+  galleryWatermarkPosition String @default("center")
+  galleryWatermarkOpacity Int    @default(32)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
@@ -706,6 +733,7 @@ model Gallery {
   eventDate    DateTime?
   isActive     Boolean  @default(false)
   galleryMode  String   @default("full")
+  deliveryMode String   @default("free_download")
   proofingStatus String @default("not_opened")
   proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
@@ -739,6 +767,7 @@ model Gallery {
   @@index([customerId])
   @@index([projectId])
   @@index([galleryMode])
+  @@index([deliveryMode])
   @@index([proofingStatus])
 }
 

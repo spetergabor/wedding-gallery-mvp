@@ -4,7 +4,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { GalleryForm } from "@/components/gallery-form";
 import { requireAdmin } from "@/lib/auth";
-import { adminOwnedWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
 
@@ -74,6 +74,10 @@ export default async function NewGalleryPage({
       }
     }
   });
+  const stripeIntegration = await prisma.stripeConnectIntegration.findUnique({
+    where: { adminId: ownerAdminId(admin) },
+    select: { chargesEnabled: true }
+  });
   const selectedProject = projects.find((project) => project.id === flags.projectId) ?? null;
   const selectedCustomerId = selectedProject?.customerId ?? (customers.some((customer) => customer.id === flags.customerId) ? flags.customerId : null);
   const selectedProjectId = selectedProject?.id ?? null;
@@ -101,6 +105,11 @@ export default async function NewGalleryPage({
         {flags.error === "project" ? (
           <Alert title="Válassz az ügyfélhez tartozó projektet." variant="error">
             A projekt és az ügyfél nem passzol egymáshoz.
+          </Alert>
+        ) : null}
+        {flags.error === "stripe_required" ? (
+          <Alert title="A fizetős galériához előbb Stripe kapcsolat kell." variant="error">
+            Kösd össze a saját Stripe fiókodat a Beállítások / Integrációk alatt, utána választható a megvásárolható galéria mód.
           </Alert>
         ) : null}
       </div>
@@ -167,6 +176,7 @@ export default async function NewGalleryPage({
             selectedCustomerId={selectedCustomerId}
             selectedProjectId={selectedProjectId}
             initialGalleryMode={selectedMode}
+            stripeReady={Boolean(stripeIntegration?.chargesEnabled)}
           />
         </div>
       )}

@@ -48,6 +48,10 @@ function formClampedNumber(formData: FormData, key: string, fallback: number, mi
   return Math.min(max, Math.max(min, value));
 }
 
+function normalizeWatermarkPosition(value: string) {
+  return ["center", "bottom_right", "bottom_left", "tile"].includes(value) ? value : "center";
+}
+
 function formOptionalDate(formData: FormData, key: string) {
   const value = formString(formData, key);
 
@@ -195,6 +199,7 @@ export async function updateSiteSettingsAction(formData: FormData) {
   }
 
   const logoHeight = formClampedNumber(formData, "logoHeight", 80, 32, 140);
+  const galleryWatermarkOpacity = formClampedNumber(formData, "galleryWatermarkOpacity", 32, 8, 70);
   const adminName = formString(formData, "adminName") || admin.name;
   let publicSubdomain = normalizePublicSubdomain(formString(formData, "publicSubdomain"));
 
@@ -311,7 +316,11 @@ export async function updateSiteSettingsAction(formData: FormData) {
       tiktokUrl: formOptionalUrl(formData, "tiktokUrl"),
       youtubeUrl: formOptionalUrl(formData, "youtubeUrl"),
       contactEmail: formString(formData, "contactEmail") || null,
-      contactPhone: formString(formData, "contactPhone") || null
+      contactPhone: formString(formData, "contactPhone") || null,
+      galleryWatermarkEnabled: formData.get("galleryWatermarkEnabled") === "on",
+      galleryWatermarkText: formString(formData, "galleryWatermarkText") || null,
+      galleryWatermarkPosition: normalizeWatermarkPosition(formString(formData, "galleryWatermarkPosition")),
+      galleryWatermarkOpacity
     },
     update: {
       adminId: admin.id,
@@ -328,7 +337,11 @@ export async function updateSiteSettingsAction(formData: FormData) {
       tiktokUrl: formOptionalUrl(formData, "tiktokUrl"),
       youtubeUrl: formOptionalUrl(formData, "youtubeUrl"),
       contactEmail: formString(formData, "contactEmail") || null,
-      contactPhone: formString(formData, "contactPhone") || null
+      contactPhone: formString(formData, "contactPhone") || null,
+      galleryWatermarkEnabled: formData.get("galleryWatermarkEnabled") === "on",
+      galleryWatermarkText: formString(formData, "galleryWatermarkText") || null,
+      galleryWatermarkPosition: normalizeWatermarkPosition(formString(formData, "galleryWatermarkPosition")),
+      galleryWatermarkOpacity
     },
     select: { logoR2Key: true, signatureR2Key: true }
   });
@@ -349,5 +362,5 @@ export async function updateSiteSettingsAction(formData: FormData) {
   revalidatePath("/admin/galleries");
   revalidatePath("/g/[slug]", "page");
 
-  redirect("/admin/settings?saved=1");
+  redirect("/admin/settings?tab=brand&saved=1");
 }

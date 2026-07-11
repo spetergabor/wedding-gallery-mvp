@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Building2, FileSignature, Globe2, ImageIcon, Instagram, Mail, Phone, Youtube } from "lucide-react";
+import { Building2, FileSignature, Globe2, ImageIcon, Instagram, Mail, Phone, ShieldCheck, Youtube } from "lucide-react";
 import { updateSiteSettingsAction } from "@/lib/settings-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { LogoHeightControl } from "@/components/logo-height-control";
@@ -19,6 +19,10 @@ type SiteSettingsFormProps = {
     youtubeUrl: string | null;
     contactEmail: string | null;
     contactPhone: string | null;
+    galleryWatermarkEnabled: boolean;
+    galleryWatermarkText: string | null;
+    galleryWatermarkPosition: string;
+    galleryWatermarkOpacity: number;
   };
 };
 
@@ -242,6 +246,86 @@ export function SiteSettingsForm({ adminName, settings }: SiteSettingsFormProps)
               <input name="youtubeUrl" defaultValue={settings.youtubeUrl ?? ""} placeholder="https://youtube.com/..." className="h-12 w-full rounded-md border border-ink/15 bg-paper pl-10 pr-3 outline-none transition focus:border-ink/50" />
             </div>
           </label>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-ink">Galéria vízjel</h2>
+            <p className="mt-1 text-sm text-graphite/70">
+              Fizetős galériáknál a publikus preview képeken jelenik meg. Ez nem helyettesíti a privát eredeti fájlokat, de csökkenti az engedély nélküli mentés értékét.
+            </p>
+          </div>
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
+            <ShieldCheck size={20} />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_280px]">
+          <div className="space-y-4">
+            <label className="flex min-h-12 items-center gap-3 rounded-md border border-ink/10 bg-paper px-4 text-sm font-medium text-graphite">
+              <input
+                name="galleryWatermarkEnabled"
+                type="checkbox"
+                defaultChecked={settings.galleryWatermarkEnabled}
+                className="size-4 rounded border-ink/20"
+              />
+              Vízjel megjelenítése fizetős galériáknál
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Vízjel szövege</span>
+              <input
+                name="galleryWatermarkText"
+                defaultValue={settings.galleryWatermarkText ?? settings.businessName ?? ""}
+                placeholder="pl. SPETLY PREVIEW"
+                className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+              />
+            </label>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-graphite">Pozíció</span>
+                <select
+                  name="galleryWatermarkPosition"
+                  defaultValue={settings.galleryWatermarkPosition || "center"}
+                  className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+                >
+                  <option value="center">Középen</option>
+                  <option value="bottom_right">Jobb lent</option>
+                  <option value="bottom_left">Bal lent</option>
+                  <option value="tile">Ismétlődő minta</option>
+                </select>
+              </label>
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-graphite">Átlátszóság</span>
+                <input
+                  name="galleryWatermarkOpacity"
+                  type="number"
+                  min={8}
+                  max={70}
+                  defaultValue={settings.galleryWatermarkOpacity || 32}
+                  className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-ink/10 bg-ink p-4 text-white">
+            <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-md bg-[linear-gradient(135deg,#2d2d2d,#777,#222)]">
+              <span className="absolute inset-0 bg-white/5" />
+              <span
+                className="absolute px-4 py-2 text-center text-sm font-semibold uppercase tracking-[0.22em] text-white"
+                style={{ opacity: Math.min(70, Math.max(8, settings.galleryWatermarkOpacity || 32)) / 100 }}
+              >
+                {settings.galleryWatermarkText || settings.businessName || "PREVIEW"}
+              </span>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-white/65">
+              Az első körben a vízjel böngészős overlayként jelenik meg a fizetős galériában. A következő lépésben ezt rá tudjuk égetni a preview fájlokra is.
+            </p>
+          </div>
         </div>
       </section>
 

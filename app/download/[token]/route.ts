@@ -4,6 +4,7 @@ import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
 import { PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { galleryZipFileName } from "@/lib/jobs";
 import { publicDownloadQualityFromScope } from "@/lib/download-packages";
+import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 
 function plainTextResponse(message: string, status: number) {
   return new NextResponse(message, {
@@ -41,6 +42,7 @@ export async function GET(
         select: {
           title: true,
           downloadsEnabled: true,
+          deliveryMode: true,
           galleryMode: true,
           proofingStatus: true
         }
@@ -52,7 +54,7 @@ export async function GET(
     return plainTextResponse("Download-Link ist ungültig oder nicht mehr verfügbar.", 404);
   }
 
-  if (!downloadPackage.gallery.downloadsEnabled) {
+  if (!downloadPackage.gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(downloadPackage.gallery.deliveryMode)) {
     return plainTextResponse("Downloads sind für diese Galerie derzeit deaktiviert.", 403);
   }
 

@@ -1,4 +1,4 @@
-import { CalendarDays, Check, Columns3, Download, Eye, Images, LockKeyhole, UserRound } from "lucide-react";
+import { CalendarDays, Check, Columns3, CreditCard, Download, Eye, Images, LockKeyhole, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { Button } from "@/components/button";
@@ -7,6 +7,12 @@ import { customerTypeLabel } from "@/lib/customer-options";
 import { SlugFields } from "@/components/slug-fields";
 import { GALLERY_MODE_FULL, GALLERY_MODE_PROOFING } from "@/lib/proofing";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import {
+  GALLERY_DELIVERY_FREE_DOWNLOAD,
+  GALLERY_DELIVERY_PAID,
+  GALLERY_DELIVERY_VIEW_ONLY,
+  normalizeGalleryDeliveryMode
+} from "@/lib/gallery-delivery";
 
 type CustomerOption = {
   id: string;
@@ -39,6 +45,7 @@ type GalleryFormProps = {
     eventDate: Date | null;
     isActive: boolean;
     galleryMode: string;
+    deliveryMode: string;
     downloadsEnabled: boolean;
     publicColumnCount: number;
     clientEmail: string | null;
@@ -48,6 +55,7 @@ type GalleryFormProps = {
   selectedCustomerId?: string | null;
   selectedProjectId?: string | null;
   initialGalleryMode?: string;
+  stripeReady?: boolean;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -111,7 +119,8 @@ export function GalleryForm({
   projects = [],
   selectedCustomerId = null,
   selectedProjectId = null,
-  initialGalleryMode = GALLERY_MODE_FULL
+  initialGalleryMode = GALLERY_MODE_FULL,
+  stripeReady = false
 }: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
@@ -122,8 +131,12 @@ export function GalleryForm({
   const selectedProject = projects.find((project) => project.id === defaultProjectId) ?? null;
   const defaultEventDate = gallery?.eventDate ?? selectedProject?.eventDate ?? selectedCustomer?.weddingDate ?? null;
   const defaultGalleryMode = gallery?.galleryMode ?? initialGalleryMode;
+  const defaultDeliveryMode = normalizeGalleryDeliveryMode(
+    gallery?.deliveryMode ?? (gallery?.downloadsEnabled === false ? GALLERY_DELIVERY_VIEW_ONLY : GALLERY_DELIVERY_FREE_DOWNLOAD)
+  );
   const defaultMobileColumnCount = Math.min(3, Math.max(1, gallery?.publicColumnCount ?? 1));
   const proofingMode = defaultGalleryMode === GALLERY_MODE_PROOFING;
+  const paidModeAvailable = stripeReady || defaultDeliveryMode === GALLERY_DELIVERY_PAID;
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -272,14 +285,72 @@ export function GalleryForm({
                 title="Aktív galéria"
                 description="Csak aktív galéria érhető el a publikus linken."
               />
-              <ToggleField
-                name="downloadsEnabled"
-                defaultChecked={gallery?.downloadsEnabled ?? true}
-                icon={<Download size={15} />}
-                title="Letöltések"
-                description="A ZIP és az egyedi képletöltés vendégoldali elérése."
-              />
             </div>
+
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium text-graphite">Átadás módja</legend>
+              <div className="grid gap-3">
+                {[
+                  {
+                    value: GALLERY_DELIVERY_VIEW_ONLY,
+                    icon: <Eye size={15} />,
+                    title: "Csak megtekintés",
+                    description: "A vendég láthatja a galériát, de nincs letöltés és nincs vásárlás."
+                  },
+                  {
+                    value: GALLERY_DELIVERY_FREE_DOWNLOAD,
+                    icon: <Download size={15} />,
+                    title: "Ingyenesen letölthető",
+                    description: "A vendég ZIP-et és egyes képeket is kérhet letöltésre."
+                  },
+                  {
+                    value: GALLERY_DELIVERY_PAID,
+                    icon: <CreditCard size={15} />,
+                    title: "Megvásárolható galéria",
+                    description: stripeReady
+                      ? "A vendég preview képeket lát, a teljes felbontás fizetés után lesz elérhető."
+                      : "Előbb kösd össze a saját Stripe fiókodat a Beállítások > Integrációk alatt."
+                  }
+                ].map((option) => {
+                  const disabled = option.value === GALLERY_DELIVERY_PAID && !paidModeAvailable;
+
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer items-start gap-3 rounded-md border px-4 py-4 transition ${
+                        disabled
+                          ? "cursor-not-allowed border-ink/10 bg-ink/[0.03] opacity-60"
+                          : "border-ink/10 bg-paper hover:border-ink/25"
+                      }`}
+                    >
+                      <span className="relative mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-ink/20 bg-white">
+                        <input
+                          name="deliveryMode"
+                          type="radio"
+                          value={option.value}
+                          defaultChecked={defaultDeliveryMode === option.value}
+                          disabled={disabled}
+                          className="peer absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                        />
+                        <span className="hidden size-2.5 rounded-full bg-ink peer-checked:block" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                          {option.icon}
+                          {option.title}
+                        </span>
+                        <span className="mt-1 block text-sm leading-6 text-graphite/70">{option.description}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {!stripeReady ? (
+                <a href="/admin/settings?tab=integrations" className="inline-flex text-sm font-medium text-brass hover:text-ink">
+                  Stripe összekötése a fizetős galériákhoz
+                </a>
+              ) : null}
+            </fieldset>
 
             <label className="block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">

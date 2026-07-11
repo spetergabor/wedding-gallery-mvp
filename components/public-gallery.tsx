@@ -16,6 +16,7 @@ import {
 } from "@/lib/public-actions";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, type GalleryDownloadQuality } from "@/lib/download-quality";
+import { GALLERY_DELIVERY_PAID, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
 
 const GALLERY_COPY = {
   de: {
@@ -190,6 +191,13 @@ type PublicPhotoItem = {
   index: number;
 };
 
+type GalleryWatermarkSettings = {
+  enabled: boolean;
+  text: string;
+  position: string;
+  opacity: number;
+};
+
 type FavoriteListState = {
   id: string;
   name: string;
@@ -218,6 +226,52 @@ function hasLightweightThumbnail(photo: PublicPhoto) {
 
 function hasLightweightPreview(photo: PublicPhoto) {
   return !isVideo(photo) && photo.previewUrl && photo.previewUrl !== photo.imageUrl;
+}
+
+function WatermarkOverlay({ watermark }: { watermark: GalleryWatermarkSettings | null }) {
+  if (!watermark?.enabled || !watermark.text.trim()) {
+    return null;
+  }
+
+  const opacity = Math.min(70, Math.max(8, watermark.opacity || 32)) / 100;
+  const text = watermark.text.trim();
+
+  if (watermark.position === "tile") {
+    return (
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-10 opacity-100"
+        style={{
+          backgroundImage: `repeating-linear-gradient(-32deg, transparent 0 86px, rgba(255,255,255,${opacity}) 86px 88px, transparent 88px 174px)`
+        }}
+      >
+        <span className="absolute inset-0 grid grid-cols-2 gap-10 p-8 text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80 md:grid-cols-3">
+          {Array.from({ length: 9 }).map((_, index) => (
+            <span key={index} className="rotate-[-24deg] self-center drop-shadow">
+              {text}
+            </span>
+          ))}
+        </span>
+      </span>
+    );
+  }
+
+  const positionClass =
+    watermark.position === "bottom_left"
+      ? "bottom-4 left-4"
+      : watermark.position === "bottom_right"
+        ? "bottom-4 right-4"
+        : "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2";
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute z-10 max-w-[80%] rounded-md bg-ink/35 px-4 py-2 text-center text-xs font-semibold uppercase tracking-[0.22em] text-white shadow-soft backdrop-blur-sm ${positionClass}`}
+      style={{ opacity }}
+    >
+      {text}
+    </span>
+  );
 }
 
 function getColumnCount(width: number) {
@@ -260,6 +314,8 @@ export function PublicGallery({
   photos,
   sections = [],
   downloadsEnabled,
+  deliveryMode = "free_download",
+  watermark = null,
   favoritesEnabled = true,
   favoriteMode = "favorites",
   language = "de",
@@ -270,6 +326,8 @@ export function PublicGallery({
   photos: PublicPhoto[];
   sections?: PublicGallerySection[];
   downloadsEnabled: boolean;
+  deliveryMode?: string;
+  watermark?: GalleryWatermarkSettings | null;
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
   language?: CustomerLanguage;
@@ -302,6 +360,8 @@ export function PublicGallery({
   const [isSelectionSummaryOpen, setIsSelectionSummaryOpen] = useState(false);
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
   const copy = GALLERY_COPY[language];
+  const paidGallery = normalizeGalleryDeliveryMode(deliveryMode) === GALLERY_DELIVERY_PAID;
+  const canDownload = downloadsEnabled && !paidGallery;
   const proofingSelection = favoritesEnabled && favoriteMode === "proofing";
   const safeMobileColumns = Math.min(3, Math.max(1, mobileColumns));
   const mobileImageSize = safeMobileColumns === 1 ? "100vw" : safeMobileColumns === 2 ? "50vw" : "33vw";
@@ -555,7 +615,7 @@ export function PublicGallery({
   }, [copy.downloadLinksSent, copy.zipProcessing, copy.zipWaiting, isEmailOpen, isZipping, title, zipPackageId]);
 
   async function createZipDownload() {
-    if (isZipping || !downloadsEnabled) {
+    if (isZipping || !canDownload) {
       return;
     }
 
@@ -605,7 +665,7 @@ export function PublicGallery({
   }
 
   async function downloadSinglePhoto(photo: PublicPhoto) {
-    if (downloadingPhotoId || !downloadsEnabled) {
+    if (downloadingPhotoId || !canDownload) {
       return;
     }
 
@@ -982,6 +1042,7 @@ export function PublicGallery({
                 className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
               />
             )}
+            {paidGallery ? <WatermarkOverlay watermark={watermark} /> : null}
             <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
               <Maximize2 size={16} />
             </span>
@@ -1012,7 +1073,10 @@ export function PublicGallery({
 
   return (
     <>
-      <section className="space-y-10">
+      <section
+        className="space-y-10"
+        onContextMenu={paidGallery ? (event) => event.preventDefault() : undefined}
+      >
         {favoritesEnabled && favoriteEmail ? (
           <div className="col-span-full mb-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -1147,7 +1211,7 @@ export function PublicGallery({
         ) : null}
       </section>
 
-      {favoritesEnabled || downloadsEnabled ? (
+      {favoritesEnabled || canDownload ? (
         <div className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-ink/10 bg-white/90 px-3 py-3 shadow-soft backdrop-blur">
           <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
             <Images size={16} />
@@ -1166,7 +1230,7 @@ export function PublicGallery({
               {favoriteCount} {proofingSelection ? copy.selected : copy.favorites}
             </button>
           ) : null}
-          {downloadsEnabled ? (
+          {canDownload ? (
             <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
               <Download size={16} />
               {isZipping ? copy.zipPreparing : copy.zipEmail}
@@ -1457,7 +1521,7 @@ export function PublicGallery({
                   {proofingSelection ? copy.choose : copy.favorite}
                 </button>
               ) : null}
-              {downloadsEnabled ? (
+              {canDownload ? (
                 <button
                   type="button"
                   onClick={() => void downloadSinglePhoto(selectedPhoto)}
@@ -1509,15 +1573,18 @@ export function PublicGallery({
                 className="h-full w-full object-contain"
               />
             ) : (
-              <Image
-                src={hasLightweightPreview(selectedPhoto) ? selectedPhoto.previewUrl : selectedPhoto.imageUrl}
-                alt={selectedPhoto.filename}
-                fill
-                unoptimized
-                className="object-contain"
-                sizes="100vw"
-                priority
-              />
+              <>
+                <Image
+                  src={hasLightweightPreview(selectedPhoto) ? selectedPhoto.previewUrl : selectedPhoto.imageUrl}
+                  alt={selectedPhoto.filename}
+                  fill
+                  unoptimized
+                  className="object-contain"
+                  sizes="100vw"
+                  priority
+                />
+                {paidGallery ? <WatermarkOverlay watermark={watermark} /> : null}
+              </>
             )}
           </div>
           {visiblePhotos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{visiblePhotos.length}</p> : null}

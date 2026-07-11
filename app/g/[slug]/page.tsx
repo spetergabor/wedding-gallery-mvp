@@ -14,6 +14,7 @@ import {
 import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
+import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -104,7 +105,11 @@ export default async function PublicGalleryPage({
       instagramUrl: true,
       facebookUrl: true,
       tiktokUrl: true,
-      youtubeUrl: true
+      youtubeUrl: true,
+      galleryWatermarkEnabled: true,
+      galleryWatermarkText: true,
+      galleryWatermarkPosition: true,
+      galleryWatermarkOpacity: true
     }
   });
 
@@ -130,8 +135,12 @@ export default async function PublicGalleryPage({
     }
   }
 
+  const deliveryMode = normalizeGalleryDeliveryMode(gallery.deliveryMode);
+  const paidGallery = deliveryMode === GALLERY_DELIVERY_PAID;
   const downloadsEnabled =
-    gallery.downloadsEnabled && (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
+    gallery.downloadsEnabled &&
+    galleryDeliveryAllowsDownloads(deliveryMode) &&
+    (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const favoritesEnabled = !proofingGallery || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
   const proofingSelection = proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
   const coverPhoto =
@@ -153,6 +162,20 @@ export default async function PublicGalleryPage({
     { href: settings?.tiktokUrl ?? "", label: "TikTok", icon: Music2, external: true },
     { href: settings?.youtubeUrl ?? "", label: "YouTube", icon: Youtube, external: true }
   ].filter((link) => link.href);
+  const watermarkText =
+    settings?.galleryWatermarkText?.trim() ||
+    settings?.businessName?.trim() ||
+    (language === "hu" ? "Előnézet" : "Preview");
+  const publicGalleryPhotos = paidGallery
+    ? publicPhotos.map((photo) =>
+        photo.mediaType === "video"
+          ? photo
+          : {
+              ...photo,
+              imageUrl: photo.previewUrl || photo.thumbnailUrl || photo.imageUrl
+            }
+      )
+    : publicPhotos;
 
   if (!canView) {
     return (
@@ -308,9 +331,16 @@ export default async function PublicGalleryPage({
           <PublicGallery
             galleryId={gallery.id}
             title={gallery.title}
-            photos={publicPhotos}
+            photos={publicGalleryPhotos}
             sections={visibleSections}
             downloadsEnabled={downloadsEnabled}
+            deliveryMode={deliveryMode}
+            watermark={{
+              enabled: Boolean(settings?.galleryWatermarkEnabled),
+              text: watermarkText,
+              position: settings?.galleryWatermarkPosition ?? "center",
+              opacity: settings?.galleryWatermarkOpacity ?? 32
+            }}
             favoritesEnabled={favoritesEnabled}
             favoriteMode={proofingSelection ? "proofing" : "favorites"}
             language={language}

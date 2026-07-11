@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Cloud,
+  CreditCard,
   Database,
   ExternalLink,
   GitBranch,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 import { disconnectGoogleCalendarAction, updateGoogleCalendarSettingsAction } from "@/lib/settings-actions";
+import { isStripeConnectConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
 type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security" | "logs";
 
@@ -132,7 +134,11 @@ const emptySettings = {
   tiktokUrl: null,
   youtubeUrl: null,
   contactEmail: null,
-  contactPhone: null
+  contactPhone: null,
+  galleryWatermarkEnabled: false,
+  galleryWatermarkText: null,
+  galleryWatermarkPosition: "center",
+  galleryWatermarkOpacity: 32
 };
 
 const ONE_GB = 1024 ** 3;
@@ -304,6 +310,20 @@ type GoogleCalendarIntegrationSettings = {
   syncCustomerProjects: boolean;
   blockAvailabilityFromGoogleCalendar: boolean;
   deleteCancelledEvents: boolean;
+  lastSyncError: string | null;
+  connectedAt: Date;
+  updatedAt: Date;
+};
+
+type StripeConnectIntegrationSettings = {
+  stripeAccountId: string;
+  stripeAccountEmail: string | null;
+  country: string | null;
+  defaultCurrency: string | null;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  onboardingCompletedAt: Date | null;
   lastSyncError: string | null;
   connectedAt: Date;
   updatedAt: Date;
@@ -913,6 +933,145 @@ function calendarOptionValue(option: { id: string; summary: string }) {
   return `${option.id}|||${option.summary}`;
 }
 
+function StripeConnectSettings({
+  language,
+  configured,
+  missingConfigKeys,
+  integration
+}: {
+  language: AdminLanguage;
+  configured: boolean;
+  missingConfigKeys: string[];
+  integration: StripeConnectIntegrationSettings | null;
+}) {
+  const copy = {
+    hu: {
+      eyebrow: "Stripe",
+      title: "Fizetős galériák és saját kifizetés",
+      description: "Minden fotós a saját Stripe fiókjával értékesít. A Spetly csak a rendelési folyamatot kezeli, a pénz az adott fotós Stripe accountjához kapcsolódik.",
+      connected: "Aktív",
+      pending: "Beállítás folyamatban",
+      disconnected: "Nincs összekötve",
+      missingConfigTitle: "A Stripe Connect még nincs konfigurálva.",
+      missingConfigDetail: (keys: string) => `Vercelen add meg ezeket az env változókat: ${keys}.`,
+      connectButton: "Stripe összekötése",
+      continueButton: "Stripe beállítás folytatása",
+      account: "Stripe account",
+      currency: "Deviza",
+      country: "Ország",
+      lastSyncError: "Legutóbbi Stripe hiba:",
+      noData: "Nincs adat",
+      readyDetail: "A fizetős galéria mód választható az új galéria és a galéria beállításai alatt.",
+      pendingDetail: "A Stripe onboarding még nem teljes. Folytasd a beállítást, amíg a fizetés fogadása aktív nem lesz."
+    },
+    de: {
+      eyebrow: "Stripe",
+      title: "Bezahlgalerien und eigene Auszahlungen",
+      description: "Jeder Fotograf verkauft über sein eigenes Stripe-Konto. Spetly steuert nur den Bestellablauf; die Zahlung gehört zum jeweiligen Stripe-Account des Fotografen.",
+      connected: "Aktiv",
+      pending: "Einrichtung läuft",
+      disconnected: "Nicht verbunden",
+      missingConfigTitle: "Stripe Connect ist noch nicht konfiguriert.",
+      missingConfigDetail: (keys: string) => `Füge diese Vercel-Umgebungsvariablen hinzu: ${keys}.`,
+      connectButton: "Stripe verbinden",
+      continueButton: "Stripe-Einrichtung fortsetzen",
+      account: "Stripe Account",
+      currency: "Währung",
+      country: "Land",
+      lastSyncError: "Letzter Stripe-Fehler:",
+      noData: "Keine Daten",
+      readyDetail: "Bezahlgalerien können beim Erstellen oder in den Galerie-Einstellungen aktiviert werden.",
+      pendingDetail: "Das Stripe-Onboarding ist noch nicht abgeschlossen. Fahre fort, bis Zahlungen aktiv sind."
+    },
+    en: {
+      eyebrow: "Stripe",
+      title: "Paid galleries and own payouts",
+      description: "Each photographer sells through their own Stripe account. Spetly handles the order flow; the payment belongs to the photographer's connected Stripe account.",
+      connected: "Active",
+      pending: "Setup in progress",
+      disconnected: "Not connected",
+      missingConfigTitle: "Stripe Connect is not configured yet.",
+      missingConfigDetail: (keys: string) => `Add these Vercel environment variables: ${keys}.`,
+      connectButton: "Connect Stripe",
+      continueButton: "Continue Stripe setup",
+      account: "Stripe account",
+      currency: "Currency",
+      country: "Country",
+      lastSyncError: "Latest Stripe error:",
+      noData: "No data",
+      readyDetail: "Paid gallery mode is available when creating a gallery or editing gallery settings.",
+      pendingDetail: "Stripe onboarding is not complete yet. Continue setup until payments are active."
+    }
+  }[language];
+  const active = Boolean(integration?.chargesEnabled);
+  const statusLabel = active ? copy.connected : integration ? copy.pending : copy.disconnected;
+
+  return (
+    <section className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+      <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
+            <CreditCard size={15} />
+            {copy.eyebrow}
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
+        </div>
+        <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${active ? "bg-sage/10 text-sage" : integration ? "bg-brass/10 text-brass" : "bg-ink/5 text-graphite"}`}>
+          {active ? <CheckCircle2 size={14} /> : null}
+          {statusLabel}
+        </span>
+      </div>
+
+      {!configured ? (
+        <div className="mt-5 rounded-md border border-brass/20 bg-brass/10 px-4 py-4 text-sm leading-6 text-graphite/75">
+          <p className="font-medium text-ink">{copy.missingConfigTitle}</p>
+          <p className="mt-1">{copy.missingConfigDetail(missingConfigKeys.join(", "))}</p>
+        </div>
+      ) : null}
+
+      {integration ? (
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-md border border-ink/10 bg-paper px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">{copy.account}</p>
+            <p className="mt-1 truncate text-sm font-semibold text-ink">{integration.stripeAccountEmail || integration.stripeAccountId}</p>
+          </div>
+          <div className="rounded-md border border-ink/10 bg-paper px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">{copy.country}</p>
+            <p className="mt-1 text-sm font-semibold text-ink">{integration.country || copy.noData}</p>
+          </div>
+          <div className="rounded-md border border-ink/10 bg-paper px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.14em] text-graphite/55">{copy.currency}</p>
+            <p className="mt-1 text-sm font-semibold uppercase text-ink">{integration.defaultCurrency || copy.noData}</p>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-5 rounded-md border border-ink/10 bg-paper px-4 py-4">
+        <p className="text-sm leading-6 text-graphite/70">
+          {active ? copy.readyDetail : integration ? copy.pendingDetail : copy.description}
+        </p>
+        {integration?.lastSyncError ? (
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {copy.lastSyncError} {integration.lastSyncError}
+          </p>
+        ) : null}
+        <div className="mt-4">
+          {configured ? (
+            <Link href="/api/stripe/connect" className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+              {integration ? copy.continueButton : copy.connectButton}
+            </Link>
+          ) : (
+            <span className="inline-flex h-10 items-center justify-center rounded-md bg-ink/10 px-4 text-sm font-medium text-graphite/60">
+              {copy.connectButton}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function GoogleCalendarSettings({
   language,
   configured,
@@ -1483,6 +1642,7 @@ export default async function AdminSettingsPage({
     disabled?: string;
     enabled?: string;
     google?: string;
+    stripe?: string;
   }>;
 }) {
   const [admin, params, language] = await Promise.all([requireAdmin(), searchParams, getAdminLanguage()]);
@@ -1502,7 +1662,7 @@ export default async function AdminSettingsPage({
           : params.tab === "profile" || isTeamWorkspace
             ? "profile"
             : "brand";
-  const [settings, photographerProfile, serviceUsage, googleIntegration, systemEvents, deliveryLogs, workspaceStats] = await Promise.all([
+  const [settings, photographerProfile, serviceUsage, googleIntegration, stripeIntegration, systemEvents, deliveryLogs, workspaceStats] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
         OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -1519,7 +1679,11 @@ export default async function AdminSettingsPage({
         tiktokUrl: true,
         youtubeUrl: true,
         contactEmail: true,
-        contactPhone: true
+        contactPhone: true,
+        galleryWatermarkEnabled: true,
+        galleryWatermarkText: true,
+        galleryWatermarkPosition: true,
+        galleryWatermarkOpacity: true
       }
     }),
     prisma.admin.findUniqueOrThrow({
@@ -1557,6 +1721,24 @@ export default async function AdminSettingsPage({
             syncCustomerProjects: true,
             blockAvailabilityFromGoogleCalendar: true,
             deleteCancelledEvents: true,
+            lastSyncError: true,
+            connectedAt: true,
+            updatedAt: true
+          }
+        })
+      : Promise.resolve(null),
+    !isTeamWorkspace
+      ? prisma.stripeConnectIntegration.findUnique({
+          where: { adminId: workspaceAdminId },
+          select: {
+            stripeAccountId: true,
+            stripeAccountEmail: true,
+            country: true,
+            defaultCurrency: true,
+            chargesEnabled: true,
+            payoutsEnabled: true,
+            detailsSubmitted: true,
+            onboardingCompletedAt: true,
             lastSyncError: true,
             connectedAt: true,
             updatedAt: true
@@ -1621,6 +1803,8 @@ export default async function AdminSettingsPage({
 
   const googleConfigured = isGoogleCalendarConfigured();
   const googleMissingConfigKeys = googleCalendarMissingConfigKeys();
+  const stripeConfigured = isStripeConnectConfigured();
+  const stripeMissingConfigKeys = stripeConnectMissingConfigKeys();
   const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-6" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-4";
   const copy = SETTINGS_COPY[language];
 
@@ -1745,6 +1929,10 @@ export default async function AdminSettingsPage({
         {params.google === "state-error" ? <Alert title={copy.alerts.googleStateTitle} variant="error">{copy.alerts.googleStateBody}</Alert> : null}
         {params.google === "no-refresh-token" ? <Alert title={copy.alerts.googleRefreshTitle} variant="error">{copy.alerts.googleRefreshBody}</Alert> : null}
         {params.google === "oauth-error" || params.google === "callback-error" ? <Alert title={copy.alerts.googleErrorTitle} variant="error">{copy.alerts.googleErrorBody}</Alert> : null}
+        {params.stripe === "connected" ? <Alert title="Stripe összekötve, a fizetős galériák aktiválhatók." variant="success" /> : null}
+        {params.stripe === "pending" ? <Alert title="A Stripe beállítás még nem teljes." variant="info">Folytasd az onboardingot, amíg a fizetés fogadása aktív nem lesz.</Alert> : null}
+        {params.stripe === "missing-config" ? <Alert title="A Stripe Connect nincs konfigurálva." variant="error">Add meg a STRIPE_SECRET_KEY env változót Vercelben.</Alert> : null}
+        {params.stripe === "missing-account" || params.stripe === "error" ? <Alert title="A Stripe összekötése nem sikerült." variant="error">Próbáld újra pár perc múlva, vagy ellenőrizd a Stripe beállításokat.</Alert> : null}
       </div>
 
       {activeTab === "brand" && !isTeamWorkspace ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
@@ -1760,6 +1948,12 @@ export default async function AdminSettingsPage({
 
       {activeTab === "integrations" ? (
         <div className="space-y-5">
+          <StripeConnectSettings
+            language={language}
+            configured={stripeConfigured}
+            missingConfigKeys={stripeMissingConfigKeys}
+            integration={stripeIntegration}
+          />
           <GoogleCalendarSettings
             language={language}
             configured={googleConfigured}

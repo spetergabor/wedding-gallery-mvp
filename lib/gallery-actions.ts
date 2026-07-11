@@ -30,6 +30,11 @@ import {
   normalizePhotoDeliveryStage
 } from "@/lib/proofing";
 import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
+import {
+  galleryDeliveryAllowsDownloads,
+  galleryDeliveryUsesPayment,
+  normalizeGalleryDeliveryMode
+} from "@/lib/gallery-delivery";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
   abortMultipartUpload,
@@ -79,6 +84,19 @@ function formDate(formData: FormData, key: string) {
 
 function galleryModeFromForm(formData: FormData) {
   return formString(formData, "galleryMode") === GALLERY_MODE_PROOFING ? GALLERY_MODE_PROOFING : GALLERY_MODE_FULL;
+}
+
+function galleryDeliveryModeFromForm(formData: FormData) {
+  return normalizeGalleryDeliveryMode(formString(formData, "deliveryMode"));
+}
+
+async function photographerHasActiveStripe(adminId: string) {
+  const stripe = await prisma.stripeConnectIntegration.findUnique({
+    where: { adminId },
+    select: { chargesEnabled: true }
+  });
+
+  return Boolean(stripe?.chargesEnabled);
 }
 
 function mobileColumnCountFromForm(formData: FormData) {
@@ -921,11 +939,16 @@ export async function createGalleryAction(formData: FormData) {
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
-  const downloadsEnabled = formData.get("downloadsEnabled") === "on";
+  const deliveryMode = galleryDeliveryModeFromForm(formData);
+  const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
   const publicColumnCount = mobileColumnCountFromForm(formData);
 
   if (!title || !slug) {
     redirect("/admin/galleries/new?error=missing");
+  }
+
+  if (galleryDeliveryUsesPayment(deliveryMode) && !(await photographerHasActiveStripe(ownerAdminId(admin)))) {
+    redirect("/admin/galleries/new?error=stripe_required");
   }
 
   const customer = customerId
@@ -979,6 +1002,7 @@ export async function createGalleryAction(formData: FormData) {
         eventDate,
         isActive,
         galleryMode,
+        deliveryMode,
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
@@ -1015,11 +1039,16 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const slug = normalizeSlug(rawSlug || title);
   const isActive = formData.get("isActive") === "on";
   const galleryMode = galleryModeFromForm(formData);
-  const downloadsEnabled = formData.get("downloadsEnabled") === "on";
+  const deliveryMode = galleryDeliveryModeFromForm(formData);
+  const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
   const publicColumnCount = mobileColumnCountFromForm(formData);
 
   if (!title || !slug) {
     redirect(`/admin/galleries/${id}?error=missing`);
+  }
+
+  if (galleryDeliveryUsesPayment(deliveryMode) && !(await photographerHasActiveStripe(ownerAdminId(admin)))) {
+    redirect(`/admin/galleries/${id}?error=stripe_required`);
   }
 
   const selectedCustomer = customerId
@@ -1080,6 +1109,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         eventDate,
         isActive,
         galleryMode,
+        deliveryMode,
         clientEmail: selectedCustomer ? normalizeEmail(selectedCustomer.primaryEmail) : null,
         proofingInviteEmailError: null,
         finalDeliveryEmailError: null,
@@ -2519,6 +2549,7 @@ async function getManualZipGalleryState(galleryId: string) {
       slug: true,
       isActive: true,
       downloadsEnabled: true,
+      deliveryMode: true,
       galleryMode: true,
       proofingStatus: true,
       photos: {
@@ -2535,7 +2566,7 @@ async function getManualZipGalleryState(galleryId: string) {
     return { ok: false as const, reason: "not-active" };
   }
 
-  if (!galleryWithPhotos.downloadsEnabled) {
+  if (!galleryWithPhotos.downloadsEnabled || !galleryDeliveryAllowsDownloads(galleryWithPhotos.deliveryMode)) {
     return { ok: false as const, reason: "downloads-disabled" };
   }
 

@@ -14,6 +14,7 @@ import {
   sendGuestGalleryDownloadReadyEmail
 } from "@/lib/email";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, galleryDownloadQualityLabel, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
+import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import {
   createGalleryZipObjectKey,
   createPhotoReadStream,
@@ -417,6 +418,7 @@ export async function preparePublicGalleryZipPackages(
       id: true,
       isActive: true,
       downloadsEnabled: true,
+      deliveryMode: true,
       galleryMode: true,
       proofingStatus: true,
       photos: {
@@ -435,7 +437,7 @@ export async function preparePublicGalleryZipPackages(
     return { ok: false, reason: "not-active", packages: [], payloads: [] };
   }
 
-  if (!gallery.downloadsEnabled) {
+  if (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode)) {
     return { ok: false, reason: "downloads-disabled", packages: [], payloads: [] };
   }
 
@@ -782,6 +784,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       slug: true,
       adminId: true,
       downloadsEnabled: true,
+      deliveryMode: true,
       galleryMode: true,
       proofingStatus: true,
       admin: {
@@ -817,7 +820,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     throw new Error("Diese Galerie wurde nicht gefunden.");
   }
 
-  if (!gallery.downloadsEnabled) {
+  if (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode)) {
     throw new Error("Downloads sind für diese Galerie derzeit deaktiviert.");
   }
 
