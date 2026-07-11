@@ -542,18 +542,21 @@ export function PhotoSortableGrid({
       ) : null}
 
       {bulkSelectedCount > 0 ? (
-        <div className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-4xl flex-col gap-3 rounded-lg border border-ink/10 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur lg:flex-row lg:items-center lg:justify-between">
-          <div>
+        <div className="fixed inset-x-4 bottom-4 z-50 mx-auto grid max-w-6xl gap-3 rounded-lg border border-ink/10 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur lg:grid-cols-[minmax(180px,0.75fr)_minmax(420px,1.1fr)_auto] lg:items-center">
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">{bulkSelectedCount} kép kijelölve</p>
-            <p className="mt-0.5 text-xs text-graphite/70">Áthelyezheted őket másik címke alá, vagy törölheted a kijelölést.</p>
+            <p className="mt-0.5 text-xs text-graphite/70">Címke alá helyezés vagy törlés.</p>
           </div>
-          <form action={moveSelectedPhotosToSectionAction.bind(null, galleryId)} className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <form
+            action={moveSelectedPhotosToSectionAction.bind(null, galleryId)}
+            className="grid min-w-0 gap-2 sm:grid-cols-[minmax(220px,1fr)_auto]"
+          >
             {[...bulkSelectedPhotoIds].map((photoId) => (
               <input key={photoId} type="hidden" name="photoIds" value={photoId} />
             ))}
             <select
               name="sectionId"
-              className="h-10 min-w-0 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              className="h-10 w-full min-w-0 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
               aria-label="Cél címke"
             >
               <option value="__all__">Nincs külön címke</option>
@@ -568,11 +571,11 @@ export function PhotoSortableGrid({
               Áthelyezés
             </FormSubmitButton>
           </form>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
+          <div className="flex flex-wrap gap-2 lg:flex-nowrap lg:justify-end">
             <button
               type="button"
               onClick={() => setBulkSelectedPhotoIds(new Set())}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
             >
               <Undo2 size={15} />
               Mégse
@@ -584,7 +587,7 @@ export function PhotoSortableGrid({
               <ConfirmSubmitButton
                 message={`Biztosan törlöd a kijelölt ${bulkSelectedCount} képet? A feltöltött fájlok is törlődnek.`}
                 variant="danger"
-                className="h-10 px-3"
+                className="h-10 shrink-0 whitespace-nowrap px-4"
               >
                 <Trash2 size={16} />
                 Kijelöltek törlése
