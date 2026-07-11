@@ -103,6 +103,20 @@ ZIP_WORKER_DRIVER="external"
 With this mode, the app creates `BackgroundJob` rows but does not process ZIPs inside Vercel. `/api/jobs/process` still runs ZIP maintenance,
 but skips the heavy ZIP generation.
 
+Recommended Hetzner VPS baseline:
+
+- Ubuntu 24.04 LTS
+- CPX21/CX32 or stronger for the first production test
+- SSH key login
+- Backups optional, because the worker is stateless and stores ZIPs in R2
+
+Bootstrap a fresh server as `root`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/spetergabor/wedding-gallery-mvp/main/scripts/zip-worker-bootstrap.sh -o /tmp/zip-worker-bootstrap.sh
+bash /tmp/zip-worker-bootstrap.sh
+```
+
 Copy the example env file and fill it with production values:
 
 ```bash
@@ -113,7 +127,7 @@ nano .env.zip-worker
 Build and run the worker with Docker Compose:
 
 ```bash
-docker compose -f docker-compose.zip-worker.yml up -d --build
+bash scripts/zip-worker-deploy.sh
 ```
 
 Minimum `.env.zip-worker` values:
@@ -143,6 +157,7 @@ docker compose -f docker-compose.zip-worker.yml ps
 docker compose -f docker-compose.zip-worker.yml logs -f --tail=100
 docker compose -f docker-compose.zip-worker.yml run --rm zip-worker npm run zip-worker -- --check
 docker compose -f docker-compose.zip-worker.yml run --rm zip-worker npm run zip-worker -- --once
+bash scripts/zip-worker-health.sh
 ```
 
 Only switch Vercel to `ZIP_WORKER_DRIVER="external"` after the worker is healthy. If no worker is running, ZIP jobs will stay queued.
