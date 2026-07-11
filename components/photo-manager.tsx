@@ -41,6 +41,7 @@ export function PhotoManager({
   galleryId,
   galleryMode,
   photos,
+  sections = [],
   activeSet = "all",
   activeSearch = "",
   selectedPhotoIds = []
@@ -49,6 +50,7 @@ export function PhotoManager({
   galleryId: string;
   galleryMode: string;
   photos: SortablePhoto[];
+  sections?: Array<{ id: string; title: string }>;
   activeSet?: string | null;
   activeSearch?: string | null;
   selectedPhotoIds?: string[];
@@ -205,6 +207,7 @@ export function PhotoManager({
         galleryId={galleryId}
         galleryMode={galleryMode}
         photos={photos}
+        sections={sections}
         selectedPhotoIds={selectedPhotoIds}
       />
     </section>

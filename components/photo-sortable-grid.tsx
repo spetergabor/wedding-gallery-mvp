@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare, Eye, EyeOff, Film, GripVertical, ImageIcon, Square, Star, Trash2, Undo2, X } from "lucide-react";
+import { CheckSquare, Eye, EyeOff, Film, FolderInput, GripVertical, ImageIcon, Square, Star, Trash2, Undo2, X } from "lucide-react";
 import {
   deleteSelectedPhotosAction,
   deletePhotoAction,
+  moveSelectedPhotosToSectionAction,
   restoreClientHiddenPhotoAction,
   saveGalleryPhotoOrderAction,
   setCoverPhotoAction
@@ -100,6 +101,7 @@ export function PhotoSortableGrid({
   galleryId,
   galleryMode,
   photos,
+  sections = [],
   selectedPhotoIds
 }: {
   activeSearch: string;
@@ -109,6 +111,7 @@ export function PhotoSortableGrid({
   galleryId: string;
   galleryMode: string;
   photos: SortablePhoto[];
+  sections?: Array<{ id: string; title: string }>;
   selectedPhotoIds: string[];
 }) {
   const [orderedPhotos, setOrderedPhotos] = useState(() => photos);
@@ -266,8 +269,8 @@ export function PhotoSortableGrid({
           <p className="text-sm font-semibold text-ink">Tömeges műveletek</p>
           <p className="mt-0.5 text-xs text-graphite/70">
             {bulkSelectedCount > 0
-              ? `${bulkSelectedCount} kép kijelölve törléshez.`
-              : "Jelölj ki több képet, majd töröld őket egyszerre."}
+              ? `${bulkSelectedCount} kép kijelölve törléshez vagy címke alá helyezéshez.`
+              : "Jelölj ki több képet, majd töröld vagy helyezd át őket egyszerre."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -424,6 +427,9 @@ export function PhotoSortableGrid({
                     Sorrend: {currentIndex + 1}
                     {proofingGallery ? ` · ${photoDeliveryStageLabel(photo.deliveryStage)}` : ""}
                   </p>
+                  {photo.section?.title ? (
+                    <p className="mt-1 truncate text-xs font-medium text-brass">Címke: {photo.section.title}</p>
+                  ) : null}
                   {photo.processingError ? (
                     <p className="mt-1 text-xs text-red-700">{photo.processingError}</p>
                   ) : null}
@@ -509,7 +515,7 @@ export function PhotoSortableGrid({
         <form
           action={saveGalleryPhotoOrderAction.bind(null, galleryId)}
           className={`fixed inset-x-4 z-40 mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border border-brass/25 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between ${
-            bulkSelectedCount > 0 ? "bottom-28" : "bottom-4"
+            bulkSelectedCount > 0 ? "bottom-56 lg:bottom-28" : "bottom-4"
           }`}
         >
           <div>
@@ -536,18 +542,33 @@ export function PhotoSortableGrid({
       ) : null}
 
       {bulkSelectedCount > 0 ? (
-        <form
-          action={deleteSelectedPhotosAction.bind(null, galleryId)}
-          className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border border-red-200 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between"
-        >
+        <div className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-4xl flex-col gap-3 rounded-lg border border-ink/10 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold text-ink">{bulkSelectedCount} kép kijelölve</p>
-            <p className="mt-0.5 text-xs text-graphite/70">A tömeges törlés az adatbázisból és az R2 tárhelyről is törli a fájlokat.</p>
+            <p className="mt-0.5 text-xs text-graphite/70">Áthelyezheted őket másik címke alá, vagy törölheted a kijelölést.</p>
           </div>
-          {[...bulkSelectedPhotoIds].map((photoId) => (
-            <input key={photoId} type="hidden" name="photoIds" value={photoId} />
-          ))}
-          <div className="flex gap-2">
+          <form action={moveSelectedPhotosToSectionAction.bind(null, galleryId)} className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            {[...bulkSelectedPhotoIds].map((photoId) => (
+              <input key={photoId} type="hidden" name="photoIds" value={photoId} />
+            ))}
+            <select
+              name="sectionId"
+              className="h-10 min-w-0 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              aria-label="Cél címke"
+            >
+              <option value="__all__">Nincs külön címke</option>
+              {sections.map((section) => (
+                <option key={section.id} value={section.id}>
+                  {section.title}
+                </option>
+              ))}
+            </select>
+            <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Áthelyezés...">
+              <FolderInput size={15} />
+              Áthelyezés
+            </FormSubmitButton>
+          </form>
+          <div className="flex flex-wrap gap-2 lg:justify-end">
             <button
               type="button"
               onClick={() => setBulkSelectedPhotoIds(new Set())}
@@ -556,16 +577,21 @@ export function PhotoSortableGrid({
               <Undo2 size={15} />
               Mégse
             </button>
-            <ConfirmSubmitButton
-              message={`Biztosan törlöd a kijelölt ${bulkSelectedCount} képet? A feltöltött fájlok is törlődnek.`}
-              variant="danger"
-              className="h-10 px-4"
-            >
-              <Trash2 size={16} />
-              Kijelöltek törlése
-            </ConfirmSubmitButton>
+            <form action={deleteSelectedPhotosAction.bind(null, galleryId)}>
+              {[...bulkSelectedPhotoIds].map((photoId) => (
+                <input key={photoId} type="hidden" name="photoIds" value={photoId} />
+              ))}
+              <ConfirmSubmitButton
+                message={`Biztosan törlöd a kijelölt ${bulkSelectedCount} képet? A feltöltött fájlok is törlődnek.`}
+                variant="danger"
+                className="h-10 px-3"
+              >
+                <Trash2 size={16} />
+                Kijelöltek törlése
+              </ConfirmSubmitButton>
+            </form>
           </div>
-        </form>
+        </div>
       ) : null}
     </>
   );

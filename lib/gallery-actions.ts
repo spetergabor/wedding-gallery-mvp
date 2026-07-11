@@ -2219,6 +2219,51 @@ export async function deleteSelectedPhotosAction(galleryId: string, formData: Fo
   redirect(`/admin/galleries/${galleryId}?tab=photos&bulkDelete=${photos.length}`);
 }
 
+export async function moveSelectedPhotosToSectionAction(galleryId: string, formData: FormData) {
+  const { admin, gallery } = await requireGalleryAccess(galleryId);
+  const requestedPhotoIds = formData
+    .getAll("photoIds")
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const uniqueRequestedPhotoIds = [...new Set(requestedPhotoIds)];
+
+  if (uniqueRequestedPhotoIds.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&bulkMove=none`);
+  }
+
+  const rawSectionId = formSectionId(formData);
+  const sectionId = await validateGallerySectionId(galleryId, rawSectionId);
+
+  if (rawSectionId && !sectionId) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&bulkMove=section`);
+  }
+
+  const photos = await prisma.photo.findMany({
+    where: {
+      id: { in: uniqueRequestedPhotoIds },
+      galleryId,
+      gallery: adminOwnedWhere(admin)
+    },
+    select: { id: true }
+  });
+
+  if (photos.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&bulkMove=none`);
+  }
+
+  const result = await prisma.photo.updateMany({
+    where: {
+      id: { in: photos.map((photo) => photo.id) },
+      galleryId
+    },
+    data: { sectionId }
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/client/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&bulkMove=${result.count}`);
+}
+
 export async function cleanupDuplicatePhotosAction(galleryId: string) {
   const { gallery } = await requireGalleryAccess(galleryId);
 

@@ -117,6 +117,7 @@ export default async function GalleryDetailPage({
     proofingInvite?: string;
     proofingStatus?: string;
     bulkDelete?: string;
+    bulkMove?: string;
     sectionCreated?: string;
     sectionDeleted?: string;
     sectionOrdered?: string;
@@ -380,6 +381,9 @@ export default async function GalleryDetailPage({
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
         {flags.bulkDelete && flags.bulkDelete !== "none" ? <Alert title={`${flags.bulkDelete} kép törölve.`} variant="success" /> : null}
         {flags.bulkDelete === "none" ? <Alert title="Nem volt törölhető kijelölt kép." variant="error" /> : null}
+        {flags.bulkMove && flags.bulkMove !== "none" && flags.bulkMove !== "section" ? <Alert title={`${flags.bulkMove} kép áthelyezve.`} variant="success" /> : null}
+        {flags.bulkMove === "none" ? <Alert title="Nem volt áthelyezhető kijelölt kép." variant="error" /> : null}
+        {flags.bulkMove === "section" ? <Alert title="A kiválasztott címke nem található." variant="error" /> : null}
         {flags.sectionCreated ? <Alert title="Címke létrehozva." variant="success" /> : null}
         {flags.sectionDeleted ? <Alert title="Címke törölve." variant="success">A benne lévő képek az általános galériában maradtak.</Alert> : null}
         {flags.sectionOrdered ? <Alert title="Címke sorrend mentve." variant="success" /> : null}
@@ -505,6 +509,7 @@ export default async function GalleryDetailPage({
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
               photos={gallery.photos}
+              sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
               activeSet={flags.photoSet}
               activeSearch={flags.photoSearch}
               selectedPhotoIds={selectedPhotoIds}
