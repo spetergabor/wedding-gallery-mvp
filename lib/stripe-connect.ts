@@ -11,6 +11,15 @@ type StripeAccount = {
   details_submitted?: boolean;
 };
 
+type StripeOAuthTokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  scope?: string;
+  livemode?: boolean;
+  stripe_user_id?: string;
+  stripe_publishable_key?: string;
+};
+
 export type StripeCheckoutSession = {
   id: string;
   url?: string | null;
@@ -37,8 +46,14 @@ export type StripeWebhookEvent = {
   };
 };
 
+export const STRIPE_CONNECT_OAUTH_STATE_COOKIE = "spetly_stripe_connect_oauth_state";
+
 function stripeSecretKey() {
   return process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+}
+
+function stripeClientId() {
+  return process.env.STRIPE_CLIENT_ID?.trim() ?? "";
 }
 
 function stripeWebhookSecret() {
@@ -46,7 +61,17 @@ function stripeWebhookSecret() {
 }
 
 export function stripeConnectMissingConfigKeys() {
-  return stripeSecretKey() ? [] : ["STRIPE_SECRET_KEY"];
+  const keys: string[] = [];
+
+  if (!stripeSecretKey()) {
+    keys.push("STRIPE_SECRET_KEY");
+  }
+
+  if (!stripeClientId()) {
+    keys.push("STRIPE_CLIENT_ID");
+  }
+
+  return keys;
 }
 
 export function isStripeConnectConfigured() {
@@ -100,6 +125,89 @@ function accountDataFromStripe(account: StripeAccount) {
   };
 }
 
+export function buildStripeStandardOAuthUrl({
+  origin,
+  state,
+  email
+}: {
+  origin: string;
+  state: string;
+  email?: string | null;
+}) {
+  const clientId = stripeClientId();
+
+  if (!clientId) {
+    throw new Error("Missing STRIPE_CLIENT_ID.");
+  }
+
+  const url = new URL("https://connect.stripe.com/oauth/authorize");
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("scope", "read_write");
+  url.searchParams.set("redirect_uri", `${origin}/api/stripe/connect/return`);
+  url.searchParams.set("state", state);
+
+  if (email?.trim()) {
+    url.searchParams.set("stripe_user[email]", email.trim());
+  }
+
+  return url.toString();
+}
+
+export async function exchangeStripeOAuthCode(code: string) {
+  const secretKey = stripeSecretKey();
+
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY.");
+  }
+
+  const params = new URLSearchParams();
+  params.set("code", code);
+  params.set("grant_type", "authorization_code");
+
+  const response = await fetch("https://connect.stripe.com/oauth/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${secretKey}:`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: params.toString(),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Stripe OAuth token exchange failed: ${response.status} ${errorText.slice(0, 500)}`);
+  }
+
+  const token = (await response.json()) as StripeOAuthTokenResponse;
+
+  if (!token.stripe_user_id) {
+    throw new Error("Stripe OAuth response did not include stripe_user_id.");
+  }
+
+  return token;
+}
+
+export async function connectStandardStripeAccount(adminId: string, stripeAccountId: string) {
+  const account = await stripeRequest<StripeAccount>(`/v1/accounts/${stripeAccountId}`);
+
+  return prisma.stripeConnectIntegration.upsert({
+    where: { adminId },
+    create: {
+      adminId,
+      stripeAccountId,
+      ...accountDataFromStripe(account),
+      connectedAt: new Date()
+    },
+    update: {
+      stripeAccountId,
+      ...accountDataFromStripe(account),
+      connectedAt: new Date()
+    }
+  });
+}
+
 export async function syncStripeAccount(adminId: string, stripeAccountId: string) {
   const account = await stripeRequest<StripeAccount>(`/v1/accounts/${stripeAccountId}`);
 
@@ -107,56 +215,6 @@ export async function syncStripeAccount(adminId: string, stripeAccountId: string
     where: { adminId },
     data: accountDataFromStripe(account)
   });
-}
-
-export async function createStripeConnectAccountLink({
-  adminId,
-  email,
-  name,
-  origin
-}: {
-  adminId: string;
-  email: string;
-  name: string;
-  origin: string;
-}) {
-  const existing = await prisma.stripeConnectIntegration.findUnique({
-    where: { adminId },
-    select: { stripeAccountId: true }
-  });
-  let stripeAccountId = existing?.stripeAccountId;
-
-  if (!stripeAccountId) {
-    const params = new URLSearchParams();
-    params.set("type", "express");
-    params.set("email", email);
-    params.set("business_type", "individual");
-    params.set("business_profile[name]", name);
-    params.set("business_profile[url]", origin);
-    params.set("capabilities[card_payments][requested]", "true");
-    params.set("capabilities[transfers][requested]", "true");
-
-    const account = await stripeRequest<StripeAccount>("/v1/accounts", params);
-    stripeAccountId = account.id;
-
-    await prisma.stripeConnectIntegration.create({
-      data: {
-        adminId,
-        stripeAccountId,
-        ...accountDataFromStripe(account)
-      }
-    });
-  }
-
-  const linkParams = new URLSearchParams();
-  linkParams.set("account", stripeAccountId);
-  linkParams.set("refresh_url", `${origin}/api/stripe/connect`);
-  linkParams.set("return_url", `${origin}/api/stripe/connect/return`);
-  linkParams.set("type", "account_onboarding");
-
-  const accountLink = await stripeRequest<{ url: string }>("/v1/account_links", linkParams);
-
-  return accountLink.url;
 }
 
 export async function createConnectedCheckoutSession({

@@ -950,62 +950,62 @@ function StripeConnectSettings({
     hu: {
       eyebrow: "Stripe",
       title: "Fizetős galériák és saját kifizetés",
-      description: "Minden fotós a saját Stripe fiókjával értékesít. A Spetly csak a rendelési folyamatot kezeli, a pénz az adott fotós Stripe accountjához kapcsolódik.",
+      description: "Minden fotós a saját teljes Stripe fiókját kapcsolja össze. A Spetly csak a rendelési folyamatot kezeli, a fizetés közvetlenül a fotós Stripe accountján történik.",
       connected: "Aktív",
-      pending: "Beállítás folyamatban",
+      pending: "Stripe fiók még nem aktív",
       disconnected: "Nincs összekötve",
       missingConfigTitle: "A Stripe Connect még nincs konfigurálva.",
       missingConfigDetail: (keys: string) => `Vercelen add meg ezeket az env változókat: ${keys}.`,
       webhookMissing: "A STRIPE_WEBHOOK_SECRET még hiányzik. A fizetés elindulhat, de az automatikus letöltőlink-kiküldéshez webhook konfiguráció kell.",
       connectButton: "Stripe összekötése",
-      continueButton: "Stripe beállítás folytatása",
+      continueButton: "Stripe újraösszekötése",
       account: "Stripe account",
       currency: "Deviza",
       country: "Ország",
       lastSyncError: "Legutóbbi Stripe hiba:",
       noData: "Nincs adat",
       readyDetail: "A fizetős galéria mód választható az új galéria és a galéria beállításai alatt.",
-      pendingDetail: "A Stripe onboarding még nem teljes. Folytasd a beállítást, amíg a fizetés fogadása aktív nem lesz."
+      pendingDetail: "A Stripe fiók össze van kötve, de a fizetésfogadás még nem aktív. Ellenőrizd a saját Stripe Dashboardban a hiányzó aktiválási lépéseket."
     },
     de: {
       eyebrow: "Stripe",
       title: "Bezahlgalerien und eigene Auszahlungen",
-      description: "Jeder Fotograf verkauft über sein eigenes Stripe-Konto. Spetly steuert nur den Bestellablauf; die Zahlung gehört zum jeweiligen Stripe-Account des Fotografen.",
+      description: "Jeder Fotograf verbindet sein eigenes vollständiges Stripe-Konto. Spetly steuert nur den Bestellablauf; die Zahlung wird direkt im Stripe-Konto des Fotografen verarbeitet.",
       connected: "Aktiv",
-      pending: "Einrichtung läuft",
+      pending: "Stripe-Konto noch nicht aktiv",
       disconnected: "Nicht verbunden",
       missingConfigTitle: "Stripe Connect ist noch nicht konfiguriert.",
       missingConfigDetail: (keys: string) => `Füge diese Vercel-Umgebungsvariablen hinzu: ${keys}.`,
       webhookMissing: "STRIPE_WEBHOOK_SECRET fehlt noch. Zahlungen können starten, aber automatische Download-Links benötigen die Webhook-Konfiguration.",
       connectButton: "Stripe verbinden",
-      continueButton: "Stripe-Einrichtung fortsetzen",
+      continueButton: "Stripe erneut verbinden",
       account: "Stripe Account",
       currency: "Währung",
       country: "Land",
       lastSyncError: "Letzter Stripe-Fehler:",
       noData: "Keine Daten",
       readyDetail: "Bezahlgalerien können beim Erstellen oder in den Galerie-Einstellungen aktiviert werden.",
-      pendingDetail: "Das Stripe-Onboarding ist noch nicht abgeschlossen. Fahre fort, bis Zahlungen aktiv sind."
+      pendingDetail: "Das Stripe-Konto ist verbunden, aber Zahlungen sind noch nicht aktiv. Prüfe im eigenen Stripe-Dashboard, welche Aktivierungsschritte fehlen."
     },
     en: {
       eyebrow: "Stripe",
       title: "Paid galleries and own payouts",
-      description: "Each photographer sells through their own Stripe account. Spetly handles the order flow; the payment belongs to the photographer's connected Stripe account.",
+      description: "Each photographer connects their own full Stripe account. Spetly handles the order flow; the payment is processed directly on the photographer's Stripe account.",
       connected: "Active",
-      pending: "Setup in progress",
+      pending: "Stripe account not active yet",
       disconnected: "Not connected",
       missingConfigTitle: "Stripe Connect is not configured yet.",
       missingConfigDetail: (keys: string) => `Add these Vercel environment variables: ${keys}.`,
       webhookMissing: "STRIPE_WEBHOOK_SECRET is still missing. Payments can start, but automatic download link delivery needs webhook configuration.",
       connectButton: "Connect Stripe",
-      continueButton: "Continue Stripe setup",
+      continueButton: "Reconnect Stripe",
       account: "Stripe account",
       currency: "Currency",
       country: "Country",
       lastSyncError: "Latest Stripe error:",
       noData: "No data",
       readyDetail: "Paid gallery mode is available when creating a gallery or editing gallery settings.",
-      pendingDetail: "Stripe onboarding is not complete yet. Continue setup until payments are active."
+      pendingDetail: "The Stripe account is connected, but payment acceptance is not active yet. Check the photographer's own Stripe Dashboard for missing activation steps."
     }
   }[language];
   const active = Boolean(integration?.chargesEnabled);
@@ -1941,9 +1941,11 @@ export default async function AdminSettingsPage({
         {params.google === "no-refresh-token" ? <Alert title={copy.alerts.googleRefreshTitle} variant="error">{copy.alerts.googleRefreshBody}</Alert> : null}
         {params.google === "oauth-error" || params.google === "callback-error" ? <Alert title={copy.alerts.googleErrorTitle} variant="error">{copy.alerts.googleErrorBody}</Alert> : null}
         {params.stripe === "connected" ? <Alert title="Stripe összekötve, a fizetős galériák aktiválhatók." variant="success" /> : null}
-        {params.stripe === "pending" ? <Alert title="A Stripe beállítás még nem teljes." variant="info">Folytasd az onboardingot, amíg a fizetés fogadása aktív nem lesz.</Alert> : null}
-        {params.stripe === "missing-config" ? <Alert title="A Stripe Connect nincs konfigurálva." variant="error">Add meg a STRIPE_SECRET_KEY env változót Vercelben.</Alert> : null}
-        {params.stripe === "missing-account" || params.stripe === "error" ? <Alert title="A Stripe összekötése nem sikerült." variant="error">Próbáld újra pár perc múlva, vagy ellenőrizd a Stripe beállításokat.</Alert> : null}
+        {params.stripe === "pending" ? <Alert title="A Stripe fiók még nem tud fizetést fogadni." variant="info">A kapcsolat létrejött, de a fotós saját Stripe Dashboardjában még lehet hiányzó aktiválási lépés.</Alert> : null}
+        {params.stripe === "missing-config" ? <Alert title="A Stripe Connect nincs konfigurálva." variant="error">Add meg a STRIPE_SECRET_KEY és STRIPE_CLIENT_ID env változókat Vercelben.</Alert> : null}
+        {params.stripe === "state-error" ? <Alert title="A Stripe összekötés biztonsági ellenőrzése sikertelen." variant="error">Indítsd újra az összekötést a Stripe gombbal.</Alert> : null}
+        {params.stripe === "oauth-error" ? <Alert title="A Stripe összekötést megszakították." variant="error">A fotós nem engedélyezte a Stripe kapcsolatot, vagy a Stripe megszakította az OAuth folyamatot.</Alert> : null}
+        {params.stripe === "callback-error" || params.stripe === "error" ? <Alert title="A Stripe összekötése nem sikerült." variant="error">Próbáld újra pár perc múlva, vagy ellenőrizd a Stripe OAuth beállításokat.</Alert> : null}
       </div>
 
       {activeTab === "brand" && !isTeamWorkspace ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
