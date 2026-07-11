@@ -49,6 +49,7 @@ const GALLERY_COPY = {
     close: "Schließen",
     email: "E-Mail-Adresse",
     zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen. Du erhältst trotzdem nur eine E-Mail mit allen Download-Links.",
+    zipTimeInfo: "Die Vorbereitung kann je nach Galeriegröße mehrere Minuten dauern. Du kannst die Seite schließen, wir senden dir die Links per E-Mail, sobald alles fertig ist.",
     zipLinksPreparing: "ZIP-Links werden vorbereitet",
     requestDownloadLinks: "Download-Links anfordern",
     cancel: "Abbrechen",
@@ -131,6 +132,7 @@ const GALLERY_COPY = {
     close: "Bezárás",
     email: "E-mail cím",
     zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak. Ettől függetlenül csak egy e-mailt kapsz az összes letöltési linkkel.",
+    zipTimeInfo: "A ZIP előkészítése a galéria méretétől függően több percet is igénybe vehet. Az oldalt nem kell nyitva hagynod, e-mailben elküldjük a linkeket, amikor elkészült.",
     zipLinksPreparing: "ZIP-linkek előkészítése",
     requestDownloadLinks: "Letöltési linkek kérése",
     cancel: "Mégse",
@@ -1417,8 +1419,9 @@ export function PublicGallery({
               />
             </label>
 
-            <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm text-graphite/75">
-              {copy.zipPartsInfo}
+            <div className="mt-4 space-y-2 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm leading-6 text-graphite/75">
+              <p>{copy.zipPartsInfo}</p>
+              <p className="font-medium text-ink">{copy.zipTimeInfo}</p>
             </div>
 
             {emailError ? (
