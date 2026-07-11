@@ -460,6 +460,11 @@ export default async function GalleryDetailPage({
             Kösd össze a saját Stripe fiókodat a Beállítások / Integrációk alatt, utána választható a megvásárolható galéria mód.
           </Alert>
         ) : null}
+        {flags.error === "price_required" ? (
+          <Alert title="Adj meg árat a fizetős galériához." variant="error">
+            A megvásárolható galéria csak pozitív árral menthető.
+          </Alert>
+        ) : null}
         {flags.photoError === "missing" ? <Alert title="Nem választottál ki fotót." variant="error" /> : null}
         {flags.photoError === "storage" ? (
           <Alert title="A feltöltés nem sikerült." variant="error">

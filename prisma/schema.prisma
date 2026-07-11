@@ -47,6 +47,7 @@ model Admin {
   systemEventsAsTarget SystemEvent[] @relation("SystemEventTarget")
   deliveryLogs DeliveryLog[]
   stripeConnectIntegration StripeConnectIntegration?
+  galleryPurchases GalleryPurchase[]
 }
 
 model AdminPasswordResetToken {
@@ -734,6 +735,8 @@ model Gallery {
   isActive     Boolean  @default(false)
   galleryMode  String   @default("full")
   deliveryMode String   @default("free_download")
+  salePriceCents Int    @default(0)
+  saleCurrency String   @default("eur")
   proofingStatus String @default("not_opened")
   proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
@@ -759,6 +762,7 @@ model Gallery {
   favoriteLists GalleryFavoriteList[]
   uploadSessions GalleryUploadSession[]
   mediaProcessingJobs MediaProcessingJob[]
+  purchases    GalleryPurchase[]
   admin        Admin   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   project      CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -769,6 +773,35 @@ model Gallery {
   @@index([galleryMode])
   @@index([deliveryMode])
   @@index([proofingStatus])
+}
+
+model GalleryPurchase {
+  id                      String   @id @default(cuid())
+  galleryId               String
+  adminId                 String
+  email                   String
+  name                    String?
+  stripeAccountId         String
+  stripeCheckoutSessionId String?  @unique
+  stripePaymentIntentId   String?
+  amountTotal             Int
+  currency                String
+  status                  String   @default("pending")
+  downloadScope           String?
+  paidAt                  DateTime?
+  fulfilledAt             DateTime?
+  fulfillmentEmailSentAt  DateTime?
+  fulfillmentError        String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  gallery                 Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  admin                   Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId])
+  @@index([adminId])
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model GallerySection {

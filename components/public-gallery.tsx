@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, Download, Heart, Images, Mail, Maximize2, Play, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -14,6 +14,7 @@ import {
   submitFavoriteListAction,
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
+import { createPaidGalleryCheckoutAction } from "@/lib/gallery-sales-actions";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, type GalleryDownloadQuality } from "@/lib/download-quality";
 import { GALLERY_DELIVERY_PAID, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
@@ -90,7 +91,16 @@ const GALLERY_COPY = {
     selectionSaved: "Die Auswahl wurde gespeichert.",
     openPhoto: "Foto öffnen",
     videoSectionTitle: "Videos",
-    videoCount: (count: number) => `${count} ${count === 1 ? "Video" : "Videos"}`
+    videoCount: (count: number) => `${count} ${count === 1 ? "Video" : "Videos"}`,
+    paidTitle: "Galerie kaufen",
+    paidIntro: "Diese Galerie ist als Vorschau geschützt. Nach erfolgreicher Zahlung erhältst du den Download-Link per E-Mail.",
+    paidName: "Name",
+    paidEmail: "E-Mail-Adresse",
+    paidButton: "Mit Stripe bezahlen",
+    paidSecure: "Sichere Zahlung über Stripe. Der Fotograf erhält die Zahlung direkt über sein eigenes Stripe-Konto.",
+    paidSuccess: "Zahlung erhalten. Die Download-Links werden vorbereitet und per E-Mail gesendet.",
+    paidCancelled: "Die Zahlung wurde abgebrochen. Du kannst den Kauf jederzeit erneut starten.",
+    paidError: "Der Kauf konnte nicht gestartet werden. Bitte versuche es später erneut."
   },
   hu: {
     selection: "Képválogatás",
@@ -163,7 +173,16 @@ const GALLERY_COPY = {
     selectionSaved: "A válogatást mentettük.",
     openPhoto: "Fotó megnyitása",
     videoSectionTitle: "Videók",
-    videoCount: (count: number) => `${count} videó`
+    videoCount: (count: number) => `${count} videó`,
+    paidTitle: "Galéria megvásárlása",
+    paidIntro: "Ez a galéria előnézetként védett. Sikeres fizetés után e-mailben kapod meg a letöltő linket.",
+    paidName: "Név",
+    paidEmail: "E-mail cím",
+    paidButton: "Fizetés Stripe-pal",
+    paidSecure: "Biztonságos fizetés Stripe-on keresztül. A fizetés közvetlenül a fotós saját Stripe fiókjához kapcsolódik.",
+    paidSuccess: "A fizetés sikeres. A letöltési linkeket előkészítjük és e-mailben elküldjük.",
+    paidCancelled: "A fizetés megszakadt. A vásárlást bármikor újraindíthatod.",
+    paidError: "A vásárlást nem sikerült elindítani. Próbáld újra később."
   }
 } as const;
 
@@ -196,6 +215,13 @@ type GalleryWatermarkSettings = {
   text: string;
   position: string;
   opacity: number;
+};
+
+type GallerySaleSettings = {
+  priceCents: number;
+  currency: string;
+  priceLabel: string;
+  purchaseStatus?: string | null;
 };
 
 type FavoriteListState = {
@@ -310,24 +336,28 @@ function createPhotoColumns(items: PublicPhotoItem[], columnCount: number) {
 
 export function PublicGallery({
   galleryId,
+  gallerySlug,
   title,
   photos,
   sections = [],
   downloadsEnabled,
   deliveryMode = "free_download",
   watermark = null,
+  sale = null,
   favoritesEnabled = true,
   favoriteMode = "favorites",
   language = "de",
   mobileColumns = 1
 }: {
   galleryId: string;
+  gallerySlug: string;
   title: string;
   photos: PublicPhoto[];
   sections?: PublicGallerySection[];
   downloadsEnabled: boolean;
   deliveryMode?: string;
   watermark?: GalleryWatermarkSettings | null;
+  sale?: GallerySaleSettings | null;
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
   language?: CustomerLanguage;
@@ -362,6 +392,14 @@ export function PublicGallery({
   const copy = GALLERY_COPY[language];
   const paidGallery = normalizeGalleryDeliveryMode(deliveryMode) === GALLERY_DELIVERY_PAID;
   const canDownload = downloadsEnabled && !paidGallery;
+  const purchaseNotice =
+    sale?.purchaseStatus === "success"
+      ? { tone: "success", text: copy.paidSuccess }
+      : sale?.purchaseStatus === "cancelled"
+        ? { tone: "info", text: copy.paidCancelled }
+        : sale?.purchaseStatus && sale.purchaseStatus !== "success"
+          ? { tone: "error", text: copy.paidError }
+          : null;
   const proofingSelection = favoritesEnabled && favoriteMode === "proofing";
   const safeMobileColumns = Math.min(3, Math.max(1, mobileColumns));
   const mobileImageSize = safeMobileColumns === 1 ? "100vw" : safeMobileColumns === 2 ? "50vw" : "33vw";
@@ -1155,6 +1193,66 @@ export function PublicGallery({
             ) : null}
             {favoriteError ? <p className="mt-2 text-sm text-red-700">{favoriteError}</p> : null}
           </div>
+        ) : null}
+
+        {paidGallery && sale ? (
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft md:p-6">
+            <div className="grid gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
+              <div>
+                <div className="flex size-11 items-center justify-center rounded-md bg-ink text-white">
+                  <CreditCard size={20} />
+                </div>
+                <h2 className="mt-4 text-2xl font-semibold text-ink">{copy.paidTitle}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/75">{copy.paidIntro}</p>
+                <div className="mt-4 flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1 text-sm font-semibold text-brass">
+                  <ShieldCheck size={15} />
+                  {sale.priceLabel}
+                </div>
+                <p className="mt-4 max-w-2xl text-xs leading-5 text-graphite/60">{copy.paidSecure}</p>
+                {purchaseNotice ? (
+                  <p
+                    className={`mt-4 rounded-md border px-3 py-2 text-sm ${
+                      purchaseNotice.tone === "success"
+                        ? "border-sage/20 bg-sage/10 text-sage"
+                        : purchaseNotice.tone === "error"
+                          ? "border-red-200 bg-red-50 text-red-700"
+                          : "border-ink/10 bg-paper text-graphite"
+                    }`}
+                  >
+                    {purchaseNotice.text}
+                  </p>
+                ) : null}
+              </div>
+              <form action={createPaidGalleryCheckoutAction} className="rounded-md border border-ink/10 bg-paper p-4">
+                <input type="hidden" name="galleryId" value={galleryId} />
+                <input type="hidden" name="gallerySlug" value={gallerySlug} />
+                <div className="space-y-3">
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
+                    <input
+                      name="name"
+                      autoComplete="name"
+                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.paidEmail}</span>
+                    <input
+                      name="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <FormSubmitButton pendingLabel={copy.sending} className="w-full" disabled={sale.priceCents <= 0}>
+                    <CreditCard size={16} />
+                    {copy.paidButton}
+                  </FormSubmitButton>
+                </div>
+              </form>
+            </div>
+          </section>
         ) : null}
 
         {sectionBlocks.length > 0 ? (

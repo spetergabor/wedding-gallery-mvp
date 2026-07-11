@@ -112,6 +112,11 @@ export default async function NewGalleryPage({
             Kösd össze a saját Stripe fiókodat a Beállítások / Integrációk alatt, utána választható a megvásárolható galéria mód.
           </Alert>
         ) : null}
+        {flags.error === "price_required" ? (
+          <Alert title="Adj meg árat a fizetős galériához." variant="error">
+            A megvásárolható galéria csak pozitív árral menthető.
+          </Alert>
+        ) : null}
       </div>
       {!selectedMode ? (
         <section className="grid gap-4 lg:grid-cols-2">

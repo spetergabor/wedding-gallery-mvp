@@ -15,6 +15,7 @@ import {
 } from "@/lib/email";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, galleryDownloadQualityLabel, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
 import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
+import { isPaidPurchaseScope, paidPurchaseIdFromScope } from "@/lib/gallery-sales-shared";
 import {
   createGalleryZipObjectKey,
   createPhotoReadStream,
@@ -135,7 +136,7 @@ function readPositiveInteger(value: string | undefined, fallback: number, minimu
 
 const ZIP_PART_TARGET_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_PART_TARGET_MB, 2048, 256);
 
-function createZipPartRanges(photos: Array<{ fileSize: number | null; mediaType?: string | null }>, quality: GalleryDownloadQuality) {
+export function createZipPartRanges(photos: Array<{ fileSize: number | null; mediaType?: string | null }>, quality: GalleryDownloadQuality) {
   const ranges: Array<{ offset: number; limit: number }> = [];
   let offset = 0;
   let currentBytes = 0;
@@ -820,7 +821,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     throw new Error("Diese Galerie wurde nicht gefunden.");
   }
 
-  if (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode)) {
+  if (!isPaidPurchaseScope(downloadPackage.scope) && (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))) {
     throw new Error("Downloads sind für diese Galerie derzeit deaktiviert.");
   }
 
@@ -1216,17 +1217,41 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) 
             }
           : {
               status: "email_failed",
-              downloadLinkEmailError: "Missing email configuration."
-            }
+            downloadLinkEmailError: "Missing email configuration."
+          }
       });
+      const purchaseId = paidPurchaseIdFromScope(sortedPackages[0].scope);
+
+      if (purchaseId) {
+        await prisma.galleryPurchase.update({
+          where: { id: purchaseId },
+          data: sent
+            ? {
+                fulfillmentEmailSentAt: sentAt,
+                fulfillmentError: null
+              }
+            : {
+                fulfillmentError: "Missing email configuration."
+              }
+        });
+      }
     } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 500) : "Email sending failed.";
       await prisma.galleryDownload.updateMany({
         where: { id: { in: downloadIds } },
         data: {
           status: "email_failed",
-          downloadLinkEmailError: error instanceof Error ? error.message.slice(0, 500) : "Email sending failed."
+          downloadLinkEmailError: message
         }
       });
+      const purchaseId = paidPurchaseIdFromScope(sortedPackages[0].scope);
+
+      if (purchaseId) {
+        await prisma.galleryPurchase.update({
+          where: { id: purchaseId },
+          data: { fulfillmentError: message }
+        });
+      }
     }
   }
 }

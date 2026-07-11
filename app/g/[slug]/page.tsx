@@ -15,6 +15,7 @@ import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
+import { formatGallerySalePrice } from "@/lib/gallery-sales";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -59,7 +60,7 @@ export default async function PublicGalleryPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; lang?: string }>;
+  searchParams: Promise<{ error?: string; lang?: string; purchase?: string; session_id?: string }>;
 }) {
   const { slug } = await params;
   const flags = await searchParams;
@@ -330,6 +331,7 @@ export default async function PublicGalleryPage({
         {visiblePhotos.length > 0 ? (
           <PublicGallery
             galleryId={gallery.id}
+            gallerySlug={gallery.slug}
             title={gallery.title}
             photos={publicGalleryPhotos}
             sections={visibleSections}
@@ -341,6 +343,16 @@ export default async function PublicGalleryPage({
               position: settings?.galleryWatermarkPosition ?? "center",
               opacity: settings?.galleryWatermarkOpacity ?? 32
             }}
+            sale={
+              paidGallery
+                ? {
+                    priceCents: gallery.salePriceCents,
+                    currency: gallery.saleCurrency,
+                    priceLabel: formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency, dateLocaleForCustomer(language)),
+                    purchaseStatus: flags.purchase ?? null
+                  }
+                : null
+            }
             favoritesEnabled={favoritesEnabled}
             favoriteMode={proofingSelection ? "proofing" : "favorites"}
             language={language}

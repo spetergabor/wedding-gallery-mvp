@@ -35,6 +35,7 @@ import {
   galleryDeliveryUsesPayment,
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
+import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery-sales";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
   abortMultipartUpload,
@@ -88,6 +89,10 @@ function galleryModeFromForm(formData: FormData) {
 
 function galleryDeliveryModeFromForm(formData: FormData) {
   return normalizeGalleryDeliveryMode(formString(formData, "deliveryMode"));
+}
+
+function gallerySalePriceCentsFromForm(formData: FormData) {
+  return parseGallerySalePriceCents(formString(formData, "salePrice"));
 }
 
 async function photographerHasActiveStripe(adminId: string) {
@@ -941,6 +946,8 @@ export async function createGalleryAction(formData: FormData) {
   const galleryMode = galleryModeFromForm(formData);
   const deliveryMode = galleryDeliveryModeFromForm(formData);
   const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
+  const salePriceCents = gallerySalePriceCentsFromForm(formData);
+  const saleCurrency = normalizeSaleCurrency(formString(formData, "saleCurrency"));
   const publicColumnCount = mobileColumnCountFromForm(formData);
 
   if (!title || !slug) {
@@ -949,6 +956,10 @@ export async function createGalleryAction(formData: FormData) {
 
   if (galleryDeliveryUsesPayment(deliveryMode) && !(await photographerHasActiveStripe(ownerAdminId(admin)))) {
     redirect("/admin/galleries/new?error=stripe_required");
+  }
+
+  if (galleryDeliveryUsesPayment(deliveryMode) && salePriceCents <= 0) {
+    redirect("/admin/galleries/new?error=price_required");
   }
 
   const customer = customerId
@@ -1003,6 +1014,8 @@ export async function createGalleryAction(formData: FormData) {
         isActive,
         galleryMode,
         deliveryMode,
+        salePriceCents,
+        saleCurrency,
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
@@ -1041,6 +1054,8 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const galleryMode = galleryModeFromForm(formData);
   const deliveryMode = galleryDeliveryModeFromForm(formData);
   const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
+  const salePriceCents = gallerySalePriceCentsFromForm(formData);
+  const saleCurrency = normalizeSaleCurrency(formString(formData, "saleCurrency"));
   const publicColumnCount = mobileColumnCountFromForm(formData);
 
   if (!title || !slug) {
@@ -1049,6 +1064,10 @@ export async function updateGalleryAction(id: string, formData: FormData) {
 
   if (galleryDeliveryUsesPayment(deliveryMode) && !(await photographerHasActiveStripe(ownerAdminId(admin)))) {
     redirect(`/admin/galleries/${id}?error=stripe_required`);
+  }
+
+  if (galleryDeliveryUsesPayment(deliveryMode) && salePriceCents <= 0) {
+    redirect(`/admin/galleries/${id}?error=price_required`);
   }
 
   const selectedCustomer = customerId
@@ -1110,6 +1129,8 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         isActive,
         galleryMode,
         deliveryMode,
+        salePriceCents,
+        saleCurrency,
         clientEmail: selectedCustomer ? normalizeEmail(selectedCustomer.primaryEmail) : null,
         proofingInviteEmailError: null,
         finalDeliveryEmailError: null,

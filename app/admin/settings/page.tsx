@@ -38,7 +38,7 @@ import {
 } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 import { disconnectGoogleCalendarAction, updateGoogleCalendarSettingsAction } from "@/lib/settings-actions";
-import { isStripeConnectConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
+import { isStripeConnectConfigured, isStripeWebhookConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
 type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security" | "logs";
 
@@ -936,11 +936,13 @@ function calendarOptionValue(option: { id: string; summary: string }) {
 function StripeConnectSettings({
   language,
   configured,
+  webhookConfigured,
   missingConfigKeys,
   integration
 }: {
   language: AdminLanguage;
   configured: boolean;
+  webhookConfigured: boolean;
   missingConfigKeys: string[];
   integration: StripeConnectIntegrationSettings | null;
 }) {
@@ -954,6 +956,7 @@ function StripeConnectSettings({
       disconnected: "Nincs összekötve",
       missingConfigTitle: "A Stripe Connect még nincs konfigurálva.",
       missingConfigDetail: (keys: string) => `Vercelen add meg ezeket az env változókat: ${keys}.`,
+      webhookMissing: "A STRIPE_WEBHOOK_SECRET még hiányzik. A fizetés elindulhat, de az automatikus letöltőlink-kiküldéshez webhook konfiguráció kell.",
       connectButton: "Stripe összekötése",
       continueButton: "Stripe beállítás folytatása",
       account: "Stripe account",
@@ -973,6 +976,7 @@ function StripeConnectSettings({
       disconnected: "Nicht verbunden",
       missingConfigTitle: "Stripe Connect ist noch nicht konfiguriert.",
       missingConfigDetail: (keys: string) => `Füge diese Vercel-Umgebungsvariablen hinzu: ${keys}.`,
+      webhookMissing: "STRIPE_WEBHOOK_SECRET fehlt noch. Zahlungen können starten, aber automatische Download-Links benötigen die Webhook-Konfiguration.",
       connectButton: "Stripe verbinden",
       continueButton: "Stripe-Einrichtung fortsetzen",
       account: "Stripe Account",
@@ -992,6 +996,7 @@ function StripeConnectSettings({
       disconnected: "Not connected",
       missingConfigTitle: "Stripe Connect is not configured yet.",
       missingConfigDetail: (keys: string) => `Add these Vercel environment variables: ${keys}.`,
+      webhookMissing: "STRIPE_WEBHOOK_SECRET is still missing. Payments can start, but automatic download link delivery needs webhook configuration.",
       connectButton: "Connect Stripe",
       continueButton: "Continue Stripe setup",
       account: "Stripe account",
@@ -1027,6 +1032,11 @@ function StripeConnectSettings({
         <div className="mt-5 rounded-md border border-brass/20 bg-brass/10 px-4 py-4 text-sm leading-6 text-graphite/75">
           <p className="font-medium text-ink">{copy.missingConfigTitle}</p>
           <p className="mt-1">{copy.missingConfigDetail(missingConfigKeys.join(", "))}</p>
+        </div>
+      ) : null}
+      {configured && !webhookConfigured ? (
+        <div className="mt-3 rounded-md border border-brass/20 bg-brass/10 px-4 py-4 text-sm leading-6 text-graphite/75">
+          {copy.webhookMissing}
         </div>
       ) : null}
 
@@ -1804,6 +1814,7 @@ export default async function AdminSettingsPage({
   const googleConfigured = isGoogleCalendarConfigured();
   const googleMissingConfigKeys = googleCalendarMissingConfigKeys();
   const stripeConfigured = isStripeConnectConfigured();
+  const stripeWebhookConfigured = isStripeWebhookConfigured();
   const stripeMissingConfigKeys = stripeConnectMissingConfigKeys();
   const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-6" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-4";
   const copy = SETTINGS_COPY[language];
@@ -1951,6 +1962,7 @@ export default async function AdminSettingsPage({
           <StripeConnectSettings
             language={language}
             configured={stripeConfigured}
+            webhookConfigured={stripeWebhookConfigured}
             missingConfigKeys={stripeMissingConfigKeys}
             integration={stripeIntegration}
           />

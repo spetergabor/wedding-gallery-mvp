@@ -13,6 +13,7 @@ import {
   GALLERY_DELIVERY_VIEW_ONLY,
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
+import { formatGallerySalePrice, normalizeSaleCurrency } from "@/lib/gallery-sales";
 
 type CustomerOption = {
   id: string;
@@ -46,6 +47,8 @@ type GalleryFormProps = {
     isActive: boolean;
     galleryMode: string;
     deliveryMode: string;
+    salePriceCents: number;
+    saleCurrency: string;
     downloadsEnabled: boolean;
     publicColumnCount: number;
     clientEmail: string | null;
@@ -64,6 +67,14 @@ function dateInputValue(date: Date | null | undefined) {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function salePriceInputValue(cents: number | null | undefined) {
+  if (!cents) {
+    return "";
+  }
+
+  return (cents / 100).toFixed(2).replace(".", ",");
 }
 
 const fieldClass =
@@ -134,6 +145,7 @@ export function GalleryForm({
   const defaultDeliveryMode = normalizeGalleryDeliveryMode(
     gallery?.deliveryMode ?? (gallery?.downloadsEnabled === false ? GALLERY_DELIVERY_VIEW_ONLY : GALLERY_DELIVERY_FREE_DOWNLOAD)
   );
+  const defaultSaleCurrency = normalizeSaleCurrency(gallery?.saleCurrency);
   const defaultMobileColumnCount = Math.min(3, Math.max(1, gallery?.publicColumnCount ?? 1));
   const proofingMode = defaultGalleryMode === GALLERY_MODE_PROOFING;
   const paidModeAvailable = stripeReady || defaultDeliveryMode === GALLERY_DELIVERY_PAID;
@@ -350,6 +362,46 @@ export function GalleryForm({
                   Stripe összekötése a fizetős galériákhoz
                 </a>
               ) : null}
+              <div className="rounded-md border border-ink/10 bg-white p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-ink">Fizetős galéria ára</p>
+                    <p className="mt-1 text-sm leading-6 text-graphite/70">
+                      Csak a megvásárolható galéria módnál használjuk. Sikeres fizetés után a vendég e-mailben kapja meg a letöltő linket.
+                    </p>
+                  </div>
+                  {gallery?.salePriceCents ? (
+                    <span className="w-fit rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass">
+                      {formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_160px]">
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Ár</span>
+                    <input
+                      name="salePrice"
+                      inputMode="decimal"
+                      defaultValue={salePriceInputValue(gallery?.salePriceCents)}
+                      placeholder="pl. 49,00"
+                      className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">Deviza</span>
+                    <select
+                      name="saleCurrency"
+                      defaultValue={defaultSaleCurrency}
+                      className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
+                    >
+                      <option value="eur">EUR</option>
+                      <option value="usd">USD</option>
+                      <option value="gbp">GBP</option>
+                      <option value="chf">CHF</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
             </fieldset>
 
             <label className="block space-y-2">
