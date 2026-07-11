@@ -327,6 +327,10 @@ function isTriggerZipWorkerEnabled() {
   return process.env.ZIP_WORKER_DRIVER === "trigger" && Boolean(process.env.TRIGGER_SECRET_KEY);
 }
 
+export function isExternalZipWorkerMode() {
+  return process.env.ZIP_WORKER_DRIVER === "external" || process.env.ZIP_WORKER_DRIVER === "hetzner";
+}
+
 async function triggerExternalZipWorker(payload: ZipGenerationPayload) {
   if (!isTriggerZipWorkerEnabled()) {
     return false;
@@ -368,6 +372,14 @@ export async function kickGalleryZipJob(payload: ZipGenerationPayload) {
     };
   }
 
+  if (isExternalZipWorkerMode()) {
+    return {
+      driver: "external",
+      processed: 0,
+      failed: 0
+    };
+  }
+
   return {
     driver: "vercel",
     ...(await processPendingJobs({ limit: 1 }))
@@ -397,6 +409,14 @@ export async function kickGalleryZipJobs(payloads: ZipGenerationPayload[]) {
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
     return results;
+  }
+
+  if (isExternalZipWorkerMode()) {
+    return payloads.map(() => ({
+      driver: "external",
+      processed: 0,
+      failed: 0
+    }));
   }
 
   const results = [];
@@ -1415,18 +1435,20 @@ export async function cleanupStuckGalleryZipWork() {
   };
 }
 
-export async function processPendingJobs({ limit = 1 } = {}) {
+export async function processPendingJobs({ limit = 1, type }: { limit?: number; type?: string } = {}) {
   const staleLockCutoff = new Date(Date.now() - 15 * 60 * 1000);
+  const where: Prisma.BackgroundJobWhereInput = {
+    ...(type ? { type } : {}),
+    OR: [
+      { status: "pending" },
+      {
+        status: "processing",
+        lockedAt: { lt: staleLockCutoff }
+      }
+    ]
+  };
   const jobs = await prisma.backgroundJob.findMany({
-    where: {
-      OR: [
-        { status: "pending" },
-        {
-          status: "processing",
-          lockedAt: { lt: staleLockCutoff }
-        }
-      ]
-    },
+    where,
     orderBy: { createdAt: "asc" },
     take: limit,
     select: {

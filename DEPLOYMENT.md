@@ -90,6 +90,57 @@ npx trigger.dev@latest deploy
 
 When `ZIP_WORKER_DRIVER` is `trigger`, `/api/jobs/process` skips ZIP processing so Vercel does not accidentally pick up the same long-running job.
 
+### External ZIP worker on Hetzner
+
+For high-volume gallery ZIP generation, run the ZIP worker on a separate VPS/container and let Vercel only queue the jobs.
+
+Set this on Vercel:
+
+```text
+ZIP_WORKER_DRIVER="external"
+```
+
+With this mode, the app creates `BackgroundJob` rows but does not process ZIPs inside Vercel. `/api/jobs/process` still runs ZIP maintenance,
+but skips the heavy ZIP generation.
+
+Build the worker image:
+
+```bash
+docker build -f Dockerfile.zip-worker -t spetly-zip-worker .
+```
+
+Run it on Hetzner with an env file:
+
+```bash
+docker run -d \
+  --name spetly-zip-worker \
+  --restart unless-stopped \
+  --env-file .env.zip-worker \
+  spetly-zip-worker
+```
+
+Minimum `.env.zip-worker` values:
+
+```text
+DATABASE_URL="postgresql://..."
+STORAGE_DRIVER="r2"
+R2_BUCKET_NAME="wedding-gallery"
+R2_ACCOUNT_ID="..."
+R2_ACCESS_KEY_ID="..."
+R2_SECRET_ACCESS_KEY="..."
+NEXT_PUBLIC_R2_PUBLIC_BASE_URL="https://..."
+NEXT_PUBLIC_APP_URL="https://spetly.app"
+RESEND_API_KEY="re_..."
+EMAIL_FROM="Spetly <...>"
+ZIP_WORKER_BATCH_SIZE="1"
+ZIP_WORKER_POLL_INTERVAL_MS="5000"
+ZIP_WORKER_MAINTENANCE_INTERVAL_MS="300000"
+R2_MULTIPART_UPLOAD_PART_SIZE_MB="64"
+R2_OBJECT_READ_CHUNK_SIZE_MB="16"
+```
+
+Use `npm run zip-worker -- --once` locally or inside the container to process a single batch for smoke testing.
+
 ## Media processing queue
 
 Heavy image derivative generation runs in the Trigger.dev `media-processing` task. New uploads create rows in

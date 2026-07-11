@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cleanupStuckGalleryZipWork, processPendingJobs } from "@/lib/jobs";
+import { cleanupStuckGalleryZipWork, isExternalZipWorkerMode, processPendingJobs } from "@/lib/jobs";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -27,12 +27,15 @@ async function processJobs(request: Request) {
 
   const zipMaintenance = await cleanupStuckGalleryZipWork();
 
-  if (process.env.ZIP_WORKER_DRIVER === "trigger") {
+  if (process.env.ZIP_WORKER_DRIVER === "trigger" || isExternalZipWorkerMode()) {
     return NextResponse.json({
       ok: true,
       skipped: true,
       zipMaintenance,
-      message: "ZIP processing is handled by the external Trigger.dev worker."
+      message:
+        process.env.ZIP_WORKER_DRIVER === "trigger"
+          ? "ZIP processing is handled by the external Trigger.dev worker."
+          : "ZIP processing is handled by the external ZIP worker."
     });
   }
 
