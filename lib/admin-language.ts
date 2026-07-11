@@ -54,6 +54,14 @@ export const ADMIN_SHELL_COPY = {
     newClient: "Új ügyfél",
     notifications: "Értesítések",
     settings: "Beállítások",
+    stripeBalance: "Stripe egyenleg",
+    stripeAvailable: "Elérhető",
+    stripePending: "Függőben",
+    stripeHasFunds: "Van pénz",
+    stripeNoFunds: "Nincs elérhető pénz",
+    stripeErrorShort: "Hiba",
+    stripeBalanceError: "Nem sikerült lekérni",
+    stripeLiveHint: "Élő Stripe adat",
     logout: "Kilépés"
   },
   de: {
@@ -80,6 +88,14 @@ export const ADMIN_SHELL_COPY = {
     newClient: "Neuer Kunde",
     notifications: "Benachrichtigungen",
     settings: "Einstellungen",
+    stripeBalance: "Stripe-Guthaben",
+    stripeAvailable: "Verfügbar",
+    stripePending: "Ausstehend",
+    stripeHasFunds: "Geld verfügbar",
+    stripeNoFunds: "Kein verfügbares Geld",
+    stripeErrorShort: "Fehler",
+    stripeBalanceError: "Konnte nicht geladen werden",
+    stripeLiveHint: "Live von Stripe",
     logout: "Abmelden"
   },
   en: {
@@ -106,6 +122,14 @@ export const ADMIN_SHELL_COPY = {
     newClient: "New client",
     notifications: "Notifications",
     settings: "Settings",
+    stripeBalance: "Stripe balance",
+    stripeAvailable: "Available",
+    stripePending: "Pending",
+    stripeHasFunds: "Funds available",
+    stripeNoFunds: "No available funds",
+    stripeErrorShort: "Error",
+    stripeBalanceError: "Could not load",
+    stripeLiveHint: "Live from Stripe",
     logout: "Log out"
   }
 } as const;

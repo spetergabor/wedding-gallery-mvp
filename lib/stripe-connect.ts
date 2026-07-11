@@ -20,6 +20,26 @@ type StripeOAuthTokenResponse = {
   stripe_publishable_key?: string;
 };
 
+type StripeBalanceEntry = {
+  amount?: number;
+  currency?: string;
+};
+
+type StripeBalanceResponse = {
+  available?: StripeBalanceEntry[];
+  pending?: StripeBalanceEntry[];
+};
+
+export type ConnectedStripeBalanceEntry = {
+  amount: number;
+  currency: string;
+};
+
+export type ConnectedStripeBalance = {
+  available: ConnectedStripeBalanceEntry[];
+  pending: ConnectedStripeBalanceEntry[];
+};
+
 export type StripeCheckoutSession = {
   id: string;
   url?: string | null;
@@ -125,6 +145,19 @@ function accountDataFromStripe(account: StripeAccount) {
   };
 }
 
+function normalizeStripeBalanceEntries(entries: StripeBalanceEntry[] | undefined): ConnectedStripeBalanceEntry[] {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries
+    .map((entry) => ({
+      amount: Number(entry.amount),
+      currency: entry.currency?.toUpperCase() ?? ""
+    }))
+    .filter((entry) => Number.isFinite(entry.amount) && entry.currency.length > 0);
+}
+
 export function buildStripeStandardOAuthUrl({
   origin,
   state,
@@ -215,6 +248,17 @@ export async function syncStripeAccount(adminId: string, stripeAccountId: string
     where: { adminId },
     data: accountDataFromStripe(account)
   });
+}
+
+export async function retrieveConnectedStripeBalance(stripeAccountId: string): Promise<ConnectedStripeBalance> {
+  const balance = await stripeRequest<StripeBalanceResponse>("/v1/balance", undefined, {
+    connectedAccountId: stripeAccountId
+  });
+
+  return {
+    available: normalizeStripeBalanceEntries(balance.available),
+    pending: normalizeStripeBalanceEntries(balance.pending)
+  };
 }
 
 export async function createConnectedCheckoutSession({

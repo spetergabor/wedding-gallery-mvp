@@ -7,6 +7,7 @@ import {
   CalendarClock,
   Camera,
   ChevronDown,
+  CreditCard,
   HardDrive,
   LayoutDashboard,
   LogOut,
@@ -21,10 +22,174 @@ import { logoutAction } from "@/lib/gallery-actions";
 import { getAdminSession, type AdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationWhere, ownerAdminId } from "@/lib/admin-scope";
-import { ADMIN_SHELL_COPY, getAdminLanguage } from "@/lib/admin-language";
+import { ADMIN_LOCALES, ADMIN_SHELL_COPY, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { switchWorkspaceAction } from "@/lib/workspace-actions";
+import {
+  isStripeConnectConfigured,
+  retrieveConnectedStripeBalance,
+  type ConnectedStripeBalance,
+  type ConnectedStripeBalanceEntry
+} from "@/lib/stripe-connect";
 
 type AdminShellCopy = (typeof ADMIN_SHELL_COPY)[keyof typeof ADMIN_SHELL_COPY];
+
+type StripeIntegrationSummary = {
+  stripeAccountId: string;
+  stripeAccountEmail: string | null;
+  defaultCurrency: string | null;
+};
+
+type StripeBalanceState = {
+  balance: ConnectedStripeBalance | null;
+  hasError: boolean;
+};
+
+const STRIPE_BALANCE_TIMEOUT_MS = 2500;
+
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "BIF",
+  "CLP",
+  "DJF",
+  "GNF",
+  "JPY",
+  "KMF",
+  "KRW",
+  "MGA",
+  "PYG",
+  "RWF",
+  "UGX",
+  "VND",
+  "VUV",
+  "XAF",
+  "XOF",
+  "XPF"
+]);
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error("Stripe balance request timed out.")), timeoutMs);
+  });
+
+  return Promise.race([
+    promise.finally(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }),
+    timeout
+  ]);
+}
+
+async function loadStripeBalance(stripeAccountId: string | null | undefined): Promise<StripeBalanceState> {
+  if (!stripeAccountId) {
+    return { balance: null, hasError: false };
+  }
+
+  if (!isStripeConnectConfigured()) {
+    return { balance: null, hasError: true };
+  }
+
+  try {
+    return {
+      balance: await withTimeout(retrieveConnectedStripeBalance(stripeAccountId), STRIPE_BALANCE_TIMEOUT_MS),
+      hasError: false
+    };
+  } catch {
+    return { balance: null, hasError: true };
+  }
+}
+
+function summarizeStripeBalance(entries: ConnectedStripeBalanceEntry[]) {
+  const totals = new Map<string, number>();
+
+  for (const entry of entries) {
+    totals.set(entry.currency, (totals.get(entry.currency) ?? 0) + entry.amount);
+  }
+
+  return Array.from(totals, ([currency, amount]) => ({ currency, amount })).sort((a, b) => a.currency.localeCompare(b.currency));
+}
+
+function formatStripeMoney(amount: number, currency: string, language: AdminLanguage) {
+  const currencyCode = currency.toUpperCase();
+  const divisor = ZERO_DECIMAL_CURRENCIES.has(currencyCode) ? 1 : 100;
+  const value = amount / divisor;
+
+  try {
+    return new Intl.NumberFormat(ADMIN_LOCALES[language], {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: ZERO_DECIMAL_CURRENCIES.has(currencyCode) ? 0 : 2
+    }).format(value);
+  } catch {
+    return `${value.toFixed(ZERO_DECIMAL_CURRENCIES.has(currencyCode) ? 0 : 2)} ${currencyCode}`;
+  }
+}
+
+function formatStripeBalanceList(entries: ReturnType<typeof summarizeStripeBalance>, language: AdminLanguage, emptyLabel: string) {
+  if (entries.length === 0) {
+    return emptyLabel;
+  }
+
+  return entries.map((entry) => formatStripeMoney(entry.amount, entry.currency, language)).join(" · ");
+}
+
+function StripeBalanceWidget({
+  copy,
+  language,
+  integration,
+  balance,
+  hasError,
+  compact = false
+}: {
+  copy: AdminShellCopy;
+  language: AdminLanguage;
+  integration: StripeIntegrationSummary | null;
+  balance: ConnectedStripeBalance | null;
+  hasError: boolean;
+  compact?: boolean;
+}) {
+  if (!integration) {
+    return null;
+  }
+
+  const available = summarizeStripeBalance(balance?.available ?? []);
+  const pending = summarizeStripeBalance(balance?.pending ?? []);
+  const hasAvailableFunds = available.some((entry) => entry.amount > 0);
+  const availableText = hasError ? copy.stripeBalanceError : formatStripeBalanceList(available, language, copy.stripeNoFunds);
+  const pendingText = hasError || pending.length === 0 ? null : formatStripeBalanceList(pending, language, copy.stripeNoFunds);
+
+  return (
+    <Link
+      href="/admin/settings?tab=integrations"
+      className="block rounded-md border border-ink/10 bg-white p-3 shadow-soft transition hover:border-brass/40 hover:bg-brass/5"
+      title={integration.stripeAccountEmail ?? integration.stripeAccountId}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-graphite/55">
+          <CreditCard size={14} />
+          <span className="truncate">{copy.stripeBalance}</span>
+        </span>
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+            hasError ? "bg-red-50 text-red-700" : hasAvailableFunds ? "bg-emerald-50 text-emerald-700" : "bg-ink/5 text-graphite"
+          }`}
+        >
+          {hasError ? copy.stripeErrorShort : hasAvailableFunds ? copy.stripeHasFunds : "0"}
+        </span>
+      </div>
+      <p className="mt-3 truncate text-lg font-semibold leading-tight text-ink">{availableText}</p>
+      <p className="mt-1 text-xs text-graphite/65">{copy.stripeAvailable}</p>
+      {pendingText ? (
+        <div className="mt-3 rounded-md bg-ink/5 px-2.5 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-graphite/55">{copy.stripePending}</p>
+          <p className="mt-0.5 truncate text-sm font-medium text-ink">{pendingText}</p>
+        </div>
+      ) : null}
+      {!compact ? <p className="mt-2 text-[11px] text-graphite/55">{copy.stripeLiveHint}</p> : null}
+    </Link>
+  );
+}
 
 function workspaceDisplayName(admin: AdminSession, copy: AdminShellCopy) {
   return admin.isTeamWorkspace ? admin.teamOwnerName ?? copy.teamWorkspace : admin.name;
@@ -95,7 +260,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
   const [admin, language] = await Promise.all([getAdminSession(), getAdminLanguage()]);
   const copy = ADMIN_SHELL_COPY[language];
   const workspaceAdminId = admin ? ownerAdminId(admin) : null;
-  const [unreadNotifications, settings] = await Promise.all([
+  const [unreadNotifications, settings, stripeIntegration] = await Promise.all([
     prisma.adminNotification.count({
       where: { ...notificationWhere(admin ?? { id: "", role: "photographer" }), readAt: null }
     }),
@@ -109,8 +274,19 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             logoUrl: true
           }
         })
+      : null,
+    admin && workspaceAdminId
+      ? prisma.stripeConnectIntegration.findUnique({
+          where: { adminId: workspaceAdminId },
+          select: {
+            stripeAccountId: true,
+            stripeAccountEmail: true,
+            defaultCurrency: true
+          }
+        })
       : null
   ]);
+  const stripeBalanceState = await loadStripeBalance(stripeIntegration?.stripeAccountId);
   const brandName = settings?.businessName || "Spetly";
 
   return (
@@ -215,6 +391,18 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             {copy.settings}
           </Link>
         </nav>
+
+        {stripeIntegration ? (
+          <div className="mt-5">
+            <StripeBalanceWidget
+              copy={copy}
+              language={language}
+              integration={stripeIntegration}
+              balance={stripeBalanceState.balance}
+              hasError={stripeBalanceState.hasError}
+            />
+          </div>
+        ) : null}
 
         <div className="absolute bottom-20 left-5 right-5">
           <AdminLanguageSwitch language={language} label={copy.language} />
@@ -324,6 +512,18 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                     {copy.settings}
                   </Link>
                 </nav>
+                {stripeIntegration ? (
+                  <div className="border-t border-ink/10 p-2">
+                    <StripeBalanceWidget
+                      copy={copy}
+                      language={language}
+                      integration={stripeIntegration}
+                      balance={stripeBalanceState.balance}
+                      hasError={stripeBalanceState.hasError}
+                      compact
+                    />
+                  </div>
+                ) : null}
                 <div className="border-t border-ink/10 p-2">
                   <AdminLanguageSwitch language={language} label={copy.language} compact />
                 </div>
