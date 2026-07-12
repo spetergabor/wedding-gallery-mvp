@@ -507,8 +507,8 @@ const DASHBOARD_COPY = {
     projectsTitle: "Következő munkák",
     projectsDescription: "Ügyfélprojektek, meetingek és egyszerű időpontfoglalások egy időrendben.",
     openAllWork: "Összes munka",
-    openClients: "Ügyfelek megnyitása",
-    openBookings: "Foglalások megnyitása",
+    openClients: "Ügyfelek",
+    openBookings: "Foglalások",
     noUpcomingTitle: "Nincs közelgő munka",
     noUpcomingDescription: "A jövőbeli projektek és egyszerű foglalások itt jelennek majd meg időrendben.",
     simpleBooking: "Egyszerű foglalás",
@@ -617,8 +617,8 @@ const DASHBOARD_COPY = {
     projectsTitle: "Nächste Arbeiten",
     projectsDescription: "Kundenprojekte, Meetings und einfache Terminbuchungen in chronologischer Reihenfolge.",
     openAllWork: "Alle Arbeiten",
-    openClients: "Kunden öffnen",
-    openBookings: "Buchungen öffnen",
+    openClients: "Kunden",
+    openBookings: "Buchungen",
     noUpcomingTitle: "Keine anstehenden Arbeiten",
     noUpcomingDescription: "Zukünftige Projekte und einfache Buchungen erscheinen hier chronologisch.",
     simpleBooking: "Einfache Buchung",
@@ -727,8 +727,8 @@ const DASHBOARD_COPY = {
     projectsTitle: "Upcoming work",
     projectsDescription: "Client projects, meetings and simple appointment bookings in chronological order.",
     openAllWork: "All work",
-    openClients: "Open clients",
-    openBookings: "Open bookings",
+    openClients: "Clients",
+    openBookings: "Bookings",
     noUpcomingTitle: "No upcoming work",
     noUpcomingDescription: "Future projects and simple bookings will appear here in chronological order.",
     simpleBooking: "Simple booking",
@@ -847,24 +847,24 @@ function UpcomingProjectsSection({
           <h2 className={`mt-2 ${sectionTitleClass}`}>{copy.projectsTitle}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">{copy.projectsDescription}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 md:justify-end lg:flex-nowrap">
           <Link
             href="/admin/work"
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
           >
             {copy.openAllWork}
             <ArrowRight size={15} />
           </Link>
           <Link
             href="/admin/clients"
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
           >
             {copy.openClients}
             <ArrowRight size={15} />
           </Link>
           <Link
             href="/admin/mini-sessions?tab=bookings"
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
           >
             {copy.openBookings}
             <ArrowRight size={15} />
