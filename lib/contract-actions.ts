@@ -182,6 +182,12 @@ export async function sendContractAction(customerId: string, contractId: string,
   const contractUrl = contractPublicUrl(accessToken);
   const subject = formString(formData, "emailSubject");
   const message = formString(formData, "emailMessage");
+  const replyToRaw = formString(formData, "emailReplyTo");
+  const replyTo = replyToRaw ? normalizeEmail(replyToRaw) : undefined;
+
+  if (replyTo && !isValidEmail(replyTo)) {
+    redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}&contractError=invalid-reply-to`);
+  }
 
   await prisma.contract.update({
     where: { id: contract.id },
@@ -193,6 +199,7 @@ export async function sendContractAction(customerId: string, contractId: string,
 
   await sendContractSignatureRequestEmail({
     to: recipients,
+    replyTo,
     coupleName: contract.customer.coupleName,
     contractTitle: contract.title,
     contractUrl,

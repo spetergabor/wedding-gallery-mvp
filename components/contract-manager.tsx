@@ -350,11 +350,13 @@ function ContractSummary({
 function ContractEmailForm({
   customerId,
   contract,
-  recipients
+  recipients,
+  admin
 }: {
   customerId: string;
   contract: Contract;
   recipients: RecipientOption[];
+  admin: { name: string | null; email: string };
 }) {
   return (
     <form action={sendContractAction.bind(null, customerId, contract.id)} className="space-y-4 rounded-md border border-ink/10 bg-paper p-5">
@@ -405,6 +407,20 @@ function ContractEmailForm({
           placeholder="pl. masolat@email.com, planner@email.com"
           className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
         />
+      </label>
+
+      <label className="block space-y-2">
+        <span className="text-sm font-medium text-graphite">Válasz e-mail</span>
+        <input
+          name="emailReplyTo"
+          type="email"
+          defaultValue={admin.email}
+          placeholder="pl. studio@spetly.app"
+          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+        />
+        <span className="block text-xs leading-5 text-graphite/60">
+          Ha az ügyfél válaszol a szerződés e-mailre, erre a címre érkezik meg.
+        </span>
       </label>
 
       <label className="block space-y-2">
@@ -647,7 +663,7 @@ export function ContractManager({
           {emailContract ? (
             <>
               <ContractSummary customerId={customerId} contract={emailContract} />
-              <ContractEmailForm customerId={customerId} contract={emailContract} recipients={recipients} />
+              <ContractEmailForm customerId={customerId} contract={emailContract} recipients={recipients} admin={admin} />
             </>
           ) : (
             <div className="rounded-md bg-paper px-4 py-3 text-sm text-graphite/70">

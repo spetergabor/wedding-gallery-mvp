@@ -13,6 +13,7 @@ type AdminFavoriteListSubmittedEmail = {
 
 type ContractSignatureRequestEmail = {
   to: string[];
+  replyTo?: string;
   coupleName: string;
   contractTitle: string;
   contractUrl: string;
@@ -1319,6 +1320,7 @@ export async function sendContractSignatureRequestEmail(payload: ContractSignatu
     body: JSON.stringify({
       from,
       to: recipients,
+      ...replyToPayload(payload.replyTo),
       subject: payload.subject?.trim() || `${copy.contract.subjectPrefix}: ${payload.contractTitle}`,
       html: contractSignatureRequestHtml(payload),
       text: [

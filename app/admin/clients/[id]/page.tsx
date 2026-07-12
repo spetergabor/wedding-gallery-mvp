@@ -1232,6 +1232,11 @@ export default async function AdminClientDetailPage({
             Válassz legalább egy e-mail címet, vagy adj meg további címzettet.
           </Alert>
         ) : null}
+        {flags.contractError === "invalid-reply-to" ? (
+          <Alert title="Érvénytelen válasz e-mail." variant="error">
+            Adj meg egy érvényes válasz e-mail címet, vagy hagyd üresen a mezőt.
+          </Alert>
+        ) : null}
         {flags.contractError === "pdf-fields" ? (
           <Alert title="A PDF mezők nem menthetők." variant="error">
             Frissítsd az oldalt, és rajzold fel újra a mezőket.
