@@ -50,6 +50,11 @@ const GALLERY_COPY = {
     email: "E-Mail-Adresse",
     zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen. Du erhältst trotzdem nur eine E-Mail mit allen Download-Links.",
     zipTimeInfo: "Die Vorbereitung kann je nach Galeriegröße mehrere Minuten dauern. Du kannst die Seite schließen, wir senden dir die Links per E-Mail, sobald alles fertig ist.",
+    zipSpamInfo: "Falls die E-Mail nicht ankommt, prüfe bitte auch deinen Spam- oder Werbung-Ordner.",
+    directZipReady: "Der ZIP-Download ist bereit.",
+    directZipIntro: "Wir senden die Links zusätzlich per E-Mail. Du kannst die Datei aber auch direkt hier herunterladen.",
+    directZipDownload: "ZIP direkt herunterladen",
+    directZipPartDownload: (part: number, total: number) => `ZIP Teil ${part}/${total} herunterladen`,
     zipLinksPreparing: "ZIP-Links werden vorbereitet",
     requestDownloadLinks: "Download-Links anfordern",
     cancel: "Abbrechen",
@@ -133,6 +138,11 @@ const GALLERY_COPY = {
     email: "E-mail cím",
     zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak. Ettől függetlenül csak egy e-mailt kapsz az összes letöltési linkkel.",
     zipTimeInfo: "A ZIP előkészítése a galéria méretétől függően több percet is igénybe vehet. Az oldalt nem kell nyitva hagynod, e-mailben elküldjük a linkeket, amikor elkészült.",
+    zipSpamInfo: "Ha nem érkezik meg az e-mail, nézd meg a spam vagy promóciók mappát is.",
+    directZipReady: "A ZIP letöltés készen van.",
+    directZipIntro: "A linkeket e-mailben is elküldjük, de innen közvetlenül is letöltheted.",
+    directZipDownload: "ZIP közvetlen letöltése",
+    directZipPartDownload: (part: number, total: number) => `${part}/${total}. ZIP rész letöltése`,
     zipLinksPreparing: "ZIP-linkek előkészítése",
     requestDownloadLinks: "Letöltési linkek kérése",
     cancel: "Mégse",
@@ -235,6 +245,14 @@ type FavoriteListState = {
 
 type DownloadPackageStatus = "pending" | "processing" | "completed" | "failed";
 
+type DownloadPackageLink = {
+  id: string;
+  downloadUrl: string;
+  filename: string;
+  partIndex: number;
+  partCount: number;
+};
+
 function photoFileName(photo: PublicPhoto, index: number) {
   const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
   return (photo.filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
@@ -246,6 +264,30 @@ function hasImageDimensions(photo: PublicPhoto) {
 
 function isVideo(photo: PublicPhoto) {
   return photo.mediaType === "video";
+}
+
+function normalizeDownloadLinks(result: {
+  downloadUrl: string | null;
+  filename: string | null;
+  packages?: DownloadPackageLink[];
+}) {
+  if (result.packages?.length) {
+    return result.packages.filter((downloadPackage) => Boolean(downloadPackage.downloadUrl));
+  }
+
+  if (!result.downloadUrl) {
+    return [];
+  }
+
+  return [
+    {
+      id: "single-download",
+      downloadUrl: result.downloadUrl,
+      filename: result.filename ?? "gallery.zip",
+      partIndex: 0,
+      partCount: 1
+    }
+  ];
 }
 
 function hasLightweightThumbnail(photo: PublicPhoto) {
@@ -374,6 +416,7 @@ export function PublicGallery({
   const [zipProgress, setZipProgress] = useState("");
   const [zipPackageId, setZipPackageId] = useState<string | null>(null);
   const [zipPackageStatus, setZipPackageStatus] = useState<DownloadPackageStatus | null>(null);
+  const [zipDownloadLinks, setZipDownloadLinks] = useState<DownloadPackageLink[]>([]);
   const [favoriteEmail, setFavoriteEmail] = useState("");
   const [favoriteEmailDraft, setFavoriteEmailDraft] = useState("");
   const [favoriteLists, setFavoriteLists] = useState<FavoriteListState[]>([]);
@@ -595,6 +638,7 @@ export function PublicGallery({
     setIsZipping(false);
     setZipPackageId(null);
     setZipPackageStatus(null);
+    setZipDownloadLinks([]);
     setZipProgress("");
     setEmailError("");
   }
@@ -617,6 +661,7 @@ export function PublicGallery({
       if (!result.ok) {
         setEmailError(result.message);
         setZipPackageStatus("failed");
+        setZipDownloadLinks([]);
         setIsZipping(false);
         setZipProgress("");
         return;
@@ -625,7 +670,8 @@ export function PublicGallery({
       setZipPackageStatus(result.status as DownloadPackageStatus);
 
       if (result.status === "completed") {
-        setZipProgress(result.message || copy.downloadLinksSent);
+        setZipDownloadLinks(normalizeDownloadLinks(result));
+        setZipProgress(copy.downloadLinksSent);
         setIsZipping(false);
         setZipPackageId(null);
         setZipPackageStatus("completed");
@@ -657,6 +703,7 @@ export function PublicGallery({
     setEmailError("");
     setZipPackageId(null);
     setZipPackageStatus(null);
+    setZipDownloadLinks([]);
     setZipProgress(copy.downloadPreparing);
 
     try {
@@ -667,7 +714,8 @@ export function PublicGallery({
       }
 
       if (result.status === "completed") {
-        setZipProgress(result.message || copy.downloadLinksSent);
+        setZipDownloadLinks(normalizeDownloadLinks(result));
+        setZipProgress(copy.downloadLinksSent);
         setIsZipping(false);
         setZipPackageStatus("completed");
         return;
@@ -1413,6 +1461,7 @@ export function PublicGallery({
             <div className="mt-4 space-y-2 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm leading-6 text-graphite/75">
               <p>{copy.zipPartsInfo}</p>
               <p className="font-medium text-ink">{copy.zipTimeInfo}</p>
+              <p className="border-t border-ink/10 pt-2 text-graphite">{copy.zipSpamInfo}</p>
             </div>
 
             {emailError ? (
@@ -1430,6 +1479,28 @@ export function PublicGallery({
                       {zipPackageStatus}
                     </span>
                   ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {zipDownloadLinks.length > 0 ? (
+              <div className="mt-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                <p className="font-semibold">{copy.directZipReady}</p>
+                <p className="mt-1 text-green-900/75">{copy.directZipIntro}</p>
+                <div className="mt-3 grid gap-2">
+                  {zipDownloadLinks.map((downloadLink) => (
+                    <a
+                      key={downloadLink.id}
+                      href={downloadLink.downloadUrl}
+                      download={downloadLink.filename}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-green-700/20 bg-white px-4 py-2 font-semibold text-green-950 transition hover:border-green-700/40 hover:bg-green-100"
+                    >
+                      <Download size={16} />
+                      {downloadLink.partCount > 1
+                        ? copy.directZipPartDownload(downloadLink.partIndex + 1, downloadLink.partCount)
+                        : copy.directZipDownload}
+                    </a>
+                  ))}
                 </div>
               </div>
             ) : null}

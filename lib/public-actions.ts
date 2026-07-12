@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
+import { ensureDownloadPackageAccessToken, publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
 import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
@@ -113,6 +113,38 @@ function isCompletePackageSet(packages: Array<{ status: string; downloadUrl: str
   );
 
   return packages.length === expectedPartCount && Array.from({ length: expectedPartCount }, (_, index) => partIndexes.has(index)).every(Boolean);
+}
+
+type PublicDownloadPackageLinkSource = {
+  id: string;
+  status: string;
+  downloadUrl: string | null;
+  partIndex: number;
+  partCount: number;
+};
+
+async function publicDownloadPackageLinks(
+  packages: PublicDownloadPackageLinkSource[],
+  galleryTitle: string,
+  quality: GalleryDownloadQuality
+) {
+  const completedPackages = packages
+    .filter((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl)
+    .sort((a, b) => a.partIndex - b.partIndex);
+
+  return Promise.all(
+    completedPackages.map(async (downloadPackage) => {
+      const { token } = await ensureDownloadPackageAccessToken(downloadPackage.id);
+
+      return {
+        id: downloadPackage.id,
+        downloadUrl: `/download/${token}`,
+        filename: galleryZipFileName(galleryTitle, downloadPackage.partIndex, downloadPackage.partCount, quality),
+        partIndex: downloadPackage.partIndex,
+        partCount: downloadPackage.partCount
+      };
+    })
+  );
 }
 
 export async function canViewGallery(slug: string, password: string | null) {
@@ -440,18 +472,23 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
     });
   }
 
+  const packageLinks =
+    packageStatus === "completed"
+      ? await publicDownloadPackageLinks(activePackages, gallery.title, quality)
+      : [];
+
   return {
     ok: true,
     message:
       packageStatus === "completed"
         ? "Die Download-Links werden in einer E-Mail gesendet."
         : "Die ZIP-Teile werden vorbereitet. Du bekommst eine E-Mail mit allen Download-Links.",
-    downloadUrl: null,
+    downloadUrl: packageLinks[0]?.downloadUrl ?? null,
     filename: galleryZipFileName(gallery.title, undefined, undefined, quality),
     cached,
     packageId: activePackages[0]?.id ?? null,
     status: packageStatus,
-    packages: []
+    packages: packageLinks
   };
 }
 
@@ -519,13 +556,19 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
     const completedPackages = packages.filter((downloadPart) => downloadPart.status === "completed" && downloadPart.downloadUrl);
 
     if (completedPackages.length === packages.length && packages.length > 0) {
+      const packageLinks = await publicDownloadPackageLinks(
+        completedPackages,
+        downloadPackage.gallery.title,
+        publicDownloadQualityFromScope(downloadPackage.scope)
+      );
+
       return {
         ok: true,
         message: "Die Download-Links wurden in einer E-Mail gesendet.",
         status: "completed",
-        downloadUrl: null,
+        downloadUrl: packageLinks[0]?.downloadUrl ?? null,
         filename: galleryZipFileName(downloadPackage.gallery.title, undefined, undefined, publicDownloadQualityFromScope(downloadPackage.scope)),
-        packages: []
+        packages: packageLinks
       };
     }
 
@@ -543,13 +586,19 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
   }
 
   if (downloadPackage.status === "completed" && downloadPackage.downloadUrl) {
+    const packageLinks = await publicDownloadPackageLinks(
+      [downloadPackage],
+      downloadPackage.gallery.title,
+      publicDownloadQualityFromScope(downloadPackage.scope)
+    );
+
     return {
       ok: true,
       message: "Die Download-Links wurden in einer E-Mail gesendet.",
       status: "completed",
-      downloadUrl: null,
+      downloadUrl: packageLinks[0]?.downloadUrl ?? null,
       filename: galleryZipFileName(downloadPackage.gallery.title, undefined, undefined, publicDownloadQualityFromScope(downloadPackage.scope)),
-      packages: []
+      packages: packageLinks
     };
   }
 
