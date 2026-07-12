@@ -65,6 +65,20 @@ model AdminPasswordResetToken {
   @@index([createdAt])
 }
 
+model RateLimitBucket {
+  id             String   @id @default(cuid())
+  scope          String
+  identifierHash String
+  count          Int      @default(0)
+  resetAt        DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([scope, identifierHash])
+  @@index([resetAt])
+  @@index([updatedAt])
+}
+
 model AdminTeamMembership {
   id           String   @id @default(cuid())
   ownerAdminId String

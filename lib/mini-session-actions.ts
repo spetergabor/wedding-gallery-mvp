@@ -49,6 +49,7 @@ import {
   parseMiniSessionLocalDateTime
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { isAnyRateLimited } from "@/lib/rate-limit";
 import { normalizeSlug } from "@/lib/slug";
 import { logSystemEvent, systemEventErrorMessage } from "@/lib/system-events";
 import {
@@ -775,6 +776,15 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     redirect(`${bookingPath}?error=missing`);
   }
 
+  if (
+    await isAnyRateLimited([
+      { scope: "public:mini-session-book:email", limit: 4, windowSeconds: 30 * 60, identifier: `${slug}:${email}` },
+      { scope: "public:mini-session-book:ip", limit: 25, windowSeconds: 15 * 60, identifier: slug }
+    ])
+  ) {
+    redirect(`${bookingPath}?error=rate_limit`);
+  }
+
   const session = await prisma.miniSession.findUnique({
     where: { slug },
     include: {
@@ -1141,6 +1151,15 @@ export async function rescheduleMiniSessionBookingAction(token: string, formData
 
   const slug = booking.miniSession.slug;
 
+  if (
+    await isAnyRateLimited([
+      { scope: "public:mini-session-reschedule:token", limit: 8, windowSeconds: 15 * 60, identifier: token },
+      { scope: "public:mini-session-reschedule:ip", limit: 30, windowSeconds: 15 * 60, identifier: slug }
+    ])
+  ) {
+    redirect(`/mini-session/${slug}/reschedule/${token}?error=rate_limit`);
+  }
+
   if (booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED) {
     redirect(`/mini-session/${slug}/reschedule/${token}?error=cancelled`);
   }
@@ -1360,6 +1379,15 @@ export async function cancelMiniSessionBookingAction(token: string) {
 
   if (!booking) {
     redirect("/mini-session/cancelled?error=missing");
+  }
+
+  if (
+    await isAnyRateLimited([
+      { scope: "public:mini-session-cancel:token", limit: 8, windowSeconds: 15 * 60, identifier: token },
+      { scope: "public:mini-session-cancel:ip", limit: 30, windowSeconds: 15 * 60, identifier: booking.miniSession.slug }
+    ])
+  ) {
+    redirect(`/mini-session/${booking.miniSession.slug}/cancel/${token}?error=rate_limit`);
   }
 
   if (booking.status !== MINI_SESSION_BOOKING_STATUS_CANCELLED) {

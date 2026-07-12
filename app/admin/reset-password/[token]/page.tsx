@@ -53,6 +53,9 @@ export default async function AdminResetPasswordPage({
           {flags.error === "password" ? (
             <Alert title="A két jelszó nem egyezik." variant="error" />
           ) : null}
+          {flags.error === "rate_limit" ? (
+            <Alert title="Túl sok próbálkozás." variant="error">Várj pár percet, majd próbáld újra.</Alert>
+          ) : null}
         </div>
 
         {tokenIsValid ? (

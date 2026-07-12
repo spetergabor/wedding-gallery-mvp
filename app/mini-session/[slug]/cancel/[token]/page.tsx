@@ -1,5 +1,6 @@
 import { CalendarClock, XCircle } from "lucide-react";
 import { notFound } from "next/navigation";
+import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { cancelMiniSessionBookingAction } from "@/lib/mini-session-actions";
 import {
@@ -14,6 +15,7 @@ const MINI_SESSION_CANCEL_COPY = {
     title: "Időpont törlése",
     alreadyCancelled: "Ez a foglalás már korábban törölve lett.",
     intro: "Ha mégsem jó az időpont, itt tudod törölni a foglalásodat.",
+    rateLimited: "Túl sok törlési próbálkozás. Várj pár percet, majd próbáld újra.",
     pending: "Törlés...",
     submit: "Foglalás törlése"
   },
@@ -21,17 +23,20 @@ const MINI_SESSION_CANCEL_COPY = {
     title: "Termin stornieren",
     alreadyCancelled: "Diese Buchung wurde bereits storniert.",
     intro: "Falls der Termin doch nicht passt, kannst du deine Buchung hier stornieren.",
+    rateLimited: "Zu viele Stornierungsversuche. Bitte warte kurz und versuche es erneut.",
     pending: "Stornieren...",
     submit: "Buchung stornieren"
   }
 } as const;
 
 export default async function CancelMiniSessionBookingPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ slug: string; token: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
-  const { slug, token } = await params;
+  const [{ slug, token }, flags] = await Promise.all([params, searchParams]);
   const booking = await prisma.miniSessionBooking.findUnique({
     where: { cancelToken: token },
     include: {
@@ -59,6 +64,8 @@ export default async function CancelMiniSessionBookingPage({
             ? copy.alreadyCancelled
             : copy.intro}
         </p>
+
+        {flags.error === "rate_limit" ? <div className="mt-5"><Alert title={copy.rateLimited} variant="error" /></div> : null}
 
         <div className="mt-6 rounded-md border border-ink/10 bg-paper p-4">
           <p className="text-sm font-semibold text-ink">{booking.miniSession.title}</p>

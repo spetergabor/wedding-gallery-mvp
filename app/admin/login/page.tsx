@@ -13,6 +13,7 @@ export default async function AdminLoginPage({
 }) {
   const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
   const needsTwoFactor = params.twoFactor === "1";
+  const isRateLimited = params.error === "rate_limit";
 
   if (!alreadyHasAdmin) {
     redirect("/admin/register");
@@ -33,8 +34,12 @@ export default async function AdminLoginPage({
 
         <div className="mb-5 space-y-3">
           {params.error ? (
-            <Alert title="Hibás belépési adatok." variant="error">
-              {needsTwoFactor ? "Ellenőrizd az authenticator appban látható friss 6 jegyű kódot. Ha lejárt a belépési ablak, kezdd újra." : "Ellenőrizd az email címet és a jelszót."}
+            <Alert title={isRateLimited ? "Túl sok próbálkozás." : "Hibás belépési adatok."} variant="error">
+              {isRateLimited
+                ? "Várj pár percet, majd próbáld újra. Ezzel védjük a fiókokat a tömeges próbálkozásoktól."
+                : needsTwoFactor
+                  ? "Ellenőrizd az authenticator appban látható friss 6 jegyű kódot. Ha lejárt a belépési ablak, kezdd újra."
+                  : "Ellenőrizd az email címet és a jelszót."}
             </Alert>
           ) : null}
           {needsTwoFactor && !params.error ? (

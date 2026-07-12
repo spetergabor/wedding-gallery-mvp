@@ -13,6 +13,7 @@ import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
+import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -196,6 +197,24 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       cached: false,
       packageId: null,
       status: "failed",
+      packages: []
+    };
+  }
+
+  if (
+    await isAnyRateLimited([
+      { scope: "public:gallery-download:email", limit: 4, windowSeconds: 60 * 60, identifier: `${galleryId}:${normalizedEmail}:${quality}` },
+      { scope: "public:gallery-download:ip", limit: 20, windowSeconds: 15 * 60, identifier: galleryId }
+    ])
+  ) {
+    return {
+      ok: false,
+      message: "Zu viele Download-Anfragen. Bitte warte kurz und versuche es erneut.",
+      downloadUrl: null,
+      filename: null,
+      cached: false,
+      packageId: null,
+      status: "rate_limited",
       packages: []
     };
   }
@@ -747,6 +766,19 @@ export async function createFavoriteListAction(galleryId: string, email: string,
     };
   }
 
+  if (
+    await isAnyRateLimited([
+      { scope: "public:favorites:create:email", limit: 12, windowSeconds: 15 * 60, identifier: `${galleryId}:${normalizedEmail}` },
+      { scope: "public:favorites:create:ip", limit: 40, windowSeconds: 15 * 60, identifier: galleryId }
+    ])
+  ) {
+    return {
+      ok: false,
+      message: "Zu viele Anfragen. Bitte warte kurz und versuche es erneut.",
+      list: null
+    };
+  }
+
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
     select: { isActive: true, galleryMode: true, proofingStatus: true }
@@ -827,6 +859,19 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
     return {
       ok: false,
       message: "Bitte gib eine gültige E-Mail-Adresse ein.",
+      submittedAt: null
+    };
+  }
+
+  if (
+    await isAnyRateLimited([
+      { scope: "public:favorites:submit:email", limit: 6, windowSeconds: 60 * 60, identifier: `${galleryId}:${normalizedEmail}` },
+      { scope: "public:favorites:submit:ip", limit: 30, windowSeconds: 60 * 60, identifier: galleryId }
+    ])
+  ) {
+    return {
+      ok: false,
+      message: "Zu viele Anfragen. Bitte warte kurz und versuche es erneut.",
       submittedAt: null
     };
   }

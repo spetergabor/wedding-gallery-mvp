@@ -10,6 +10,7 @@ import {
 } from "@/lib/password-reset";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { isAnyRateLimited } from "@/lib/rate-limit";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -33,6 +34,15 @@ export async function requestAdminPasswordResetAction(formData: FormData) {
 
   if (!isValidEmail(email)) {
     redirect("/admin/forgot-password?sent=1");
+  }
+
+  if (
+    await isAnyRateLimited([
+      { scope: "auth:password-reset-request:email", limit: 3, windowSeconds: 60 * 60, identifier: email },
+      { scope: "auth:password-reset-request:ip", limit: 20, windowSeconds: 60 * 60, identifier: "global" }
+    ])
+  ) {
+    redirect("/admin/forgot-password?error=rate_limit");
   }
 
   const admin = await prisma.admin.findUnique({
@@ -87,6 +97,10 @@ export async function resetAdminPasswordAction(formData: FormData) {
 
   if (!token) {
     redirect("/admin/forgot-password?error=invalid");
+  }
+
+  if (await isAnyRateLimited([{ scope: "auth:password-reset-submit", limit: 8, windowSeconds: 15 * 60, identifier: token.slice(0, 80) }])) {
+    redirect(resetPasswordPath(token, "rate_limit"));
   }
 
   if (!password || password.length < 8) {

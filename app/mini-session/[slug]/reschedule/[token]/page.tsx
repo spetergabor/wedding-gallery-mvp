@@ -31,6 +31,7 @@ const RESCHEDULE_COPY = {
     taken: "Ez az időpont közben betelt. Válassz másikat.",
     notice: "Ez az időpont már nem módosítható, mert múltbeli vagy túl közel van.",
     slot: "Érvénytelen időpont.",
+    rateLimited: "Túl sok módosítási próbálkozás. Várj pár percet, majd próbáld újra.",
     cancelled: "Ez a foglalás már törölve lett, nem módosítható.",
     soldOut: "Jelenleg nincs másik foglalható időpont."
   },
@@ -46,6 +47,7 @@ const RESCHEDULE_COPY = {
     taken: "Dieser Termin wurde inzwischen gebucht. Bitte wähle einen anderen.",
     notice: "Dieser Termin kann nicht mehr gewählt werden, weil er vergangen oder zu kurzfristig ist.",
     slot: "Ungültiger Termin.",
+    rateLimited: "Zu viele Änderungsversuche. Bitte warte kurz und versuche es erneut.",
     cancelled: "Diese Buchung wurde bereits storniert und kann nicht geändert werden.",
     soldOut: "Derzeit ist kein anderer Termin verfügbar."
   }
@@ -149,6 +151,7 @@ export default async function RescheduleMiniSessionBookingPage({
           {flags.error === "taken" ? <Alert title={copy.taken} variant="error" /> : null}
           {flags.error === "notice" ? <Alert title={copy.notice} variant="error" /> : null}
           {flags.error === "slot" ? <Alert title={copy.slot} variant="error" /> : null}
+          {flags.error === "rate_limit" ? <Alert title={copy.rateLimited} variant="error" /> : null}
           {flags.error === "cancelled" || booking.status !== MINI_SESSION_BOOKING_STATUS_BOOKED ? <Alert title={copy.cancelled} variant="error" /> : null}
         </div>
 

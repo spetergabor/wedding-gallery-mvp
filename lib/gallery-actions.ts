@@ -37,6 +37,7 @@ import {
 } from "@/lib/gallery-delivery";
 import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery-sales";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
+import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
   abortMultipartUpload,
   completeMultipartUpload,
@@ -661,6 +662,10 @@ export async function loginAction(formData: FormData) {
   const twoFactorCode = formString(formData, "twoFactorCode");
 
   if (twoFactorCode && !email && !password) {
+    if (await isAnyRateLimited([{ scope: "auth:2fa", limit: 8, windowSeconds: 15 * 60, identifier: "pending" }])) {
+      redirect("/admin/login?twoFactor=1&error=rate_limit");
+    }
+
     const result = await completePendingTwoFactorSignIn(twoFactorCode);
 
     if (result === "success") {
@@ -668,6 +673,15 @@ export async function loginAction(formData: FormData) {
     }
 
     redirect("/admin/login?twoFactor=1&error=1");
+  }
+
+  if (
+    await isAnyRateLimited([
+      { scope: "auth:login:email", limit: 5, windowSeconds: 15 * 60, identifier: normalizeEmail(email) },
+      { scope: "auth:login:ip", limit: 40, windowSeconds: 15 * 60, identifier: "global" }
+    ])
+  ) {
+    redirect("/admin/login?error=rate_limit");
   }
 
   const result = await signInAdmin(email, password);

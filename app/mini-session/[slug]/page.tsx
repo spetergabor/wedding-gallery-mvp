@@ -36,6 +36,7 @@ const MINI_SESSION_PAGE_COPY = {
     noticeTitle: "Ez az időpont már nem foglalható.",
     noticeText: "Válassz egy későbbi szabad időpontot.",
     invalidSlot: "Érvénytelen időpont.",
+    rateLimited: "Túl sok próbálkozás. Várj pár percet, majd próbáld újra.",
     inactive: "Ez a foglaló jelenleg nem elérhető.",
     soldOut: "Minden időpont betelt.",
     stylingTitle: "Styling és előkészület",
@@ -64,6 +65,7 @@ const MINI_SESSION_PAGE_COPY = {
     noticeTitle: "Dieser Termin ist nicht mehr buchbar.",
     noticeText: "Bitte wähle einen späteren freien Termin.",
     invalidSlot: "Ungültiger Termin.",
+    rateLimited: "Zu viele Versuche. Bitte warte kurz und versuche es erneut.",
     inactive: "Diese Mini Session ist derzeit nicht buchbar.",
     soldOut: "Alle Termine sind ausgebucht.",
     stylingTitle: "Styling und Vorbereitung",
@@ -209,6 +211,7 @@ export default async function PublicMiniSessionPage({
           {flags.error === "taken" ? <Alert title={copy.takenTitle} variant="error">{copy.takenText}</Alert> : null}
           {flags.error === "notice" ? <Alert title={copy.noticeTitle} variant="error">{copy.noticeText}</Alert> : null}
           {flags.error === "slot" ? <Alert title={copy.invalidSlot} variant="error" /> : null}
+          {flags.error === "rate_limit" ? <Alert title={copy.rateLimited} variant="error" /> : null}
           {flags.error === "inactive" ? <Alert title={copy.inactive} variant="error" /> : null}
         </div>
 

@@ -37,7 +37,8 @@ const EMBED_COPY = {
     takenText: "Válassz egy másik szabad idősávot.",
     noticeTitle: "Ez az időpont már nem foglalható.",
     noticeText: "Válassz egy későbbi szabad időpontot.",
-    invalidSlot: "Érvénytelen időpont."
+    invalidSlot: "Érvénytelen időpont.",
+    rateLimited: "Túl sok próbálkozás. Várj pár percet, majd próbáld újra."
   },
   de: {
     title: "Termin auswählen",
@@ -53,7 +54,8 @@ const EMBED_COPY = {
     takenText: "Bitte wähle einen anderen freien Zeitslot.",
     noticeTitle: "Dieser Termin ist nicht mehr buchbar.",
     noticeText: "Bitte wähle einen späteren freien Termin.",
-    invalidSlot: "Ungültiger Termin."
+    invalidSlot: "Ungültiger Termin.",
+    rateLimited: "Zu viele Versuche. Bitte warte kurz und versuche es erneut."
   }
 } as const;
 
@@ -150,6 +152,7 @@ export default async function MiniSessionEmbedPage({
               {flags.error === "taken" ? <Alert title={copy.takenTitle} variant="error">{copy.takenText}</Alert> : null}
               {flags.error === "notice" ? <Alert title={copy.noticeTitle} variant="error">{copy.noticeText}</Alert> : null}
               {flags.error === "slot" ? <Alert title={copy.invalidSlot} variant="error" /> : null}
+              {flags.error === "rate_limit" ? <Alert title={copy.rateLimited} variant="error" /> : null}
               {flags.error === "inactive" ? <Alert title={copy.inactive} variant="error" /> : null}
             </div>
 

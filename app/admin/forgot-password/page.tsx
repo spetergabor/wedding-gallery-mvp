@@ -35,6 +35,11 @@ export default async function AdminForgotPasswordPage({
               Kérj egy új jelszó-visszaállító linket.
             </Alert>
           ) : null}
+          {params.error === "rate_limit" ? (
+            <Alert title="Túl sok jelszó-visszaállítási kérés." variant="error">
+              Várj egy kicsit, majd próbáld újra.
+            </Alert>
+          ) : null}
         </div>
 
         <form action={requestAdminPasswordResetAction} className="space-y-4">
