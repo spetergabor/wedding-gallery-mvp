@@ -1,3 +1,5 @@
+import type { AdminLanguage } from "@/lib/admin-language";
+
 export const GALLERY_MODE_FULL = "full";
 export const GALLERY_MODE_PROOFING = "proofing";
 
@@ -38,6 +40,30 @@ export const PROOFING_STATUSES = [
   }
 ] as const;
 
+const PROOFING_STATUS_LABELS: Record<AdminLanguage, Record<string, string>> = {
+  hu: {
+    [PROOFING_STATUS_NOT_OPENED]: "Ügyfél még nem nyitotta meg",
+    [PROOFING_STATUS_IN_PROGRESS]: "Válogatás folyamatban",
+    [PROOFING_STATUS_SUBMITTED]: "Válogatás leadva",
+    [PROOFING_STATUS_PROCESSING]: "Feldolgozás alatt",
+    [PROOFING_STATUS_DELIVERED]: "Kész képek átadva"
+  },
+  de: {
+    [PROOFING_STATUS_NOT_OPENED]: "Kunde hat noch nicht geöffnet",
+    [PROOFING_STATUS_IN_PROGRESS]: "Auswahl läuft",
+    [PROOFING_STATUS_SUBMITTED]: "Auswahl abgegeben",
+    [PROOFING_STATUS_PROCESSING]: "In Bearbeitung",
+    [PROOFING_STATUS_DELIVERED]: "Fertige Bilder ausgeliefert"
+  },
+  en: {
+    [PROOFING_STATUS_NOT_OPENED]: "Client has not opened yet",
+    [PROOFING_STATUS_IN_PROGRESS]: "Selection in progress",
+    [PROOFING_STATUS_SUBMITTED]: "Selection submitted",
+    [PROOFING_STATUS_PROCESSING]: "Processing",
+    [PROOFING_STATUS_DELIVERED]: "Final photos delivered"
+  }
+};
+
 export type ProofingStatus = (typeof PROOFING_STATUSES)[number]["key"];
 
 export function isProofingGallery(mode: string | null | undefined) {
@@ -56,8 +82,9 @@ export function photoDeliveryStageLabel(stage: string | null | undefined) {
   return stage === PHOTO_DELIVERY_STAGE_RAW ? "Nyers" : "Kész";
 }
 
-export function proofingStatusLabel(status: string | null | undefined) {
-  return PROOFING_STATUSES.find((item) => item.key === status)?.label ?? PROOFING_STATUSES[0].label;
+export function proofingStatusLabel(status: string | null | undefined, language: AdminLanguage = "hu") {
+  const normalizedStatus = PROOFING_STATUSES.find((item) => item.key === status)?.key ?? PROOFING_STATUS_NOT_OPENED;
+  return PROOFING_STATUS_LABELS[language][normalizedStatus] ?? PROOFING_STATUS_LABELS[language][PROOFING_STATUS_NOT_OPENED];
 }
 
 export function proofingStatusDescription(status: string | null | undefined) {

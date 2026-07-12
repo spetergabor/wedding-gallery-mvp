@@ -39,10 +39,11 @@ import { InvoiceManager } from "@/components/invoice-manager";
 import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
 import { requireAdmin } from "@/lib/auth";
 import { customerAccessWhere } from "@/lib/admin-scope";
+import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel, isClosedCustomerTaskStatus } from "@/lib/customer-task-options";
-import { CUSTOMER_STATUSES, customerStatusDisplayLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
+import { CUSTOMER_STATUSES, customerStatusDisplayLabel, customerStatusLabel, customerTypeLabelForLanguage, normalizeCustomerStatus } from "@/lib/customer-options";
 import { customerPortalUrl } from "@/lib/email";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { getProjectWorkflowSummary } from "@/lib/project-workflow";
@@ -56,12 +57,12 @@ import {
   proofingStatusLabel
 } from "@/lib/proofing";
 
-function formatDate(date: Date | null) {
+function formatDate(date: Date | null, language: AdminLanguage) {
   if (!date) {
-    return "Nincs dátum megadva";
+    return CLIENT_DETAIL_COPY[language].common.noDate;
   }
 
-  return date.toLocaleDateString("hu-HU", {
+  return date.toLocaleDateString(dateLocaleForAdmin(language), {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -69,12 +70,12 @@ function formatDate(date: Date | null) {
   });
 }
 
-function formatDateTime(date: Date | null) {
+function formatDateTime(date: Date | null, language: AdminLanguage) {
   if (!date) {
     return null;
   }
 
-  return date.toLocaleString("hu-HU", {
+  return date.toLocaleString(dateLocaleForAdmin(language), {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: APP_TIME_ZONE
@@ -189,6 +190,487 @@ const customerTabs: Array<{
   { key: "details", label: "Adatok", icon: "Settings" }
 ];
 
+const CLIENT_DETAIL_COPY = {
+  hu: {
+    common: {
+      client: "Ügyfél",
+      noDate: "Nincs dátum megadva",
+      notProvided: "Nincs megadva",
+      noVenue: "nincs helyszín",
+      media: "média",
+      gallery: "galéria",
+      active: "Aktív",
+      archived: "Archivált",
+      manage: "Kezelés",
+      rawProofing: "Nyers válogatás",
+      fullGallery: "Teljes galéria"
+    },
+    header: {
+      mainStatus: "Fő státusz",
+      save: "Mentés"
+    },
+    tabs: {
+      overview: "Áttekintés",
+      tasks: "Feladatok",
+      projects: "Projektek",
+      meetings: "Meetingek",
+      galleries: "Galériák",
+      proofing: "Válogatás",
+      album: "Album",
+      contracts: "Szerződések",
+      invoices: "Számlák",
+      communication: "Kommunikáció",
+      portal: "Portál",
+      details: "Adatok"
+    },
+    tasks: {
+      eyebrow: "Teendők",
+      title: "Leadás előtti checklist",
+      description: "A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.",
+      clientEmail: "Ügyfél email",
+      missingEmail: "Hiányzik az elsődleges email cím",
+      gallery: "Galéria",
+      noGallery: "Még nincs galéria ehhez az ügyfélhez.",
+      selectionLink: "Válogató link",
+      sentToClient: "Kiküldve az ügyfélnek.",
+      notSentYet: "Még nincs kiküldve.",
+      clientSelection: "Ügyfél válogatás",
+      finalPhotos: "Kész képek",
+      hasFinalPhotos: "Van feltöltött kész anyag.",
+      noFinalPhotos: "Még nincs kész kép feltöltve.",
+      contract: "Szerződés",
+      signed: "Aláírva.",
+      sentWaiting: "Kiküldve, ügyfélre vár.",
+      uploadedNotSent: "Feltöltve, de még nincs kiküldve.",
+      noContract: "Még nincs szerződés rögzítve ehhez az ügyfélhez.",
+      invoice: "Számla",
+      openInvoice: "Nyitott számla",
+      invoiceUploadedNotSent: "Feltöltve, de még nincs kiküldve",
+      allInvoicesPaid: "Minden rögzített számla fizetett.",
+      noInvoice: "Még nincs számla feltöltve ehhez az ügyfélhez.",
+      currentFocus: "Aktuális fókusz",
+      status: {
+        action: "Lépés",
+        done: "Kész",
+        info: "Info",
+        waiting: "Vár"
+      }
+    },
+    projects: {
+      eyebrow: "Projekt naptár",
+      title: "Következő projektek",
+      description: "Ügyfélhez tartozó fotózások és munkák dátum szerint rendezve.",
+      manage: "Projektek kezelése",
+      emptyTitle: "Még nincs projekt létrehozva",
+      emptyDescription: "Hozz létre projektet, hogy az áttekintésben lásd a következő fotózást vagy album munkát.",
+      nextProject: "Következő projekt",
+      next: "Következő",
+      nextPrefix: "Most ez a következő:",
+      nextShortPrefix: "Következő:"
+    },
+    timeline: {
+      eyebrow: "Timeline",
+      title: "Legutóbbi események",
+      clientCreated: "Ügyfél létrehozva",
+      clientCreatedDetail: "Az ügyfél bekerült a rendszerbe.",
+      contractCreated: "Szerződés létrehozva",
+      contractSent: "Szerződés elküldve",
+      contractOpened: "Szerződés megnyitva",
+      contractSigned: "Szerződés aláírva",
+      invoiceUploaded: "Számla feltöltve",
+      invoiceSent: "Számla elküldve",
+      invoicePaid: "Számla fizetett",
+      galleryCreated: "Galéria létrehozva",
+      uploadCompleted: "Feltöltés befejezve",
+      uploadUpdated: "Feltöltés frissült",
+      uploadFailedSuffix: "hibás",
+      proofingStatusUpdated: "Válogatás státusz frissült",
+      proofingLinkSent: "Válogató link kiküldve",
+      selectionSubmitted: "Válogatás leadva",
+      selectedPhotos: "kiválasztott kép",
+      finalDeliverySent: "Kész képek átadva"
+    },
+    galleries: {
+      eyebrow: "Galériák",
+      title: "Ügyfélhez tartozó galériák",
+      description: "Innen induljon az új feltöltés. Így a galéria, a válogatás, az átadás és a szerződések egy ügyfél alatt maradnak.",
+      newGallery: "Új galéria",
+      emptyTitle: "Még nincs galéria ehhez az ügyfélhez",
+      emptyDescription: "Hozd létre az első galériát, majd ott tudod feltölteni a képeket."
+    },
+    proofing: {
+      eyebrow: "Válogatás",
+      title: "Nyers képes workflow",
+      description: "Itt látod az ügyfél válogató galériáit, leadott listáit és a kész képek átadási pontját.",
+      emptyTitle: "Nincs nyers válogatás ehhez az ügyfélhez",
+      emptyDescription: "Ha ilyen workflow kell, hozz létre nyers képes válogatás típusú galériát.",
+      submittedLists: "leadott lista",
+      hasFinalPhotos: "van kész kép feltöltve",
+      noFinalPhotos: "nincs kész kép feltöltve"
+    },
+    communication: {
+      eyebrow: "Kommunikáció",
+      title: "Kiküldött email események",
+      description: "Szerződés, válogató link és kész galéria email állapotok egy helyen.",
+      emptyTitle: "Még nincs kiküldött email esemény",
+      emptyDescription: "Itt fog megjelenni a szerződés, válogató és kész galéria kiküldése.",
+      contractEmail: "Szerződés email",
+      invoiceEmail: "Számla email",
+      proofingEmail: "Válogató link email",
+      finalGalleryEmail: "Kész galéria email"
+    },
+    details: {
+      quickData: "Gyors adatok",
+      type: "Típus",
+      primaryEmail: "Elsődleges email",
+      secondaryEmail: "Másodlagos email",
+      phone: "Telefon",
+      venue: "Helyszín",
+      dangerZone: "Veszélyzóna",
+      dangerDescription: "Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A galériák megmaradnak, de ügyfél nélküli régi galériaként folytatják. A művelet nem vonható vissza.",
+      deleteClient: "Ügyfél törlése",
+      deleteConfirm: (name: string) => `Biztosan törlöd ezt az ügyfelet: ${name}? Ez nem vonható vissza.`
+    },
+    projectWorkflow: {
+      states: {
+        action: "Te jössz",
+        done: "Rendben",
+        info: "Figyelni",
+        waiting: "Ügyfélre vár"
+      },
+      titles: {}
+    }
+  },
+  de: {
+    common: {
+      client: "Kunde",
+      noDate: "Kein Datum angegeben",
+      notProvided: "Nicht angegeben",
+      noVenue: "kein Ort",
+      media: "Medien",
+      gallery: "Galerie",
+      active: "Aktiv",
+      archived: "Archiviert",
+      manage: "Verwalten",
+      rawProofing: "Rohbild-Auswahl",
+      fullGallery: "Vollständige Galerie"
+    },
+    header: {
+      mainStatus: "Hauptstatus",
+      save: "Speichern"
+    },
+    tabs: {
+      overview: "Übersicht",
+      tasks: "Aufgaben",
+      projects: "Projekte",
+      meetings: "Meetings",
+      galleries: "Galerien",
+      proofing: "Auswahl",
+      album: "Album",
+      contracts: "Verträge",
+      invoices: "Rechnungen",
+      communication: "Kommunikation",
+      portal: "Portal",
+      details: "Daten"
+    },
+    tasks: {
+      eyebrow: "To-dos",
+      title: "Checkliste vor der Lieferung",
+      description: "Das System berechnet sie aus Galerie, Auswahl, fertigen Bildern und Vertrag.",
+      clientEmail: "Kunden-E-Mail",
+      missingEmail: "Primäre E-Mail-Adresse fehlt",
+      gallery: "Galerie",
+      noGallery: "Für diesen Kunden gibt es noch keine Galerie.",
+      selectionLink: "Auswahllink",
+      sentToClient: "An den Kunden gesendet.",
+      notSentYet: "Noch nicht gesendet.",
+      clientSelection: "Kundenauswahl",
+      finalPhotos: "Fertige Bilder",
+      hasFinalPhotos: "Fertiges Material ist hochgeladen.",
+      noFinalPhotos: "Noch keine fertigen Bilder hochgeladen.",
+      contract: "Vertrag",
+      signed: "Unterschrieben.",
+      sentWaiting: "Gesendet, wartet auf den Kunden.",
+      uploadedNotSent: "Hochgeladen, aber noch nicht gesendet.",
+      noContract: "Für diesen Kunden ist noch kein Vertrag gespeichert.",
+      invoice: "Rechnung",
+      openInvoice: "Offene Rechnung",
+      invoiceUploadedNotSent: "Hochgeladen, aber noch nicht gesendet",
+      allInvoicesPaid: "Alle gespeicherten Rechnungen sind bezahlt.",
+      noInvoice: "Für diesen Kunden ist noch keine Rechnung hochgeladen.",
+      currentFocus: "Aktueller Fokus",
+      status: {
+        action: "Schritt",
+        done: "Fertig",
+        info: "Info",
+        waiting: "Wartet"
+      }
+    },
+    projects: {
+      eyebrow: "Projektkalender",
+      title: "Nächste Projekte",
+      description: "Shootings und Arbeiten dieses Kunden nach Datum sortiert.",
+      manage: "Projekte verwalten",
+      emptyTitle: "Noch kein Projekt erstellt",
+      emptyDescription: "Erstelle ein Projekt, damit du das nächste Shooting oder die nächste Albumarbeit in der Übersicht siehst.",
+      nextProject: "Nächstes Projekt",
+      next: "Nächstes",
+      nextPrefix: "Als nächstes:",
+      nextShortPrefix: "Nächster Schritt:"
+    },
+    timeline: {
+      eyebrow: "Timeline",
+      title: "Letzte Ereignisse",
+      clientCreated: "Kunde erstellt",
+      clientCreatedDetail: "Der Kunde wurde im System angelegt.",
+      contractCreated: "Vertrag erstellt",
+      contractSent: "Vertrag gesendet",
+      contractOpened: "Vertrag geöffnet",
+      contractSigned: "Vertrag unterschrieben",
+      invoiceUploaded: "Rechnung hochgeladen",
+      invoiceSent: "Rechnung gesendet",
+      invoicePaid: "Rechnung bezahlt",
+      galleryCreated: "Galerie erstellt",
+      uploadCompleted: "Upload abgeschlossen",
+      uploadUpdated: "Upload aktualisiert",
+      uploadFailedSuffix: "fehlgeschlagen",
+      proofingStatusUpdated: "Auswahlstatus aktualisiert",
+      proofingLinkSent: "Auswahllink gesendet",
+      selectionSubmitted: "Auswahl abgegeben",
+      selectedPhotos: "ausgewählte Bilder",
+      finalDeliverySent: "Fertige Bilder geliefert"
+    },
+    galleries: {
+      eyebrow: "Galerien",
+      title: "Galerien dieses Kunden",
+      description: "Starte neue Uploads von hier. So bleiben Galerie, Auswahl, Lieferung und Verträge unter einem Kunden.",
+      newGallery: "Neue Galerie",
+      emptyTitle: "Für diesen Kunden gibt es noch keine Galerie",
+      emptyDescription: "Erstelle die erste Galerie, danach kannst du dort die Bilder hochladen."
+    },
+    proofing: {
+      eyebrow: "Auswahl",
+      title: "Rohbild-Workflow",
+      description: "Hier siehst du Auswahlgalerien, abgegebene Listen und die Lieferung der fertigen Bilder.",
+      emptyTitle: "Keine Rohbild-Auswahl für diesen Kunden",
+      emptyDescription: "Wenn du diesen Workflow brauchst, erstelle eine Galerie vom Typ Rohbild-Auswahl.",
+      submittedLists: "abgegebene Listen",
+      hasFinalPhotos: "fertige Bilder vorhanden",
+      noFinalPhotos: "keine fertigen Bilder vorhanden"
+    },
+    communication: {
+      eyebrow: "Kommunikation",
+      title: "Gesendete E-Mail-Ereignisse",
+      description: "Status von Vertrags-, Auswahllink- und finalen Galerie-E-Mails an einem Ort.",
+      emptyTitle: "Noch keine gesendeten E-Mail-Ereignisse",
+      emptyDescription: "Hier erscheinen gesendete Verträge, Auswahllinks und finale Galerie-E-Mails.",
+      contractEmail: "Vertrags-E-Mail",
+      invoiceEmail: "Rechnungs-E-Mail",
+      proofingEmail: "Auswahllink-E-Mail",
+      finalGalleryEmail: "Finale Galerie-E-Mail"
+    },
+    details: {
+      quickData: "Schnelldaten",
+      type: "Typ",
+      primaryEmail: "Primäre E-Mail",
+      secondaryEmail: "Sekundäre E-Mail",
+      phone: "Telefon",
+      venue: "Ort",
+      dangerZone: "Gefahrenzone",
+      dangerDescription: "Das Löschen des Kunden entfernt das Profil und die zugehörigen Vertragsdatensätze. Galerien bleiben erhalten, laufen aber als alte Galerien ohne Kunden weiter. Diese Aktion kann nicht rückgängig gemacht werden.",
+      deleteClient: "Kunde löschen",
+      deleteConfirm: (name: string) => `Diesen Kunden wirklich löschen: ${name}? Das kann nicht rückgängig gemacht werden.`
+    },
+    projectWorkflow: {
+      states: {
+        action: "Du bist dran",
+        done: "In Ordnung",
+        info: "Beobachten",
+        waiting: "Wartet auf Kunde"
+      },
+      titles: {
+        "Fotózás előkészítése": "Shooting vorbereiten",
+        "Galéria vagy válogatás indítása": "Galerie oder Auswahl starten",
+        "Válogató link kiküldése": "Auswahllink senden",
+        "Ügyfél válogatásra vár": "Wartet auf Kundenauswahl",
+        "Képek kidolgozása": "Bilder bearbeiten",
+        "Kidolgozás alatt": "In Bearbeitung",
+        "Kész képek átadva": "Fertige Bilder geliefert",
+        "Képek feltöltése": "Bilder hochladen",
+        "Nyitott számla követése": "Offene Rechnung verfolgen",
+        "Galéria használatban": "Galerie in Nutzung",
+        "Projekt lezárva": "Projekt abgeschlossen",
+        "Projekt archiválva": "Projekt archiviert"
+      }
+    }
+  },
+  en: {
+    common: {
+      client: "Client",
+      noDate: "No date set",
+      notProvided: "Not provided",
+      noVenue: "no venue",
+      media: "media",
+      gallery: "gallery",
+      active: "Active",
+      archived: "Archived",
+      manage: "Manage",
+      rawProofing: "Raw selection",
+      fullGallery: "Full gallery"
+    },
+    header: {
+      mainStatus: "Main status",
+      save: "Save"
+    },
+    tabs: {
+      overview: "Overview",
+      tasks: "Tasks",
+      projects: "Projects",
+      meetings: "Meetings",
+      galleries: "Galleries",
+      proofing: "Selection",
+      album: "Album",
+      contracts: "Contracts",
+      invoices: "Invoices",
+      communication: "Communication",
+      portal: "Client portal",
+      details: "Details"
+    },
+    tasks: {
+      eyebrow: "To-dos",
+      title: "Pre-delivery checklist",
+      description: "Calculated from the gallery, selection, final photos and contract status.",
+      clientEmail: "Client email",
+      missingEmail: "Primary email address is missing",
+      gallery: "Gallery",
+      noGallery: "There is no gallery for this client yet.",
+      selectionLink: "Selection link",
+      sentToClient: "Sent to the client.",
+      notSentYet: "Not sent yet.",
+      clientSelection: "Client selection",
+      finalPhotos: "Final photos",
+      hasFinalPhotos: "Final material has been uploaded.",
+      noFinalPhotos: "No final photos uploaded yet.",
+      contract: "Contract",
+      signed: "Signed.",
+      sentWaiting: "Sent, waiting for the client.",
+      uploadedNotSent: "Uploaded, but not sent yet.",
+      noContract: "No contract is recorded for this client yet.",
+      invoice: "Invoice",
+      openInvoice: "Open invoice",
+      invoiceUploadedNotSent: "Uploaded, but not sent yet",
+      allInvoicesPaid: "All recorded invoices are paid.",
+      noInvoice: "No invoice has been uploaded for this client yet.",
+      currentFocus: "Current focus",
+      status: {
+        action: "Step",
+        done: "Done",
+        info: "Info",
+        waiting: "Waiting"
+      }
+    },
+    projects: {
+      eyebrow: "Project calendar",
+      title: "Upcoming projects",
+      description: "Client shoots and work items sorted by date.",
+      manage: "Manage projects",
+      emptyTitle: "No project created yet",
+      emptyDescription: "Create a project to see the next shoot or album job in the overview.",
+      nextProject: "Next project",
+      next: "Next",
+      nextPrefix: "Next up:",
+      nextShortPrefix: "Next:"
+    },
+    timeline: {
+      eyebrow: "Timeline",
+      title: "Recent events",
+      clientCreated: "Client created",
+      clientCreatedDetail: "The client was added to the system.",
+      contractCreated: "Contract created",
+      contractSent: "Contract sent",
+      contractOpened: "Contract opened",
+      contractSigned: "Contract signed",
+      invoiceUploaded: "Invoice uploaded",
+      invoiceSent: "Invoice sent",
+      invoicePaid: "Invoice paid",
+      galleryCreated: "Gallery created",
+      uploadCompleted: "Upload completed",
+      uploadUpdated: "Upload updated",
+      uploadFailedSuffix: "failed",
+      proofingStatusUpdated: "Selection status updated",
+      proofingLinkSent: "Selection link sent",
+      selectionSubmitted: "Selection submitted",
+      selectedPhotos: "selected photos",
+      finalDeliverySent: "Final photos delivered"
+    },
+    galleries: {
+      eyebrow: "Galleries",
+      title: "Client galleries",
+      description: "Start new uploads from here so galleries, selections, delivery and contracts stay under one client.",
+      newGallery: "New gallery",
+      emptyTitle: "There is no gallery for this client yet",
+      emptyDescription: "Create the first gallery, then upload the photos there."
+    },
+    proofing: {
+      eyebrow: "Selection",
+      title: "Raw photo workflow",
+      description: "See the client's selection galleries, submitted lists and final photo delivery point.",
+      emptyTitle: "No raw selection for this client",
+      emptyDescription: "If you need this workflow, create a raw photo selection gallery.",
+      submittedLists: "submitted lists",
+      hasFinalPhotos: "final photos uploaded",
+      noFinalPhotos: "no final photos uploaded"
+    },
+    communication: {
+      eyebrow: "Communication",
+      title: "Sent email events",
+      description: "Contract, selection link and final gallery email states in one place.",
+      emptyTitle: "No sent email events yet",
+      emptyDescription: "Contract, selection and final gallery sends will appear here.",
+      contractEmail: "Contract email",
+      invoiceEmail: "Invoice email",
+      proofingEmail: "Selection link email",
+      finalGalleryEmail: "Final gallery email"
+    },
+    details: {
+      quickData: "Quick data",
+      type: "Type",
+      primaryEmail: "Primary email",
+      secondaryEmail: "Secondary email",
+      phone: "Phone",
+      venue: "Venue",
+      dangerZone: "Danger zone",
+      dangerDescription: "Deleting the client removes the profile and linked contract records. Galleries remain, but continue as old galleries without a client. This action cannot be undone.",
+      deleteClient: "Delete client",
+      deleteConfirm: (name: string) => `Delete this client: ${name}? This cannot be undone.`
+    },
+    projectWorkflow: {
+      states: {
+        action: "Your turn",
+        done: "Done",
+        info: "Watch",
+        waiting: "Waiting for client"
+      },
+      titles: {
+        "Fotózás előkészítése": "Prepare shoot",
+        "Galéria vagy válogatás indítása": "Start gallery or selection",
+        "Válogató link kiküldése": "Send selection link",
+        "Ügyfél válogatásra vár": "Waiting for client selection",
+        "Képek kidolgozása": "Edit photos",
+        "Kidolgozás alatt": "Editing in progress",
+        "Kész képek átadva": "Final photos delivered",
+        "Képek feltöltése": "Upload photos",
+        "Nyitott számla követése": "Follow up open invoice",
+        "Galéria használatban": "Gallery in use",
+        "Projekt lezárva": "Project closed",
+        "Projekt archiválva": "Project archived"
+      }
+    }
+  }
+} as const;
+
+type ClientDetailCopy = (typeof CLIENT_DETAIL_COPY)[AdminLanguage];
+
 type CustomerWorkflowInput = {
   id: string;
   createdAt: Date;
@@ -244,7 +726,12 @@ type CustomerWorkflowInput = {
   }>;
 };
 
-function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: ReturnType<typeof getCustomerWorkflowSummary>) {
+function createCustomerTasks(
+  customer: CustomerWorkflowInput,
+  nextAction: ReturnType<typeof getCustomerWorkflowSummary>,
+  copy: ClientDetailCopy,
+  language: AdminLanguage
+) {
   const latestGallery = customer.galleries[0] ?? null;
   const activeProofingGallery = customer.galleries.find(
     (gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING && ["not_opened", "in_progress", "submitted", "processing"].includes(gallery.proofingStatus)
@@ -253,8 +740,8 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
   const openInvoice = customer.invoices.find((invoice) => invoice.status !== "paid") ?? null;
   const tasks: CustomerTask[] = [
     {
-      title: "Ügyfél email",
-      detail: customer.primaryEmail ? customer.primaryEmail : "Hiányzik az elsődleges email cím",
+      title: copy.tasks.clientEmail,
+      detail: customer.primaryEmail ? customer.primaryEmail : copy.tasks.missingEmail,
       state: customer.primaryEmail ? "done" : "action",
       href: customer.primaryEmail ? undefined : `/admin/clients/${customer.id}?edit=1`
     }
@@ -262,15 +749,15 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
 
   if (!latestGallery) {
     tasks.push({
-      title: "Galéria",
-      detail: "Még nincs galéria ehhez az ügyfélhez.",
+      title: copy.tasks.gallery,
+      detail: copy.tasks.noGallery,
       state: "action",
       href: `/admin/galleries/new?customerId=${customer.id}`
     });
   } else {
     tasks.push({
-      title: "Galéria",
-      detail: `${latestGallery.title} · ${latestGallery._count.photos} média`,
+      title: copy.tasks.gallery,
+      detail: `${latestGallery.title} · ${latestGallery._count.photos} ${copy.common.media}`,
       state: latestGallery._count.photos > 0 ? "done" : "action",
       href: `/admin/galleries/${latestGallery.id}?tab=photos`
     });
@@ -280,14 +767,14 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
     const hasFinalPhotos = activeProofingGallery.photos.length > 0;
 
     tasks.push({
-      title: "Válogató link",
-      detail: activeProofingGallery.proofingInviteSentAt ? "Kiküldve az ügyfélnek." : "Még nincs kiküldve.",
+      title: copy.tasks.selectionLink,
+      detail: activeProofingGallery.proofingInviteSentAt ? copy.tasks.sentToClient : copy.tasks.notSentYet,
       state: activeProofingGallery.proofingInviteSentAt ? "done" : "action",
       href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
     });
     tasks.push({
-      title: "Ügyfél válogatás",
-      detail: proofingStatusLabel(activeProofingGallery.proofingStatus),
+      title: copy.tasks.clientSelection,
+      detail: proofingStatusLabel(activeProofingGallery.proofingStatus, language),
       state:
         activeProofingGallery.proofingStatus === PROOFING_STATUS_SUBMITTED ||
         activeProofingGallery.proofingStatus === PROOFING_STATUS_PROCESSING
@@ -296,8 +783,8 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
       href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
     });
     tasks.push({
-      title: "Kész képek",
-      detail: hasFinalPhotos ? "Van feltöltött kész anyag." : "Még nincs kész kép feltöltve.",
+      title: copy.tasks.finalPhotos,
+      detail: hasFinalPhotos ? copy.tasks.hasFinalPhotos : copy.tasks.noFinalPhotos,
       state: hasFinalPhotos ? "done" : activeProofingGallery.proofingStatus === PROOFING_STATUS_SUBMITTED ? "action" : "info",
       href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
     });
@@ -305,49 +792,49 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
 
   if (contract) {
     tasks.push({
-      title: "Szerződés",
+      title: copy.tasks.contract,
       detail: contract.signedAt
-        ? "Aláírva."
+        ? copy.tasks.signed
         : contract.sentAt
-          ? "Kiküldve, ügyfélre vár."
-          : "Feltöltve, de még nincs kiküldve.",
+          ? copy.tasks.sentWaiting
+          : copy.tasks.uploadedNotSent,
       state: contract.signedAt ? "done" : contract.sentAt ? "waiting" : "action"
     });
   } else {
     tasks.push({
-      title: "Szerződés",
-      detail: "Még nincs szerződés rögzítve ehhez az ügyfélhez.",
+      title: copy.tasks.contract,
+      detail: copy.tasks.noContract,
       state: "info"
     });
   }
 
   if (openInvoice) {
     tasks.push({
-      title: "Számla",
+      title: copy.tasks.invoice,
       detail: openInvoice.sentAt
-        ? `Nyitott számla: ${openInvoice.title}`
-        : `Feltöltve, de még nincs kiküldve: ${openInvoice.title}`,
+        ? `${copy.tasks.openInvoice}: ${openInvoice.title}`
+        : `${copy.tasks.invoiceUploadedNotSent}: ${openInvoice.title}`,
       state: openInvoice.sentAt ? "waiting" : "action",
       href: `/admin/clients/${customer.id}?tab=invoices`
     });
   } else if (customer.invoices.length > 0) {
     tasks.push({
-      title: "Számla",
-      detail: "Minden rögzített számla fizetett.",
+      title: copy.tasks.invoice,
+      detail: copy.tasks.allInvoicesPaid,
       state: "done",
       href: `/admin/clients/${customer.id}?tab=invoices`
     });
   } else {
     tasks.push({
-      title: "Számla",
-      detail: "Még nincs számla feltöltve ehhez az ügyfélhez.",
+      title: copy.tasks.invoice,
+      detail: copy.tasks.noInvoice,
       state: "info",
       href: `/admin/clients/${customer.id}?tab=invoices`
     });
   }
 
   tasks.push({
-    title: "Aktuális fókusz",
+    title: copy.tasks.currentFocus,
     detail: nextAction.title,
     state: nextAction.lane === "complete" ? "done" : nextAction.lane === "waiting_client" ? "waiting" : "action",
     href: nextAction.href
@@ -356,12 +843,12 @@ function createCustomerTasks(customer: CustomerWorkflowInput, nextAction: Return
   return tasks;
 }
 
-function createCustomerTimeline(customer: CustomerWorkflowInput) {
+function createCustomerTimeline(customer: CustomerWorkflowInput, copy: ClientDetailCopy, language: AdminLanguage) {
   const events: TimelineEvent[] = [
     {
       date: customer.createdAt,
-      title: "Ügyfél létrehozva",
-      detail: "Az ügyfél bekerült a rendszerbe.",
+      title: copy.timeline.clientCreated,
+      detail: copy.timeline.clientCreatedDetail,
       href: `/admin/clients/${customer.id}`
     }
   ];
@@ -369,14 +856,14 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
   customer.contracts.forEach((contract) => {
     events.push({
       date: contract.createdAt,
-      title: "Szerződés létrehozva",
+      title: copy.timeline.contractCreated,
       detail: contract.title
     });
 
     if (contract.sentAt) {
       events.push({
         date: contract.sentAt,
-        title: "Szerződés elküldve",
+        title: copy.timeline.contractSent,
         detail: contract.title
       });
     }
@@ -384,7 +871,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     if (contract.openedAt) {
       events.push({
         date: contract.openedAt,
-        title: "Szerződés megnyitva",
+        title: copy.timeline.contractOpened,
         detail: contract.title
       });
     }
@@ -392,7 +879,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     if (contract.signedAt) {
       events.push({
         date: contract.signedAt,
-        title: "Szerződés aláírva",
+        title: copy.timeline.contractSigned,
         detail: contract.title
       });
     }
@@ -401,7 +888,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
   customer.invoices.forEach((invoice) => {
     events.push({
       date: invoice.createdAt,
-      title: "Számla feltöltve",
+      title: copy.timeline.invoiceUploaded,
       detail: invoice.title,
       href: `/admin/clients/${customer.id}?tab=invoices`
     });
@@ -409,7 +896,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     if (invoice.sentAt) {
       events.push({
         date: invoice.sentAt,
-        title: "Számla elküldve",
+        title: copy.timeline.invoiceSent,
         detail: invoice.title,
         href: `/admin/clients/${customer.id}?tab=invoices`
       });
@@ -418,7 +905,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     if (invoice.paidAt) {
       events.push({
         date: invoice.paidAt,
-        title: "Számla fizetett",
+        title: copy.timeline.invoicePaid,
         detail: invoice.title,
         href: `/admin/clients/${customer.id}?tab=invoices`
       });
@@ -428,7 +915,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
   customer.galleries.forEach((gallery) => {
     events.push({
       date: gallery.createdAt,
-      title: "Galéria létrehozva",
+      title: copy.timeline.galleryCreated,
       detail: gallery.title,
       href: `/admin/galleries/${gallery.id}`
     });
@@ -436,8 +923,8 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     gallery.uploadSessions.forEach((session) => {
       events.push({
         date: session.updatedAt,
-        title: session.status === "completed" ? "Feltöltés befejezve" : "Feltöltés frissült",
-        detail: `${gallery.title} · ${session.completedCount}/${session.totalCount} kép · ${session.failedCount} hibás`,
+        title: session.status === "completed" ? copy.timeline.uploadCompleted : copy.timeline.uploadUpdated,
+        detail: `${gallery.title} · ${session.completedCount}/${session.totalCount} ${copy.common.media} · ${session.failedCount} ${copy.timeline.uploadFailedSuffix}`,
         href: `/admin/galleries/${gallery.id}?tab=photos`
       });
     });
@@ -445,8 +932,8 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     if (gallery.proofingStatusUpdatedAt) {
       events.push({
         date: gallery.proofingStatusUpdatedAt,
-        title: "Válogatás státusz frissült",
-        detail: `${gallery.title} · ${proofingStatusLabel(gallery.proofingStatus)}`,
+        title: copy.timeline.proofingStatusUpdated,
+        detail: `${gallery.title} · ${proofingStatusLabel(gallery.proofingStatus, language)}`,
         href: `/admin/galleries/${gallery.id}?tab=client`
       });
     }
@@ -454,7 +941,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     if (gallery.proofingInviteSentAt) {
       events.push({
         date: gallery.proofingInviteSentAt,
-        title: "Válogató link kiküldve",
+        title: copy.timeline.proofingLinkSent,
         detail: gallery.title,
         href: `/admin/galleries/${gallery.id}?tab=client`
       });
@@ -467,8 +954,8 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
 
       events.push({
         date: list.submittedAt,
-        title: "Válogatás leadva",
-        detail: `${list.email} · ${list._count.items} kiválasztott kép`,
+        title: copy.timeline.selectionSubmitted,
+        detail: `${list.email} · ${list._count.items} ${copy.timeline.selectedPhotos}`,
         href: `/admin/galleries/${gallery.id}?tab=client`
       });
     });
@@ -476,7 +963,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
     if (gallery.finalDeliveryEmailSentAt) {
       events.push({
         date: gallery.finalDeliveryEmailSentAt,
-        title: "Kész képek átadva",
+        title: copy.timeline.finalDeliverySent,
         detail: gallery.title,
         href: `/admin/galleries/${gallery.id}?tab=client`
       });
@@ -486,14 +973,14 @@ function createCustomerTimeline(customer: CustomerWorkflowInput) {
   return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 12);
 }
 
-function createCommunicationEvents(customer: CustomerWorkflowInput) {
+function createCommunicationEvents(customer: CustomerWorkflowInput, copy: ClientDetailCopy) {
   const events: TimelineEvent[] = [];
 
   customer.contracts.forEach((contract) => {
     if (contract.sentAt) {
       events.push({
         date: contract.sentAt,
-        title: "Szerződés email",
+        title: copy.communication.contractEmail,
         detail: contract.title
       });
     }
@@ -503,7 +990,7 @@ function createCommunicationEvents(customer: CustomerWorkflowInput) {
     if (invoice.sentAt) {
       events.push({
         date: invoice.sentAt,
-        title: "Számla email",
+        title: copy.communication.invoiceEmail,
         detail: invoice.title,
         href: `/admin/clients/${customer.id}?tab=invoices`
       });
@@ -514,7 +1001,7 @@ function createCommunicationEvents(customer: CustomerWorkflowInput) {
     if (gallery.proofingInviteSentAt) {
       events.push({
         date: gallery.proofingInviteSentAt,
-        title: "Válogató link email",
+        title: copy.communication.proofingEmail,
         detail: gallery.title,
         href: `/admin/galleries/${gallery.id}?tab=client`
       });
@@ -523,7 +1010,7 @@ function createCommunicationEvents(customer: CustomerWorkflowInput) {
     if (gallery.finalDeliveryEmailSentAt) {
       events.push({
         date: gallery.finalDeliveryEmailSentAt,
-        title: "Kész galéria email",
+        title: copy.communication.finalGalleryEmail,
         detail: gallery.title,
         href: `/admin/galleries/${gallery.id}?tab=client`
       });
@@ -572,12 +1059,12 @@ function getNextProject(projects: CustomerProjectOverview[], today: Date) {
     .sort((a, b) => (a.eventDate?.getTime() ?? 0) - (b.eventDate?.getTime() ?? 0))[0] ?? null;
 }
 
-function taskStyles(state: CustomerTask["state"]) {
+function taskStyles(state: CustomerTask["state"], copy: ClientDetailCopy) {
   if (state === "done") {
     return {
       icon: CheckCircle2,
       className: "border-sage/20 bg-sage/10 text-sage",
-      label: "Kész"
+      label: copy.tasks.status.done
     };
   }
 
@@ -585,7 +1072,7 @@ function taskStyles(state: CustomerTask["state"]) {
     return {
       icon: Clock3,
       className: "border-brass/25 bg-brass/10 text-brass",
-      label: "Vár"
+      label: copy.tasks.status.waiting
     };
   }
 
@@ -593,14 +1080,27 @@ function taskStyles(state: CustomerTask["state"]) {
     return {
       icon: ArrowRight,
       className: "border-ink/15 bg-ink text-white",
-      label: "Lépés"
+      label: copy.tasks.status.action
     };
   }
 
   return {
     icon: Circle,
     className: "border-ink/10 bg-paper text-graphite",
-    label: "Info"
+    label: copy.tasks.status.info
+  };
+}
+
+function localizeProjectWorkflowSummary(
+  summary: ReturnType<typeof getProjectWorkflowSummary>,
+  copy: ClientDetailCopy
+): ReturnType<typeof getProjectWorkflowSummary> {
+  const titleMap = copy.projectWorkflow.titles as Record<string, string>;
+
+  return {
+    ...summary,
+    title: titleMap[summary.title] ?? summary.title,
+    stateLabel: copy.projectWorkflow.states[summary.state]
   };
 }
 
@@ -722,8 +1222,8 @@ export default async function AdminClientDetailPage({
     albumDesignError?: string;
   }>;
 }) {
-  const admin = await requireAdmin();
-  const [{ id }, flags] = await Promise.all([params, searchParams]);
+  const [admin, language, { id }, flags] = await Promise.all([requireAdmin(), getAdminLanguage(), params, searchParams]);
+  const copy = CLIENT_DETAIL_COPY[language];
   const activeTab = getActiveTab(flags);
   const albumMode = getAlbumMode(flags);
   const customer = await prisma.customer.findFirst({
@@ -1064,11 +1564,11 @@ export default async function AdminClientDetailPage({
     albumDesigns: unassignedAlbumDesignCount
   };
   const isEditing = flags.edit === "1";
-  const typeLabel = customerTypeLabel(customer.customerType);
-  const nextAction = getCustomerWorkflowSummary(customer);
-  const customerTasks = createCustomerTasks(customer, nextAction);
-  const timelineEvents = createCustomerTimeline(customer);
-  const communicationEvents = createCommunicationEvents(customer);
+  const typeLabel = customerTypeLabelForLanguage(customer.customerType, language);
+  const nextAction = getCustomerWorkflowSummary(customer, language);
+  const customerTasks = createCustomerTasks(customer, nextAction, copy, language);
+  const timelineEvents = createCustomerTimeline(customer, copy, language);
+  const communicationEvents = createCommunicationEvents(customer, copy);
   const proofingGalleries = customer.galleries.filter((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING);
   const today = startOfToday();
   const projectsByDate = sortProjectsForOverview(customer.projects, today);
@@ -1082,16 +1582,18 @@ export default async function AdminClientDetailPage({
   const statusLabel = customerStatusDisplayLabel(customer.status, {
     hasKnownWorkDate: Boolean(customer.weddingDate || customer.projects.some((project) => project.eventDate)),
     referenceDate: today,
-    workDate: nextProject?.eventDate ?? customer.weddingDate
+    workDate: nextProject?.eventDate ?? customer.weddingDate,
+    language
   });
+  const localizedCustomerTabs = customerTabs.map((tab) => ({ ...tab, label: copy.tabs[tab.key] }));
   const projectWorkflowSummaries = new Map(
     projectsByDate.map((project) => [
       project.id,
-      getProjectWorkflowSummary(customer.id, project, {
+      localizeProjectWorkflowSummary(getProjectWorkflowSummary(customer.id, project, {
         today,
         unassignedAlbumReviews: unassignedProjectCounts.albumReviews,
         unassignedAlbumDesigns: unassignedProjectCounts.albumDesigns
-      })
+      }), copy)
     ])
   );
   const nextProjectWorkflow = nextProject ? projectWorkflowSummaries.get(nextProject.id) : null;
@@ -1101,12 +1603,12 @@ export default async function AdminClientDetailPage({
   return (
     <AdminShell>
       <div className="mb-8">
-        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Ügyfél</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">{copy.common.client}</p>
         <div className="mt-2 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <h1 className="text-3xl font-semibold text-ink">{customer.coupleName}</h1>
             <p className="mt-3 text-sm text-graphite/70">
-              {typeLabel} · {statusLabel} · {formatDate(nextProject?.eventDate ?? customer.weddingDate)}
+              {typeLabel} · {statusLabel} · {formatDate(nextProject?.eventDate ?? customer.weddingDate, language)}
             </p>
             {customer.tags.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1121,7 +1623,7 @@ export default async function AdminClientDetailPage({
           <form action={updateCustomerStatusAction.bind(null, customer.id)} className="rounded-md border border-ink/10 bg-white p-3">
             <label className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
               <span className="space-y-1">
-                <span className="block text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Fő státusz</span>
+                <span className="block text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">{copy.header.mainStatus}</span>
               <select
                   name="status"
                   defaultValue={normalizeCustomerStatus(customer.status)}
@@ -1129,13 +1631,13 @@ export default async function AdminClientDetailPage({
                 >
                   {CUSTOMER_STATUSES.map((status) => (
                     <option key={status.value} value={status.value}>
-                      {status.label}
+                      {customerStatusLabel(status.value, language)}
                     </option>
                   ))}
                 </select>
               </span>
               <FormSubmitButton className="h-10 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
-                Mentés
+                {copy.header.save}
               </FormSubmitButton>
             </label>
           </form>
@@ -1273,7 +1775,7 @@ export default async function AdminClientDetailPage({
         iconKey={nextAction.iconKey}
       />
 
-      <CustomerTabController tabs={customerTabs} initialTab={activeTab} />
+      <CustomerTabController tabs={localizedCustomerTabs} initialTab={activeTab} language={language} />
 
       <div data-customer-tab-panel="overview" hidden={activeTab !== "overview"}>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -1283,11 +1785,11 @@ export default async function AdminClientDetailPage({
                 <div>
                   <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                     <CheckCircle2 size={15} />
-                    Teendők
+                    {copy.tasks.eyebrow}
                   </div>
-                  <h2 className="mt-2 text-base font-semibold text-ink">Leadás előtti checklist</h2>
+                  <h2 className="mt-2 text-base font-semibold text-ink">{copy.tasks.title}</h2>
                   <p className="mt-1 text-sm leading-6 text-graphite/70">
-                    A rendszer a galéria, válogatás, kész képek és szerződés állapotából számolja.
+                    {copy.tasks.description}
                   </p>
                 </div>
                 <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
@@ -1296,7 +1798,7 @@ export default async function AdminClientDetailPage({
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {customerTasks.map((task) => {
-                  const styles = taskStyles(task.state);
+                  const styles = taskStyles(task.state, copy);
                   const TaskIcon = styles.icon;
                   const content = (
                     <>
@@ -1333,11 +1835,11 @@ export default async function AdminClientDetailPage({
                 <div>
                   <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                     <FolderKanban size={15} />
-                    Projekt naptár
+                    {copy.projects.eyebrow}
                   </div>
-                  <h2 className="mt-2 text-base font-semibold text-ink">Következő projektek</h2>
+                  <h2 className="mt-2 text-base font-semibold text-ink">{copy.projects.title}</h2>
                   <p className="mt-1 text-sm leading-6 text-graphite/70">
-                    Ügyfélhez tartozó fotózások és munkák dátum szerint rendezve.
+                    {copy.projects.description}
                   </p>
                 </div>
                 <Link
@@ -1345,14 +1847,14 @@ export default async function AdminClientDetailPage({
                   data-customer-tab-target="projects"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
                 >
-                  Projektek kezelése
+                  {copy.projects.manage}
                 </Link>
               </div>
 
               {projectsByDate.length === 0 ? (
                 <div className="mt-4 rounded-md bg-paper px-4 py-4">
-                  <p className="text-sm font-medium text-ink">Még nincs projekt létrehozva</p>
-                  <p className="mt-1 text-sm text-graphite/70">Hozz létre projektet, hogy az áttekintésben lásd a következő fotózást vagy album munkát.</p>
+                  <p className="text-sm font-medium text-ink">{copy.projects.emptyTitle}</p>
+                  <p className="mt-1 text-sm text-graphite/70">{copy.projects.emptyDescription}</p>
                 </div>
               ) : (
                 <div className="mt-4 space-y-3">
@@ -1364,21 +1866,21 @@ export default async function AdminClientDetailPage({
                     >
                       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/65">Következő projekt</p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/65">{copy.projects.nextProject}</p>
                           <h3 className="mt-2 text-base font-semibold text-ink">{nextProject.title}</h3>
                           <p className="mt-1 text-sm text-graphite/75">
-                            {customerProjectTypeLabel(nextProject.projectType)} · {formatDate(nextProject.eventDate)}
+                            {customerProjectTypeLabel(nextProject.projectType, language)} · {formatDate(nextProject.eventDate, language)}
                             {formatProjectTimeRange(nextProject) ? ` · ${formatProjectTimeRange(nextProject)}` : ""}
                             {nextProject.venue ? ` · ${nextProject.venue}` : ""}
                           </p>
                           {nextProjectWorkflow ? (
                             <p className="mt-2 text-sm font-medium text-ink">
-                              Most ez a következő: {nextProjectWorkflow.title}
+                              {copy.projects.nextPrefix} {nextProjectWorkflow.title}
                             </p>
                           ) : null}
                         </div>
                         <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-brass">
-                          {nextProjectWorkflow?.stateLabel ?? customerProjectStatusLabel(nextProject.status)}
+                          {nextProjectWorkflow?.stateLabel ?? customerProjectStatusLabel(nextProject.status, language)}
                         </span>
                       </div>
                     </Link>
@@ -1400,7 +1902,7 @@ export default async function AdminClientDetailPage({
                               <p className="font-medium text-ink">{project.title}</p>
                               {project.id === nextProject?.id ? (
                                 <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
-                                  Következő
+                                  {copy.projects.next}
                                 </span>
                               ) : null}
                               {workflow ? (
@@ -1410,17 +1912,17 @@ export default async function AdminClientDetailPage({
                               ) : null}
                             </div>
                             <p className="mt-1 text-sm text-graphite/70">
-                              {customerProjectTypeLabel(project.projectType)} · {project.venue || "nincs helyszín"}
+                              {customerProjectTypeLabel(project.projectType, language)} · {project.venue || copy.common.noVenue}
                             </p>
                             {workflow ? (
                               <p className="mt-1 text-sm text-graphite/75">
-                                Következő: {workflow.title}
+                                {copy.projects.nextShortPrefix} {workflow.title}
                               </p>
                             ) : null}
                           </div>
                           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                             <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                              {formatDate(project.eventDate)}
+                              {formatDate(project.eventDate, language)}
                             </span>
                             {formatProjectTimeRange(project) ? (
                               <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
@@ -1428,7 +1930,7 @@ export default async function AdminClientDetailPage({
                               </span>
                             ) : null}
                             <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                              {project._count.galleries} galéria
+                              {project._count.galleries} {copy.common.gallery}
                             </span>
                           </div>
                         </Link>
@@ -1444,9 +1946,9 @@ export default async function AdminClientDetailPage({
             <div className="border-b border-ink/10 pb-4">
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                 <CalendarClock size={15} />
-                Timeline
+                {copy.timeline.eyebrow}
               </div>
-              <h2 className="mt-2 text-base font-semibold text-ink">Legutóbbi események</h2>
+              <h2 className="mt-2 text-base font-semibold text-ink">{copy.timeline.title}</h2>
             </div>
             <div className="mt-4 space-y-4">
               {timelineEvents.map((event) => {
@@ -1458,7 +1960,7 @@ export default async function AdminClientDetailPage({
                     <div className="min-w-0">
                       <p className="font-medium text-ink">{event.title}</p>
                       <p className="mt-1 text-sm leading-5 text-graphite/70">{event.detail}</p>
-                      <p className="mt-1 text-xs text-graphite/55">{formatDateTime(event.date)}</p>
+                      <p className="mt-1 text-xs text-graphite/55">{formatDateTime(event.date, language)}</p>
                     </div>
                   </>
                 );
@@ -1507,23 +2009,23 @@ export default async function AdminClientDetailPage({
             <div>
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
                 <Camera size={15} />
-                Galériák
+                {copy.galleries.eyebrow}
               </div>
-              <h2 className="mt-2 text-base font-semibold text-ink">Ügyfélhez tartozó galériák</h2>
+              <h2 className="mt-2 text-base font-semibold text-ink">{copy.galleries.title}</h2>
               <p className="mt-1 text-sm leading-6 text-graphite/70">
-                Innen induljon az új feltöltés. Így a galéria, a válogatás, az átadás és a szerződések egy ügyfél alatt maradnak.
+                {copy.galleries.description}
               </p>
             </div>
             <ButtonLink href={`/admin/galleries/new?customerId=${customer.id}`}>
               <Plus size={16} />
-              Új galéria
+              {copy.galleries.newGallery}
             </ButtonLink>
           </div>
 
           {customer.galleries.length === 0 ? (
             <div className="mt-5 rounded-md bg-paper px-4 py-4">
-              <p className="text-sm font-medium text-ink">Még nincs galéria ehhez az ügyfélhez</p>
-              <p className="mt-1 text-sm text-graphite/70">Hozd létre az első galériát, majd ott tudod feltölteni a képeket.</p>
+              <p className="text-sm font-medium text-ink">{copy.galleries.emptyTitle}</p>
+              <p className="mt-1 text-sm text-graphite/70">{copy.galleries.emptyDescription}</p>
             </div>
           ) : (
             <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
@@ -1533,10 +2035,10 @@ export default async function AdminClientDetailPage({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold text-ink">{gallery.title}</p>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
-                        {gallery.isActive ? "Aktív" : "Archivált"}
+                        {gallery.isActive ? copy.common.active : copy.common.archived}
                       </span>
                       <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
-                        {gallery.galleryMode === GALLERY_MODE_PROOFING ? "Nyers válogatás" : "Teljes galéria"}
+                        {gallery.galleryMode === GALLERY_MODE_PROOFING ? copy.common.rawProofing : copy.common.fullGallery}
                       </span>
                       {gallery.project ? (
                         <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
@@ -1544,11 +2046,11 @@ export default async function AdminClientDetailPage({
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} média</p>
+                    <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} {copy.common.media}</p>
                   </Link>
                   <div className="flex items-center gap-2">
                     <ButtonLink href={`/admin/galleries/${gallery.id}`} variant="secondary" className="h-10">
-                      Kezelés
+                      {copy.common.manage}
                     </ButtonLink>
                     <a className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5" href={`/g/${gallery.slug}`} target="_blank">
                       <ExternalLink size={16} />
@@ -1565,17 +2067,17 @@ export default async function AdminClientDetailPage({
         <section className="rounded-md border border-ink/10 bg-white p-5">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
             <Heart size={15} />
-            Válogatás
+            {copy.proofing.eyebrow}
           </div>
-          <h2 className="mt-2 text-base font-semibold text-ink">Nyers képes workflow</h2>
+          <h2 className="mt-2 text-base font-semibold text-ink">{copy.proofing.title}</h2>
           <p className="mt-1 text-sm leading-6 text-graphite/70">
-            Itt látod az ügyfél válogató galériáit, leadott listáit és a kész képek átadási pontját.
+            {copy.proofing.description}
           </p>
 
           {proofingGalleries.length === 0 ? (
             <div className="mt-5 rounded-md bg-paper px-4 py-4">
-              <p className="text-sm font-medium text-ink">Nincs nyers válogatás ehhez az ügyfélhez</p>
-              <p className="mt-1 text-sm text-graphite/70">Ha ilyen workflow kell, hozz létre nyers képes válogatás típusú galériát.</p>
+              <p className="text-sm font-medium text-ink">{copy.proofing.emptyTitle}</p>
+              <p className="mt-1 text-sm text-graphite/70">{copy.proofing.emptyDescription}</p>
             </div>
           ) : (
             <div className="mt-5 grid gap-3">
@@ -1586,15 +2088,15 @@ export default async function AdminClientDetailPage({
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold text-ink">{gallery.title}</p>
                         <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
-                          {proofingStatusLabel(gallery.proofingStatus)}
+                          {proofingStatusLabel(gallery.proofingStatus, language)}
                         </span>
                       </div>
                       <p className="mt-2 text-sm text-graphite/70">
-                        {gallery.favoriteLists.length} leadott lista · {gallery.photos.length > 0 ? "van kész kép feltöltve" : "nincs kész kép feltöltve"}
+                        {gallery.favoriteLists.length} {copy.proofing.submittedLists} · {gallery.photos.length > 0 ? copy.proofing.hasFinalPhotos : copy.proofing.noFinalPhotos}
                       </p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink">
-                      Kezelés
+                      {copy.common.manage}
                       <ArrowRight size={14} />
                     </span>
                   </div>
@@ -1659,17 +2161,17 @@ export default async function AdminClientDetailPage({
         <section className="rounded-md border border-ink/10 bg-white p-5">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
             <MessageSquare size={15} />
-            Kommunikáció
+            {copy.communication.eyebrow}
           </div>
-          <h2 className="mt-2 text-base font-semibold text-ink">Kiküldött email események</h2>
+          <h2 className="mt-2 text-base font-semibold text-ink">{copy.communication.title}</h2>
           <p className="mt-1 text-sm leading-6 text-graphite/70">
-            Szerződés, válogató link és kész galéria email állapotok egy helyen.
+            {copy.communication.description}
           </p>
 
           {communicationEvents.length === 0 ? (
             <div className="mt-5 rounded-md bg-paper px-4 py-4">
-              <p className="text-sm font-medium text-ink">Még nincs kiküldött email esemény</p>
-              <p className="mt-1 text-sm text-graphite/70">Itt fog megjelenni a szerződés, válogató és kész galéria kiküldése.</p>
+              <p className="text-sm font-medium text-ink">{copy.communication.emptyTitle}</p>
+              <p className="mt-1 text-sm text-graphite/70">{copy.communication.emptyDescription}</p>
             </div>
           ) : (
             <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
@@ -1680,7 +2182,7 @@ export default async function AdminClientDetailPage({
                       <p className="font-medium text-ink">{event.title}</p>
                       <p className="mt-1 text-sm text-graphite/70">{event.detail}</p>
                     </div>
-                    <p className="text-sm text-graphite/60">{formatDateTime(event.date)}</p>
+                    <p className="text-sm text-graphite/60">{formatDateTime(event.date, language)}</p>
                   </>
                 );
 
@@ -1708,45 +2210,44 @@ export default async function AdminClientDetailPage({
           <div>{isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} statusLabel={statusLabel} />}</div>
           <aside className="space-y-6">
             <section className="rounded-md border border-ink/10 bg-white p-5">
-              <h2 className="text-base font-semibold text-ink">Gyors adatok</h2>
+              <h2 className="text-base font-semibold text-ink">{copy.details.quickData}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <div>
-                  <dt className="text-graphite/60">Típus</dt>
+                  <dt className="text-graphite/60">{copy.details.type}</dt>
                   <dd className="font-medium text-ink">{typeLabel}</dd>
                 </div>
                 <div>
-                  <dt className="text-graphite/60">Elsődleges email</dt>
+                  <dt className="text-graphite/60">{copy.details.primaryEmail}</dt>
                   <dd className="font-medium text-ink">{customer.primaryEmail}</dd>
                 </div>
                 <div>
-                  <dt className="text-graphite/60">Másodlagos email</dt>
-                  <dd className="font-medium text-ink">{customer.secondaryEmail || "Nincs megadva"}</dd>
+                  <dt className="text-graphite/60">{copy.details.secondaryEmail}</dt>
+                  <dd className="font-medium text-ink">{customer.secondaryEmail || copy.common.notProvided}</dd>
                 </div>
                 <div>
-                  <dt className="text-graphite/60">Telefon</dt>
-                  <dd className="font-medium text-ink">{customer.phone || "Nincs megadva"}</dd>
+                  <dt className="text-graphite/60">{copy.details.phone}</dt>
+                  <dd className="font-medium text-ink">{customer.phone || copy.common.notProvided}</dd>
                 </div>
                 <div>
-                  <dt className="text-graphite/60">Helyszín</dt>
-                  <dd className="font-medium text-ink">{customer.venue || "Nincs megadva"}</dd>
+                  <dt className="text-graphite/60">{copy.details.venue}</dt>
+                  <dd className="font-medium text-ink">{customer.venue || copy.common.notProvided}</dd>
                 </div>
               </dl>
             </section>
 
             <section className="rounded-md border border-red-200 bg-white p-5">
-              <h2 className="text-base font-semibold text-ink">Veszélyzóna</h2>
+              <h2 className="text-base font-semibold text-ink">{copy.details.dangerZone}</h2>
               <p className="mt-2 text-sm leading-6 text-graphite/70">
-                Az ügyfél törlése eltávolítja az adatlapot és a hozzá tartozó szerződés rekordokat. A galériák megmaradnak,
-                de ügyfél nélküli régi galériaként folytatják. A művelet nem vonható vissza.
+                {copy.details.dangerDescription}
               </p>
               <form action={deleteCustomerAction.bind(null, customer.id)} className="mt-4">
                 <ConfirmSubmitButton
                   variant="danger"
-                  message={`Biztosan törlöd ezt az ügyfelet: ${customer.coupleName}? Ez nem vonható vissza.`}
+                  message={copy.details.deleteConfirm(customer.coupleName)}
                   className="w-full"
                 >
                   <Trash2 size={16} />
-                  Ügyfél törlése
+                  {copy.details.deleteClient}
                 </ConfirmSubmitButton>
               </form>
             </section>

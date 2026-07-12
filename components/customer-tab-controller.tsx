@@ -17,6 +17,7 @@ import {
   Settings
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { AdminLanguage } from "@/lib/admin-language";
 
 type CustomerTab = "overview" | "tasks" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
 
@@ -80,6 +81,47 @@ const tabGroups: CustomerTabGroup[] = [
   }
 ];
 
+const COPY: Record<AdminLanguage, {
+  groupLabels: Record<CustomerTabGroup["key"], string>;
+  mainAreaLabel: string;
+  subAreaLabel: (label: string) => string;
+  fallbackClient: string;
+}> = {
+  hu: {
+    groupLabels: {
+      overview: "Áttekintés",
+      work: "Munka",
+      business: "Üzlet",
+      portal: "Ügyfélportál"
+    },
+    mainAreaLabel: "Ügyfél fő területek",
+    subAreaLabel: (label) => `${label} alfülek`,
+    fallbackClient: "Ügyfél"
+  },
+  de: {
+    groupLabels: {
+      overview: "Übersicht",
+      work: "Arbeit",
+      business: "Business",
+      portal: "Kundenportal"
+    },
+    mainAreaLabel: "Kundenbereiche",
+    subAreaLabel: (label) => `${label} Unterbereiche`,
+    fallbackClient: "Kunde"
+  },
+  en: {
+    groupLabels: {
+      overview: "Overview",
+      work: "Work",
+      business: "Business",
+      portal: "Client portal"
+    },
+    mainAreaLabel: "Client sections",
+    subAreaLabel: (label) => `${label} subsections`,
+    fallbackClient: "Client"
+  }
+};
+
 function isCustomerTabItem(tab: CustomerTabItem | undefined): tab is CustomerTabItem {
   return Boolean(tab);
 }
@@ -104,11 +146,14 @@ function updateUrl(activeTab: CustomerTab) {
 
 export function CustomerTabController({
   tabs,
-  initialTab
+  initialTab,
+  language = "hu"
 }: {
   tabs: CustomerTabItem[];
   initialTab: CustomerTab;
+  language?: AdminLanguage;
 }) {
+  const copy = COPY[language];
   const validTabs = useMemo(() => new Set(tabs.map((tab) => tab.key)), [tabs]);
   const tabsByKey = useMemo(() => new Map(tabs.map((tab) => [tab.key, tab])), [tabs]);
   const availableGroups = useMemo(
@@ -116,10 +161,11 @@ export function CustomerTabController({
       tabGroups
         .map((group) => ({
           ...group,
+          label: copy.groupLabels[group.key],
           tabs: group.tabs.filter((tab) => validTabs.has(tab))
         }))
         .filter((group) => group.tabs.length > 0 && validTabs.has(group.defaultTab)),
-    [validTabs]
+    [copy.groupLabels, validTabs]
   );
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -171,7 +217,7 @@ export function CustomerTabController({
     <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
       <nav
         className="grid grid-cols-2 gap-1 border-b border-ink/10 bg-white p-1 sm:grid-cols-4"
-        aria-label="Ügyfél fő területek"
+        aria-label={copy.mainAreaLabel}
       >
         {availableGroups.map((group) => {
           const Icon = icons[group.icon];
@@ -198,7 +244,7 @@ export function CustomerTabController({
       {activeGroupTabs.length > 1 ? (
         <nav
           className="flex min-w-full gap-2 overflow-x-auto bg-paper/70 p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          aria-label={`${activeGroup?.label ?? "Ügyfél"} alfülek`}
+          aria-label={copy.subAreaLabel(activeGroup?.label ?? copy.fallbackClient)}
         >
           {activeGroupTabs.map((tab) => {
             const Icon = icons[tab.icon];
