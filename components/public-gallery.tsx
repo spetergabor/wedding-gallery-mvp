@@ -40,7 +40,7 @@ const GALLERY_COPY = {
     zipPreparing: "ZIP wird vorbereitet",
     zipEmail: "Herunterladen",
     downloadAlbum: "Album herunterladen",
-    downloadIntro: "Gib deine E-Mail-Adresse ein. Bei großen Galerien senden wir dir eine E-Mail mit allen ZIP-Teilen.",
+    downloadIntro: "Gib deine E-Mail-Adresse ein. Wir schicken dir die ZIP-Links.",
     downloadQuality: "Download-Größe",
     webQuality: "Webgröße",
     webQualityDescription: "Kompakte JPGs bis 2400 px. Schnell, praktisch zum Teilen und meist deutlich kleiner.",
@@ -48,11 +48,11 @@ const GALLERY_COPY = {
     originalQualityDescription: "Originaldateien in voller Qualität. Ideal zum Archivieren und Drucken.",
     close: "Schließen",
     email: "E-Mail-Adresse",
-    zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen. Du erhältst trotzdem nur eine E-Mail mit allen Download-Links.",
-    zipTimeInfo: "Die Vorbereitung kann je nach Galeriegröße mehrere Minuten dauern. Du kannst die Seite schließen, wir senden dir die Links per E-Mail, sobald alles fertig ist.",
+    zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen.",
+    zipTimeInfo: "Große Galerien können mehrere Minuten dauern.",
     zipSpamInfo: "Falls die E-Mail nicht ankommt, prüfe bitte auch deinen Spam- oder Werbung-Ordner.",
     directZipReady: "Der ZIP-Download ist bereit.",
-    directZipIntro: "Wir senden die Links zusätzlich per E-Mail. Du kannst die Datei aber auch direkt hier herunterladen.",
+    directZipIntro: "Die Links kommen zusätzlich per E-Mail.",
     directZipDownload: "ZIP direkt herunterladen",
     directZipPartDownload: (part: number, total: number) => `ZIP Teil ${part}/${total} herunterladen`,
     zipLinksPreparing: "ZIP-Links werden vorbereitet",
@@ -128,7 +128,7 @@ const GALLERY_COPY = {
     zipPreparing: "ZIP előkészítése",
     zipEmail: "Letöltés",
     downloadAlbum: "Album letöltése",
-    downloadIntro: "Add meg az e-mail címed. Nagy galériáknál egy e-mailben küldjük el az összes ZIP-rész linkjét.",
+    downloadIntro: "Add meg az e-mail címed, elküldjük a ZIP linkeket.",
     downloadQuality: "Letöltési méret",
     webQuality: "Webes méret",
     webQualityDescription: "Kompakt JPG-ek max. 2400 px méretben. Gyors, megosztáshoz praktikus, sokkal kisebb.",
@@ -136,11 +136,11 @@ const GALLERY_COPY = {
     originalQualityDescription: "Eredeti fájlok teljes minőségben. Archiváláshoz és nyomtatáshoz ideális.",
     close: "Bezárás",
     email: "E-mail cím",
-    zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak. Ettől függetlenül csak egy e-mailt kapsz az összes letöltési linkkel.",
-    zipTimeInfo: "A ZIP előkészítése a galéria méretétől függően több percet is igénybe vehet. Az oldalt nem kell nyitva hagynod, e-mailben elküldjük a linkeket, amikor elkészült.",
+    zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak.",
+    zipTimeInfo: "Nagy galériánál az előkészítés több percig is tarthat.",
     zipSpamInfo: "Ha nem érkezik meg az e-mail, nézd meg a spam vagy promóciók mappát is.",
     directZipReady: "A ZIP letöltés készen van.",
-    directZipIntro: "A linkeket e-mailben is elküldjük, de innen közvetlenül is letöltheted.",
+    directZipIntro: "A linkeket e-mailben is elküldjük.",
     directZipDownload: "ZIP közvetlen letöltése",
     directZipPartDownload: (part: number, total: number) => `${part}/${total}. ZIP rész letöltése`,
     zipLinksPreparing: "ZIP-linkek előkészítése",
@@ -1379,8 +1379,8 @@ export function PublicGallery({
       ) : null}
 
       {isEmailOpen ? (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-ink/60 px-5 backdrop-blur-sm">
-          <form onSubmit={submitDownloadEmail} className="w-full max-w-md rounded-lg bg-white p-6 shadow-soft">
+        <div className="fixed inset-0 z-40 grid place-items-center overflow-hidden bg-ink/60 px-4 py-5 backdrop-blur-sm">
+          <form onSubmit={submitDownloadEmail} className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5 shadow-soft sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
@@ -1401,92 +1401,10 @@ export function PublicGallery({
               </button>
             </div>
 
-            <fieldset className="mt-5">
-              <legend className="text-sm font-medium text-graphite">{copy.downloadQuality}</legend>
-              <div className="mt-2 grid gap-2">
-                {[
-                  {
-                    value: "web" as const,
-                    title: copy.webQuality,
-                    description: copy.webQualityDescription
-                  },
-                  {
-                    value: "original" as const,
-                    title: copy.originalQuality,
-                    description: copy.originalQualityDescription
-                  }
-                ].map((option) => {
-                  const isActive = downloadQuality === option.value;
-
-                  return (
-                    <label
-                      key={option.value}
-                      className={`flex cursor-pointer gap-3 rounded-md border px-4 py-3 transition ${
-                        isActive ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-                      } ${isZipping ? "cursor-not-allowed opacity-70" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="downloadQuality"
-                        value={option.value}
-                        checked={isActive}
-                        disabled={isZipping}
-                        onChange={() => setDownloadQuality(option.value)}
-                        className="mt-1 size-4"
-                      />
-                      <span>
-                        <span className="block text-sm font-semibold">{option.title}</span>
-                        <span className={`mt-1 block text-xs leading-5 ${isActive ? "text-white/70" : "text-graphite/70"}`}>
-                          {option.description}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <label className="mt-5 block space-y-2">
-              <span className="text-sm font-medium text-graphite">{copy.email}</span>
-              <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                type="email"
-                required
-                placeholder="email@example.com"
-                className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
-              />
-            </label>
-
-            <div className="mt-4 space-y-2 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm leading-6 text-graphite/75">
-              <p>{copy.zipPartsInfo}</p>
-              <p className="font-medium text-ink">{copy.zipTimeInfo}</p>
-              <p className="border-t border-ink/10 pt-2 text-graphite">{copy.zipSpamInfo}</p>
-            </div>
-
-            {emailError ? (
-              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {emailError}
-              </div>
-            ) : null}
-
-            {zipProgress ? (
-              <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm text-graphite">
-                <div className="flex items-center justify-between gap-3">
-                  <span>{zipProgress}</span>
-                  {zipPackageStatus ? (
-                    <span className="rounded-full bg-white px-2 py-1 text-xs uppercase tracking-[0.12em] text-graphite/60">
-                      {zipPackageStatus}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
             {zipDownloadLinks.length > 0 ? (
-              <div className="mt-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+              <div className="mt-5 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
                 <p className="font-semibold">{copy.directZipReady}</p>
-                <p className="mt-1 text-green-900/75">{copy.directZipIntro}</p>
+                <p className="mt-1 text-green-900/75">{copy.directZipIntro} {copy.zipSpamInfo}</p>
                 <div className="mt-3 grid gap-2">
                   {zipDownloadLinks.map((downloadLink) => (
                     <a
@@ -1505,19 +1423,98 @@ export function PublicGallery({
               </div>
             ) : null}
 
+            {zipDownloadLinks.length === 0 ? (
+              <>
+                <fieldset className="mt-5">
+                  <legend className="text-sm font-medium text-graphite">{copy.downloadQuality}</legend>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {[
+                      {
+                        value: "web" as const,
+                        title: copy.webQuality
+                      },
+                      {
+                        value: "original" as const,
+                        title: copy.originalQuality
+                      }
+                    ].map((option) => {
+                      const isActive = downloadQuality === option.value;
+
+                      return (
+                        <label
+                          key={option.value}
+                          className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 transition ${
+                            isActive ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+                          } ${isZipping ? "cursor-not-allowed opacity-70" : ""}`}
+                        >
+                          <input
+                            type="radio"
+                            name="downloadQuality"
+                            value={option.value}
+                            checked={isActive}
+                            disabled={isZipping}
+                            onChange={() => setDownloadQuality(option.value)}
+                            className="size-4"
+                          />
+                          <span className="text-sm font-semibold">{option.title}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <label className="mt-5 block space-y-2">
+                  <span className="text-sm font-medium text-graphite">{copy.email}</span>
+                  <input
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    type="email"
+                    required
+                    placeholder="email@example.com"
+                    className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+                  />
+                </label>
+
+                <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm leading-6 text-graphite/75">
+                  <p>{copy.zipTimeInfo} {copy.zipSpamInfo}</p>
+                </div>
+              </>
+            ) : null}
+
+            {emailError ? (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {emailError}
+              </div>
+            ) : null}
+
+            {zipProgress && zipDownloadLinks.length === 0 ? (
+              <div className="mt-4 rounded-md border border-ink/10 bg-paper px-4 py-3 text-sm text-graphite">
+                <div className="flex items-center justify-between gap-3">
+                  <span>{zipProgress}</span>
+                  {zipPackageStatus ? (
+                    <span className="rounded-full bg-white px-2 py-1 text-xs uppercase tracking-[0.12em] text-graphite/60">
+                      {zipPackageStatus}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <FormSubmitButton
-                type="submit"
-                disabled={isZipping}
-                className="sm:flex-1"
-                busy={isZipping}
-                pendingLabel={copy.zipLinksPreparing}
-              >
-                <Download size={16} />
-                {copy.requestDownloadLinks}
-              </FormSubmitButton>
+              {zipDownloadLinks.length === 0 ? (
+                <FormSubmitButton
+                  type="submit"
+                  disabled={isZipping}
+                  className="sm:flex-1"
+                  busy={isZipping}
+                  pendingLabel={copy.zipLinksPreparing}
+                >
+                  <Download size={16} />
+                  {copy.requestDownloadLinks}
+                </FormSubmitButton>
+              ) : null}
               <Button type="button" variant="secondary" onClick={closeDownloadDialog}>
-                {copy.cancel}
+                {zipDownloadLinks.length > 0 ? copy.close : copy.cancel}
               </Button>
             </div>
           </form>
