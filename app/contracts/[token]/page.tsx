@@ -1,6 +1,6 @@
 import { Download, ExternalLink, FileText, PenLine } from "lucide-react";
 import { ContractSignaturePad } from "@/components/contract-signature-pad";
-import { PdfContractFieldViewer } from "@/components/pdf-contract-field-viewer";
+import { PdfContractFieldViewerClient } from "@/components/pdf-contract-field-viewer-client";
 import {
   contractFieldDisplayLabel,
   contractFieldInputName,
@@ -221,7 +221,7 @@ export default async function ContractPublicPage({
               {currentPdfUrl ? (
                 !contract.signedFileUrl && pdfFields.length > 0 ? (
                   <div className="bg-paper p-3">
-                    <PdfContractFieldViewer
+                    <PdfContractFieldViewerClient
                       fileUrl={currentPdfUrl}
                       title={contract.title}
                       fields={pdfFields}
