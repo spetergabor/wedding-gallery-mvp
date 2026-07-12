@@ -460,41 +460,35 @@ export function PublicGallery({
     const knownSectionIds = new Set(sections.map((section) => section.id));
     const blocks = sections
       .map((section) => {
-        const items = visibleItems.filter(({ photo }) => photo.sectionId === section.id);
+        const imageItems = visibleImageItems.filter(({ photo }) => photo.sectionId === section.id);
 
-        if (items.length === 0) {
+        if (imageItems.length === 0) {
           return null;
         }
-
-        const imageItems = items.filter(({ photo }) => !isVideo(photo));
 
         return {
           key: section.id,
           anchorId: `gallery-section-${section.slug}`,
           title: section.title,
-          count: items.length,
-          videoItems: items.filter(({ photo }) => isVideo(photo)),
+          count: imageItems.length,
           imageColumns: createPhotoColumns(imageItems, columnCount)
         };
       })
       .filter((block): block is NonNullable<typeof block> => Boolean(block));
-    const remainderItems = visibleItems.filter(({ photo }) => !photo.sectionId || !knownSectionIds.has(photo.sectionId));
+    const remainderItems = visibleImageItems.filter(({ photo }) => !photo.sectionId || !knownSectionIds.has(photo.sectionId));
 
     if (remainderItems.length > 0) {
-      const imageItems = remainderItems.filter(({ photo }) => !isVideo(photo));
-
       blocks.push({
         key: "rest",
         anchorId: "gallery-section-rest",
         title: language === "hu" ? "További képek" : "Weitere Bilder",
         count: remainderItems.length,
-        videoItems: remainderItems.filter(({ photo }) => isVideo(photo)),
-        imageColumns: createPhotoColumns(imageItems, columnCount)
+        imageColumns: createPhotoColumns(remainderItems, columnCount)
       });
     }
 
     return blocks;
-  }, [columnCount, language, sections, visibleItems]);
+  }, [columnCount, language, sections, visibleImageItems]);
 
   useEffect(() => {
     if (!favoritesEnabled) {
@@ -1257,6 +1251,20 @@ export function PublicGallery({
           </section>
         ) : null}
 
+        {visibleVideoItems.length > 0 ? (
+          <section id="public-gallery-videos" className="scroll-mt-32 space-y-4" aria-labelledby="public-gallery-videos-title">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">{copy.videoCount(visibleVideoItems.length)}</p>
+              <h2 id="public-gallery-videos-title" className="font-playfair mt-1 text-3xl font-semibold text-ink md:text-4xl">
+                {copy.videoSectionTitle}
+              </h2>
+            </div>
+            <div className="grid gap-2" style={galleryGridStyle}>
+              {visibleVideoItems.map((item) => renderVideoItem(item))}
+            </div>
+          </section>
+        ) : null}
+
         {sectionBlocks.length > 0 ? (
           <div className="space-y-16">
             {sectionBlocks.map((block) => (
@@ -1269,11 +1277,6 @@ export function PublicGallery({
                     {block.title}
                   </h2>
                 </div>
-                {block.videoItems.length > 0 ? (
-                  <div className="grid gap-2" style={galleryGridStyle}>
-                    {block.videoItems.map((item) => renderVideoItem(item))}
-                  </div>
-                ) : null}
                 {block.imageColumns.some((column) => column.length > 0) ? (
                   <div className="grid gap-2" style={galleryGridStyle}>
                     {block.imageColumns.map((column, columnIndex) => (
@@ -1286,18 +1289,6 @@ export function PublicGallery({
               </section>
             ))}
           </div>
-        ) : visibleVideoItems.length > 0 ? (
-          <section className="space-y-4" aria-labelledby="public-gallery-videos">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">{copy.videoCount(visibleVideoItems.length)}</p>
-              <h2 id="public-gallery-videos" className="font-playfair mt-1 text-3xl font-semibold text-ink md:text-4xl">
-                {copy.videoSectionTitle}
-              </h2>
-            </div>
-            <div className="grid gap-2" style={galleryGridStyle}>
-              {visibleVideoItems.map((item) => renderVideoItem(item))}
-            </div>
-          </section>
         ) : null}
 
         {sectionBlocks.length === 0 && visibleImageItems.length > 0 ? (

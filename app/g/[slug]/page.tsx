@@ -124,13 +124,13 @@ export default async function PublicGalleryPage({
   const visibleVideos = visiblePhotos.filter((photo) => photo.mediaType === "video");
   const visibleImages = visiblePhotos.filter((photo) => photo.mediaType !== "video");
   const publicPhotos = [...visibleVideos, ...visibleImages];
-  const visibleSectionIds = new Set(visiblePhotos.map((photo) => photo.sectionId).filter((sectionId): sectionId is string => Boolean(sectionId)));
+  const visibleSectionIds = new Set(visibleImages.map((photo) => photo.sectionId).filter((sectionId): sectionId is string => Boolean(sectionId)));
   const visibleSections = gallery.sections.filter((section) => visibleSectionIds.has(section.id));
   const knownSectionIds = new Set(gallery.sections.map((section) => section.id));
-  const unsectionedPhotoCount = visiblePhotos.filter((photo) => !photo.sectionId || !knownSectionIds.has(photo.sectionId)).length;
+  const unsectionedPhotoCount = visibleImages.filter((photo) => !photo.sectionId || !knownSectionIds.has(photo.sectionId)).length;
   const sectionPhotoCounts = new Map<string, number>();
 
-  for (const photo of visiblePhotos) {
+  for (const photo of visibleImages) {
     if (photo.sectionId) {
       sectionPhotoCounts.set(photo.sectionId, (sectionPhotoCounts.get(photo.sectionId) ?? 0) + 1);
     }
@@ -306,6 +306,15 @@ export default async function PublicGalleryPage({
             aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
           >
             <div className="flex min-w-full gap-2 overflow-x-auto [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden">
+              {visibleVideos.length > 0 ? (
+                <a
+                  href="#public-gallery-videos"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite shadow-sm transition hover:border-ink/25 hover:text-ink"
+                >
+                  {language === "hu" ? "Videók" : "Videos"}
+                  <span className="ml-2 text-xs opacity-70">{visibleVideos.length}</span>
+                </a>
+              ) : null}
               {visibleSections.map((section) => (
                 <a
                   key={section.id}
