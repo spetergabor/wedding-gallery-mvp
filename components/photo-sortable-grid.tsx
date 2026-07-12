@@ -120,6 +120,7 @@ export function PhotoSortableGrid({
   const [gridColumnCount, setGridColumnCount] = useState<PhotoGridColumnCount>(3);
   const [bulkSelectedPhotoIds, setBulkSelectedPhotoIds] = useState<Set<string>>(() => new Set());
   const lastLiveMoveRef = useRef<{ draggedId: string; targetId: string } | null>(null);
+  const lastBulkSelectionAnchorIdRef = useRef<string | null>(null);
   const proofingGallery = isProofingGallery(galleryMode);
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
   const normalizedSearch = activeSearch.trim().toLowerCase();
@@ -169,6 +170,10 @@ export function PhotoSortableGrid({
 
       return next.size === current.size ? current : next;
     });
+
+    if (lastBulkSelectionAnchorIdRef.current && !currentPhotoIds.has(lastBulkSelectionAnchorIdRef.current)) {
+      lastBulkSelectionAnchorIdRef.current = null;
+    }
   }, [photos]);
 
   function updateGridColumnCount(columnCount: PhotoGridColumnCount) {
@@ -206,7 +211,33 @@ export function PhotoSortableGrid({
     });
   }
 
-  function toggleBulkSelection(photoId: string) {
+  function clearBulkSelection() {
+    lastBulkSelectionAnchorIdRef.current = null;
+    setBulkSelectedPhotoIds(new Set());
+  }
+
+  function toggleBulkSelection(photoId: string, extendRange = false) {
+    const anchorId = lastBulkSelectionAnchorIdRef.current;
+    const anchorIndex = anchorId ? displayedPhotoIds.indexOf(anchorId) : -1;
+    const targetIndex = displayedPhotoIds.indexOf(photoId);
+
+    if (extendRange && anchorIndex >= 0 && targetIndex >= 0) {
+      const startIndex = Math.min(anchorIndex, targetIndex);
+      const endIndex = Math.max(anchorIndex, targetIndex);
+      const rangePhotoIds = displayedPhotoIds.slice(startIndex, endIndex + 1);
+
+      setBulkSelectedPhotoIds((current) => {
+        const next = new Set(current);
+
+        for (const rangePhotoId of rangePhotoIds) {
+          next.add(rangePhotoId);
+        }
+
+        return next;
+      });
+      return;
+    }
+
     setBulkSelectedPhotoIds((current) => {
       const next = new Set(current);
 
@@ -218,6 +249,7 @@ export function PhotoSortableGrid({
 
       return next;
     });
+    lastBulkSelectionAnchorIdRef.current = photoId;
   }
 
   function selectDisplayedPhotos() {
@@ -270,7 +302,7 @@ export function PhotoSortableGrid({
           <p className="mt-0.5 text-xs text-graphite/70">
             {bulkSelectedCount > 0
               ? `${bulkSelectedCount} kép kijelölve törléshez vagy címke alá helyezéshez.`
-              : "Jelölj ki több képet, majd töröld vagy helyezd át őket egyszerre."}
+              : "Jelölj ki több képet, Shift-kattintással teljes tartományt is választhatsz."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -286,7 +318,7 @@ export function PhotoSortableGrid({
           {bulkSelectedCount > 0 ? (
             <button
               type="button"
-              onClick={() => setBulkSelectedPhotoIds(new Set())}
+              onClick={clearBulkSelection}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
             >
               <Undo2 size={15} />
@@ -450,7 +482,7 @@ export function PhotoSortableGrid({
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      toggleBulkSelection(photo.id);
+                      toggleBulkSelection(photo.id, event.shiftKey);
                     }}
                     className={`flex size-9 items-center justify-center rounded-md border text-sm transition ${
                       isBulkSelected
@@ -458,7 +490,7 @@ export function PhotoSortableGrid({
                         : "border-ink/10 text-graphite hover:bg-ink/5"
                     }`}
                     aria-pressed={isBulkSelected}
-                    title={isBulkSelected ? "Kijelölés megszüntetése" : "Kijelölés tömeges törléshez"}
+                    title={isBulkSelected ? "Kijelölés megszüntetése" : "Kijelölés tömeges művelethez. Shift-kattintással tartományt jelölsz."}
                   >
                     {isBulkSelected ? <CheckSquare size={16} /> : <Square size={16} />}
                   </button>
@@ -574,7 +606,7 @@ export function PhotoSortableGrid({
           <div className="flex flex-wrap gap-2 lg:flex-nowrap lg:justify-end">
             <button
               type="button"
-              onClick={() => setBulkSelectedPhotoIds(new Set())}
+              onClick={clearBulkSelection}
               className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
             >
               <Undo2 size={15} />
