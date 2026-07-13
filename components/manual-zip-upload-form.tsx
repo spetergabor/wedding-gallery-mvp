@@ -15,7 +15,7 @@ import {
 } from "@/lib/gallery-actions";
 
 type UploadStatus = "idle" | "preparing" | "uploading" | "saving" | "completed" | "failed";
-type ZipHandoffState = "none" | "manual_ready" | "online_ready" | "processing";
+type ZipHandoffState = "none" | "manual_ready" | "online_ready" | "processing" | "stale";
 
 type ManualZipMultipartUploadTarget = {
   ok: true;
@@ -205,9 +205,24 @@ export function ManualZipUploadForm({
   const progress = selectedFile && selectedFile.size > 0 ? Math.round((Math.min(bytesSent, selectedFile.size) / selectedFile.size) * 100) : 0;
   const isSolved = handoffState === "manual_ready" || handoffState === "online_ready";
   const isPreparingOnline = handoffState === "processing";
-  const StatusIcon = isSolved ? CheckCircle2 : isPreparingOnline ? Loader2 : step === "choice" ? Archive : status === "completed" ? CheckCircle2 : status === "failed" ? AlertCircle : isWorking ? Loader2 : UploadCloud;
+  const isStale = handoffState === "stale";
+  const StatusIcon = isSolved
+    ? CheckCircle2
+    : isPreparingOnline
+      ? Loader2
+      : isStale
+        ? AlertCircle
+        : step === "choice"
+          ? Archive
+          : status === "completed"
+            ? CheckCircle2
+            : status === "failed"
+              ? AlertCircle
+              : isWorking
+                ? Loader2
+                : UploadCloud;
   const compact = variant === "compact";
-  const statusText = isSolved ? "Megoldva" : isPreparingOnline ? "Folyamatban" : step === "choice" ? "Választás kell" : statusLabel(status);
+  const statusText = isSolved ? "Megoldva" : isPreparingOnline ? "Folyamatban" : isStale ? "Új ZIP kell" : step === "choice" ? "Választás kell" : statusLabel(status);
 
   function setZipFile(file: File | null) {
     setSelectedFile(file);
@@ -422,6 +437,29 @@ export function ManualZipUploadForm({
                 className="inline-flex h-9 w-fit items-center justify-center rounded-md border border-brass/25 bg-white px-3 text-xs font-medium text-brass hover:border-brass/40"
               >
                 Állapot megnyitása
+              </a>
+            </div>
+          </div>
+        ) : null}
+
+        {isStale ? (
+          <div className="rounded-md border border-red-200 bg-red-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
+                  <AlertCircle size={17} />
+                  A korábbi ZIP már nem aktuális
+                </div>
+                <p className="mt-2 text-sm leading-6 text-red-800/80">
+                  A galéria tartalma megváltozott, ezért új ZIP csomagot kell készíteni vagy feltölteni.
+                </p>
+                {handoffDetail ? <p className="mt-1 text-xs text-red-700/75">{handoffDetail}</p> : null}
+              </div>
+              <a
+                href={`/admin/galleries/${galleryId}?tab=downloads`}
+                className="inline-flex h-9 w-fit items-center justify-center rounded-md border border-red-200 bg-white px-3 text-xs font-medium text-red-700 hover:border-red-300"
+              >
+                Előzmények
               </a>
             </div>
           </div>

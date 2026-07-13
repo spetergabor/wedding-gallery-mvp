@@ -62,7 +62,7 @@ const galleryTabs: Array<{
 
 const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
 
-type ZipHandoffState = "none" | "manual_ready" | "online_ready" | "processing";
+type ZipHandoffState = "none" | "manual_ready" | "online_ready" | "processing" | "stale";
 
 function isCompleteZipPackageGroup(
   packages: Array<{
@@ -144,6 +144,17 @@ function getZipHandoffState(
     return {
       state: "processing",
       detail: "A ZIP készítés folyamatban van. A részletes állapot a Letöltések fülön látszik."
+    };
+  }
+
+  const stalePackage = publicPackages
+    .filter((downloadPackage) => downloadPackage.status === "stale")
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+
+  if (stalePackage) {
+    return {
+      state: "stale",
+      detail: `A korábbi ZIP elavult: ${stalePackage.updatedAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}`
     };
   }
 
