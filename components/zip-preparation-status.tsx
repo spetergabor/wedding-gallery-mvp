@@ -3,7 +3,7 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { publicDownloadQualityFromScope } from "@/lib/download-packages";
 import { galleryDownloadQualityLabel } from "@/lib/download-quality";
-import { retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
+import { queueGalleryZipPackageAction, retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
 
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
@@ -18,6 +18,7 @@ type DownloadPackage = {
   partIndex: number;
   partCount: number;
   fileSize: number | bigint;
+  r2Key: string | null;
   downloadUrl: string | null;
   errorMessage: string | null;
   generatedAt: Date | null;
@@ -207,7 +208,17 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
   };
 }
 
-export function ZipPreparationStatus({ galleryId, packages, photoCount }: { galleryId: string; packages: DownloadPackage[]; photoCount: number }) {
+export function ZipPreparationStatus({
+  galleryId,
+  packages,
+  photoCount,
+  canPrepareZip
+}: {
+  galleryId: string;
+  packages: DownloadPackage[];
+  photoCount: number;
+  canPrepareZip: boolean;
+}) {
   const { primaryGroup, summaries, groupCount, oldFailedCount, totalStaleCount } = getPrimaryGroup(packages);
   const meta = statusMeta(primaryGroup, photoCount);
   const Icon = meta.icon;
@@ -225,6 +236,21 @@ export function ZipPreparationStatus({ galleryId, packages, photoCount }: { gall
 
   const primaryCanRetry =
     primaryGroup ? (primaryGroup.failedCount > 0 || primaryGroup.staleProcessingCount > 0) && primaryGroup.pendingCount === 0 && primaryGroup.processingCount === 0 : false;
+  const hasCompletedZip = summaries.some((group) => group.isComplete);
+  const hasActiveZip = summaries.some((group) => group.hasActiveWork);
+  const hasManualCompletedZip = packages.some(
+    (downloadPackage) =>
+      downloadPackage.status === "completed" &&
+      Boolean(downloadPackage.downloadUrl) &&
+      Boolean(downloadPackage.r2Key?.includes("/downloads/manual/"))
+  );
+  const canQueueZip =
+    canPrepareZip &&
+    photoCount > 0 &&
+    !hasCompletedZip &&
+    !hasActiveZip &&
+    !hasManualCompletedZip &&
+    !primaryCanRetry;
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
@@ -241,6 +267,14 @@ export function ZipPreparationStatus({ galleryId, packages, photoCount }: { gall
           <p className="mt-1 text-sm text-graphite/70">{meta.description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canQueueZip ? (
+            <form action={queueGalleryZipPackageAction.bind(null, galleryId)}>
+              <FormSubmitButton pendingLabel="Indítás..." className="h-9 px-3 text-xs">
+                <Archive size={14} />
+                {primaryGroup ? "Új ZIP készítése" : "ZIP készítése"}
+              </FormSubmitButton>
+            </form>
+          ) : null}
           {primaryGroup && primaryCanRetry ? (
             <form action={retryGalleryZipPackageGroupAction.bind(null, galleryId, primaryGroup.key)}>
               <FormSubmitButton variant="secondary" pendingLabel="Indítás..." className="h-9 px-3 text-xs">
@@ -255,6 +289,12 @@ export function ZipPreparationStatus({ galleryId, packages, photoCount }: { gall
           </span>
         </div>
       </div>
+
+      {!canPrepareZip ? (
+        <p className="mt-4 rounded-md bg-paper px-3 py-2 text-sm text-graphite/70">
+          A ZIP készítése akkor indítható, ha a galéria aktív, a letöltés engedélyezett, és van átadható kép.
+        </p>
+      ) : null}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-4">
         <div className="rounded-md bg-paper px-4 py-3">
