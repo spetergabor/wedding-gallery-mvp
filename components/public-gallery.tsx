@@ -287,7 +287,8 @@ function primeVideoCoverFrame(video: HTMLVideoElement, hasPoster: boolean) {
 
   try {
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    video.currentTime = duration > 0 ? Math.min(0.35, Math.max(0, duration - 0.05)) : 0.1;
+    const preferredCoverTime = duration > 0 ? Math.max(2, Math.min(5, duration * 0.15)) : 2;
+    video.currentTime = duration > 0 ? Math.min(preferredCoverTime, Math.max(0, duration - 0.1)) : preferredCoverTime;
   } catch {
     // Some browsers block seeking until more metadata is available. The video remains playable.
   }
