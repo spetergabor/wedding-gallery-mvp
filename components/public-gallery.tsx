@@ -252,8 +252,78 @@ function hasImageDimensions(photo: PublicPhoto) {
   return photo.mediaType !== "video" && photo.imageWidth > 0 && photo.imageHeight > 0;
 }
 
+function hasMediaDimensions(photo: PublicPhoto) {
+  return photo.imageWidth > 0 && photo.imageHeight > 0;
+}
+
 function isVideo(photo: PublicPhoto) {
   return photo.mediaType === "video";
+}
+
+function mediaAspectRatio(photo: PublicPhoto) {
+  return hasMediaDimensions(photo) ? `${photo.imageWidth} / ${photo.imageHeight}` : null;
+}
+
+function videoPosterUrl(photo: PublicPhoto) {
+  if (!isVideo(photo)) {
+    return undefined;
+  }
+
+  if (photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) {
+    return photo.thumbnailUrl;
+  }
+
+  if (photo.previewUrl && photo.previewUrl !== photo.imageUrl) {
+    return photo.previewUrl;
+  }
+
+  return undefined;
+}
+
+function primeVideoCoverFrame(video: HTMLVideoElement, hasPoster: boolean) {
+  if (hasPoster || video.currentTime > 0.05) {
+    return;
+  }
+
+  try {
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    video.currentTime = duration > 0 ? Math.min(0.35, Math.max(0, duration - 0.05)) : 0.1;
+  } catch {
+    // Some browsers block seeking until more metadata is available. The video remains playable.
+  }
+}
+
+function PublicVideoPreview({ photo }: { photo: PublicPhoto }) {
+  const [metadataAspectRatio, setMetadataAspectRatio] = useState<string | null>(null);
+  const posterUrl = videoPosterUrl(photo);
+  const aspectRatio = mediaAspectRatio(photo) ?? metadataAspectRatio ?? "16 / 9";
+
+  return (
+    <span className="relative block w-full overflow-hidden bg-ink" style={{ aspectRatio }}>
+      <video
+        src={photo.imageUrl}
+        poster={posterUrl}
+        preload="metadata"
+        muted
+        playsInline
+        onLoadedMetadata={(event) => {
+          const video = event.currentTarget;
+
+          if (!mediaAspectRatio(photo) && video.videoWidth > 0 && video.videoHeight > 0) {
+            setMetadataAspectRatio(`${video.videoWidth} / ${video.videoHeight}`);
+          }
+
+          primeVideoCoverFrame(video, Boolean(posterUrl));
+        }}
+        className="h-full w-full object-cover opacity-90 transition duration-500 ease-out group-hover:scale-[1.025]"
+      />
+      <span className="absolute inset-0 grid place-items-center bg-ink/15 text-white">
+        <span className="grid size-14 place-items-center rounded-full bg-white/90 text-ink shadow-soft">
+          <Play size={22} fill="currentColor" />
+        </span>
+      </span>
+    </span>
+  );
 }
 
 function normalizeDownloadLinks(result: {
@@ -359,7 +429,7 @@ function createPhotoColumns(items: PublicPhotoItem[], columnCount: number) {
     const shortestColumnIndex = columnHeights.reduce((shortestIndex, height, currentIndex) => {
       return height < columnHeights[shortestIndex] ? currentIndex : shortestIndex;
     }, 0);
-    const estimatedRatio = isVideo(photo) ? 9 / 16 : hasImageDimensions(photo) ? photo.imageHeight / photo.imageWidth : 1;
+    const estimatedRatio = hasMediaDimensions(photo) ? photo.imageHeight / photo.imageWidth : isVideo(photo) ? 9 / 16 : 1;
 
     columns[shortestColumnIndex].push({ photo, index });
     columnHeights[shortestColumnIndex] += estimatedRatio;
@@ -1036,20 +1106,7 @@ export function PublicGallery({
             onClick={() => setSelectedIndex(index)}
             className="relative z-0 block w-full text-left"
           >
-            <span className="relative block aspect-video w-full overflow-hidden bg-ink">
-              <video
-                src={photo.imageUrl}
-                preload="metadata"
-                muted
-                playsInline
-                className="h-full w-full object-cover opacity-90 transition duration-500 ease-out group-hover:scale-[1.025]"
-              />
-              <span className="absolute inset-0 grid place-items-center bg-ink/20 text-white">
-                <span className="grid size-14 place-items-center rounded-full bg-white/90 text-ink shadow-soft">
-                  <Play size={22} fill="currentColor" />
-                </span>
-              </span>
-            </span>
+            <PublicVideoPreview photo={photo} />
             <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
               <Maximize2 size={16} />
             </span>
@@ -1502,7 +1559,15 @@ export function PublicGallery({
                   <div key={photo.id} className="overflow-hidden rounded-md border border-ink/10 bg-paper">
                     <div className="relative aspect-square bg-mist">
                       {isVideo(photo) ? (
-                        <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover" />
+                        <video
+                          src={photo.imageUrl}
+                          poster={videoPosterUrl(photo)}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          onLoadedMetadata={(event) => primeVideoCoverFrame(event.currentTarget, Boolean(videoPosterUrl(photo)))}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <Image
                           src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
@@ -1679,6 +1744,7 @@ export function PublicGallery({
             {isVideo(selectedPhoto) ? (
               <video
                 src={selectedPhoto.imageUrl}
+                poster={videoPosterUrl(selectedPhoto)}
                 controls
                 autoPlay
                 playsInline
