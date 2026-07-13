@@ -379,7 +379,7 @@ export function ManualZipUploadForm({
             </div>
             <h2 className={`${compact ? "mt-1 text-lg" : "mt-2 text-xl"} font-semibold text-ink`}>ZIP átadás előkészítése</h2>
             <p className={`mt-1 max-w-3xl text-sm leading-6 text-graphite/70 ${compact ? "max-w-2xl" : ""}`}>
-              Döntsd el, hogy a rendszer készítsen webes méretű ZIP-et online, vagy te töltesz fel egy saját, kész ZIP csomagot.
+              Döntsd el, hogy a rendszer készítsen teljes méretű ZIP-et online, vagy te töltesz fel egy saját, kész ZIP csomagot.
             </p>
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full bg-ink/5 px-3 py-1.5 text-sm font-medium text-graphite">
@@ -474,7 +474,7 @@ export function ManualZipUploadForm({
                   Online konvertálás
                 </div>
                 <p className="mt-2 text-sm leading-6 text-graphite/70">
-                  A Spetly a feltöltött képekből készít webes méretű ZIP-et. Indítás után automatikusan a Letöltések fülön látod az állapotot.
+                  A Spetly a feltöltött teljes felbontású képekből készít ZIP-et. Indítás után automatikusan a Letöltések fülön látod az állapotot.
                 </p>
               </div>
               <form action={queueGalleryZipPackageAction.bind(null, galleryId)} className="mt-4">

@@ -16,7 +16,7 @@ import {
 } from "@/lib/public-actions";
 import { createPaidGalleryCheckoutAction } from "@/lib/gallery-sales-actions";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
-import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, type GalleryDownloadQuality } from "@/lib/download-quality";
+import { DEFAULT_GALLERY_DOWNLOAD_QUALITY } from "@/lib/download-quality";
 import { GALLERY_DELIVERY_PAID, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
 
 const GALLERY_COPY = {
@@ -41,11 +41,6 @@ const GALLERY_COPY = {
     zipEmail: "Herunterladen",
     downloadAlbum: "Album herunterladen",
     downloadIntro: "Gib deine E-Mail-Adresse ein. Wir schicken dir die ZIP-Links.",
-    downloadQuality: "Download-Größe",
-    webQuality: "Webgröße",
-    webQualityDescription: "Kompakte JPGs bis 2400 px. Schnell, praktisch zum Teilen und meist deutlich kleiner.",
-    originalQuality: "Volle Auflösung",
-    originalQualityDescription: "Originaldateien in voller Qualität. Ideal zum Archivieren und Drucken.",
     close: "Schließen",
     email: "E-Mail-Adresse",
     zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen.",
@@ -129,11 +124,6 @@ const GALLERY_COPY = {
     zipEmail: "Letöltés",
     downloadAlbum: "Album letöltése",
     downloadIntro: "Add meg az e-mail címed, elküldjük a ZIP linkeket.",
-    downloadQuality: "Letöltési méret",
-    webQuality: "Webes méret",
-    webQualityDescription: "Kompakt JPG-ek max. 2400 px méretben. Gyors, megosztáshoz praktikus, sokkal kisebb.",
-    originalQuality: "Teljes felbontás",
-    originalQualityDescription: "Eredeti fájlok teljes minőségben. Archiváláshoz és nyomtatáshoz ideális.",
     close: "Bezárás",
     email: "E-mail cím",
     zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak.",
@@ -409,7 +399,7 @@ export function PublicGallery({
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
-  const [downloadQuality, setDownloadQuality] = useState<GalleryDownloadQuality>(DEFAULT_GALLERY_DOWNLOAD_QUALITY);
+  const downloadQuality = DEFAULT_GALLERY_DOWNLOAD_QUALITY;
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isEmailOpen, setIsEmailOpen] = useState(false);
@@ -1425,44 +1415,6 @@ export function PublicGallery({
 
             {zipDownloadLinks.length === 0 ? (
               <>
-                <fieldset className="mt-5">
-                  <legend className="text-sm font-medium text-graphite">{copy.downloadQuality}</legend>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {[
-                      {
-                        value: "web" as const,
-                        title: copy.webQuality
-                      },
-                      {
-                        value: "original" as const,
-                        title: copy.originalQuality
-                      }
-                    ].map((option) => {
-                      const isActive = downloadQuality === option.value;
-
-                      return (
-                        <label
-                          key={option.value}
-                          className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 transition ${
-                            isActive ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-                          } ${isZipping ? "cursor-not-allowed opacity-70" : ""}`}
-                        >
-                          <input
-                            type="radio"
-                            name="downloadQuality"
-                            value={option.value}
-                            checked={isActive}
-                            disabled={isZipping}
-                            onChange={() => setDownloadQuality(option.value)}
-                            className="size-4"
-                          />
-                          <span className="text-sm font-semibold">{option.title}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-
                 <label className="mt-5 block space-y-2">
                   <span className="text-sm font-medium text-graphite">{copy.email}</span>
                   <input

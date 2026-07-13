@@ -28,7 +28,7 @@ import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { clientGalleryUrl, publicGalleryUrl } from "@/lib/email";
-import { PUBLIC_DOWNLOAD_SCOPES } from "@/lib/download-packages";
+import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
   generateClientAccessLinkAction,
@@ -103,7 +103,7 @@ function getZipHandoffState(
     updatedAt: Date;
   }>
 ): { state: ZipHandoffState; detail: string | null } {
-  const publicPackages = packages.filter((downloadPackage) => (PUBLIC_DOWNLOAD_SCOPES as readonly string[]).includes(downloadPackage.scope));
+  const publicPackages = packages.filter((downloadPackage) => downloadPackage.scope === PUBLIC_DOWNLOAD_SCOPE);
   const manualReadyPackage = publicPackages.find(
     (downloadPackage) =>
       downloadPackage.status === "completed" &&
@@ -419,7 +419,9 @@ export default async function GalleryDetailPage({
     galleryDeliveryAllowsDownloads(gallery.deliveryMode) &&
     gallery.photos.length > 0 &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
-  const zipHandoff = getZipHandoffState(gallery.downloadPackages);
+  const publicDownloadPackages = gallery.downloadPackages.filter((downloadPackage) => downloadPackage.scope === PUBLIC_DOWNLOAD_SCOPE);
+  const publicDownloadEntries = gallery.downloads.filter((download) => !download.package || download.package.scope === PUBLIC_DOWNLOAD_SCOPE);
+  const zipHandoff = getZipHandoffState(publicDownloadPackages);
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({
@@ -852,8 +854,8 @@ export default async function GalleryDetailPage({
 
         <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
           <div className="space-y-6">
-            <ZipPreparationStatus galleryId={gallery.id} packages={gallery.downloadPackages} photoCount={gallery.photos.length} canPrepareZip={canPrepareZip} />
-            <DownloadLog galleryId={gallery.id} downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
+            <ZipPreparationStatus galleryId={gallery.id} packages={publicDownloadPackages} photoCount={gallery.photos.length} canPrepareZip={canPrepareZip} />
+            <DownloadLog galleryId={gallery.id} downloads={publicDownloadEntries} packages={publicDownloadPackages.slice(0, 8)} />
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
+import { type GalleryDownloadQuality } from "@/lib/download-quality";
 
 export const PUBLIC_DOWNLOAD_SCOPE = "public";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
@@ -16,7 +16,9 @@ export const DOWNLOAD_LINK_TTL_DAYS = 7;
 export const DOWNLOAD_LINK_TTL_MS = DOWNLOAD_LINK_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 export function publicDownloadScopeForQuality(value: string | null | undefined) {
-  return normalizeGalleryDownloadQuality(value) === "web" ? PUBLIC_WEB_DOWNLOAD_SCOPE : PUBLIC_DOWNLOAD_SCOPE;
+  void value;
+
+  return PUBLIC_DOWNLOAD_SCOPE;
 }
 
 export function publicDownloadQualityFromScope(scope: string | null | undefined): GalleryDownloadQuality {
