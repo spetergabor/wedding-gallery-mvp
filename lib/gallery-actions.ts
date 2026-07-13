@@ -54,6 +54,7 @@ import {
   createPresignedPhotoUploadUrl,
   createPhotoObjectKey,
   createPhotoVariantObjectKey,
+  createVideoThumbnailObjectKey,
   deleteGalleryObjects,
   deletePhotoObject,
   getPhotoPublicUrl,
@@ -2211,6 +2212,93 @@ export async function deletePhotoAction(photoId: string, galleryId: string) {
   if (gallery) {
     revalidatePath(`/g/${gallery.slug}`);
   }
+}
+
+export async function setVideoThumbnailAction(photoId: string, galleryId: string, formData: FormData) {
+  const { admin } = await requireGalleryAccess(galleryId);
+  const file = formData.get("videoThumbnail");
+
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&videoThumbnail=missing`);
+  }
+
+  if (!file.type.startsWith("image/")) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&videoThumbnail=type`);
+  }
+
+  const photo = await prisma.photo.findFirst({
+    where: galleryPhotoAccessWhere(admin, galleryId, photoId),
+    select: {
+      id: true,
+      mediaType: true,
+      imageUrl: true,
+      thumbnailUrl: true,
+      previewUrl: true,
+      gallery: {
+        select: {
+          slug: true
+        }
+      }
+    }
+  });
+
+  if (!photo) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&videoThumbnail=missing-photo`);
+  }
+
+  if (photo.mediaType !== "video") {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&videoThumbnail=not-video`);
+  }
+
+  const r2Key = createVideoThumbnailObjectKey({
+    gallerySlug: photo.gallery.slug,
+    originalFilename: file.name
+  });
+  const publicUrl = getPhotoPublicUrl(r2Key);
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  try {
+    await savePhotoObject({
+      r2Key,
+      bytes,
+      contentType: file.type
+    });
+  } catch (error) {
+    console.error("Video thumbnail upload failed", {
+      galleryId,
+      photoId,
+      r2Key,
+      error
+    });
+    redirect(`/admin/galleries/${galleryId}?tab=photos&videoThumbnail=storage`);
+  }
+
+  const previousObjectKeys = new Set(
+    [photo.thumbnailUrl, photo.previewUrl]
+      .filter((url): url is string => Boolean(url && url !== photo.imageUrl && url !== publicUrl))
+      .map((url) => getR2KeyFromPublicUrl(url))
+      .filter((key): key is string => Boolean(key))
+  );
+
+  await prisma.photo.update({
+    where: { id: photo.id },
+    data: {
+      thumbnailUrl: publicUrl,
+      previewUrl: publicUrl,
+      processingStatus: "ready",
+      processingError: null,
+      processingCompletedAt: new Date()
+    }
+  });
+  await prisma.mediaProcessingJob.deleteMany({
+    where: { photoId: photo.id, mediaType: "video" }
+  });
+
+  await Promise.all([...previousObjectKeys].map((key) => deletePhotoObject(key)));
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${photo.gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&videoThumbnail=updated`);
 }
 
 export async function deleteSelectedPhotosAction(galleryId: string, formData: FormData) {

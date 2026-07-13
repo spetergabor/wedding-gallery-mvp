@@ -226,6 +226,7 @@ export default async function GalleryDetailPage({
     sectionError?: string;
     saved?: string;
     tab?: string;
+    videoThumbnail?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -528,6 +529,12 @@ export default async function GalleryDetailPage({
         {flags.duplicateCleanup === "none" ? <Alert title="Nem találtam törölhető duplikátumot." variant="info" /> : null}
         {flags.mediaProcessing === "queued" ? <Alert title="Hiányzó előnézetek újra sorba állítva." variant="success" /> : null}
         {flags.mediaProcessing === "none" ? <Alert title="Nincs újraindítható előnézet." variant="info" /> : null}
+        {flags.videoThumbnail === "updated" ? <Alert title="Videó thumbnail mentve." variant="success" /> : null}
+        {flags.videoThumbnail === "missing" ? <Alert title="Válassz ki egy képet a videó thumbnailhez." variant="error" /> : null}
+        {flags.videoThumbnail === "missing-photo" ? <Alert title="A videó nem található." variant="error" /> : null}
+        {flags.videoThumbnail === "type" ? <Alert title="A videó thumbnail csak képfájl lehet." variant="error" /> : null}
+        {flags.videoThumbnail === "not-video" ? <Alert title="Thumbnailt csak videóhoz tudsz beállítani." variant="error" /> : null}
+        {flags.videoThumbnail === "storage" ? <Alert title="A videó thumbnail feltöltése nem sikerült." variant="error" /> : null}
         {flags.zip === "queued" ? <Alert title="ZIP csomag feldolgozásra beütemezve." variant="success" /> : null}
         {flags.zip === "manual-uploaded" ? <Alert title="Kész ZIP feltöltve." variant="success">A vendég letöltés most ezt a csomagot használja.</Alert> : null}
         {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}

@@ -2,14 +2,15 @@
 
 import Image from "next/image";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare, Eye, EyeOff, Film, FolderInput, GripVertical, ImageIcon, Square, Star, Trash2, Undo2, X } from "lucide-react";
+import { CheckSquare, Eye, EyeOff, Film, FolderInput, GripVertical, ImageIcon, Square, Star, Trash2, Undo2, Upload, X } from "lucide-react";
 import {
   deleteSelectedPhotosAction,
   deletePhotoAction,
   moveSelectedPhotosToSectionAction,
   restoreClientHiddenPhotoAction,
   saveGalleryPhotoOrderAction,
-  setCoverPhotoAction
+  setCoverPhotoAction,
+  setVideoThumbnailAction
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
@@ -71,6 +72,10 @@ function hasProcessedVariant(photo: SortablePhoto) {
     ((photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl) ||
       (photo.previewUrl && photo.previewUrl !== photo.imageUrl))
   );
+}
+
+function hasCustomVideoThumbnail(photo: SortablePhoto) {
+  return photo.mediaType === "video" && photo.thumbnailUrl && photo.thumbnailUrl !== photo.imageUrl;
 }
 
 function shouldShowProcessingBadge(photo: SortablePhoto) {
@@ -401,7 +406,20 @@ export function PhotoSortableGrid({
               <div className="relative aspect-[4/3] bg-mist">
                 {photo.mediaType === "video" ? (
                   <div className="relative h-full w-full bg-ink">
-                    <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
+                    {hasCustomVideoThumbnail(photo) ? (
+                      <Image
+                        src={getAdminPreviewUrl(photo)}
+                        alt={photo.filename}
+                        fill
+                        draggable={false}
+                        unoptimized
+                        loading="lazy"
+                        className="object-cover"
+                        sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+                      />
+                    ) : (
+                      <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
+                    )}
                     <span className="absolute inset-0 grid place-items-center text-white">
                       <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
                         <Film size={16} />
@@ -519,6 +537,38 @@ export function PhotoSortableGrid({
                     </ConfirmSubmitButton>
                   </form>
                 </div>
+
+                {photo.mediaType === "video" ? (
+                  <form
+                    action={setVideoThumbnailAction.bind(null, photo.id, galleryId)}
+                    encType="multipart/form-data"
+                    className="rounded-md border border-ink/10 bg-paper p-2"
+                  >
+                    <label className="flex items-center gap-2 text-xs font-medium text-graphite">
+                      <ImageIcon size={14} />
+                      Videó thumbnail
+                    </label>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                      <input
+                        name="videoThumbnail"
+                        type="file"
+                        accept="image/*"
+                        required
+                        className="min-w-0 flex-1 rounded-md border border-ink/10 bg-white text-xs text-graphite file:mr-3 file:h-9 file:border-0 file:bg-ink file:px-3 file:text-xs file:font-medium file:text-white"
+                      />
+                      <FormSubmitButton
+                        variant="secondary"
+                        pendingLabel="Mentés..."
+                        className="h-9 shrink-0 px-3 text-xs"
+                      >
+                        <Upload size={14} />
+                        <span className={compactGrid ? "sr-only" : ""}>
+                          {hasCustomVideoThumbnail(photo) ? "Csere" : "Mentés"}
+                        </span>
+                      </FormSubmitButton>
+                    </div>
+                  </form>
+                ) : null}
 
                 {photo.isClientHidden ? (
                   <form action={restoreClientHiddenPhotoAction.bind(null, galleryId, photo.id)}>

@@ -146,6 +146,20 @@ export function createPhotoVariantObjectKey({
   return `galleries/${gallerySlug}/${folder}/${uniqueName}`;
 }
 
+export function createVideoThumbnailObjectKey({
+  gallerySlug,
+  originalFilename
+}: {
+  gallerySlug: string;
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".jpg";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "video-thumbnail";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `galleries/${gallerySlug}/video-thumbnails/${uniqueName}`;
+}
+
 export function createGalleryZipObjectKey({
   gallerySlug
 }: {
