@@ -8,7 +8,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
-import { ZIP_GENERATION_JOB, enqueueGalleryZipJob, kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
+import {
+  ZIP_GENERATION_JOB,
+  enqueueGalleryZipJob,
+  kickGalleryZipJobs,
+  preparePublicGalleryZipPackages,
+  sendGalleryDownloadLinksForDownloadRequests,
+  sendGalleryDownloadLinksForPackage
+} from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { ensureDefaultPublicSubdomainForAdmin } from "@/lib/public-subdomain";
 import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
@@ -3037,6 +3044,35 @@ export async function completeManualGalleryZipUploadAction(
     ok: true,
     packageId: downloadPackage.id
   };
+}
+
+export async function resendGalleryDownloadEmailsAction(galleryId: string, downloadIds: string[]) {
+  await requireGalleryAccess(galleryId);
+
+  const validDownloadIds = [...new Set(downloadIds.filter(Boolean))];
+
+  if (validDownloadIds.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=downloads&downloadEmail=missing`);
+  }
+
+  const downloads = await prisma.galleryDownload.findMany({
+    where: {
+      galleryId,
+      id: { in: validDownloadIds }
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (downloads.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=downloads&downloadEmail=missing`);
+  }
+
+  await sendGalleryDownloadLinksForDownloadRequests(downloads.map((download) => download.id));
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  redirect(`/admin/galleries/${galleryId}?tab=downloads&downloadEmail=resent`);
 }
 
 export async function setCoverPhotoAction(galleryId: string, photoId: string) {

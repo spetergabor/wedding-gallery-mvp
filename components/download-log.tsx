@@ -2,6 +2,7 @@ import { AlertCircle, Archive, CheckCircle2, Clock3, Mail, Send } from "lucide-r
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { publicDownloadQualityFromScope } from "@/lib/download-packages";
 import { galleryDownloadQualityLabel } from "@/lib/download-quality";
+import { resendGalleryDownloadEmailsAction } from "@/lib/gallery-actions";
 
 type DownloadEntry = {
   id: string;
@@ -184,7 +185,7 @@ function requestPackageSummary(request: DownloadRequestGroup) {
   return `${packageQualityLabel(firstPackage.scope)} · ${readyCount}/${expectedPartCount} ZIP rész`;
 }
 
-export function DownloadLog({ downloads, packages }: { downloads: DownloadEntry[]; packages: DownloadPackage[] }) {
+export function DownloadLog({ galleryId, downloads, packages }: { galleryId: string; downloads: DownloadEntry[]; packages: DownloadPackage[] }) {
   const requestGroups = groupDownloadRequests(downloads);
 
   return (
@@ -260,6 +261,13 @@ export function DownloadLog({ downloads, packages }: { downloads: DownloadEntry[
               .sort((a, b) => b.getTime() - a.getTime())[0];
             const error = request.downloads.find((download) => download.downloadLinkEmailError)?.downloadLinkEmailError ??
               request.packages.find((downloadPackage) => downloadPackage.errorMessage)?.errorMessage;
+            const retryDownloadIds = request.downloads
+              .filter((download) => download.status === "email_failed" || download.status === "waiting")
+              .map((download) => download.id);
+            const canRetryEmail =
+              retryDownloadIds.length > 0 &&
+              request.packages.length > 0 &&
+              request.packages.every((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl);
 
             return (
               <div key={request.key} className="grid gap-2 px-4 py-3">
@@ -286,10 +294,23 @@ export function DownloadLog({ downloads, packages }: { downloads: DownloadEntry[
                       </time>
                     ) : null}
                   </div>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}>
-                    <StatusIcon size={13} />
-                    {status.label}
-                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}>
+                      <StatusIcon size={13} />
+                      {status.label}
+                    </span>
+                    {canRetryEmail ? (
+                      <form action={resendGalleryDownloadEmailsAction.bind(null, galleryId, retryDownloadIds)}>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-ink/10 bg-white px-2.5 py-1 text-xs font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+                        >
+                          <Send size={13} />
+                          Újraküldés
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
                 </div>
                 {error ? <p className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{error}</p> : null}
               </div>

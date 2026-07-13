@@ -1140,8 +1140,9 @@ export async function sendGalleryDownloadLinkForRequest(downloadId: string) {
   }
 }
 
-export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) {
+export async function sendGalleryDownloadLinksForPackages(packageIds: string[], options?: { downloadIds?: string[] }) {
   const uniquePackageIds = [...new Set(packageIds)];
+  const downloadIds = options?.downloadIds ? [...new Set(options.downloadIds.filter(Boolean))] : [];
 
   if (uniquePackageIds.length === 0) {
     return;
@@ -1171,7 +1172,10 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) 
         }
       },
       downloads: {
-        where: { status: { in: ["waiting", "email_failed"] } },
+        where: {
+          status: { in: ["waiting", "email_failed"] },
+          ...(downloadIds.length > 0 ? { id: { in: downloadIds } } : {})
+        },
         select: {
           id: true,
           email: true
@@ -1302,6 +1306,27 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[]) 
       }
     }
   }
+}
+
+export async function sendGalleryDownloadLinksForDownloadRequests(downloadIds: string[]) {
+  const uniqueDownloadIds = [...new Set(downloadIds.filter(Boolean))];
+
+  if (uniqueDownloadIds.length === 0) {
+    return;
+  }
+
+  const downloads = await prisma.galleryDownload.findMany({
+    where: { id: { in: uniqueDownloadIds }, packageId: { not: null } },
+    select: {
+      id: true,
+      packageId: true
+    }
+  });
+  const packageIds = downloads.map((download) => download.packageId).filter((packageId): packageId is string => Boolean(packageId));
+
+  await sendGalleryDownloadLinksForPackages(packageIds, {
+    downloadIds: downloads.map((download) => download.id)
+  });
 }
 
 export async function sendGalleryDownloadLinksForPackage(packageId: string) {

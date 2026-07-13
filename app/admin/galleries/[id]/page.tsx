@@ -104,6 +104,7 @@ export default async function GalleryDetailPage({
     coverPosition?: string;
     coverSet?: string;
     deliveryEmail?: string;
+    downloadEmail?: string;
     zip?: string;
     duplicateCleanup?: string;
     clientLink?: string;
@@ -429,6 +430,8 @@ export default async function GalleryDetailPage({
         {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}
         {flags.zip === "already-ready" ? <Alert title="A ZIP már kész, újraindításra nem volt szükség." variant="success" /> : null}
         {flags.zip === "downloads-disabled" ? <Alert title="A letöltés ki van kapcsolva ehhez a galériához." variant="error" /> : null}
+        {flags.downloadEmail === "resent" ? <Alert title="A letöltési e-mail újraküldve." variant="success" /> : null}
+        {flags.downloadEmail === "missing" ? <Alert title="Nem található újraküldhető letöltési kérés." variant="error" /> : null}
         {flags.zip === "no-photos" ? <Alert title="Nincs letölthető fotó a galériában." variant="error" /> : null}
         {flags.zip === "not-active" ? <Alert title="Ez a galéria nem aktív." variant="error" /> : null}
         {flags.zip === "proofing-pending" ? <Alert title="A galéria még nem került átadásra." variant="error" /> : null}
@@ -736,7 +739,7 @@ export default async function GalleryDetailPage({
         <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
           <div className="space-y-6">
             <ZipPreparationStatus galleryId={gallery.id} packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
-            <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
+            <DownloadLog galleryId={gallery.id} downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
           </div>
         </div>
 
