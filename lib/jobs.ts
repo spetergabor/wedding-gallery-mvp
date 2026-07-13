@@ -3,7 +3,6 @@ import { PassThrough, Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
-import { Readable as LazyReadable } from "lazystream";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { ensureDownloadPackageAccessToken, publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
@@ -279,24 +278,64 @@ function mediaStreamError(filename: string, error: unknown) {
   return new Error(`${filename}: ${message}`);
 }
 
-function createLazyZipMediaStream(filename: string, createStream: () => NodeJS.ReadableStream) {
-  return new LazyReadable(() => {
-    const stream = new PassThrough();
+function createZipMediaStream(filename: string, createStream: () => NodeJS.ReadableStream) {
+  const stream = new PassThrough();
+
+  try {
+    const source = createStream();
+
+    source.on("error", (error) => {
+      stream.destroy(mediaStreamError(filename, error));
+    });
+    source.pipe(stream);
+  } catch (error) {
+    queueMicrotask(() => {
+      stream.destroy(mediaStreamError(filename, error));
+    });
+  }
+
+  return stream;
+}
+
+function appendZipEntry(zip: ZipArchive, stream: Readable, name: string) {
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+
+    const cleanup = () => {
+      zip.off("entry", onEntry);
+      zip.off("error", onError);
+      stream.off("error", onError);
+    };
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const fail = (error: unknown) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+    const onEntry = () => finish();
+    const onError = (error: unknown) => fail(error);
+
+    zip.once("entry", onEntry);
+    zip.once("error", onError);
+    stream.once("error", onError);
 
     try {
-      const source = createStream();
-
-      source.on("error", (error) => {
-        stream.destroy(mediaStreamError(filename, error));
-      });
-      source.pipe(stream);
+      zip.append(stream, { name });
     } catch (error) {
-      queueMicrotask(() => {
-        stream.destroy(mediaStreamError(filename, error));
-      });
+      fail(error);
     }
-
-    return stream;
   });
 }
 
@@ -953,7 +992,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     zip.pipe(zipStream);
 
     for (const [index, photo] of gallery.photos.entries()) {
-      const mediaStream = createLazyZipMediaStream(photo.filename, () =>
+      const entryName = photoZipFileName(photo.filename, downloadPackage.photoOffset + index, quality, photo.mediaType);
+      const mediaStream = createZipMediaStream(photo.filename, () =>
         quality === "web" && photo.mediaType !== "video"
           ? createWebImageStream(photo)
           : photo.r2Key
@@ -965,9 +1005,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
             : createRemoteFileStream({ filename: photo.filename, imageUrl: photo.imageUrl })
       );
 
-      zip.append(mediaStream, {
-        name: photoZipFileName(photo.filename, downloadPackage.photoOffset + index, quality, photo.mediaType)
-      });
+      await appendZipEntry(zip, mediaStream, entryName);
     }
 
     await zip.finalize();
