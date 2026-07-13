@@ -2,14 +2,16 @@
 
 import { ChangeEvent, DragEvent, FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
+import { Archive, AlertCircle, ArrowLeft, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
+import { Button } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   abortManualGalleryZipMultipartUploadAction,
   completeManualGalleryZipUploadAction,
   completeManualGalleryZipMultipartUploadAction,
   createManualGalleryZipMultipartPartUploadUrlAction,
-  createManualGalleryZipUploadTargetAction
+  createManualGalleryZipUploadTargetAction,
+  queueGalleryZipPackageAction
 } from "@/lib/gallery-actions";
 
 type UploadStatus = "idle" | "preparing" | "uploading" | "saving" | "completed" | "failed";
@@ -192,11 +194,13 @@ export function ManualZipUploadForm({
   const [errorMessage, setErrorMessage] = useState("");
   const [bytesSent, setBytesSent] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [step, setStep] = useState<"choice" | "manual">("choice");
 
   const isWorking = status === "preparing" || status === "uploading" || status === "saving";
   const progress = selectedFile && selectedFile.size > 0 ? Math.round((Math.min(bytesSent, selectedFile.size) / selectedFile.size) * 100) : 0;
-  const StatusIcon = status === "completed" ? CheckCircle2 : status === "failed" ? AlertCircle : isWorking ? Loader2 : UploadCloud;
+  const StatusIcon = step === "choice" ? Archive : status === "completed" ? CheckCircle2 : status === "failed" ? AlertCircle : isWorking ? Loader2 : UploadCloud;
   const compact = variant === "compact";
+  const statusText = step === "choice" ? "Választás kell" : statusLabel(status);
 
   function setZipFile(file: File | null) {
     setSelectedFile(file);
@@ -344,106 +348,169 @@ export function ManualZipUploadForm({
   }
 
   const content = (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-4">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div>
             <div className={`flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass ${compact ? "text-xs" : ""}`}>
               <UploadCloud size={15} />
               Letöltési átadás
             </div>
-            <h2 className={`${compact ? "mt-1 text-lg" : "mt-2 text-xl"} font-semibold text-ink`}>Kész ZIP feltöltése</h2>
+            <h2 className={`${compact ? "mt-1 text-lg" : "mt-2 text-xl"} font-semibold text-ink`}>ZIP átadás előkészítése</h2>
             <p className={`mt-1 max-w-3xl text-sm leading-6 text-graphite/70 ${compact ? "max-w-2xl" : ""}`}>
-              Ha a Macen elkészített ZIP-et töltöd fel, a pár azonnal letöltheti a kész csomagot. A rendszer közben automatikusan elkészíti a
-              kompakt, webes méretű vendég ZIP-et is.
+              Döntsd el, hogy a rendszer készítsen webes méretű ZIP-et online, vagy te töltesz fel egy saját, kész ZIP csomagot.
             </p>
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full bg-ink/5 px-3 py-1.5 text-sm font-medium text-graphite">
             <StatusIcon size={16} className={isWorking ? "animate-spin" : ""} />
-            {statusLabel(status)}
+            {statusText}
           </span>
         </div>
-
-        <label
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`flex cursor-pointer flex-col rounded-md border border-dashed px-4 py-4 transition sm:flex-row sm:items-center sm:gap-4 ${
-            isDragging ? "border-ink bg-ink/[0.03]" : "border-ink/20 bg-paper hover:border-ink/35"
-          } ${disabled || isWorking ? "pointer-events-none opacity-60" : ""}`}
-        >
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-ink shadow-sm">
-            <UploadCloud size={22} />
-          </span>
-          <span className="mt-3 min-w-0 flex-1 sm:mt-0">
-            <span className="block truncate text-sm font-semibold text-ink">
-              {selectedFile ? selectedFile.name : "Kattints a ZIP fájl kiválasztásához"}
-            </span>
-            <span className="mt-1 block text-xs leading-5 text-graphite/65">
-              {selectedFile ? `${formatBytes(selectedFile.size)} · közvetlen R2 feltöltés` : "Vagy húzd ide a kész .zip fájlt."}
-            </span>
-          </span>
-          <span className="mt-3 inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-ink px-3 text-sm font-medium text-white sm:mt-0">
-            Fájl kiválasztása
-          </span>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".zip,application/zip,application/x-zip-compressed"
-            className="sr-only"
-            disabled={disabled || isWorking}
-            onChange={handleFileChange}
-          />
-        </label>
-
-        {selectedFile && (status === "uploading" || status === "saving" || status === "completed") ? (
-          <div>
-            <div className="h-2 overflow-hidden rounded-full bg-ink/10">
-              <div className="h-full rounded-full bg-sage transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
-            </div>
-            <p className="mt-2 text-sm text-graphite/70">
-              {progress}% · {formatBytes(bytesSent)} / {formatBytes(selectedFile.size)}
-            </p>
-          </div>
-        ) : null}
-
-        {errorMessage ? (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{errorMessage}</p>
-        ) : null}
 
         {disabled ? (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
-            Ehhez a galériához most nem tölthető fel ZIP csomag.
+            Ehhez a galériához most nem készíthető vagy tölthető fel ZIP csomag.
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <FormSubmitButton
-            type="submit"
-            disabled={!selectedFile || disabled || isWorking || status === "completed"}
-            className={(!selectedFile || disabled || isWorking) ? "opacity-60" : ""}
-            busy={isWorking}
-            pendingLabel={statusLabel(status)}
-          >
-            <UploadCloud size={16} />
-            {status === "idle" ? "ZIP feltöltése" : statusLabel(status)}
-          </FormSubmitButton>
-          {selectedFile ? (
-            <button
-              type="button"
-              className="text-sm font-medium text-graphite hover:text-ink"
-              disabled={isWorking}
-              onClick={() => {
-                setZipFile(null);
-                if (inputRef.current) {
-                  inputRef.current.value = "";
-                }
-              }}
+        {step === "choice" ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex flex-col justify-between rounded-md border border-ink/10 bg-paper p-4">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <Archive size={17} />
+                  Online konvertálás
+                </div>
+                <p className="mt-2 text-sm leading-6 text-graphite/70">
+                  A Spetly a feltöltött képekből készít webes méretű ZIP-et. Indítás után automatikusan a Letöltések fülön látod az állapotot.
+                </p>
+              </div>
+              <form action={queueGalleryZipPackageAction.bind(null, galleryId)} className="mt-4">
+                <FormSubmitButton disabled={disabled} pendingLabel="Indítás..." className={disabled ? "opacity-60" : ""}>
+                  <Archive size={16} />
+                  Indítás és státusz
+                </FormSubmitButton>
+              </form>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-md border border-ink/10 bg-paper p-4">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <UploadCloud size={17} />
+                  Saját ZIP feltöltése
+                </div>
+                <p className="mt-2 text-sm leading-6 text-graphite/70">
+                  Ha a gépeden már elkészítetted a ZIP-et, itt töltheted fel közvetlenül. A vendég ezt a kész csomagot kapja.
+                </p>
+              </div>
+              <Button type="button" variant="secondary" className="mt-4 w-fit" disabled={disabled} onClick={() => setStep("manual")}>
+                <UploadCloud size={16} />
+                Saját ZIP választása
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "manual" ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex flex-col justify-between gap-3 rounded-md bg-paper px-4 py-3 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-sm font-semibold text-ink">Saját ZIP feltöltése</p>
+                <p className="mt-1 text-xs text-graphite/65">Válaszd ki a kész .zip fájlt, majd töltsd fel.</p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex w-fit items-center gap-2 text-sm font-medium text-graphite hover:text-ink"
+                disabled={isWorking}
+                onClick={() => {
+                  setZipFile(null);
+                  setStep("choice");
+                  if (inputRef.current) {
+                    inputRef.current.value = "";
+                  }
+                }}
+              >
+                <ArrowLeft size={15} />
+                Másik út választása
+              </button>
+            </div>
+
+            <label
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`flex cursor-pointer flex-col rounded-md border border-dashed px-4 py-4 transition sm:flex-row sm:items-center sm:gap-4 ${
+                isDragging ? "border-ink bg-ink/[0.03]" : "border-ink/20 bg-paper hover:border-ink/35"
+              } ${disabled || isWorking ? "pointer-events-none opacity-60" : ""}`}
             >
-              Másik fájl
-            </button>
-          ) : null}
-        </div>
-      </form>
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-ink shadow-sm">
+                <UploadCloud size={22} />
+              </span>
+              <span className="mt-3 min-w-0 flex-1 sm:mt-0">
+                <span className="block truncate text-sm font-semibold text-ink">
+                  {selectedFile ? selectedFile.name : "Kattints a ZIP fájl kiválasztásához"}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-graphite/65">
+                  {selectedFile ? `${formatBytes(selectedFile.size)} · közvetlen R2 feltöltés` : "Vagy húzd ide a kész .zip fájlt."}
+                </span>
+              </span>
+              <span className="mt-3 inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-ink px-3 text-sm font-medium text-white sm:mt-0">
+                Fájl kiválasztása
+              </span>
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".zip,application/zip,application/x-zip-compressed"
+                className="sr-only"
+                disabled={disabled || isWorking}
+                onChange={handleFileChange}
+              />
+            </label>
+
+            {selectedFile && (status === "uploading" || status === "saving" || status === "completed") ? (
+              <div>
+                <div className="h-2 overflow-hidden rounded-full bg-ink/10">
+                  <div className="h-full rounded-full bg-sage transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
+                </div>
+                <p className="mt-2 text-sm text-graphite/70">
+                  {progress}% · {formatBytes(bytesSent)} / {formatBytes(selectedFile.size)}
+                </p>
+              </div>
+            ) : null}
+
+            {errorMessage ? (
+              <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{errorMessage}</p>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <FormSubmitButton
+                type="submit"
+                disabled={!selectedFile || disabled || isWorking || status === "completed"}
+                className={(!selectedFile || disabled || isWorking) ? "opacity-60" : ""}
+                busy={isWorking}
+                pendingLabel={statusLabel(status)}
+              >
+                <UploadCloud size={16} />
+                {status === "idle" ? "ZIP feltöltése" : statusLabel(status)}
+              </FormSubmitButton>
+              {selectedFile ? (
+                <button
+                  type="button"
+                  className="text-sm font-medium text-graphite hover:text-ink"
+                  disabled={isWorking}
+                  onClick={() => {
+                    setZipFile(null);
+                    if (inputRef.current) {
+                      inputRef.current.value = "";
+                    }
+                  }}
+                >
+                  Másik fájl
+                </button>
+              ) : null}
+            </div>
+          </form>
+        ) : null}
+      </div>
   );
 
   if (compact) {
