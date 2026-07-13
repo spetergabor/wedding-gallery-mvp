@@ -2638,6 +2638,47 @@ export async function retryGalleryZipPackageGroupAction(galleryId: string, group
   redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
 }
 
+export async function deleteGalleryZipPackageGroupAction(galleryId: string, groupKey: string) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const packages = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      galleryId: gallery.id,
+      OR: [{ id: groupKey }, { groupId: groupKey }]
+    },
+    select: {
+      id: true,
+      r2Key: true,
+      status: true
+    }
+  });
+
+  if (packages.length === 0) {
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=not-found`);
+  }
+
+  const hasActivePackage = packages.some((downloadPackage) => downloadPackage.status === "pending" || downloadPackage.status === "processing");
+
+  if (hasActivePackage) {
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=delete-active`);
+  }
+
+  const packageIds = packages.map((downloadPackage) => downloadPackage.id);
+  const r2Keys = packages.map((downloadPackage) => downloadPackage.r2Key).filter((r2Key): r2Key is string => Boolean(r2Key));
+
+  await prisma.galleryDownloadPackage.deleteMany({
+    where: {
+      galleryId: gallery.id,
+      id: { in: packageIds }
+    }
+  });
+
+  await Promise.all(r2Keys.map((r2Key) => deletePhotoObject(r2Key)));
+
+  revalidatePath(`/admin/galleries/${gallery.id}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=deleted`);
+}
+
 function isZipFilename(filename: string) {
   return filename.trim().toLowerCase().endsWith(".zip");
 }

@@ -532,6 +532,8 @@ export default async function GalleryDetailPage({
         {flags.zip === "manual-uploaded" ? <Alert title="Kész ZIP feltöltve." variant="success">A vendég letöltés most ezt a csomagot használja.</Alert> : null}
         {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}
         {flags.zip === "already-ready" ? <Alert title="A ZIP már kész, újraindításra nem volt szükség." variant="success" /> : null}
+        {flags.zip === "deleted" ? <Alert title="ZIP csomag törölve." variant="success">A hozzá tartozó R2 fájlok is törölve lettek.</Alert> : null}
+        {flags.zip === "delete-active" ? <Alert title="Futó ZIP-et nem lehet törölni." variant="error">Várd meg, amíg befejeződik vagy hibára fut, utána törölhető.</Alert> : null}
         {flags.zip === "manual-required" ? (
           <Alert title="A ZIP nem indult el automatikusan." variant="info">
             Indítsd el az online ZIP készítést vagy tölts fel saját ZIP-et, amikor a galéria végleges.

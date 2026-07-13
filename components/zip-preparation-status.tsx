@@ -1,10 +1,11 @@
-import { Archive, AlertCircle, CheckCircle2, Clock3, RotateCcw } from "lucide-react";
+import { Archive, AlertCircle, CheckCircle2, Clock3, RotateCcw, Trash2 } from "lucide-react";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ZipStatusAutoRefresh } from "@/components/zip-status-auto-refresh";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { publicDownloadQualityFromScope } from "@/lib/download-packages";
 import { galleryDownloadQualityLabel } from "@/lib/download-quality";
-import { queueGalleryZipPackageAction, retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
+import { deleteGalleryZipPackageGroupAction, queueGalleryZipPackageAction, retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
 
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
@@ -342,6 +343,7 @@ export function ZipPreparationStatus({
               const groupMeta = statusMeta(group, photoCount);
               const GroupIcon = groupMeta.icon;
               const canRetry = (group.failedCount > 0 || group.staleProcessingCount > 0) && group.pendingCount === 0 && group.processingCount === 0;
+              const canDelete = group.pendingCount === 0 && group.processingCount === 0 && group.staleProcessingCount === 0;
 
               return (
                 <div key={group.key} className="rounded-md bg-white px-3 py-2">
@@ -360,6 +362,18 @@ export function ZipPreparationStatus({
                             <RotateCcw size={13} />
                             Újraindítás
                           </FormSubmitButton>
+                        </form>
+                      ) : null}
+                      {canDelete ? (
+                        <form action={deleteGalleryZipPackageGroupAction.bind(null, galleryId, group.key)}>
+                          <ConfirmSubmitButton
+                            variant="danger"
+                            className="h-8 px-2.5 text-xs"
+                            message="Biztosan törlöd ezt a ZIP csomagot? A hozzá tartozó R2 fájlok is törlődnek, a vendég linkek nem fognak működni."
+                          >
+                            <Trash2 size={13} />
+                            Törlés
+                          </ConfirmSubmitButton>
                         </form>
                       ) : null}
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${groupMeta.className}`}>
