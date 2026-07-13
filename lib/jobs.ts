@@ -136,6 +136,7 @@ function readPositiveInteger(value: string | undefined, fallback: number, minimu
 }
 
 const ZIP_PART_TARGET_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_PART_TARGET_MB, 2048, 256);
+const ZIP_UPLOAD_PART_SIZE_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_UPLOAD_PART_SIZE_MB, 16, 5);
 
 export function createZipPartRanges(photos: Array<{ fileSize: number | null; mediaType?: string | null }>, quality: GalleryDownloadQuality) {
   const ranges: Array<{ offset: number; limit: number }> = [];
@@ -936,6 +937,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       r2Key,
       stream: zipStream,
       contentType: "application/zip",
+      partSizeBytes: ZIP_UPLOAD_PART_SIZE_BYTES,
       onProgress: (processedBytes) => {
         queueProgressUpdate({ processedBytes });
       }

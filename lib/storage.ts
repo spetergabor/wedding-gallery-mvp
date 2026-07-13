@@ -49,6 +49,24 @@ function readPositiveInteger(value: string | undefined, fallback: number, minimu
 const MULTIPART_UPLOAD_PART_SIZE = readPositiveMegabytes(process.env.R2_MULTIPART_UPLOAD_PART_SIZE_MB, 64, 5);
 const R2_OBJECT_READ_CHUNK_SIZE = readPositiveMegabytes(process.env.R2_OBJECT_READ_CHUNK_SIZE_MB, 64, 1);
 const R2_OBJECT_READ_RETRIES = readPositiveInteger(process.env.R2_OBJECT_READ_RETRIES, 4, 1);
+const R2_REQUEST_TIMEOUT_MS = readPositiveInteger(process.env.R2_REQUEST_TIMEOUT_MS, 120_000, 5_000);
+
+async function withR2Timeout<T>(label: string, operation: (signal: AbortSignal) => Promise<T>, timeoutMs = R2_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await operation(controller.signal);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function r2Endpoint() {
   if (process.env.R2_ENDPOINT) {
@@ -396,15 +414,21 @@ async function loadR2ObjectRange(r2Key: string, start: number, end: number) {
 
   for (let attempt = 1; attempt <= R2_OBJECT_READ_RETRIES; attempt += 1) {
     try {
-      const response = await getR2Client().send(
-        new GetObjectCommand({
-          Bucket: R2_BUCKET_NAME,
-          Key: r2Key,
-          Range: `bytes=${start}-${end}`
-        })
-      );
+      return await withR2Timeout(
+        `R2 object range read ${start}-${end}`,
+        async (signal) => {
+          const response = await getR2Client().send(
+            new GetObjectCommand({
+              Bucket: R2_BUCKET_NAME,
+              Key: r2Key,
+              Range: `bytes=${start}-${end}`
+            }),
+            { abortSignal: signal }
+          );
 
-      return responseBodyToBuffer(response.Body);
+          return responseBodyToBuffer(response.Body);
+        }
+      );
     } catch (error) {
       lastError = error;
 
@@ -475,12 +499,14 @@ export async function savePhotoStream({
   r2Key,
   stream,
   contentType,
-  onProgress
+  onProgress,
+  partSizeBytes
 }: {
   r2Key: string;
   stream: NodeJS.ReadableStream;
   contentType?: string;
   onProgress?: (bytesWritten: bigint) => void;
+  partSizeBytes?: number;
 }) {
   if (STORAGE_DRIVER !== "r2") {
     if (process.env.VERCEL) {
@@ -506,12 +532,18 @@ export async function savePhotoStream({
   }
 
   const client = getR2Client();
-  const multipartUpload = await client.send(
-    new CreateMultipartUploadCommand({
-      Bucket: R2_BUCKET_NAME,
-      Key: r2Key,
-      ContentType: contentType || "application/octet-stream"
-    })
+  const uploadPartSize = Math.max(5 * BYTES_PER_MEGABYTE, partSizeBytes || MULTIPART_UPLOAD_PART_SIZE);
+  const multipartUpload = await withR2Timeout(
+    "R2 multipart upload start",
+    (signal) =>
+      client.send(
+        new CreateMultipartUploadCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          ContentType: contentType || "application/octet-stream"
+        }),
+        { abortSignal: signal }
+      )
   );
   const uploadId = multipartUpload.UploadId;
 
@@ -526,23 +558,29 @@ export async function savePhotoStream({
   const completedParts: Array<{ ETag: string; PartNumber: number }> = [];
 
   async function uploadPart(body: Buffer) {
-    const uploadedPart = await client.send(
-      new UploadPartCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: r2Key,
-        UploadId: uploadId,
-        PartNumber: partNumber,
-        Body: body
-      })
+    const currentPartNumber = partNumber;
+    const uploadedPart = await withR2Timeout(
+      `R2 multipart upload part ${currentPartNumber}`,
+      (signal) =>
+        client.send(
+          new UploadPartCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: r2Key,
+            UploadId: uploadId,
+            PartNumber: currentPartNumber,
+            Body: body
+          }),
+          { abortSignal: signal }
+        )
     );
 
     if (!uploadedPart.ETag) {
-      throw new Error(`R2 multipart upload part ${partNumber} did not return an ETag.`);
+      throw new Error(`R2 multipart upload part ${currentPartNumber} did not return an ETag.`);
     }
 
     completedParts.push({
       ETag: uploadedPart.ETag,
-      PartNumber: partNumber
+      PartNumber: currentPartNumber
     });
     partNumber += 1;
     totalBytes += BigInt(body.length);
@@ -570,22 +608,27 @@ export async function savePhotoStream({
       buffers.push(buffer);
       bufferedBytes += buffer.length;
 
-      while (bufferedBytes >= MULTIPART_UPLOAD_PART_SIZE) {
-        await uploadBufferedPart(MULTIPART_UPLOAD_PART_SIZE);
+      while (bufferedBytes >= uploadPartSize) {
+        await uploadBufferedPart(uploadPartSize);
       }
     }
 
     await uploadBufferedPart(bufferedBytes);
 
-    await client.send(
-      new CompleteMultipartUploadCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: r2Key,
-        UploadId: uploadId,
-        MultipartUpload: {
-          Parts: completedParts
-        }
-      })
+    await withR2Timeout(
+      "R2 multipart upload complete",
+      (signal) =>
+        client.send(
+          new CompleteMultipartUploadCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: r2Key,
+            UploadId: uploadId,
+            MultipartUpload: {
+              Parts: completedParts
+            }
+          }),
+          { abortSignal: signal }
+        )
     );
 
     return {
