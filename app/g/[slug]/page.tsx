@@ -302,7 +302,7 @@ export default async function PublicGalleryPage({
       <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
         {visibleSections.length > 0 ? (
           <nav
-            className="sticky top-0 z-30 -mx-5 mb-8 border-b border-ink/10 bg-paper/95 px-5 py-3 shadow-[0_12px_28px_rgba(17,17,17,0.05)] backdrop-blur lg:-mx-8 lg:px-8"
+            className="sticky top-0 z-30 -mx-5 -mt-8 mb-12 border-b border-ink/10 bg-paper/95 px-5 py-2.5 shadow-[0_12px_28px_rgba(17,17,17,0.05)] backdrop-blur lg:-mx-8 lg:px-8"
             aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
           >
             <div className="flex min-w-full gap-2 overflow-x-auto [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden">

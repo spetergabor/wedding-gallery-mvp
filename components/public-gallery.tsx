@@ -1351,7 +1351,7 @@ export function PublicGallery({
       </section>
 
       {favoritesEnabled || canDownload ? (
-        <div className="fixed bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-ink/10 bg-white/90 px-3 py-3 shadow-soft backdrop-blur">
+        <div className="fixed bottom-3 left-1/2 z-20 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-lg border border-ink/10 bg-white/90 px-3 py-2 shadow-soft backdrop-blur sm:bottom-5 sm:flex-nowrap sm:gap-3 sm:py-3">
           <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
             <Images size={16} />
             {showFavoritesOnly ? `${visiblePhotos.length}/${photos.length} Medien` : `${photos.length} Medien`}
