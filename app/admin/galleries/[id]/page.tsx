@@ -735,7 +735,7 @@ export default async function GalleryDetailPage({
 
         <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
           <div className="space-y-6">
-            <ZipPreparationStatus packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
+            <ZipPreparationStatus galleryId={gallery.id} packages={gallery.downloadPackages} photoCount={gallery.photos.length} />
             <DownloadLog downloads={gallery.downloads} packages={gallery.downloadPackages.slice(0, 8)} />
           </div>
         </div>

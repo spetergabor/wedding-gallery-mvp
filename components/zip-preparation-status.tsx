@@ -1,7 +1,9 @@
-import { Archive, AlertCircle, CheckCircle2, Clock3 } from "lucide-react";
+import { Archive, AlertCircle, CheckCircle2, Clock3, RotateCcw } from "lucide-react";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { publicDownloadQualityFromScope } from "@/lib/download-packages";
 import { galleryDownloadQualityLabel } from "@/lib/download-quality";
+import { retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
 
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
@@ -179,7 +181,7 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
     };
   }
 
-  if (group.failedCount > 0 && !group.hasActiveWork) {
+  if (group.failedCount > 0 && group.pendingCount === 0 && group.processingCount === 0) {
     return {
       label: "Hibás",
       description: "A ZIP előkészítés hibára futott, újrapróbálás kell.",
@@ -205,7 +207,7 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
   };
 }
 
-export function ZipPreparationStatus({ packages, photoCount }: { packages: DownloadPackage[]; photoCount: number }) {
+export function ZipPreparationStatus({ galleryId, packages, photoCount }: { galleryId: string; packages: DownloadPackage[]; photoCount: number }) {
   const { primaryGroup, summaries, groupCount, oldFailedCount, totalStaleCount } = getPrimaryGroup(packages);
   const meta = statusMeta(primaryGroup, photoCount);
   const Icon = meta.icon;
@@ -221,6 +223,9 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
   const failedPackages =
     primaryGroup?.packages.filter((downloadPackage) => downloadPackage.status !== "stale" && (downloadPackage.status === "failed" || downloadPackage.errorMessage)).slice(0, 3) ?? [];
 
+  const primaryCanRetry =
+    primaryGroup ? (primaryGroup.failedCount > 0 || primaryGroup.staleProcessingCount > 0) && primaryGroup.pendingCount === 0 && primaryGroup.processingCount === 0 : false;
+
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -235,10 +240,20 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
           </h2>
           <p className="mt-1 text-sm text-graphite/70">{meta.description}</p>
         </div>
-        <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${meta.className}`}>
-          <Icon size={16} />
-          {meta.label}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {primaryGroup && primaryCanRetry ? (
+            <form action={retryGalleryZipPackageGroupAction.bind(null, galleryId, primaryGroup.key)}>
+              <FormSubmitButton variant="secondary" pendingLabel="Indítás..." className="h-9 px-3 text-xs">
+                <RotateCcw size={14} />
+                Újraindítás
+              </FormSubmitButton>
+            </form>
+          ) : null}
+          <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${meta.className}`}>
+            <Icon size={16} />
+            {meta.label}
+          </span>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-4">
@@ -284,6 +299,7 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
             {summaries.slice(0, 6).map((group) => {
               const groupMeta = statusMeta(group, photoCount);
               const GroupIcon = groupMeta.icon;
+              const canRetry = (group.failedCount > 0 || group.staleProcessingCount > 0) && group.pendingCount === 0 && group.processingCount === 0;
 
               return (
                 <div key={group.key} className="rounded-md bg-white px-3 py-2">
@@ -295,10 +311,20 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
                         {formatBytes(group.isComplete ? group.fileSize : group.processedBytes)}
                       </p>
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${groupMeta.className}`}>
-                      <GroupIcon size={13} />
-                      {groupMeta.label}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {canRetry ? (
+                        <form action={retryGalleryZipPackageGroupAction.bind(null, galleryId, group.key)}>
+                          <FormSubmitButton variant="secondary" pendingLabel="Indítás..." className="h-8 px-2.5 text-xs">
+                            <RotateCcw size={13} />
+                            Újraindítás
+                          </FormSubmitButton>
+                        </form>
+                      ) : null}
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${groupMeta.className}`}>
+                        <GroupIcon size={13} />
+                        {groupMeta.label}
+                      </span>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-graphite/55">Frissítve: {formatDate(group.latestAt)}</p>
                 </div>

@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
-import { kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
+import { ZIP_GENERATION_JOB, enqueueGalleryZipJob, kickGalleryZipJobs, preparePublicGalleryZipPackages, sendGalleryDownloadLinksForPackage } from "@/lib/jobs";
 import { normalizeSlug } from "@/lib/slug";
 import { ensureDefaultPublicSubdomainForAdmin } from "@/lib/public-subdomain";
 import { completePendingTwoFactorSignIn, hasAnyAdmin, refreshAdminSession, requireAdmin, signInAdmin, signOutAdmin } from "@/lib/auth";
@@ -2565,6 +2565,79 @@ export async function queueGalleryZipPackageAction(galleryId: string) {
   revalidatePath(`/admin/galleries/${gallery.id}`);
   revalidatePath(`/g/${gallery.slug}`);
   redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=${zipStatus}`);
+}
+
+export async function retryGalleryZipPackageGroupAction(galleryId: string, groupKey: string) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const packages = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      galleryId: gallery.id,
+      OR: [{ id: groupKey }, { groupId: groupKey }],
+      status: { in: ["pending", "processing", "failed"] }
+    },
+    orderBy: [{ partIndex: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true
+    }
+  });
+
+  if (packages.length === 0) {
+    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=not-found`);
+  }
+
+  await prisma.$transaction([
+    ...packages.map((downloadPackage) =>
+      prisma.backgroundJob.updateMany({
+        where: {
+          type: ZIP_GENERATION_JOB,
+          status: { in: ["pending", "processing"] },
+          payload: {
+            path: ["packageId"],
+            equals: downloadPackage.id
+          }
+        },
+        data: {
+          status: "failed",
+          lockedAt: null,
+          errorMessage: "Admin újraindítás miatt lezárva."
+        }
+      })
+    ),
+    ...packages.map((downloadPackage) =>
+      prisma.galleryDownloadPackage.update({
+        where: { id: downloadPackage.id },
+        data: {
+          status: "pending",
+          processedCount: 0,
+          processedBytes: BigInt(0),
+          fileSize: BigInt(0),
+          r2Key: null,
+          downloadUrl: null,
+          accessToken: null,
+          accessTokenExpiresAt: null,
+          linkCreatedAt: null,
+          errorMessage: null,
+          generatedAt: null
+        }
+      })
+    )
+  ]);
+
+  const payloads = await Promise.all(
+    packages.map(async (downloadPackage) => ({
+      galleryId: gallery.id,
+      packageId: downloadPackage.id,
+      jobId: (await enqueueGalleryZipJob({ galleryId: gallery.id, packageId: downloadPackage.id })).id
+    }))
+  );
+
+  after(async () => {
+    await kickGalleryZipJobs(payloads);
+  });
+
+  revalidatePath(`/admin/galleries/${gallery.id}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
 }
 
 function isZipFilename(filename: string) {
