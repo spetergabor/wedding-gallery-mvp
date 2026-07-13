@@ -935,19 +935,10 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
 
   if (status === PROOFING_STATUS_DELIVERED && isProofingGallery(gallery.galleryMode)) {
     await invalidatePublicGalleryDownloadPackages(galleryId);
-    const zipResult = await preparePublicGalleryZipPackages(galleryId);
-    const zipStatus = zipResult.ok ? (zipResult.cached ? "already-ready" : "queued") : zipResult.reason;
-
-    if (zipResult.ok && zipResult.payloads.length > 0) {
-      after(async () => {
-        await kickGalleryZipJobs(zipResult.payloads);
-      });
-    }
-
     const emailResult = await sendFinalDeliveryEmailForGallery(galleryId);
     const deliveryEmail = emailResult.ok ? "sent" : emailResult.reason === "missing-email" ? "missing-email" : "failed";
 
-    redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1&deliveryEmail=${deliveryEmail}&zip=${zipStatus}`);
+    redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1&deliveryEmail=${deliveryEmail}&zip=manual-required`);
   }
 
   redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1`);

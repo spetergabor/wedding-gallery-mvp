@@ -1,9 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages";
-import { kickGalleryZipJobs, preparePublicGalleryZipPackages } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
 
 export async function saveClientPhotoVisibilityChangesAction({
@@ -84,13 +82,6 @@ export async function saveClientPhotoVisibilityChangesAction({
     })
   ]);
   await invalidatePublicGalleryDownloadPackages(galleryId);
-  const zipResult = await preparePublicGalleryZipPackages(galleryId);
-
-  if (zipResult.ok && zipResult.payloads.length > 0) {
-    after(async () => {
-      await kickGalleryZipJobs(zipResult.payloads);
-    });
-  }
 
   revalidatePath(`/g/${gallery.slug}`);
   revalidatePath(`/client/${gallery.slug}`);
@@ -99,7 +90,6 @@ export async function saveClientPhotoVisibilityChangesAction({
   return {
     ok: true,
     hiddenCount: nextHiddenPhotoIds.length,
-    zipStatus: zipResult.ok ? zipResult.status : null,
-    zipRefreshing: zipResult.ok && !zipResult.cached
+    zipNeedsManualRefresh: true
   };
 }

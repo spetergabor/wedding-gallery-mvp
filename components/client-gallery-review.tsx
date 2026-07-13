@@ -21,7 +21,7 @@ type ClientPhoto = {
 
 type SaveNotice = {
   hiddenCount: number;
-  zipRefreshing: boolean;
+  zipNeedsManualRefresh: boolean;
 };
 
 const CLIENT_REVIEW_COPY = {
@@ -35,7 +35,7 @@ const CLIENT_REVIEW_COPY = {
     hiddenLabel: "Ausgeblendet",
     savedSummary: (visibleCount: number, hiddenCount: number) => `Gespeichert: ${visibleCount} Fotos sind sichtbar, ${hiddenCount} sind ausgeblendet.`,
     galleryUpdated: "Die öffentliche Galerie ist aktualisiert.",
-    zipRefreshing: " Das Download-Paket wird im Hintergrund neu vorbereitet.",
+    zipNeedsManualRefresh: " Das Download-Paket wird nicht automatisch neu erstellt; der Fotograf startet es im Adminbereich, wenn die Galerie final ist.",
     zipCurrent: " Das aktuelle Download-Paket bleibt passend.",
     copied: "Öffentlicher Link kopiert",
     copyLink: "Öffentlichen Link kopieren",
@@ -52,7 +52,7 @@ const CLIENT_REVIEW_COPY = {
     doneIntro: "Speichert die Auswahl, wenn alles passt. Erst danach erscheinen die Änderungen in der öffentlichen Galerie und im Gäste-Download.",
     shareGallery: "Öffentliche Galerie teilen",
     bottomStatus: (hiddenCount: number, visibleCount: number) => `${hiddenCount} ausgeblendet · ${visibleCount} sichtbar`,
-    unsavedStatus: "Ungespeicherte Änderungen. Speichern aktualisiert die Gästegalerie und startet ein neues Download-Paket.",
+    unsavedStatus: "Ungespeicherte Änderungen. Speichern aktualisiert die Gästegalerie; das Download-Paket startet der Fotograf später im Adminbereich.",
     savedStatus: "Alles gespeichert. Das aktuelle Download-Paket passt zur Auswahl.",
     reset: "Zurücksetzen",
     saving: "Wird gespeichert",
@@ -68,7 +68,7 @@ const CLIENT_REVIEW_COPY = {
     hiddenLabel: "Elrejtve",
     savedSummary: (visibleCount: number, hiddenCount: number) => `Mentve: ${visibleCount} fotó látható, ${hiddenCount} fotó el van rejtve.`,
     galleryUpdated: "A publikus galéria frissült.",
-    zipRefreshing: " A letöltési csomag a háttérben újra előkészül.",
+    zipNeedsManualRefresh: " A letöltési csomag nem készül újra automatikusan; a fotós az adminban indítja, amikor a galéria végleges.",
     zipCurrent: " Az aktuális letöltési csomag továbbra is megfelelő.",
     copied: "Publikus link másolva",
     copyLink: "Publikus link másolása",
@@ -85,7 +85,7 @@ const CLIENT_REVIEW_COPY = {
     doneIntro: "Mentsétek a válogatást, amikor minden rendben van. A változások csak mentés után jelennek meg a publikus galériában és a vendég letöltésben.",
     shareGallery: "Publikus galéria megosztása",
     bottomStatus: (hiddenCount: number, visibleCount: number) => `${hiddenCount} elrejtve · ${visibleCount} látható`,
-    unsavedStatus: "Nem mentett módosítások. A mentés frissíti a vendéggalériát és új letöltési csomagot indít.",
+    unsavedStatus: "Nem mentett módosítások. A mentés frissíti a vendéggalériát; a letöltési csomagot később a fotós indítja az adminban.",
     savedStatus: "Minden mentve. Az aktuális letöltési csomag illeszkedik a válogatáshoz.",
     reset: "Visszaállítás",
     saving: "Mentés",
@@ -205,7 +205,7 @@ export function ClientGalleryReview({
     setSavedHiddenPhotoIds(new Set(hiddenPhotoIds));
     setSaveNotice({
       hiddenCount: result.hiddenCount ?? hiddenPhotoIds.size,
-      zipRefreshing: Boolean(result.zipRefreshing)
+      zipNeedsManualRefresh: Boolean(result.zipNeedsManualRefresh)
     });
     window.setTimeout(() => setSaveNotice(null), 4500);
     setIsSaving(false);
@@ -250,7 +250,7 @@ export function ClientGalleryReview({
                 </p>
                 <p className="mt-1 text-graphite/70">
                   {copy.galleryUpdated}
-                  {saveNotice.zipRefreshing ? copy.zipRefreshing : copy.zipCurrent}
+                  {saveNotice.zipNeedsManualRefresh ? copy.zipNeedsManualRefresh : copy.zipCurrent}
                 </p>
               </div>
             </div>

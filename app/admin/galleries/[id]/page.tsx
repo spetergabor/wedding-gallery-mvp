@@ -530,6 +530,11 @@ export default async function GalleryDetailPage({
         {flags.zip === "manual-uploaded" ? <Alert title="Kész ZIP feltöltve." variant="success">A vendég letöltés most ezt a csomagot használja.</Alert> : null}
         {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}
         {flags.zip === "already-ready" ? <Alert title="A ZIP már kész, újraindításra nem volt szükség." variant="success" /> : null}
+        {flags.zip === "manual-required" ? (
+          <Alert title="A ZIP nem indult el automatikusan." variant="info">
+            Indítsd el az online ZIP készítést vagy tölts fel saját ZIP-et, amikor a galéria végleges.
+          </Alert>
+        ) : null}
         {flags.zip === "downloads-disabled" ? <Alert title="A letöltés ki van kapcsolva ehhez a galériához." variant="error" /> : null}
         {flags.downloadEmail === "resent" ? <Alert title="A letöltési e-mail újraküldve." variant="success" /> : null}
         {flags.downloadEmail === "missing" ? <Alert title="Nem található újraküldhető letöltési kérés." variant="error" /> : null}
