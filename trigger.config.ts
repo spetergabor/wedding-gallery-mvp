@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk/v3";
+import { additionalPackages } from "@trigger.dev/build/extensions/core";
 import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 
 const maxDuration = Number.parseInt(process.env.TRIGGER_MAX_DURATION_SECONDS ?? "7200", 10);
@@ -10,6 +11,9 @@ export default defineConfig({
   machine: "small-1x",
   build: {
     extensions: [
+      additionalPackages({
+        packages: ["sharp"]
+      }),
       prismaExtension({
         mode: "legacy",
         schema: "prisma/schema.prisma"
