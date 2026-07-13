@@ -260,10 +260,6 @@ function isVideo(photo: PublicPhoto) {
   return photo.mediaType === "video";
 }
 
-function mediaAspectRatio(photo: PublicPhoto) {
-  return hasMediaDimensions(photo) ? `${photo.imageWidth} / ${photo.imageHeight}` : null;
-}
-
 function videoPosterUrl(photo: PublicPhoto) {
   if (!isVideo(photo)) {
     return undefined;
@@ -295,12 +291,10 @@ function primeVideoCoverFrame(video: HTMLVideoElement, hasPoster: boolean) {
 }
 
 function PublicVideoPreview({ photo }: { photo: PublicPhoto }) {
-  const [metadataAspectRatio, setMetadataAspectRatio] = useState<string | null>(null);
   const posterUrl = videoPosterUrl(photo);
-  const aspectRatio = mediaAspectRatio(photo) ?? metadataAspectRatio ?? "16 / 9";
 
   return (
-    <span className="relative block w-full overflow-hidden bg-ink" style={{ aspectRatio }}>
+    <span className="relative block aspect-[4/5] w-full overflow-hidden bg-ink">
       <video
         src={photo.imageUrl}
         poster={posterUrl}
@@ -309,10 +303,6 @@ function PublicVideoPreview({ photo }: { photo: PublicPhoto }) {
         playsInline
         onLoadedMetadata={(event) => {
           const video = event.currentTarget;
-
-          if (!mediaAspectRatio(photo) && video.videoWidth > 0 && video.videoHeight > 0) {
-            setMetadataAspectRatio(`${video.videoWidth} / ${video.videoHeight}`);
-          }
 
           primeVideoCoverFrame(video, Boolean(posterUrl));
         }}
