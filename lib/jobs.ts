@@ -3,6 +3,7 @@ import { PassThrough, Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
+import { Readable as LazyReadable } from "lazystream";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import { ensureDownloadPackageAccessToken, publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
@@ -270,6 +271,32 @@ function createWebImageStream(photo: {
       })
       .jpeg({ quality: WEB_DOWNLOAD_JPEG_QUALITY, mozjpeg: true })
   );
+}
+
+function mediaStreamError(filename: string, error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`${filename}: ${message}`);
+}
+
+function createLazyZipMediaStream(filename: string, createStream: () => NodeJS.ReadableStream) {
+  return new LazyReadable(() => {
+    const stream = new PassThrough();
+
+    try {
+      const source = createStream();
+
+      source.on("error", (error) => {
+        stream.destroy(mediaStreamError(filename, error));
+      });
+      source.pipe(stream);
+    } catch (error) {
+      queueMicrotask(() => {
+        stream.destroy(mediaStreamError(filename, error));
+      });
+    }
+
+    return stream;
+  });
 }
 
 function parseZipGenerationPayload(payload: Prisma.JsonValue): ZipGenerationPayload {
@@ -924,7 +951,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     zip.pipe(zipStream);
 
     for (const [index, photo] of gallery.photos.entries()) {
-      const mediaStream =
+      const mediaStream = createLazyZipMediaStream(photo.filename, () =>
         quality === "web" && photo.mediaType !== "video"
           ? createWebImageStream(photo)
           : photo.r2Key
@@ -933,7 +960,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
                 publicUrl: photo.imageUrl,
                 byteLength: photo.fileSize
               })
-            : createRemoteFileStream({ filename: photo.filename, imageUrl: photo.imageUrl });
+            : createRemoteFileStream({ filename: photo.filename, imageUrl: photo.imageUrl })
+      );
 
       zip.append(mediaStream, {
         name: photoZipFileName(photo.filename, downloadPackage.photoOffset + index, quality, photo.mediaType)

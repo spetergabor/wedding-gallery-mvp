@@ -10,7 +10,7 @@ type GalleryZipPayload = {
 const maxDuration = Number.parseInt(process.env.TRIGGER_ZIP_MAX_DURATION_SECONDS ?? "7200", 10);
 const concurrencyLimit = Number.parseInt(process.env.TRIGGER_ZIP_CONCURRENCY ?? "4", 10);
 const machinePresets = ["micro", "small-1x", "small-2x", "medium-1x", "medium-2x", "large-1x", "large-2x"] as const;
-const machine = machinePresets.find((preset) => preset === process.env.TRIGGER_ZIP_MACHINE) ?? "small-2x";
+const machine = machinePresets.find((preset) => preset === process.env.TRIGGER_ZIP_MACHINE) ?? "medium-1x";
 
 export const galleryZipTask = task({
   id: "gallery-zip",
