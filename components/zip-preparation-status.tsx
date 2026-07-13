@@ -1,11 +1,14 @@
 import { Archive, AlertCircle, CheckCircle2, Clock3 } from "lucide-react";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { publicDownloadQualityFromScope } from "@/lib/download-packages";
+import { galleryDownloadQualityLabel } from "@/lib/download-quality";
 
 const STALE_PROCESSING_MS = 15 * 60 * 1000;
 
 type DownloadPackage = {
   id: string;
   groupId: string | null;
+  scope: string;
   status: string;
   photoCount: number;
   processedCount: number;
@@ -23,6 +26,7 @@ type DownloadPackage = {
 type ZipGroupSummary = {
   key: string;
   packages: DownloadPackage[];
+  qualityLabel: string;
   expectedPartCount: number;
   completedCount: number;
   downloadableCount: number;
@@ -64,6 +68,7 @@ function formatDate(date: Date) {
 
 function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSummary {
   const now = Date.now();
+  const quality = publicDownloadQualityFromScope(packages[0]?.scope);
   const expectedPartCount = Math.max(...packages.map((downloadPackage) => downloadPackage.partCount), packages.length, 1);
   const completedPackages = packages.filter((downloadPackage) => downloadPackage.status === "completed");
   const downloadablePackages = completedPackages.filter((downloadPackage) => downloadPackage.downloadUrl);
@@ -89,6 +94,7 @@ function summarizeGroup(key: string, packages: DownloadPackage[]): ZipGroupSumma
   return {
     key,
     packages,
+    qualityLabel: galleryDownloadQualityLabel(quality, "hu"),
     expectedPartCount,
     completedCount: completedPackages.length,
     downloadableCount: downloadablePackages.length,
@@ -118,12 +124,19 @@ function getPrimaryGroup(packages: DownloadPackage[]) {
   const summaries = Array.from(groups.entries()).map(([key, groupPackages]) => summarizeGroup(key, groupPackages));
 
   summaries.sort((a, b) => {
-    if (a.isComplete !== b.isComplete) {
-      return a.isComplete ? -1 : 1;
-    }
-
     if (a.hasActiveWork !== b.hasActiveWork) {
       return a.hasActiveWork ? -1 : 1;
+    }
+
+    const aNeedsAttention = a.failedCount > 0 || a.staleCount > 0;
+    const bNeedsAttention = b.failedCount > 0 || b.staleCount > 0;
+
+    if (aNeedsAttention !== bNeedsAttention) {
+      return aNeedsAttention ? -1 : 1;
+    }
+
+    if (a.isComplete !== b.isComplete) {
+      return a.isComplete ? -1 : 1;
     }
 
     return b.latestAt.getTime() - a.latestAt.getTime();
@@ -131,6 +144,7 @@ function getPrimaryGroup(packages: DownloadPackage[]) {
 
   return {
     primaryGroup: summaries[0] ?? null,
+    summaries,
     groupCount: summaries.length,
     oldFailedCount: summaries.slice(1).reduce((sum, group) => sum + group.failedCount + group.staleCount, 0),
     totalStaleCount: summaries.reduce((sum, group) => sum + group.staleCount, 0)
@@ -192,7 +206,7 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
 }
 
 export function ZipPreparationStatus({ packages, photoCount }: { packages: DownloadPackage[]; photoCount: number }) {
-  const { primaryGroup, groupCount, oldFailedCount, totalStaleCount } = getPrimaryGroup(packages);
+  const { primaryGroup, summaries, groupCount, oldFailedCount, totalStaleCount } = getPrimaryGroup(packages);
   const meta = statusMeta(primaryGroup, photoCount);
   const Icon = meta.icon;
   const expectedPartCount = primaryGroup?.expectedPartCount ?? Math.max(photoCount > 0 ? 1 : 0, 0);
@@ -215,7 +229,10 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
             <Archive size={15} />
             ZIP előkészítés
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">{meta.label}</h2>
+          <h2 className="mt-2 text-xl font-semibold text-ink">
+            {meta.label}
+            {primaryGroup ? <span className="text-graphite/60"> · {primaryGroup.qualityLabel}</span> : null}
+          </h2>
           <p className="mt-1 text-sm text-graphite/70">{meta.description}</p>
         </div>
         <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${meta.className}`}>
@@ -259,6 +276,37 @@ export function ZipPreparationStatus({ packages, photoCount }: { packages: Downl
           ) : null}
         </div>
       </div>
+
+      {summaries.length > 0 ? (
+        <div className="mt-5 rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-sm font-semibold text-ink">Legutóbbi ZIP futások</p>
+          <div className="mt-3 grid gap-2">
+            {summaries.slice(0, 6).map((group) => {
+              const groupMeta = statusMeta(group, photoCount);
+              const GroupIcon = groupMeta.icon;
+
+              return (
+                <div key={group.key} className="rounded-md bg-white px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-ink">{group.qualityLabel}</p>
+                      <p className="mt-1 text-xs text-graphite/70">
+                        {group.downloadableCount}/{group.expectedPartCount} rész · {group.processingCount} fut · {group.pendingCount} vár ·{" "}
+                        {formatBytes(group.isComplete ? group.fileSize : group.processedBytes)}
+                      </p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${groupMeta.className}`}>
+                      <GroupIcon size={13} />
+                      {groupMeta.label}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-graphite/55">Frissítve: {formatDate(group.latestAt)}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {totalStaleCount > 0 ? (
         <div className="mt-4 rounded-md border border-brass/25 bg-brass/10 p-3">

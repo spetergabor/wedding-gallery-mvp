@@ -137,7 +137,26 @@ export default async function GalleryDetailPage({
       ...adminOwnedWhere(admin)
     },
     include: {
-      downloads: { orderBy: { createdAt: "desc" } },
+      downloads: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          package: {
+            select: {
+              id: true,
+              groupId: true,
+              scope: true,
+              status: true,
+              partIndex: true,
+              partCount: true,
+              fileSize: true,
+              downloadUrl: true,
+              errorMessage: true,
+              generatedAt: true,
+              updatedAt: true
+            }
+          }
+        }
+      },
       downloadPackages: {
         orderBy: { createdAt: "desc" },
         take: 120
