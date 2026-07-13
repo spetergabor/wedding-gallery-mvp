@@ -28,6 +28,7 @@ import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { clientGalleryUrl, publicGalleryUrl } from "@/lib/email";
+import { PUBLIC_DOWNLOAD_SCOPES } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
   generateClientAccessLinkAction,
@@ -60,6 +61,94 @@ const galleryTabs: Array<{
 ];
 
 const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
+
+type ZipHandoffState = "none" | "manual_ready" | "online_ready" | "processing";
+
+function isCompleteZipPackageGroup(
+  packages: Array<{
+    id: string;
+    groupId: string | null;
+    partIndex: number;
+    partCount: number;
+    status: string;
+    downloadUrl: string | null;
+    r2Key: string | null;
+  }>
+) {
+  if (packages.length === 0) {
+    return false;
+  }
+
+  const expectedPartCount = Math.max(...packages.map((downloadPackage) => downloadPackage.partCount), packages.length, 1);
+  const completedPartIndexes = new Set(
+    packages
+      .filter((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl && downloadPackage.r2Key)
+      .map((downloadPackage) => downloadPackage.partIndex)
+  );
+
+  return Array.from({ length: expectedPartCount }, (_, index) => completedPartIndexes.has(index)).every(Boolean);
+}
+
+function getZipHandoffState(
+  packages: Array<{
+    id: string;
+    groupId: string | null;
+    scope: string;
+    status: string;
+    partIndex: number;
+    partCount: number;
+    downloadUrl: string | null;
+    r2Key: string | null;
+    generatedAt: Date | null;
+    updatedAt: Date;
+  }>
+): { state: ZipHandoffState; detail: string | null } {
+  const publicPackages = packages.filter((downloadPackage) => (PUBLIC_DOWNLOAD_SCOPES as readonly string[]).includes(downloadPackage.scope));
+  const manualReadyPackage = publicPackages.find(
+    (downloadPackage) =>
+      downloadPackage.status === "completed" &&
+      Boolean(downloadPackage.downloadUrl) &&
+      Boolean(downloadPackage.r2Key?.includes("/downloads/manual/"))
+  );
+
+  if (manualReadyPackage) {
+    const date = manualReadyPackage.generatedAt ?? manualReadyPackage.updatedAt;
+    return {
+      state: "manual_ready",
+      detail: `Saját ZIP feltöltve: ${date.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}`
+    };
+  }
+
+  const groups = new Map<string, typeof publicPackages>();
+
+  for (const downloadPackage of publicPackages) {
+    const key = downloadPackage.groupId ?? downloadPackage.id;
+    groups.set(key, [...(groups.get(key) ?? []), downloadPackage]);
+  }
+
+  const completedGroup = Array.from(groups.values()).find(isCompleteZipPackageGroup);
+
+  if (completedGroup) {
+    const latestDate = completedGroup.reduce((latest, downloadPackage) => {
+      const date = downloadPackage.generatedAt ?? downloadPackage.updatedAt;
+      return date > latest ? date : latest;
+    }, completedGroup[0]?.updatedAt ?? new Date(0));
+
+    return {
+      state: "online_ready",
+      detail: `Online ZIP elkészült: ${latestDate.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}`
+    };
+  }
+
+  if (publicPackages.some((downloadPackage) => downloadPackage.status === "pending" || downloadPackage.status === "processing")) {
+    return {
+      state: "processing",
+      detail: "A ZIP készítés folyamatban van. A részletes állapot a Letöltések fülön látszik."
+    };
+  }
+
+  return { state: "none", detail: null };
+}
 
 function getActiveTab(flags: {
   activated?: string;
@@ -319,6 +408,7 @@ export default async function GalleryDetailPage({
     galleryDeliveryAllowsDownloads(gallery.deliveryMode) &&
     gallery.photos.length > 0 &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
+  const zipHandoff = getZipHandoffState(gallery.downloadPackages);
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({
@@ -543,7 +633,15 @@ export default async function GalleryDetailPage({
                 sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
                 resumableSessions={resumableUploadSessions}
               />
-              {!proofingGallery ? <ManualZipUploadForm galleryId={gallery.id} disabled={!canPrepareZip} variant="compact" /> : null}
+              {!proofingGallery ? (
+                <ManualZipUploadForm
+                  galleryId={gallery.id}
+                  disabled={!canPrepareZip}
+                  variant="compact"
+                  handoffState={zipHandoff.state}
+                  handoffDetail={zipHandoff.detail}
+                />
+              ) : null}
             </section>
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager

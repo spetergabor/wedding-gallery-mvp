@@ -15,6 +15,7 @@ import {
 } from "@/lib/gallery-actions";
 
 type UploadStatus = "idle" | "preparing" | "uploading" | "saving" | "completed" | "failed";
+type ZipHandoffState = "none" | "manual_ready" | "online_ready" | "processing";
 
 type ManualZipMultipartUploadTarget = {
   ok: true;
@@ -181,11 +182,15 @@ async function uploadMultipartFile({
 export function ManualZipUploadForm({
   galleryId,
   disabled = false,
-  variant = "card"
+  variant = "card",
+  handoffState = "none",
+  handoffDetail = null
 }: {
   galleryId: string;
   disabled?: boolean;
   variant?: "card" | "compact";
+  handoffState?: ZipHandoffState;
+  handoffDetail?: string | null;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -198,9 +203,11 @@ export function ManualZipUploadForm({
 
   const isWorking = status === "preparing" || status === "uploading" || status === "saving";
   const progress = selectedFile && selectedFile.size > 0 ? Math.round((Math.min(bytesSent, selectedFile.size) / selectedFile.size) * 100) : 0;
-  const StatusIcon = step === "choice" ? Archive : status === "completed" ? CheckCircle2 : status === "failed" ? AlertCircle : isWorking ? Loader2 : UploadCloud;
+  const isSolved = handoffState === "manual_ready" || handoffState === "online_ready";
+  const isPreparingOnline = handoffState === "processing";
+  const StatusIcon = isSolved ? CheckCircle2 : isPreparingOnline ? Loader2 : step === "choice" ? Archive : status === "completed" ? CheckCircle2 : status === "failed" ? AlertCircle : isWorking ? Loader2 : UploadCloud;
   const compact = variant === "compact";
-  const statusText = step === "choice" ? "Választás kell" : statusLabel(status);
+  const statusText = isSolved ? "Megoldva" : isPreparingOnline ? "Folyamatban" : step === "choice" ? "Választás kell" : statusLabel(status);
 
   function setZipFile(file: File | null) {
     setSelectedFile(file);
@@ -361,18 +368,66 @@ export function ManualZipUploadForm({
             </p>
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-full bg-ink/5 px-3 py-1.5 text-sm font-medium text-graphite">
-            <StatusIcon size={16} className={isWorking ? "animate-spin" : ""} />
+            <StatusIcon size={16} className={isWorking || isPreparingOnline ? "animate-spin" : ""} />
             {statusText}
           </span>
         </div>
 
-        {disabled ? (
+        {disabled && !isSolved && !isPreparingOnline ? (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
             Ehhez a galériához most nem készíthető vagy tölthető fel ZIP csomag.
           </p>
         ) : null}
 
-        {step === "choice" ? (
+        {isSolved ? (
+          <div className="rounded-md border border-sage/25 bg-sage/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-sage">
+                  <CheckCircle2 size={17} />
+                  A ZIP átadás megoldva
+                </div>
+                <p className="mt-2 text-sm leading-6 text-graphite/75">
+                  {handoffState === "manual_ready"
+                    ? "Saját ZIP van feltöltve ehhez a galériához. A vendég ezt a kész csomagot tudja letölteni."
+                    : "Az online ZIP elkészült ehhez a galériához. A vendégnek már küldhető a letöltési link."}
+                </p>
+                {handoffDetail ? <p className="mt-1 text-xs text-graphite/60">{handoffDetail}</p> : null}
+              </div>
+              <a
+                href={`/admin/galleries/${galleryId}?tab=downloads`}
+                className="inline-flex h-9 w-fit items-center justify-center rounded-md border border-sage/25 bg-white px-3 text-xs font-medium text-sage hover:border-sage/40"
+              >
+                Letöltések megnyitása
+              </a>
+            </div>
+          </div>
+        ) : null}
+
+        {isPreparingOnline ? (
+          <div className="rounded-md border border-brass/25 bg-brass/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-brass">
+                  <Loader2 size={17} className="animate-spin" />
+                  Online ZIP készül
+                </div>
+                <p className="mt-2 text-sm leading-6 text-graphite/75">
+                  A rendszer már dolgozik a ZIP csomagon. Nem kell újra elindítani.
+                </p>
+                {handoffDetail ? <p className="mt-1 text-xs text-graphite/60">{handoffDetail}</p> : null}
+              </div>
+              <a
+                href={`/admin/galleries/${galleryId}?tab=downloads`}
+                className="inline-flex h-9 w-fit items-center justify-center rounded-md border border-brass/25 bg-white px-3 text-xs font-medium text-brass hover:border-brass/40"
+              >
+                Állapot megnyitása
+              </a>
+            </div>
+          </div>
+        ) : null}
+
+        {!isSolved && !isPreparingOnline && step === "choice" ? (
           <div className="grid gap-3 md:grid-cols-2">
             <div className="flex flex-col justify-between rounded-md border border-ink/10 bg-paper p-4">
               <div>
@@ -410,7 +465,7 @@ export function ManualZipUploadForm({
           </div>
         ) : null}
 
-        {step === "manual" ? (
+        {!isSolved && !isPreparingOnline && step === "manual" ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex flex-col justify-between gap-3 rounded-md bg-paper px-4 py-3 sm:flex-row sm:items-center">
               <div>
