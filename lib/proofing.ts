@@ -2,6 +2,7 @@ import type { AdminLanguage } from "@/lib/admin-language";
 
 export const GALLERY_MODE_FULL = "full";
 export const GALLERY_MODE_PROOFING = "proofing";
+export const GALLERY_MODE_ALBUM_SOURCE = "album_source";
 
 export const PHOTO_DELIVERY_STAGE_RAW = "raw";
 export const PHOTO_DELIVERY_STAGE_FINAL = "final";

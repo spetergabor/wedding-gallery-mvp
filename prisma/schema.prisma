@@ -614,6 +614,7 @@ model AlbumDesign {
   customerId     String?
   projectId      String?
   favoriteListId String?
+  sourceGalleryId String?
   title          String   @default("Albumterv")
   status         String   @default("draft")
   createdAt      DateTime @default(now())
@@ -622,12 +623,14 @@ model AlbumDesign {
   customer       Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   project        CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   favoriteList   GalleryFavoriteList? @relation(fields: [favoriteListId], references: [id], onDelete: SetNull)
+  sourceGallery  Gallery? @relation("AlbumDesignSourceGallery", fields: [sourceGalleryId], references: [id], onDelete: SetNull)
   spreads        AlbumDesignSpread[]
 
   @@index([adminId])
   @@index([customerId])
   @@index([projectId])
   @@index([favoriteListId])
+  @@index([sourceGalleryId])
   @@index([status])
   @@index([createdAt])
 }
@@ -778,6 +781,7 @@ model Gallery {
   downloadPackages GalleryDownloadPackage[]
   views        GalleryView[]
   favoriteLists GalleryFavoriteList[]
+  sourceAlbumDesigns AlbumDesign[] @relation("AlbumDesignSourceGallery")
   uploadSessions GalleryUploadSession[]
   mediaProcessingJobs MediaProcessingJob[]
   purchases    GalleryPurchase[]

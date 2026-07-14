@@ -37,6 +37,7 @@ import {
   type GoogleCalendarOption
 } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
+import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
 import { disconnectGoogleCalendarAction, updateGoogleCalendarSettingsAction } from "@/lib/settings-actions";
 import { isStripeConnectConfigured, isStripeWebhookConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
@@ -1401,8 +1402,8 @@ function WorkspaceStatsPanel({ stats, language }: { stats: WorkspaceGalleryStats
 
 async function getWorkspaceGalleryStats(adminId: string): Promise<WorkspaceGalleryStats> {
   const [galleryCount, activeGalleryCount, mediaCount, photoStorage] = await Promise.all([
-    prisma.gallery.count({ where: { adminId } }),
-    prisma.gallery.count({ where: { adminId, isActive: true } }),
+    prisma.gallery.count({ where: { adminId, galleryMode: { not: GALLERY_MODE_ALBUM_SOURCE } } }),
+    prisma.gallery.count({ where: { adminId, galleryMode: { not: GALLERY_MODE_ALBUM_SOURCE }, isActive: true } }),
     prisma.photo.count({ where: { gallery: { adminId } } }),
     prisma.photo.aggregate({
       where: { gallery: { adminId } },

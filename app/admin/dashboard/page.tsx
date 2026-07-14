@@ -40,6 +40,7 @@ import {
   MINI_SESSION_BOOKING_STATUS_BOOKED
 } from "@/lib/mini-sessions";
 import {
+  GALLERY_MODE_ALBUM_SOURCE,
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -1121,7 +1122,10 @@ export default async function AdminDashboardPage() {
   const [admin, language] = await Promise.all([requireAdmin(), getAdminLanguage()]);
   const copy = DASHBOARD_COPY[language];
   await ensureLeadPipelineSchema(prisma);
-  const galleryWhere = adminOwnedWhere(admin);
+  const galleryWhere = {
+    ...adminOwnedWhere(admin),
+    galleryMode: { not: GALLERY_MODE_ALBUM_SOURCE }
+  };
   const photoWhere = { gallery: adminOwnedWhere(admin) };
   const projectWhere = { customer: adminOwnedWhere(admin) };
   const now = new Date();

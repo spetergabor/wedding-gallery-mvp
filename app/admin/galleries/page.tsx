@@ -10,6 +10,7 @@ import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { publicGalleryUrl } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
 
 export default async function AdminGalleriesPage({
   searchParams
@@ -18,7 +19,10 @@ export default async function AdminGalleriesPage({
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
-  const galleryWhere = adminOwnedWhere(admin);
+  const galleryWhere = {
+    ...adminOwnedWhere(admin),
+    galleryMode: { not: GALLERY_MODE_ALBUM_SOURCE }
+  };
   const workspaceAdminId = ownerAdminId(admin);
 
   const [galleries, siteSettings] = await Promise.all([

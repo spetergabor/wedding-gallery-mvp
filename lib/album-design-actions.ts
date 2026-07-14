@@ -14,7 +14,15 @@ import {
 import { requireAdmin } from "@/lib/auth";
 import { getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
-import { createAlbumReviewSpreadObjectKey, deletePhotoObject, getPhotoPublicUrl, savePhotoObject } from "@/lib/storage";
+import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
+import {
+  createAlbumReviewSpreadObjectKey,
+  deleteGalleryObjects,
+  deletePhotoObject,
+  getPhotoPublicUrl,
+  getR2KeyFromPublicUrl,
+  savePhotoObject
+} from "@/lib/storage";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -90,6 +98,10 @@ function createAlbumAccessToken() {
   return randomBytes(32).toString("base64url");
 }
 
+function createAlbumSourceGallerySlug() {
+  return `album-source-${randomBytes(10).toString("hex")}`;
+}
+
 function albumDesignRedirectPath(customerId: string | null | undefined, query = "") {
   const basePath = customerId ? `/admin/clients/${customerId}?tab=album&albumMode=editor` : "/admin/albums";
 
@@ -150,6 +162,33 @@ async function albumProjectIdForCustomer(admin: Awaited<ReturnType<typeof requir
   return project?.id ?? null;
 }
 
+async function createAlbumSourceGallery({
+  adminId,
+  customerId,
+  title
+}: {
+  adminId: string;
+  customerId: string | null;
+  title: string;
+}) {
+  const gallery = await prisma.gallery.create({
+    data: {
+      adminId,
+      customerId,
+      title: `${title} forrásképek`,
+      slug: createAlbumSourceGallerySlug(),
+      galleryMode: GALLERY_MODE_ALBUM_SOURCE,
+      isActive: false,
+      downloadsEnabled: false
+    },
+    select: {
+      id: true
+    }
+  });
+
+  return gallery.id;
+}
+
 async function requireAlbumDesignAccess(customerId: string | null | undefined, designId: string) {
   const { admin } = await requireAlbumDesignContext(customerId);
   const design = await prisma.albumDesign.findFirst({
@@ -162,6 +201,7 @@ async function requireAlbumDesignAccess(customerId: string | null | undefined, d
       customerId: true,
       adminId: true,
       favoriteListId: true,
+      sourceGalleryId: true,
       projectId: true
     }
   });
@@ -173,14 +213,45 @@ async function requireAlbumDesignAccess(customerId: string | null | undefined, d
   return { admin, design };
 }
 
+type AlbumDesignPhotoSource = {
+  favoriteListId: string | null;
+  sourceGalleryId: string | null;
+};
+
+async function findValidDesignPhotoIds(design: AlbumDesignPhotoSource, photoIds: string[]) {
+  const photos = await prisma.photo.findMany({
+    where: design.favoriteListId
+      ? {
+          id: { in: photoIds },
+          favoriteItems: {
+            some: {
+              listId: design.favoriteListId
+            }
+          }
+        }
+      : design.sourceGalleryId
+        ? {
+            id: { in: photoIds },
+            galleryId: design.sourceGalleryId,
+            mediaType: "image"
+          }
+        : {
+            id: "__missing_album_design_source__"
+          },
+    select: { id: true }
+  });
+
+  return new Set(photos.map((photo) => photo.id));
+}
+
 async function getVerifiedDesignPhotoIds({
   customerId,
-  favoriteListId,
+  design,
   formData,
   photoCount
 }: {
   customerId: string | null | undefined;
-  favoriteListId: string;
+  design: AlbumDesignPhotoSource;
   formData: FormData;
   photoCount: number;
 }) {
@@ -190,18 +261,7 @@ async function getVerifiedDesignPhotoIds({
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
   }
 
-  const photos = await prisma.photo.findMany({
-    where: {
-      id: { in: selectedPhotoIds },
-      favoriteItems: {
-        some: {
-          listId: favoriteListId
-        }
-      }
-    },
-    select: { id: true }
-  });
-  const validPhotoIds = new Set(photos.map((photo) => photo.id));
+  const validPhotoIds = await findValidDesignPhotoIds(design, selectedPhotoIds);
   const photoIds = selectedPhotoIds.filter((photoId) => validPhotoIds.has(photoId));
 
   if (photoIds.length !== photoCount) {
@@ -213,30 +273,20 @@ async function getVerifiedDesignPhotoIds({
 
 async function requireFavoritePhoto({
   customerId,
-  favoriteListId,
+  design,
   photoId
 }: {
   customerId: string | null | undefined;
-  favoriteListId: string;
+  design: AlbumDesignPhotoSource;
   photoId: string;
 }) {
-  const photo = await prisma.photo.findFirst({
-    where: {
-      id: photoId,
-      favoriteItems: {
-        some: {
-          listId: favoriteListId
-        }
-      }
-    },
-    select: { id: true }
-  });
+  const validPhotoIds = await findValidDesignPhotoIds(design, [photoId]);
 
-  if (!photo) {
+  if (!validPhotoIds.has(photoId)) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
   }
 
-  return photo;
+  return { id: photoId };
 }
 
 export async function createAlbumDesignAction(customerId: string | null, formData: FormData) {
@@ -244,15 +294,17 @@ export async function createAlbumDesignAction(customerId: string | null, formDat
   const title = formString(formData, "title") || "Albumterv";
   const favoriteListId = formString(formData, "favoriteListId");
   const requestedProjectId = formString(formData, "projectId");
-  const favoriteList = await prisma.galleryFavoriteList.findFirst({
-    where: {
-      id: favoriteListId,
-      gallery: customer ? { customer: customerAccessWhere(admin, customer.id) } : adminOwnedWhere(admin)
-    },
-    select: { id: true }
-  });
+  const favoriteList = favoriteListId
+    ? await prisma.galleryFavoriteList.findFirst({
+        where: {
+          id: favoriteListId,
+          gallery: customer ? { customer: customerAccessWhere(admin, customer.id) } : adminOwnedWhere(admin)
+        },
+        select: { id: true }
+      })
+    : null;
 
-  if (!favoriteList) {
+  if (favoriteListId && !favoriteList) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
@@ -262,12 +314,21 @@ export async function createAlbumDesignAction(customerId: string | null, formDat
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=project"));
   }
 
+  const sourceGalleryId = favoriteList
+    ? null
+    : await createAlbumSourceGallery({
+        adminId: ownerAdminId(admin),
+        customerId: customer?.id ?? null,
+        title
+      });
+
   await prisma.albumDesign.create({
     data: {
       adminId: ownerAdminId(admin),
       customerId: customer?.id ?? null,
       projectId,
-      favoriteListId: favoriteList.id,
+      favoriteListId: favoriteList?.id ?? null,
+      sourceGalleryId,
       title
     }
   });
@@ -326,6 +387,13 @@ export async function updateAlbumDesignAssignmentAction(customerId: string | nul
     }
   });
 
+  if (design.sourceGalleryId) {
+    await prisma.gallery.update({
+      where: { id: design.sourceGalleryId },
+      data: { customerId: targetCustomerId }
+    });
+  }
+
   revalidateAlbumDesignPaths(customerId);
   if (targetCustomerId && targetCustomerId !== customerId) {
     revalidatePath(`/admin/clients/${targetCustomerId}`);
@@ -337,14 +405,14 @@ export async function updateAlbumDesignAssignmentAction(customerId: string | nul
 export async function createAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
-  if (!design.favoriteListId) {
+  if (!design.favoriteListId && !design.sourceGalleryId) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
   const layout = getAlbumLayoutTemplate(formString(formData, "layoutKey"));
   const photoIds = await getVerifiedDesignPhotoIds({
     customerId,
-    favoriteListId: design.favoriteListId,
+    design,
     formData,
     photoCount: layout.photoCount
   });
@@ -375,7 +443,7 @@ export async function createAlbumDesignSpreadAction(customerId: string | null, d
 export async function createAutoAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
-  if (!design.favoriteListId) {
+  if (!design.favoriteListId && !design.sourceGalleryId) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
@@ -393,7 +461,7 @@ export async function createAutoAlbumDesignSpreadAction(customerId: string | nul
 
   const photoIds = await getVerifiedDesignPhotoIds({
     customerId,
-    favoriteListId: design.favoriteListId,
+    design,
     formData,
     photoCount: selectedPhotoIds.length
   });
@@ -424,7 +492,7 @@ export async function createAutoAlbumDesignSpreadAction(customerId: string | nul
 export async function updateAlbumDesignSpreadAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
-  if (!design.favoriteListId) {
+  if (!design.favoriteListId && !design.sourceGalleryId) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
@@ -443,7 +511,7 @@ export async function updateAlbumDesignSpreadAction(customerId: string | null, d
   const layout = getAlbumLayoutTemplate(formString(formData, "layoutKey"));
   const photoIds = await getVerifiedDesignPhotoIds({
     customerId,
-    favoriteListId: design.favoriteListId,
+    design,
     formData,
     photoCount: layout.photoCount
   });
@@ -655,7 +723,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
 export async function updateAlbumDesignSpreadSlotAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
-  if (!design.favoriteListId) {
+  if (!design.favoriteListId && !design.sourceGalleryId) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
@@ -690,7 +758,7 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string | nul
 
   await requireFavoritePhoto({
     customerId,
-    favoriteListId: design.favoriteListId,
+    design,
     photoId
   });
 
@@ -730,7 +798,7 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string | nul
 export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
-  if (!design.favoriteListId) {
+  if (!design.favoriteListId && !design.sourceGalleryId) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
@@ -758,18 +826,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
   }
 
   const uniquePhotoIds = [...new Set(photoIds)];
-  const validPhotos = await prisma.photo.findMany({
-    where: {
-      id: { in: uniquePhotoIds },
-      favoriteItems: {
-        some: {
-          listId: design.favoriteListId
-        }
-      }
-    },
-    select: { id: true }
-  });
-  const validPhotoIds = new Set(validPhotos.map((photo) => photo.id));
+  const validPhotoIds = await findValidDesignPhotoIds(design, uniquePhotoIds);
 
   if (uniquePhotoIds.some((photoId) => !validPhotoIds.has(photoId))) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
@@ -792,7 +849,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
 export async function saveAlbumDesignSpreadDraftsAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
-  if (!design.favoriteListId) {
+  if (!design.favoriteListId && !design.sourceGalleryId) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
@@ -846,18 +903,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
       spreadDrafts.flatMap((draft) => draft.photoIds)
     )
   ];
-  const validPhotos = await prisma.photo.findMany({
-    where: {
-      id: { in: uniquePhotoIds },
-      favoriteItems: {
-        some: {
-          listId: design.favoriteListId
-        }
-      }
-    },
-    select: { id: true }
-  });
-  const validPhotoIds = new Set(validPhotos.map((photo) => photo.id));
+  const validPhotoIds = await findValidDesignPhotoIds(design, uniquePhotoIds);
 
   if (uniquePhotoIds.some((photoId) => !validPhotoIds.has(photoId))) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
@@ -883,10 +929,38 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
 
 export async function deleteAlbumDesignAction(customerId: string | null, designId: string) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
+  const sourceGallery = design.sourceGalleryId
+    ? await prisma.gallery.findUnique({
+        where: { id: design.sourceGalleryId },
+        select: {
+          id: true,
+          slug: true,
+          photos: {
+            select: {
+              r2Key: true,
+              thumbnailUrl: true,
+              previewUrl: true
+            }
+          }
+        }
+      })
+    : null;
 
   await prisma.albumDesign.delete({
     where: { id: design.id }
   });
+
+  if (sourceGallery) {
+    await prisma.gallery.delete({ where: { id: sourceGallery.id } }).catch(() => undefined);
+    await deleteGalleryObjects(
+      sourceGallery.slug,
+      sourceGallery.photos.flatMap((photo) => [
+        photo.r2Key,
+        getR2KeyFromPublicUrl(photo.thumbnailUrl),
+        getR2KeyFromPublicUrl(photo.previewUrl)
+      ])
+    );
+  }
 
   revalidateAlbumDesignPaths(customerId);
   redirect(albumDesignRedirectPath(customerId, "albumDesignDeleted=1"));

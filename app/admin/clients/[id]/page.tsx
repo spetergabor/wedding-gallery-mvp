@@ -1509,6 +1509,21 @@ export default async function AdminClientDetailPage({
         where: { customerId: customer.id },
         orderBy: { createdAt: "desc" },
         include: {
+          sourceGallery: {
+            select: {
+              id: true,
+              photos: {
+                where: { mediaType: "image" },
+                orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                select: {
+                  id: true,
+                  filename: true,
+                  imageUrl: true,
+                  thumbnailUrl: true
+                }
+              }
+            }
+          },
           favoriteList: {
             include: {
               gallery: {

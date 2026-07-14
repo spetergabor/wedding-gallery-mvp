@@ -3,6 +3,7 @@ import { FolderKanban, Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } fr
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { PhotoUploadForm } from "@/components/photo-upload-form";
 import {
   createAlbumDesignAction,
   createAutoAlbumDesignSpreadAction,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { GALLERY_MODE_ALBUM_SOURCE, PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
 
 const maxAlbumLayoutPhotoCount = Math.max(...ALBUM_LAYOUT_TEMPLATES.map((template) => template.photoCount));
 
@@ -55,6 +57,7 @@ type AlbumDesign = {
   id: string;
   customerId: string | null;
   projectId: string | null;
+  sourceGalleryId: string | null;
   title: string;
   status: string;
   createdAt: Date;
@@ -76,6 +79,10 @@ type AlbumDesign = {
     _count: {
       items: number;
     };
+  } | null;
+  sourceGallery: {
+    id: string;
+    photos: FavoritePhoto[];
   } | null;
   spreads: Array<{
     id: string;
@@ -278,12 +285,11 @@ export function AlbumDesignManager({
           />
           <select
             name="favoriteListId"
-            required
             className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
             defaultValue=""
           >
-            <option value="" disabled>
-              Favorite list kiválasztása
+            <option value="">
+              Saját képeket töltök fel
             </option>
             {favoriteLists.map((list) => (
               <option key={list.id} value={list.id}>
@@ -305,7 +311,7 @@ export function AlbumDesignManager({
               ))}
             </select>
           ) : null}
-          <FormSubmitButton disabled={favoriteLists.length === 0} pendingLabel="Létrehozás...">
+          <FormSubmitButton pendingLabel="Létrehozás...">
             <Plus size={16} />
             Új albumterv
           </FormSubmitButton>
@@ -316,7 +322,7 @@ export function AlbumDesignManager({
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
           <p className="text-sm font-medium text-ink">Nincs még használható favorite list</p>
           <p className="mt-1 text-sm text-graphite/70">
-            Először legyen egy galériában ügyfél által kiválasztott vagy leadott lista, abból tudunk albumtervet építeni.
+            Ettől még létre tudsz hozni albumtervet: válaszd a saját képek feltöltését, és dolgozz közvetlenül az albumtervezőből.
           </p>
         </div>
       ) : null}
@@ -329,7 +335,8 @@ export function AlbumDesignManager({
       ) : (
         <div className="mt-5 space-y-6">
           {designs.map((design) => {
-            const sourcePhotos = design.favoriteList?.items.map((item) => item.photo) ?? [];
+            const sourcePhotos = design.favoriteList?.items.map((item) => item.photo) ?? design.sourceGallery?.photos ?? [];
+            const usesUploadedSource = !design.favoriteList && Boolean(design.sourceGallery);
             const linkedProject = design.projectId ? projectById.get(design.projectId) : null;
             const linkedCustomer = design.customer ?? (linkedProject?.customerId ? customers.find((customer) => customer.id === linkedProject.customerId) : null);
 
@@ -367,9 +374,19 @@ export function AlbumDesignManager({
                           Nincs projekthez kapcsolva
                         </span>
                       )}
+                      {usesUploadedSource ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          Saját feltöltés · {sourcePhotos.length} kép
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">
-                      Forrás: {design.favoriteList ? `${design.favoriteList.gallery.title} · ${design.favoriteList.name}` : "hiányzó lista"}
+                      Forrás:{" "}
+                      {design.favoriteList
+                        ? `${design.favoriteList.gallery.title} · ${design.favoriteList.name}`
+                        : usesUploadedSource
+                          ? "saját album képek"
+                          : "hiányzó forrás"}
                     </p>
                     {design.favoriteList ? (
                       <p className="mt-1 text-sm text-graphite/60">
@@ -450,9 +467,38 @@ export function AlbumDesignManager({
                   </div>
                 </div>
 
-                {design.favoriteList && design.spreads.length === 0 ? (
+                {usesUploadedSource && design.sourceGallery ? (
+                  <details
+                    open={sourcePhotos.length === 0 && design.spreads.length === 0}
+                    className="mt-5 rounded-lg border border-dashed border-ink/20 bg-white"
+                  >
+                    <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-4 text-sm font-medium text-ink transition hover:bg-paper">
+                      <span>Forrásképek feltöltése</span>
+                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs text-graphite">{sourcePhotos.length} kép</span>
+                    </summary>
+                    <div className="border-t border-ink/10 p-4">
+                      <PhotoUploadForm
+                        galleryId={design.sourceGallery.id}
+                        galleryMode={GALLERY_MODE_ALBUM_SOURCE}
+                        defaultDeliveryStage={PHOTO_DELIVERY_STAGE_FINAL}
+                        deliveryStageMode="fixed"
+                        framed={false}
+                        title="Album forrásképek feltöltése"
+                        description="Töltsd fel azokat a fotókat, amikből az album oldalpárjait szeretnéd megtervezni. Feltöltés után az oldal frissül, és a képek választhatók lesznek az oldalpárokhoz."
+                      />
+                    </div>
+                  </details>
+                ) : null}
+
+                {sourcePhotos.length > 0 && design.spreads.length === 0 ? (
                   <div className="mt-5">
                     <AlbumSpreadCreateForm customerId={customerId} designId={design.id} sourcePhotos={sourcePhotos} />
+                  </div>
+                ) : null}
+
+                {sourcePhotos.length === 0 && !usesUploadedSource ? (
+                  <div className="mt-5 rounded-md bg-white px-4 py-4 text-sm text-graphite/70">
+                    Ehhez az albumtervhez nincs elérhető forráskép.
                   </div>
                 ) : null}
 
