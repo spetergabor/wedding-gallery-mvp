@@ -14,7 +14,7 @@ import {
 import { requireAdmin } from "@/lib/auth";
 import { getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
-import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
+import { GALLERY_MODE_ALBUM_SOURCE, GALLERY_MODE_FULL } from "@/lib/proofing";
 import {
   createAlbumReviewSpreadObjectKey,
   deleteGalleryObjects,
@@ -218,6 +218,29 @@ type AlbumDesignPhotoSource = {
   sourceGalleryId: string | null;
 };
 
+function parseAlbumDesignSource(formData: FormData) {
+  const sourceId = formString(formData, "sourceId");
+
+  if (sourceId.startsWith("favorite:")) {
+    return {
+      favoriteListId: sourceId.replace("favorite:", ""),
+      sourceGalleryId: ""
+    };
+  }
+
+  if (sourceId.startsWith("gallery:")) {
+    return {
+      favoriteListId: "",
+      sourceGalleryId: sourceId.replace("gallery:", "")
+    };
+  }
+
+  return {
+    favoriteListId: formString(formData, "favoriteListId"),
+    sourceGalleryId: formString(formData, "sourceGalleryId")
+  };
+}
+
 async function findValidDesignPhotoIds(design: AlbumDesignPhotoSource, photoIds: string[]) {
   const photos = await prisma.photo.findMany({
     where: design.favoriteListId
@@ -292,7 +315,9 @@ async function requireFavoritePhoto({
 export async function createAlbumDesignAction(customerId: string | null, formData: FormData) {
   const { admin, customer } = await requireAlbumDesignContext(customerId);
   const title = formString(formData, "title") || "Albumterv";
-  const favoriteListId = formString(formData, "favoriteListId");
+  const source = parseAlbumDesignSource(formData);
+  const favoriteListId = source.favoriteListId;
+  const requestedSourceGalleryId = source.sourceGalleryId;
   const requestedProjectId = formString(formData, "projectId");
   const favoriteList = favoriteListId
     ? await prisma.galleryFavoriteList.findFirst({
@@ -308,6 +333,31 @@ export async function createAlbumDesignAction(customerId: string | null, formDat
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
+  const existingSourceGallery = requestedSourceGalleryId
+    ? await prisma.gallery.findFirst({
+        where: {
+          id: requestedSourceGalleryId,
+          ...(customer
+            ? {
+                customerId: customer.id,
+                ...adminOwnedWhere(admin)
+              }
+            : adminOwnedWhere(admin)),
+          galleryMode: GALLERY_MODE_FULL,
+          photos: {
+            some: {
+              mediaType: "image"
+            }
+          }
+        },
+        select: { id: true }
+      })
+    : null;
+
+  if (requestedSourceGalleryId && !existingSourceGallery) {
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=source-gallery"));
+  }
+
   const projectId = customer ? await albumProjectIdForCustomer(admin, customer.id, requestedProjectId) : null;
 
   if (requestedProjectId && !projectId) {
@@ -316,11 +366,12 @@ export async function createAlbumDesignAction(customerId: string | null, formDat
 
   const sourceGalleryId = favoriteList
     ? null
-    : await createAlbumSourceGallery({
+    : existingSourceGallery?.id ??
+      (await createAlbumSourceGallery({
         adminId: ownerAdminId(admin),
         customerId: customer?.id ?? null,
         title
-      });
+      }));
 
   await prisma.albumDesign.create({
     data: {
@@ -388,10 +439,17 @@ export async function updateAlbumDesignAssignmentAction(customerId: string | nul
   });
 
   if (design.sourceGalleryId) {
-    await prisma.gallery.update({
+    const sourceGallery = await prisma.gallery.findUnique({
       where: { id: design.sourceGalleryId },
-      data: { customerId: targetCustomerId }
+      select: { galleryMode: true }
     });
+
+    if (sourceGallery?.galleryMode === GALLERY_MODE_ALBUM_SOURCE) {
+      await prisma.gallery.update({
+        where: { id: design.sourceGalleryId },
+        data: { customerId: targetCustomerId }
+      });
+    }
   }
 
   revalidateAlbumDesignPaths(customerId);
@@ -934,6 +992,7 @@ export async function deleteAlbumDesignAction(customerId: string | null, designI
         where: { id: design.sourceGalleryId },
         select: {
           id: true,
+          galleryMode: true,
           slug: true,
           photos: {
             select: {
@@ -950,7 +1009,7 @@ export async function deleteAlbumDesignAction(customerId: string | null, designI
     where: { id: design.id }
   });
 
-  if (sourceGallery) {
+  if (sourceGallery?.galleryMode === GALLERY_MODE_ALBUM_SOURCE) {
     await prisma.gallery.delete({ where: { id: sourceGallery.id } }).catch(() => undefined);
     await deleteGalleryObjects(
       sourceGallery.slug,

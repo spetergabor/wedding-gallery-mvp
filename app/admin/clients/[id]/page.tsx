@@ -50,6 +50,7 @@ import { getProjectWorkflowSummary } from "@/lib/project-workflow";
 import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 import {
+  GALLERY_MODE_FULL,
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_PROCESSING,
@@ -1512,6 +1513,8 @@ export default async function AdminClientDetailPage({
           sourceGallery: {
             select: {
               id: true,
+              title: true,
+              galleryMode: true,
               photos: {
                 where: { mediaType: "image" },
                 orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -1711,6 +1714,7 @@ export default async function AdminClientDetailPage({
         {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
         {flags.albumError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
+        {flags.albumDesignError === "source-gallery" ? <Alert title="A kiválasztott galéria nem található vagy nincs benne kép." variant="error" /> : null}
         {flags.albumDesignError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
         {flags.albumDesignError === "layout-count" ? <Alert title="Ehhez a képszámhoz még nincs album layout sablon." variant="error" /> : null}
@@ -2131,6 +2135,14 @@ export default async function AdminClientDetailPage({
             <AlbumDesignManager
               customerId={customer.id}
               favoriteLists={albumFavoriteLists.filter((list) => list._count.items > 0)}
+              sourceGalleries={customer.galleries
+                .filter((gallery) => gallery.galleryMode === GALLERY_MODE_FULL && gallery._count.photos > 0)
+                .map((gallery) => ({
+                  id: gallery.id,
+                  title: gallery.title,
+                  customerName: null,
+                  photoCount: gallery._count.photos
+                }))}
               designs={albumDesigns}
               projects={albumProjectOptions}
             />

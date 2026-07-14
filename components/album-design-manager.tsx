@@ -41,6 +41,13 @@ type FavoriteList = {
   }>;
 };
 
+type SourceGalleryOption = {
+  id: string;
+  title: string;
+  customerName?: string | null;
+  photoCount: number;
+};
+
 type AlbumProjectOption = {
   id: string;
   customerId?: string;
@@ -82,6 +89,8 @@ type AlbumDesign = {
   } | null;
   sourceGallery: {
     id: string;
+    title: string;
+    galleryMode: string;
     photos: FavoritePhoto[];
   } | null;
   spreads: Array<{
@@ -247,12 +256,14 @@ function AlbumSpreadCreateForm({
 export function AlbumDesignManager({
   customerId,
   favoriteLists,
+  sourceGalleries = [],
   designs,
   projects,
   customers = []
 }: {
   customerId: string | null;
   favoriteLists: FavoriteList[];
+  sourceGalleries?: SourceGalleryOption[];
   designs: AlbumDesign[];
   projects: AlbumProjectOption[];
   customers?: AlbumCustomerOption[];
@@ -270,7 +281,7 @@ export function AlbumDesignManager({
           </div>
           <h2 className="mt-2 text-xl font-semibold text-ink">Template alapú oldalpár tervezés</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            Favorite listából válassz képeket, majd egy 60x30 arányú oldalpár template automatikusan elrendezi őket.
+            Dolgozz favorite listából, meglévő teljes galériából vagy saját album képfeltöltésből. A rendszer 60x30 arányú oldalpár template-ekbe rendezi a képeket.
           </p>
         </div>
 
@@ -284,18 +295,30 @@ export function AlbumDesignManager({
             className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
           />
           <select
-            name="favoriteListId"
+            name="sourceId"
             className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
             defaultValue=""
           >
-            <option value="">
-              Saját képeket töltök fel
-            </option>
-            {favoriteLists.map((list) => (
-              <option key={list.id} value={list.id}>
-                {list.gallery.title} · {list.name} · {list._count.items} kép
-              </option>
-            ))}
+            <option value="">Saját képeket töltök fel</option>
+            {sourceGalleries.length > 0 ? (
+              <optgroup label="Meglévő teljes galériák">
+                {sourceGalleries.map((gallery) => (
+                  <option key={gallery.id} value={`gallery:${gallery.id}`}>
+                    {gallery.customerName ? `${gallery.customerName} · ` : ""}
+                    {gallery.title} · {gallery.photoCount} média
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {favoriteLists.length > 0 ? (
+              <optgroup label="Favorite listák">
+                {favoriteLists.map((list) => (
+                  <option key={list.id} value={`favorite:${list.id}`}>
+                    {list.gallery.title} · {list.name} · {list._count.items} kép
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
           </select>
           {!standaloneMode ? (
             <select
@@ -318,9 +341,9 @@ export function AlbumDesignManager({
         </form>
       </div>
 
-      {favoriteLists.length === 0 ? (
+      {favoriteLists.length === 0 && sourceGalleries.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
-          <p className="text-sm font-medium text-ink">Nincs még használható favorite list</p>
+          <p className="text-sm font-medium text-ink">Nincs még választható meglévő képforrás</p>
           <p className="mt-1 text-sm text-graphite/70">
             Ettől még létre tudsz hozni albumtervet: válaszd a saját képek feltöltését, és dolgozz közvetlenül az albumtervezőből.
           </p>
@@ -330,13 +353,14 @@ export function AlbumDesignManager({
       {designs.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
           <p className="text-sm font-medium text-ink">{standaloneMode ? "Még nincs önálló albumterv" : "Még nincs albumterv ehhez az ügyfélhez"}</p>
-          <p className="mt-1 text-sm text-graphite/70">Hozz létre egy albumtervet valamelyik favorite listából.</p>
+          <p className="mt-1 text-sm text-graphite/70">Hozz létre egy albumtervet saját képekből, meglévő galériából vagy favorite listából.</p>
         </div>
       ) : (
         <div className="mt-5 space-y-6">
           {designs.map((design) => {
             const sourcePhotos = design.favoriteList?.items.map((item) => item.photo) ?? design.sourceGallery?.photos ?? [];
-            const usesUploadedSource = !design.favoriteList && Boolean(design.sourceGallery);
+            const usesUploadedSource = design.sourceGallery?.galleryMode === GALLERY_MODE_ALBUM_SOURCE;
+            const usesExistingGallerySource = !design.favoriteList && Boolean(design.sourceGallery) && !usesUploadedSource;
             const linkedProject = design.projectId ? projectById.get(design.projectId) : null;
             const linkedCustomer = design.customer ?? (linkedProject?.customerId ? customers.find((customer) => customer.id === linkedProject.customerId) : null);
 
@@ -379,6 +403,11 @@ export function AlbumDesignManager({
                           Saját feltöltés · {sourcePhotos.length} kép
                         </span>
                       ) : null}
+                      {usesExistingGallerySource ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
+                          Meglévő galéria · {sourcePhotos.length} kép
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">
                       Forrás:{" "}
@@ -386,7 +415,9 @@ export function AlbumDesignManager({
                         ? `${design.favoriteList.gallery.title} · ${design.favoriteList.name}`
                         : usesUploadedSource
                           ? "saját album képek"
-                          : "hiányzó forrás"}
+                          : usesExistingGallerySource
+                            ? design.sourceGallery?.title
+                            : "hiányzó forrás"}
                     </p>
                     {design.favoriteList ? (
                       <p className="mt-1 text-sm text-graphite/60">

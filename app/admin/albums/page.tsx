@@ -4,6 +4,7 @@ import { Alert } from "@/components/alert";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, albumDesignOwnedWhere } from "@/lib/admin-scope";
 import { prisma } from "@/lib/prisma";
+import { GALLERY_MODE_FULL } from "@/lib/proofing";
 
 export default async function AdminAlbumsPage({
   searchParams
@@ -25,7 +26,7 @@ export default async function AdminAlbumsPage({
   const admin = await requireAdmin();
   const flags = await searchParams;
 
-  const [favoriteLists, albumDesigns, customers, albumProjects] = await Promise.all([
+  const [favoriteLists, sourceGalleries, albumDesigns, customers, albumProjects] = await Promise.all([
     prisma.galleryFavoriteList.findMany({
       where: {
         gallery: adminOwnedWhere(admin)
@@ -56,6 +57,32 @@ export default async function AdminAlbumsPage({
         }
       }
     }),
+    prisma.gallery.findMany({
+      where: {
+        ...adminOwnedWhere(admin),
+        galleryMode: GALLERY_MODE_FULL,
+        photos: {
+          some: {
+            mediaType: "image"
+          }
+        }
+      },
+      orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        eventDate: true,
+        customer: {
+          select: {
+            coupleName: true
+          }
+        },
+        _count: {
+          select: { photos: true }
+        }
+      }
+    }),
     prisma.albumDesign.findMany({
       where: albumDesignOwnedWhere(admin),
       orderBy: { createdAt: "desc" },
@@ -69,6 +96,8 @@ export default async function AdminAlbumsPage({
         sourceGallery: {
           select: {
             id: true,
+            title: true,
+            galleryMode: true,
             photos: {
               where: { mediaType: "image" },
               orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -175,6 +204,7 @@ export default async function AdminAlbumsPage({
         {flags.albumSpreadSlotUpdated ? <Alert title="Album oldalpár képe frissítve." variant="success" /> : null}
         {flags.albumSpreadDeleted ? <Alert title="Album oldalpár törölve." variant="success" /> : null}
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
+        {flags.albumDesignError === "source-gallery" ? <Alert title="A kiválasztott galéria nem található vagy nincs benne kép." variant="error" /> : null}
         {flags.albumDesignError === "customer" ? <Alert title="Az album ellenőrzőhöz előbb ügyfélhez kell rendelni az albumtervet." variant="error" /> : null}
         {flags.albumDesignError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
@@ -189,6 +219,12 @@ export default async function AdminAlbumsPage({
       <AlbumDesignManager
         customerId={null}
         favoriteLists={favoriteLists.filter((list) => list._count.items > 0)}
+        sourceGalleries={sourceGalleries.map((gallery) => ({
+          id: gallery.id,
+          title: gallery.title,
+          customerName: gallery.customer?.coupleName ?? null,
+          photoCount: gallery._count.photos
+        }))}
         designs={albumDesigns}
         projects={albumProjects.map((project) => ({
           id: project.id,
