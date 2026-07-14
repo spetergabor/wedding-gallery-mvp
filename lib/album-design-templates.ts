@@ -367,6 +367,23 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "ten-left-group-right-six-grid",
+    name: "Bal csoportkép, jobb hatos rács",
+    photoCount: 10,
+    slots: [
+      { x: 5, y: 10, width: 40, height: 62 },
+      { x: 5, y: 72, width: 13.33, height: 18 },
+      { x: 18.33, y: 72, width: 13.34, height: 18 },
+      { x: 31.67, y: 72, width: 13.33, height: 18 },
+      { x: 55, y: 10, width: 20, height: 26.67 },
+      { x: 75, y: 10, width: 20, height: 26.67 },
+      { x: 55, y: 36.67, width: 20, height: 26.66 },
+      { x: 75, y: 36.67, width: 20, height: 26.66 },
+      { x: 55, y: 63.33, width: 20, height: 26.67 },
+      { x: 75, y: 63.33, width: 20, height: 26.67 }
+    ]
+  },
+  {
     key: "ten-dense-story-grid",
     name: "Tíz képes sűrű történet",
     photoCount: 10,
