@@ -367,6 +367,22 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "nine-party-mosaic-right-hero",
+    name: "Bal party mozaik, jobb nagy kép",
+    photoCount: 9,
+    slots: [
+      { x: 0, y: 10, width: 15, height: 15 },
+      { x: 0, y: 25, width: 15, height: 25 },
+      { x: 15, y: 10, width: 15, height: 40 },
+      { x: 30, y: 10, width: 20, height: 40 },
+      { x: 0, y: 50, width: 15, height: 20 },
+      { x: 0, y: 70, width: 15, height: 20 },
+      { x: 15, y: 50, width: 19, height: 40 },
+      { x: 34, y: 50, width: 16, height: 40 },
+      { x: 50, y: 10, width: 50, height: 80 }
+    ]
+  },
+  {
     key: "ten-left-group-right-six-grid",
     name: "Bal csoportkép, jobb hatos rács",
     photoCount: 10,
