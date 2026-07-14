@@ -21,7 +21,7 @@ const sections = [
     title: "3. Google Calendar data",
     body: [
       "If a photographer connects Google Calendar, Spetly requests access only after the photographer explicitly grants permission through Google's OAuth consent flow.",
-      "Spetly uses Google Calendar access to show available calendars, create, update and delete calendar events for confirmed bookings and dated customer projects, and read free/busy availability when the photographer enables availability blocking.",
+      "Spetly uses Google Calendar access to show available calendars, create, update and delete calendar events for confirmed bookings, dated customer projects, meetings and tasks with due dates, and read free/busy availability when the photographer enables availability blocking.",
       "Spetly stores the selected calendar ID, Google account email, encrypted OAuth tokens, Google event IDs, sync timestamps and sync errors needed to provide calendar sync."
     ]
   },

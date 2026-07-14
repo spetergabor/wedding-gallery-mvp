@@ -352,6 +352,10 @@ model CustomerTask {
   dueTime     String?
   notes       String?
   completedAt DateTime?
+  googleCalendarEventId String?
+  googleCalendarId      String?
+  googleCalendarSyncedAt DateTime?
+  googleCalendarSyncError String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -363,6 +367,7 @@ model CustomerTask {
   @@index([status])
   @@index([priority])
   @@index([dueDate])
+  @@index([googleCalendarEventId])
 }
 
 model CustomerPortalImage {

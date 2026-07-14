@@ -28,7 +28,7 @@ const sections = [
     title: "4. Google Calendar integration",
     body: [
       "Google Calendar integration is optional. A photographer can connect their own Google account through Google's OAuth flow.",
-      "When connected, Spetly may create, update or delete calendar events for bookings and projects, list calendars so the photographer can choose a target calendar, and read free/busy availability when enabled.",
+      "When connected, Spetly may create, update or delete calendar events for bookings, projects, meetings and tasks with due dates, list calendars so the photographer can choose a target calendar, and read free/busy availability when enabled.",
       "The photographer can disconnect Google Calendar in Spetly settings or revoke access directly in their Google Account."
     ]
   },

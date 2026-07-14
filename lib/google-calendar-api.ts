@@ -3,6 +3,12 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerMeetingStatusLabel, customerMeetingTypeLabel } from "@/lib/customer-meeting-options";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import {
+  customerTaskPriorityLabel,
+  customerTaskStatusLabel,
+  customerTaskTypeLabel,
+  isClosedCustomerTaskStatus
+} from "@/lib/customer-task-options";
+import {
   createDeliveryLog,
   DELIVERY_CHANNEL_GOOGLE_CALENDAR,
   markDeliveryLogFailed,
@@ -443,6 +449,10 @@ function meetingAdminUrl(customerId: string) {
   return new URL(`/admin/clients/${customerId}?tab=meetings`, appBaseUrl()).toString();
 }
 
+function taskAdminUrl(customerId: string) {
+  return new URL(`/admin/clients/${customerId}?tab=tasks`, appBaseUrl()).toString();
+}
+
 function miniSessionBookingDescription(input: {
   sessionTitle: string;
   publicUrl: string;
@@ -507,6 +517,30 @@ function customerMeetingDescription(input: {
   ].filter(Boolean).join("\n");
 }
 
+function customerTaskDescription(input: {
+  customerName: string;
+  taskType: string;
+  status: string;
+  priority: string;
+  adminUrl: string;
+  projectTitle?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+}) {
+  return [
+    `Ügyfél: ${input.customerName}`,
+    input.projectTitle ? `Kapcsolódó projekt: ${input.projectTitle}` : null,
+    `Típus: ${customerTaskTypeLabel(input.taskType)}`,
+    `Státusz: ${customerTaskStatusLabel(input.status)}`,
+    `Prioritás: ${customerTaskPriorityLabel(input.priority)}`,
+    input.email ? `E-mail: ${input.email}` : null,
+    input.phone ? `Telefon: ${input.phone}` : null,
+    input.notes ? `Megjegyzés: ${input.notes}` : null,
+    `Admin: ${input.adminUrl}`
+  ].filter(Boolean).join("\n");
+}
+
 function projectEventWindow(project: { eventDate: Date | null; startTime: string | null; endTime: string | null }) {
   if (!project.eventDate) {
     return null;
@@ -535,6 +569,32 @@ function projectEventWindow(project: { eventDate: Date | null; startTime: string
   return {
     start: googleDateTime(startsAt),
     end: googleDateTime(endsAt)
+  };
+}
+
+function taskEventWindow(task: { dueDate: Date | null; dueTime: string | null }) {
+  if (!task.dueDate) {
+    return null;
+  }
+
+  if (!task.dueTime) {
+    const date = googleAllDayDate(task.dueDate);
+    return {
+      start: { date },
+      end: { date: addDateKeyDays(date, 1) }
+    };
+  }
+
+  const dateKey = miniSessionDateKey(task.dueDate);
+  const startsAt = parseMiniSessionLocalDateTime(dateKey, task.dueTime);
+
+  if (!startsAt) {
+    return null;
+  }
+
+  return {
+    start: googleDateTime(startsAt),
+    end: googleDateTime(new Date(startsAt.getTime() + 30 * 60 * 1000))
   };
 }
 
@@ -1178,6 +1238,200 @@ export async function deleteCustomerMeetingFromGoogleCalendar(meetingId: string)
   } catch (error) {
     await markDeliveryLogFailed(deliveryLog.id, error);
     console.error("Google Calendar customer meeting delete failed", error);
+    return { status: "error" as const };
+  }
+}
+
+export async function syncCustomerTaskToGoogleCalendar(taskId: string) {
+  const task = await prisma.customerTask.findUnique({
+    where: { id: taskId },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          adminId: true,
+          coupleName: true,
+          primaryEmail: true,
+          phone: true
+        }
+      },
+      project: {
+        select: {
+          title: true
+        }
+      }
+    }
+  });
+
+  if (!task) {
+    return { status: "skipped" as const };
+  }
+
+  const integration = await googleCalendarIntegrationForAdmin(task.customer.adminId);
+
+  if (!integration?.syncCustomerProjects || !integration.refreshTokenEncrypted) {
+    return { status: "not_configured" as const };
+  }
+
+  const calendarId = integration.calendarId || "primary";
+  const eventWindow = taskEventWindow(task);
+  const deliveryLog = await createDeliveryLog({
+    adminId: task.customer.adminId,
+    channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+    type: "google_calendar.customer_task.sync",
+    provider: "google",
+    entityType: "customer_task",
+    entityId: task.id,
+    subject: `${task.customer.coupleName} - ${task.title}`,
+    metadata: {
+      customerId: task.customer.id,
+      projectTitle: task.project?.title ?? null,
+      calendarId,
+      dueDate: task.dueDate?.toISOString() ?? null,
+      dueTime: task.dueTime
+    }
+  });
+
+  try {
+    if ((!eventWindow || isClosedCustomerTaskStatus(task.status)) && task.googleCalendarEventId) {
+      await deleteGoogleCalendarEvent(integration, task.googleCalendarId || calendarId, task.googleCalendarEventId);
+      await prisma.customerTask.update({
+        where: { id: task.id },
+        data: {
+          googleCalendarEventId: null,
+          googleCalendarId: calendarId,
+          googleCalendarSyncedAt: new Date(),
+          googleCalendarSyncError: null
+        }
+      });
+      await markDeliveryLogSent(deliveryLog.id, task.googleCalendarEventId);
+      return { status: "deleted" as const };
+    }
+
+    if (!eventWindow || isClosedCustomerTaskStatus(task.status)) {
+      await markDeliveryLogSkipped(deliveryLog.id, "A feladat állapota vagy határideje miatt nem kell Google Calendar sync.");
+      return { status: "skipped" as const };
+    }
+
+    const event: GoogleCalendarEventPayload = {
+      summary: `${task.customer.coupleName} - ${task.title}`,
+      description: customerTaskDescription({
+        customerName: task.customer.coupleName,
+        taskType: task.taskType,
+        status: task.status,
+        priority: task.priority,
+        adminUrl: taskAdminUrl(task.customer.id),
+        projectTitle: task.project?.title,
+        email: task.customer.primaryEmail,
+        phone: task.customer.phone,
+        notes: task.notes
+      }),
+      start: eventWindow.start,
+      end: eventWindow.end
+    };
+    let eventId = task.googleCalendarEventId;
+
+    if (eventId) {
+      try {
+        await patchGoogleCalendarEvent(integration, task.googleCalendarId || calendarId, eventId, event);
+      } catch (error) {
+        if (!(error instanceof GoogleCalendarApiError) || error.status !== 404) {
+          throw error;
+        }
+
+        eventId = await insertGoogleCalendarEvent(integration, calendarId, event);
+      }
+    } else {
+      eventId = await insertGoogleCalendarEvent(integration, calendarId, event);
+    }
+
+    await prisma.customerTask.update({
+      where: { id: task.id },
+      data: {
+        googleCalendarEventId: eventId,
+        googleCalendarId: calendarId,
+        googleCalendarSyncedAt: new Date(),
+        googleCalendarSyncError: null
+      }
+    });
+
+    await markDeliveryLogSent(deliveryLog.id, eventId);
+    return { status: "synced" as const };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Google Calendar sync failed.";
+    await markDeliveryLogFailed(deliveryLog.id, error);
+    await prisma.customerTask.update({
+      where: { id: task.id },
+      data: { googleCalendarSyncError: message }
+    });
+    await prisma.googleCalendarIntegration.update({
+      where: { id: integration.id },
+      data: { lastSyncError: message }
+    });
+    await logSystemEvent({
+      targetAdminId: task.customer.adminId,
+      type: "google_calendar.customer_task.sync_failed",
+      title: "Google Calendar feladat sync hiba",
+      message,
+      severity: "error",
+      status: "failed",
+      source: "google_calendar",
+      href: taskAdminUrl(task.customer.id),
+      metadata: {
+        taskId: task.id,
+        customerId: task.customer.id,
+        calendarId
+      }
+    });
+    console.error("Google Calendar customer task sync failed", error);
+    return { status: "error" as const };
+  }
+}
+
+export async function deleteCustomerTaskFromGoogleCalendar(taskId: string) {
+  const task = await prisma.customerTask.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      googleCalendarEventId: true,
+      googleCalendarId: true,
+      customer: {
+        select: {
+          adminId: true
+        }
+      }
+    }
+  });
+
+  if (!task?.googleCalendarEventId) {
+    return { status: "skipped" as const };
+  }
+
+  const integration = await googleCalendarIntegrationForAdmin(task.customer.adminId);
+
+  if (!integration?.syncCustomerProjects || !integration.refreshTokenEncrypted) {
+    return { status: "not_configured" as const };
+  }
+
+  const calendarId = task.googleCalendarId || integration.calendarId || "primary";
+  const deliveryLog = await createDeliveryLog({
+    adminId: task.customer.adminId,
+    channel: DELIVERY_CHANNEL_GOOGLE_CALENDAR,
+    type: "google_calendar.customer_task.delete",
+    provider: "google",
+    entityType: "customer_task",
+    entityId: task.id,
+    subject: "Feladat Google Calendar esemény törlése",
+    metadata: { calendarId }
+  });
+
+  try {
+    await deleteGoogleCalendarEvent(integration, calendarId, task.googleCalendarEventId);
+    await markDeliveryLogSent(deliveryLog.id, task.googleCalendarEventId);
+    return { status: "deleted" as const };
+  } catch (error) {
+    await markDeliveryLogFailed(deliveryLog.id, error);
+    console.error("Google Calendar customer task delete failed", error);
     return { status: "error" as const };
   }
 }

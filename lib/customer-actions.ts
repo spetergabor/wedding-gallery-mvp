@@ -13,8 +13,10 @@ import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
   deleteCustomerMeetingFromGoogleCalendar,
   deleteCustomerProjectFromGoogleCalendar,
+  deleteCustomerTaskFromGoogleCalendar,
   syncCustomerMeetingToGoogleCalendar,
-  syncCustomerProjectToGoogleCalendar
+  syncCustomerProjectToGoogleCalendar,
+  syncCustomerTaskToGoogleCalendar
 } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoObject } from "@/lib/storage";
@@ -594,7 +596,7 @@ export async function createCustomerTaskAction(customerId: string, formData: For
 
   const status = normalizeCustomerTaskStatus(formString(formData, "status"));
 
-  await prisma.customerTask.create({
+  const task = await prisma.customerTask.create({
     data: {
       customerId: customer.id,
       projectId,
@@ -608,6 +610,12 @@ export async function createCustomerTaskAction(customerId: string, formData: For
       completedAt: status === "done" ? new Date() : null
     }
   });
+
+  try {
+    await syncCustomerTaskToGoogleCalendar(task.id);
+  } catch (error) {
+    console.error("Customer task Google Calendar sync failed", error);
+  }
 
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/dashboard");
@@ -666,6 +674,12 @@ export async function updateCustomerTaskAction(customerId: string, taskId: strin
     }
   });
 
+  try {
+    await syncCustomerTaskToGoogleCalendar(task.id);
+  } catch (error) {
+    console.error("Customer task Google Calendar sync failed", error);
+  }
+
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/work");
@@ -696,6 +710,12 @@ export async function updateCustomerTaskStatusAction(customerId: string, taskId:
     }
   });
 
+  try {
+    await syncCustomerTaskToGoogleCalendar(task.id);
+  } catch (error) {
+    console.error("Customer task Google Calendar status sync failed", error);
+  }
+
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/work");
@@ -715,6 +735,12 @@ export async function deleteCustomerTaskAction(customerId: string, taskId: strin
 
   if (!task) {
     redirect(`/admin/clients/${customerId}?tab=tasks&taskError=missing`);
+  }
+
+  try {
+    await deleteCustomerTaskFromGoogleCalendar(task.id);
+  } catch (error) {
+    console.error("Customer task Google Calendar delete failed", error);
   }
 
   await prisma.customerTask.delete({
@@ -759,6 +785,11 @@ export async function deleteCustomerAction(customerId: string) {
         select: {
           id: true
         }
+      },
+      tasks: {
+        select: {
+          id: true
+        }
       }
     }
   });
@@ -774,6 +805,7 @@ export async function deleteCustomerAction(customerId: string) {
   const portalImageObjectKeys = customer.portalImages.map((image) => image.r2Key).filter(Boolean);
   const projectIds = customer.projects.map((project) => project.id);
   const meetingIds = customer.meetings.map((meeting) => meeting.id);
+  const taskIds = customer.tasks.map((task) => task.id);
 
   await Promise.all([
     ...projectIds.map((projectId) =>
@@ -784,6 +816,11 @@ export async function deleteCustomerAction(customerId: string) {
     ...meetingIds.map((meetingId) =>
       deleteCustomerMeetingFromGoogleCalendar(meetingId).catch((error) => {
         console.error("Customer meeting Google Calendar delete failed during customer delete", error);
+      })
+    ),
+    ...taskIds.map((taskId) =>
+      deleteCustomerTaskFromGoogleCalendar(taskId).catch((error) => {
+        console.error("Customer task Google Calendar delete failed during customer delete", error);
       })
     )
   ]);
