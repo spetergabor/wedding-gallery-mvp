@@ -196,13 +196,13 @@ export default function HomePage() {
             </Link>
           </header>
 
-          <div className="relative py-14 lg:min-h-[720px] lg:py-24">
-            <div className="max-w-3xl">
+          <div className="relative py-14 lg:py-16 xl:grid xl:min-h-[680px] xl:grid-cols-[minmax(0,580px)_minmax(540px,1fr)] xl:items-center xl:gap-16 xl:py-20">
+            <div className="max-w-[620px] xl:max-w-[580px]">
               <p className="text-sm font-semibold text-brass">Client workflow platform for photographers</p>
               <h1 className="font-playfair mt-5 text-6xl leading-none text-ink sm:text-7xl lg:text-8xl">
                 Spetly
               </h1>
-              <p className="mt-7 max-w-2xl text-2xl font-semibold leading-tight text-ink sm:text-3xl">
+              <p className="mt-7 text-2xl font-semibold leading-tight text-ink sm:text-3xl">
                 One workspace for galleries, contracts, albums, bookings and client management.
               </p>
               <p className="mt-6 max-w-xl text-lg leading-8 text-graphite/75">
@@ -237,12 +237,12 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="mt-12 lg:hidden">
+            <div className="mt-12 xl:hidden">
               <ProductPreview />
             </div>
 
-            <div className="pointer-events-none absolute left-[52%] top-28 hidden w-[620px] max-w-none lg:block xl:left-[50%] xl:w-[720px]">
-              <ProductPreview className="-rotate-1" />
+            <div className="pointer-events-none hidden xl:block">
+              <ProductPreview />
             </div>
           </div>
         </div>
