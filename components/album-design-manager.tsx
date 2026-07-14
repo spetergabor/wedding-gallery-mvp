@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { FolderKanban, Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -259,7 +260,9 @@ export function AlbumDesignManager({
   sourceGalleries = [],
   designs,
   projects,
-  customers = []
+  customers = [],
+  workspaceView = "projects",
+  activeDesignId = null
 }: {
   customerId: string | null;
   favoriteLists: FavoriteList[];
@@ -267,9 +270,24 @@ export function AlbumDesignManager({
   designs: AlbumDesign[];
   projects: AlbumProjectOption[];
   customers?: AlbumCustomerOption[];
+  workspaceView?: "projects" | "new";
+  activeDesignId?: string | null;
 }) {
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const standaloneMode = !customerId;
+  const activeWorkspaceView = workspaceView === "new" ? "new" : "projects";
+  const selectedDesign = designs.find((design) => design.id === activeDesignId) ?? designs[0] ?? null;
+  const workspaceBaseHref = standaloneMode ? "/admin/albums" : `/admin/clients/${customerId}?tab=album&albumMode=editor`;
+  const workspaceHref = (view: "projects" | "new", designId?: string) => {
+    const separator = workspaceBaseHref.includes("?") ? "&" : "?";
+    const params = [`albumWorkspace=${view}`];
+
+    if (designId) {
+      params.push(`albumDesignId=${designId}`);
+    }
+
+    return `${workspaceBaseHref}${separator}${params.join("&")}`;
+  };
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
@@ -287,6 +305,29 @@ export function AlbumDesignManager({
           </p>
         </div>
 
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <Link
+            href={workspaceHref("projects", selectedDesign?.id)}
+            className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
+              activeWorkspaceView === "projects" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+            }`}
+          >
+            Album projektek
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${activeWorkspaceView === "projects" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
+              {designs.length}
+            </span>
+          </Link>
+          <Link
+            href={workspaceHref("new")}
+            className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
+              activeWorkspaceView === "new" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+            }`}
+          >
+            Új album indítása
+          </Link>
+        </div>
+
+        {activeWorkspaceView === "new" ? (
         <form
           action={createAlbumDesignAction.bind(null, customerId)}
           className="mt-5 rounded-lg border border-ink/10 bg-paper p-4"
@@ -356,9 +397,10 @@ export function AlbumDesignManager({
             </div>
           </div>
         </form>
+        ) : null}
       </div>
 
-      {favoriteLists.length === 0 && sourceGalleries.length === 0 ? (
+      {activeWorkspaceView === "new" && favoriteLists.length === 0 && sourceGalleries.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
           <p className="text-sm font-medium text-ink">Nincs még választható meglévő képforrás</p>
           <p className="mt-1 text-sm text-graphite/70">
@@ -367,10 +409,14 @@ export function AlbumDesignManager({
         </div>
       ) : null}
 
-      {designs.length === 0 ? (
+      {activeWorkspaceView === "projects" ? designs.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
           <p className="text-sm font-medium text-ink">{standaloneMode ? "Még nincs önálló albumterv" : "Még nincs albumterv ehhez az ügyfélhez"}</p>
           <p className="mt-1 text-sm text-graphite/70">Hozz létre egy albumtervet saját képekből, meglévő galériából vagy favorite listából.</p>
+          <Link href={workspaceHref("new")} className="mt-3 inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white">
+            <Plus size={16} className="mr-2" />
+            Új album indítása
+          </Link>
         </div>
       ) : (
         <div className="mt-6">
@@ -402,10 +448,10 @@ export function AlbumDesignManager({
                 : usesExistingGallerySource
                   ? `Meglévő galéria · ${sourcePhotos.length} kép`
                   : "Hiányzó forrás";
-            const openByDefault = designIndex === 0 || (usesUploadedSource && sourcePhotos.length === 0 && design.spreads.length === 0);
+            const openByDefault = design.id === selectedDesign?.id || (!selectedDesign && designIndex === 0);
 
             return (
-              <details key={design.id} open={openByDefault} className="rounded-lg border border-ink/10 bg-paper shadow-sm">
+              <details key={design.id} name="album-design-projects" open={openByDefault} className="rounded-lg border border-ink/10 bg-paper shadow-sm">
                 <summary className="flex cursor-pointer list-none flex-col justify-between gap-3 px-4 py-4 transition hover:bg-white/70 lg:flex-row lg:items-start [&::-webkit-details-marker]:hidden">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -594,7 +640,7 @@ export function AlbumDesignManager({
           })}
           </div>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

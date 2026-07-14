@@ -21,6 +21,8 @@ export default async function AdminAlbumsPage({
     albumSpreadSlotUpdated?: string;
     albumSpreadDeleted?: string;
     albumDesignError?: string;
+    albumWorkspace?: string;
+    albumDesignId?: string;
   }>;
 }) {
   const admin = await requireAdmin();
@@ -233,6 +235,8 @@ export default async function AdminAlbumsPage({
           title: project.title
         }))}
         customers={customers}
+        workspaceView={flags.albumWorkspace === "new" ? "new" : "projects"}
+        activeDesignId={flags.albumDesignId ?? null}
       />
     </AdminShell>
   );
