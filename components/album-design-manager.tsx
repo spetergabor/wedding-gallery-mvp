@@ -278,7 +278,7 @@ export function AlbumDesignManager({
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const standaloneMode = !customerId;
   const activeWorkspaceView = workspaceView === "new" ? "new" : "projects";
-  const selectedDesign = designs.find((design) => design.id === activeDesignId) ?? designs[0] ?? null;
+  const selectedDesign = activeDesignId ? (designs.find((design) => design.id === activeDesignId) ?? null) : null;
   const workspaceBaseHref = standaloneMode ? "/admin/albums" : `/admin/clients/${customerId}?tab=album&albumMode=editor`;
   const workspaceHref = (view: "projects" | "new", designId?: string) => {
     const separator = workspaceBaseHref.includes("?") ? "&" : "?";
@@ -427,7 +427,7 @@ export function AlbumDesignManager({
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-graphite/55">Mentett album projektek</p>
               <h3 className="mt-1 text-base font-semibold text-ink">{designs.length} albumterv</h3>
             </div>
-            <p className="text-sm text-graphite/60">A legfrissebb album nyílik ki alapból, a többi bármikor visszanyitható.</p>
+            <p className="text-sm text-graphite/60">Az albumtervek alapból csukva maradnak, a munkanézetet a Megnyitás után éred el.</p>
           </div>
           <div className="space-y-4">
           {designs.map((design, designIndex) => {
@@ -450,7 +450,7 @@ export function AlbumDesignManager({
                 : usesExistingGallerySource
                   ? `Meglévő galéria · ${sourcePhotos.length} kép`
                   : "Hiányzó forrás";
-            const openByDefault = design.id === selectedDesign?.id || (!selectedDesign && designIndex === 0);
+            const openByDefault = design.id === selectedDesign?.id;
 
             return (
               <details key={design.id} name="album-design-projects" open={openByDefault} className="rounded-lg border border-ink/10 bg-paper shadow-sm">
