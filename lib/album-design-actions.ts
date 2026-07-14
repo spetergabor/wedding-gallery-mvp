@@ -552,7 +552,7 @@ export async function createEmptyAlbumDesignSpreadAction(customerId: string | nu
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadCreated=1"));
+  redirect(albumDesignRedirectPath(customerId, `albumSpreadCreated=1&albumWorkspace=projects&albumDesignId=${design.id}&albumEditor=1`));
 }
 
 export async function createAutoAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {

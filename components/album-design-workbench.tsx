@@ -206,6 +206,12 @@ export function AlbumDesignWorkbench({
   }, [spreads]);
 
   useEffect(() => {
+    if (initialEditorOpen) {
+      setIsEditorOpen(true);
+    }
+  }, [initialEditorOpen]);
+
+  useEffect(() => {
     if (orderedSpreads.length === 0) {
       setActiveSpreadId("");
       return;
