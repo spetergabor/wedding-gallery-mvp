@@ -289,7 +289,9 @@ const CLIENT_DETAIL_COPY = {
       proofingLinkSent: "Válogató link kiküldve",
       selectionSubmitted: "Válogatás leadva",
       selectedPhotos: "kiválasztott kép",
-      finalDeliverySent: "Kész képek átadva"
+      finalDeliverySent: "Kész képek átadva",
+      taskCreated: "Feladat létrehozva",
+      taskCompleted: "Feladat készre állítva"
     },
     galleries: {
       eyebrow: "Galériák",
@@ -439,7 +441,9 @@ const CLIENT_DETAIL_COPY = {
       proofingLinkSent: "Auswahllink gesendet",
       selectionSubmitted: "Auswahl abgegeben",
       selectedPhotos: "ausgewählte Bilder",
-      finalDeliverySent: "Fertige Bilder geliefert"
+      finalDeliverySent: "Fertige Bilder geliefert",
+      taskCreated: "Aufgabe erstellt",
+      taskCompleted: "Aufgabe erledigt"
     },
     galleries: {
       eyebrow: "Galerien",
@@ -602,7 +606,9 @@ const CLIENT_DETAIL_COPY = {
       proofingLinkSent: "Selection link sent",
       selectionSubmitted: "Selection submitted",
       selectedPhotos: "selected photos",
-      finalDeliverySent: "Final photos delivered"
+      finalDeliverySent: "Final photos delivered",
+      taskCreated: "Task created",
+      taskCompleted: "Task completed"
     },
     galleries: {
       eyebrow: "Galleries",
@@ -724,6 +730,20 @@ type CustomerWorkflowInput = {
       createdAt: Date;
       updatedAt: Date;
     }>;
+  }>;
+  tasks: Array<{
+    id: string;
+    title: string;
+    taskType: string;
+    status: string;
+    priority: string;
+    dueDate: Date | null;
+    dueTime: string | null;
+    completedAt: Date | null;
+    createdAt: Date;
+    project: {
+      title: string;
+    } | null;
   }>;
 };
 
@@ -909,6 +929,33 @@ function createCustomerTimeline(customer: CustomerWorkflowInput, copy: ClientDet
         title: copy.timeline.invoicePaid,
         detail: invoice.title,
         href: `/admin/clients/${customer.id}?tab=invoices`
+      });
+    }
+  });
+
+  customer.tasks.forEach((task) => {
+    const dueText = task.dueDate ? ` · ${formatDate(task.dueDate, language)}${task.dueTime ? ` ${task.dueTime}` : ""}` : "";
+    const projectText = task.project ? ` · ${task.project.title}` : "";
+    const detail = [
+      task.title,
+      customerTaskTypeLabel(task.taskType),
+      customerTaskStatusLabel(task.status),
+      customerTaskPriorityLabel(task.priority)
+    ].join(" · ");
+
+    events.push({
+      date: task.createdAt,
+      title: copy.timeline.taskCreated,
+      detail: `${detail}${projectText}${dueText}`,
+      href: `/admin/clients/${customer.id}?tab=tasks`
+    });
+
+    if (task.completedAt) {
+      events.push({
+        date: task.completedAt,
+        title: copy.timeline.taskCompleted,
+        detail: `${task.title}${projectText}${dueText}`,
+        href: `/admin/clients/${customer.id}?tab=tasks`
       });
     }
   });
