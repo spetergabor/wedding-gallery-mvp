@@ -7,11 +7,11 @@ import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
-  createAutoAlbumDesignSpreadAction,
+  createEmptyAlbumDesignSpreadAction,
   deleteAlbumDesignSpreadAction,
   regenerateAlbumDesignSpreadLayoutAction,
   saveAlbumDesignSpreadDraftsAction,
-  updateAlbumDesignSpreadAction
+  updateAlbumDesignSpreadLayoutOnlyAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 
@@ -41,8 +41,6 @@ type AlbumSpread = {
   sortOrder: number;
   items: SpreadItem[];
 };
-
-const maxAlbumLayoutPhotoCount = Math.max(...ALBUM_LAYOUT_TEMPLATES.map((template) => template.photoCount));
 
 function getTemplate(layoutKey: string) {
   return ALBUM_LAYOUT_TEMPLATES.find((item) => item.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
@@ -74,6 +72,7 @@ function SpreadDraftInputs({ spreadId, items }: { spreadId: string; items: Sprea
       <input type="hidden" name="draftSpreadIds" value={spreadId} />
       {items.map((item) => (
         <span key={`all-draft-${spreadId}-${item.slotIndex}`}>
+          <input type="hidden" name={`spread-${spreadId}-slotIndexes`} value={String(item.slotIndex)} />
           <input type="hidden" name={`spread-${spreadId}-slotPhotoIds`} value={item.photo.id} />
           <input type="hidden" name={`spread-${spreadId}-slotCropX`} value={formatCropPosition(item.cropX)} />
           <input type="hidden" name={`spread-${spreadId}-slotCropY`} value={formatCropPosition(item.cropY)} />
@@ -128,67 +127,18 @@ function AlbumLayoutRadioGrid({ defaultLayoutKey }: { defaultLayoutKey?: string 
 
 function SidebarSpreadCreateForm({
   customerId,
-  designId,
-  sourcePhotos,
-  usedPhotoIdSet
+  designId
 }: {
   customerId: string | null;
   designId: string;
-  sourcePhotos: FavoritePhoto[];
-  usedPhotoIdSet: Set<string>;
 }) {
-  const suggestedPhotos = sourcePhotos.filter((photo) => !usedPhotoIdSet.has(photo.id)).slice(0, maxAlbumLayoutPhotoCount);
-  const visiblePhotos = suggestedPhotos.length > 0 ? suggestedPhotos : sourcePhotos.slice(0, maxAlbumLayoutPhotoCount);
-
   return (
-    <details className="mt-3 rounded-md border border-dashed border-ink/20 bg-white">
-      <summary className="flex cursor-pointer items-center justify-center gap-2 px-3 py-3 text-sm font-semibold text-ink transition hover:bg-paper">
+    <form action={createEmptyAlbumDesignSpreadAction.bind(null, customerId, designId)} className="mt-3">
+      <FormSubmitButton variant="secondary" className="h-11 w-full justify-center border-dashed bg-white px-3" pendingLabel="Létrehozás...">
         <Plus size={16} />
         Oldalpár hozzáadása
-      </summary>
-      <form action={createAutoAlbumDesignSpreadAction.bind(null, customerId, designId)} className="border-t border-ink/10 p-3">
-        <p className="text-xs leading-5 text-graphite/65">
-          Válassz képeket az új oldalpárhoz. A rendszer a képszámhoz illő layoutot választ.
-        </p>
-        <div className="mt-3 grid max-h-72 grid-cols-2 gap-2 overflow-auto pr-1">
-          {visiblePhotos.map((photo) => {
-            const isSuggested = suggestedPhotos.some((suggestedPhoto) => suggestedPhoto.id === photo.id);
-
-            return (
-              <label key={`sidebar-create-${photo.id}`} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
-                <input
-                  name="photoIds"
-                  value={photo.id}
-                  type="checkbox"
-                  defaultChecked={isSuggested}
-                  className="peer absolute left-2 top-2 z-10 size-4 accent-ink"
-                />
-                <span className="relative block aspect-square">
-                  <Image
-                    src={photo.thumbnailUrl || photo.imageUrl}
-                    alt={photo.filename}
-                    fill
-                    unoptimized
-                    sizes="96px"
-                    className="object-cover transition group-hover:scale-[1.02]"
-                  />
-                </span>
-                <span className="block truncate bg-white px-2 py-1 text-[11px] text-graphite peer-checked:bg-ink peer-checked:text-white">
-                  {photo.filename}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-        {sourcePhotos.length === 0 ? (
-          <p className="mt-3 rounded-md bg-paper px-3 py-2 text-xs text-graphite/70">Nincs még forráskép az albumhoz.</p>
-        ) : null}
-        <FormSubmitButton className="mt-3 h-10 w-full px-3" disabled={sourcePhotos.length === 0} pendingLabel="Létrehozás...">
-          <Plus size={15} />
-          Oldalpár létrehozása
-        </FormSubmitButton>
-      </form>
-    </details>
+      </FormSubmitButton>
+    </form>
   );
 }
 
@@ -196,15 +146,17 @@ export function AlbumDesignWorkbench({
   customerId,
   designId,
   spreads,
-  sourcePhotos
+  sourcePhotos,
+  initialEditorOpen = false
 }: {
   customerId: string | null;
   designId: string;
   spreads: AlbumSpread[];
   sourcePhotos: FavoritePhoto[];
+  initialEditorOpen?: boolean;
 }) {
   const orderedSpreads = useMemo(() => [...spreads].sort((left, right) => left.sortOrder - right.sortOrder), [spreads]);
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(initialEditorOpen);
   const [draftItemsBySpread, setDraftItemsBySpread] = useState<Record<string, SpreadItem[]>>(() => createDraftMap(spreads));
   const [activeSpreadId, setActiveSpreadId] = useState(() => orderedSpreads[0]?.id ?? "");
   const [selectedSlotBySpread, setSelectedSlotBySpread] = useState<Record<string, number>>(() =>
@@ -316,18 +268,46 @@ export function AlbumDesignWorkbench({
       return;
     }
 
+    const layout = getTemplate(activeSpread.layoutKey);
+    const slot = layout.slots[activeSlotIndex];
+
+    if (!slot) {
+      return;
+    }
+
     setDraftItemsBySpread((current) => ({
       ...current,
-      [activeSpread.id]: (current[activeSpread.id] ?? getOrderedItems(activeSpread)).map((item) =>
-        item.slotIndex === activeSlotIndex
-          ? {
-              ...item,
-              photo,
-              cropX: 50,
-              cropY: 50
-            }
-          : item
-      )
+      [activeSpread.id]: (() => {
+        const currentItems = current[activeSpread.id] ?? getOrderedItems(activeSpread);
+        const hasSlotItem = currentItems.some((item) => item.slotIndex === activeSlotIndex);
+        const nextItems = hasSlotItem
+          ? currentItems.map((item) =>
+              item.slotIndex === activeSlotIndex
+                ? {
+                    ...item,
+                    photo,
+                    cropX: 50,
+                    cropY: 50
+                  }
+                : item
+            )
+          : [
+              ...currentItems,
+              {
+                id: `draft-${activeSpread.id}-${activeSlotIndex}`,
+                slotIndex: activeSlotIndex,
+                x: slot.x,
+                y: slot.y,
+                width: slot.width,
+                height: slot.height,
+                cropX: 50,
+                cropY: 50,
+                photo
+              }
+            ];
+
+        return nextItems.sort((left, right) => left.slotIndex - right.slotIndex);
+      })()
     }));
   }
 
@@ -448,8 +428,6 @@ export function AlbumDesignWorkbench({
                 <SidebarSpreadCreateForm
                   customerId={customerId}
                   designId={designId}
-                  sourcePhotos={sourcePhotos}
-                  usedPhotoIdSet={usedPhotoIdSet}
                 />
               </aside>
 
@@ -542,56 +520,17 @@ export function AlbumDesignWorkbench({
                         <details className="mt-4 rounded-md border border-ink/10 bg-paper">
                           <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
                             <RefreshCcw size={15} />
-                            Layout és képkészlet cseréje
+                            Layout cseréje
                           </summary>
-                          <form action={updateAlbumDesignSpreadAction.bind(null, customerId, designId, spread.id)} className="border-t border-ink/10 p-3">
-                            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
-                              <div>
-                                <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/70">Layout</p>
-                                <div className="mt-2">
-                                  <AlbumLayoutRadioGrid defaultLayoutKey={spread.layoutKey} />
-                                </div>
-                                <FormSubmitButton className="mt-3 w-full" pendingLabel="Mentés...">
-                                  <Grid3X3 size={15} />
-                                  Layout mentése
-                                </FormSubmitButton>
-                              </div>
-                              <div>
-                                <p className="text-xs text-graphite/60">
-                                  Válaszd ki az új layoutnak megfelelő pontos képszámot. A képek a kijelölés sorrendjében kerülnek a slotokba.
-                                </p>
-                                <div className="mt-2 grid max-h-80 gap-2 overflow-auto pr-1 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
-                                  {sourcePhotos.map((photo) => {
-                                    const isSelected = spread.items.some((item) => item.photo.id === photo.id);
-
-                                    return (
-                                      <label key={`${spread.id}-${photo.id}`} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
-                                        <input
-                                          name="photoIds"
-                                          value={photo.id}
-                                          type="checkbox"
-                                          defaultChecked={isSelected}
-                                          className="peer absolute left-2 top-2 z-10 size-4 accent-ink"
-                                        />
-                                        <span className="relative block aspect-[4/3]">
-                                          <Image
-                                            src={photo.thumbnailUrl || photo.imageUrl}
-                                            alt={photo.filename}
-                                            fill
-                                            unoptimized
-                                            sizes="140px"
-                                            className="object-cover transition group-hover:scale-[1.02]"
-                                          />
-                                        </span>
-                                        <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
-                                          {photo.filename}
-                                        </span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
+                          <form action={updateAlbumDesignSpreadLayoutOnlyAction.bind(null, customerId, designId, spread.id)} className="border-t border-ink/10 p-3">
+                            <p className="mb-3 text-xs text-graphite/60">
+                              Csak az oldalpár szerkezetét cseréli. A már beállított képeket a rendszer megtartja, ameddig az új layout slotjai engedik.
+                            </p>
+                            <AlbumLayoutRadioGrid defaultLayoutKey={spread.layoutKey} />
+                            <FormSubmitButton className="mt-3 w-full" pendingLabel="Mentés...">
+                              <Grid3X3 size={15} />
+                              Layout mentése
+                            </FormSubmitButton>
                           </form>
                         </details>
                       </section>
@@ -645,7 +584,7 @@ export function AlbumDesignWorkbench({
                       key={`global-tray-${activeSpread?.id ?? "none"}-${activeSlotIndex}-${photo.id}`}
                       type="button"
                       onClick={() => replaceActiveSlotPhoto(photo)}
-                      disabled={!activeSpread || !activeSlotItem}
+                      disabled={!activeSpread}
                       className={`group w-28 shrink-0 overflow-hidden rounded-md border text-left transition ${
                         isCurrent
                           ? "border-white bg-white text-ink"

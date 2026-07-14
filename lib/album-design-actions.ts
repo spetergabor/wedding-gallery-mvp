@@ -12,7 +12,7 @@ import {
   type AlbumDesignSpreadExportData
 } from "@/lib/album-design-export";
 import { requireAdmin } from "@/lib/auth";
-import { getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
+import { ALBUM_LAYOUT_TEMPLATES, getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE, GALLERY_MODE_FULL } from "@/lib/proofing";
 import {
@@ -92,6 +92,35 @@ function createSpreadItems(layout: AlbumLayoutTemplate, photoIds: string[], crop
     cropX: cropPositions?.[index]?.cropX ?? 50,
     cropY: cropPositions?.[index]?.cropY ?? 50
   }));
+}
+
+function createSpreadItemsForSlotIndexes(
+  layout: AlbumLayoutTemplate,
+  photoIds: string[],
+  slotIndexes: number[],
+  cropPositions?: Array<{ cropX: number; cropY: number }>
+) {
+  return photoIds
+    .map((photoId, index) => {
+      const slotIndex = slotIndexes[index] ?? index;
+      const slot = layout.slots[slotIndex];
+
+      if (!photoId || !slot) {
+        return null;
+      }
+
+      return {
+        photoId,
+        slotIndex,
+        x: slot.x,
+        y: slot.y,
+        width: slot.width,
+        height: slot.height,
+        cropX: cropPositions?.[index]?.cropX ?? 50,
+        cropY: cropPositions?.[index]?.cropY ?? 50
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
 }
 
 function createAlbumAccessToken() {
@@ -495,6 +524,34 @@ export async function createAlbumDesignSpreadAction(customerId: string | null, d
   });
 
   revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, `albumSpreadCreated=1&albumWorkspace=projects&albumDesignId=${design.id}&albumEditor=1`));
+}
+
+export async function createEmptyAlbumDesignSpreadAction(customerId: string | null, designId: string) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId && !design.sourceGalleryId) {
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
+  }
+
+  const layout = ALBUM_LAYOUT_TEMPLATES[1] ?? ALBUM_LAYOUT_TEMPLATES[0];
+  const latestSpread = await prisma.albumDesignSpread.findFirst({
+    where: { designId: design.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true }
+  });
+  const sortOrder = (latestSpread?.sortOrder ?? 0) + 1;
+
+  await prisma.albumDesignSpread.create({
+    data: {
+      designId: design.id,
+      title: `Oldalpár ${sortOrder}`,
+      layoutKey: layout.key,
+      sortOrder
+    }
+  });
+
+  revalidateAlbumDesignPaths(customerId);
   redirect(albumDesignRedirectPath(customerId, "albumSpreadCreated=1"));
 }
 
@@ -581,6 +638,58 @@ export async function updateAlbumDesignSpreadAction(customerId: string | null, d
       items: {
         deleteMany: {},
         create: createSpreadItems(layout, photoIds)
+      }
+    }
+  });
+
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadUpdated=1"));
+}
+
+export async function updateAlbumDesignSpreadLayoutOnlyAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId && !design.sourceGalleryId) {
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
+  }
+
+  const spread = await prisma.albumDesignSpread.findFirst({
+    where: {
+      id: spreadId,
+      designId: design.id
+    },
+    select: {
+      id: true,
+      items: {
+        orderBy: { slotIndex: "asc" },
+        select: {
+          photoId: true,
+          cropX: true,
+          cropY: true
+        }
+      }
+    }
+  });
+
+  if (!spread) {
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
+  }
+
+  const layout = getAlbumLayoutTemplate(formString(formData, "layoutKey"));
+  const keptItems = spread.items.slice(0, layout.slots.length);
+
+  await prisma.albumDesignSpread.update({
+    where: { id: spread.id },
+    data: {
+      layoutKey: layout.key,
+      items: {
+        deleteMany: {},
+        create: createSpreadItemsForSlotIndexes(
+          layout,
+          keptItems.map((item) => item.photoId),
+          keptItems.map((_, index) => index),
+          keptItems.map((item) => ({ cropX: item.cropX, cropY: item.cropY }))
+        )
       }
     }
   });
@@ -877,9 +986,13 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
 
   const layout = getAlbumLayoutTemplate(spread.layoutKey);
   const photoIds = getOrderedFormStrings(formData, "slotPhotoIds");
+  const slotIndexes = getOrderedFormStrings(formData, "slotIndexes").map((value, index) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : index;
+  });
   const cropPositions = getOrderedCropPositions(formData, layout.slots.length);
 
-  if (photoIds.length !== layout.slots.length) {
+  if (photoIds.length === 0 || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
   }
 
@@ -895,7 +1008,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
     data: {
       items: {
         deleteMany: {},
-        create: createSpreadItems(layout, photoIds, cropPositions)
+        create: createSpreadItemsForSlotIndexes(layout, photoIds, slotIndexes, cropPositions)
       }
     }
   });
@@ -939,12 +1052,16 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
   const spreadDrafts = spreads.map((spread) => {
     const layout = getAlbumLayoutTemplate(spread.layoutKey);
     const photoIds = getOrderedFormStrings(formData, `spread-${spread.id}-slotPhotoIds`);
+    const slotIndexes = getOrderedFormStrings(formData, `spread-${spread.id}-slotIndexes`).map((value, index) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : index;
+    });
     const cropPositions = getOrderedCropPositions(formData, layout.slots.length, {
       cropX: `spread-${spread.id}-slotCropX`,
       cropY: `spread-${spread.id}-slotCropY`
     });
 
-    if (photoIds.length !== layout.slots.length) {
+    if (photoIds.length === 0 || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
       redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
     }
 
@@ -952,6 +1069,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
       spread,
       layout,
       photoIds,
+      slotIndexes,
       cropPositions
     };
   });
@@ -974,7 +1092,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
         data: {
           items: {
             deleteMany: {},
-            create: createSpreadItems(draft.layout, draft.photoIds, draft.cropPositions)
+            create: createSpreadItemsForSlotIndexes(draft.layout, draft.photoIds, draft.slotIndexes, draft.cropPositions)
           }
         }
       })

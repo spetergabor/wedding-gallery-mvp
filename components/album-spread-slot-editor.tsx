@@ -5,7 +5,7 @@ import { MousePointer2, RotateCcw, Save } from "lucide-react";
 import { useEffect, useMemo, useRef, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
-import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
+import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumLayoutTemplate } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
   id: string;
@@ -78,15 +78,16 @@ export function AlbumSpreadSlotEditor({
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
+  const template = getAlbumLayoutTemplate(spread.layoutKey);
   const cropDragStateRef = useRef<CropDragState | null>(null);
-  const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? draftItems[0] ?? null;
+  const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
 
   useEffect(() => {
-    if (draftItems.length > 0 && !draftItems.some((item) => item.slotIndex === selectedSlotIndex)) {
-      onSelectedSlotIndexChange(draftItems[0].slotIndex);
+    if (!template.slots[selectedSlotIndex]) {
+      onSelectedSlotIndexChange(0);
     }
-  }, [draftItems, onSelectedSlotIndexChange, selectedSlotIndex]);
+  }, [onSelectedSlotIndexChange, selectedSlotIndex, template.slots]);
 
   function selectSlot(slotIndex: number) {
     onFocusSpread?.();
@@ -174,27 +175,57 @@ export function AlbumSpreadSlotEditor({
             Oldalpár vászon
           </p>
           <div className="flex flex-wrap gap-2">
-            {draftItems.map((item) => {
-              const isSelected = item.slotIndex === selectedSlotIndex;
+            {template.slots.map((_, slotIndex) => {
+              const isSelected = slotIndex === selectedSlotIndex;
+              const hasPhoto = draftItems.some((item) => item.slotIndex === slotIndex);
 
               return (
                 <button
-                  key={`slot-button-${item.id}`}
+                  key={`slot-button-${spread.id}-${slotIndex}`}
                   type="button"
-                  onClick={() => selectSlot(item.slotIndex)}
+                  onClick={() => selectSlot(slotIndex)}
                   className={`h-9 rounded-md border px-3 text-sm font-medium transition ${
                     isSelected ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-brass hover:text-ink"
                   }`}
                 >
-                  Slot {item.slotIndex + 1}
+                  Slot {slotIndex + 1}
+                  {!hasPhoto ? <span className="ml-1 text-xs opacity-60">üres</span> : null}
                 </button>
               );
             })}
           </div>
         </div>
         <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white" style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}>
-          {draftItems.map((item) => {
-            const isSelected = item.slotIndex === selectedSlotIndex;
+          {template.slots.map((slot, slotIndex) => {
+            const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
+            const isSelected = slotIndex === selectedSlotIndex;
+
+            if (!item) {
+              return (
+                <button
+                  key={`empty-slot-${spread.id}-${slotIndex}`}
+                  type="button"
+                  onClick={() => selectSlot(slotIndex)}
+                  className={`absolute overflow-hidden border border-dashed transition ${
+                    isSelected ? "z-10 border-ink bg-ink/[0.04] shadow-[0_0_0_3px_rgba(25,25,25,0.12)]" : "border-ink/20 bg-white/65 hover:border-brass"
+                  }`}
+                  style={{
+                    left: `calc(${slot.x}% + ${slotInset}px)`,
+                    top: `calc(${slot.y}% + ${slotInset}px)`,
+                    width: `calc(${slot.width}% - ${slotInset * 2}px)`,
+                    height: `calc(${slot.height}% - ${slotInset * 2}px)`
+                  }}
+                  aria-label={`${slotIndex + 1}. üres slot kiválasztása`}
+                >
+                  <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
+                    {slotIndex + 1}
+                  </span>
+                  <span className="flex h-full items-center justify-center px-3 text-center text-xs font-medium text-graphite/45">
+                    Válassz képet lent
+                  </span>
+                </button>
+              );
+            }
 
             return (
               <button
@@ -215,7 +246,7 @@ export function AlbumSpreadSlotEditor({
                   height: `calc(${item.height}% - ${slotInset * 2}px)`,
                   touchAction: "none"
                 }}
-                aria-label={`${item.slotIndex + 1}. slot kiválasztása`}
+                aria-label={`${slotIndex + 1}. slot kiválasztása`}
               >
                 <Image
                   src={item.photo.thumbnailUrl || item.photo.imageUrl}
@@ -228,7 +259,7 @@ export function AlbumSpreadSlotEditor({
                   style={{ objectPosition: `${formatCropPosition(item.cropX)}% ${formatCropPosition(item.cropY)}%` }}
                 />
                 <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
-                  {item.slotIndex + 1}
+                  {slotIndex + 1}
                 </span>
               </button>
             );
@@ -267,6 +298,7 @@ export function AlbumSpreadSlotEditor({
             <form action={saveAlbumDesignSpreadSlotDraftAction.bind(null, customerId, designId, spread.id)}>
               {draftItems.map((item) => (
                 <span key={`slot-draft-${item.slotIndex}`}>
+                  <input type="hidden" name="slotIndexes" value={String(item.slotIndex)} />
                   <input type="hidden" name="slotPhotoIds" value={item.photo.id} />
                   <input type="hidden" name="slotCropX" value={formatCropPosition(item.cropX)} />
                   <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />

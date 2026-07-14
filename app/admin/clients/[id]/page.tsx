@@ -1223,6 +1223,7 @@ export default async function AdminClientDetailPage({
     albumDesignError?: string;
     albumWorkspace?: string;
     albumDesignId?: string;
+    albumEditor?: string;
   }>;
 }) {
   const [admin, language, { id }, flags] = await Promise.all([requireAdmin(), getAdminLanguage(), params, searchParams]);
@@ -2149,6 +2150,7 @@ export default async function AdminClientDetailPage({
               projects={albumProjectOptions}
               workspaceView={flags.albumWorkspace === "new" ? "new" : "projects"}
               activeDesignId={flags.albumDesignId ?? null}
+              initialEditorOpen={flags.albumEditor === "1"}
             />
           }
           uploadContent={<AlbumReviewManager customerId={customer.id} reviews={albumReviews} projects={albumProjectOptions} />}
