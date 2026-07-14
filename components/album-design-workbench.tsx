@@ -710,6 +710,16 @@ export function AlbumDesignWorkbench({
                 {filteredPhotos.map((photo) => {
                   const isCurrent = activeSlotItem?.photo.id === photo.id;
                   const isUsed = usedPhotoIdSet.has(photo.id);
+                  const trayCardClass = isCurrent
+                    ? "border-white bg-white text-ink ring-2 ring-white/45"
+                    : isUsed
+                      ? "border-red-300/55 bg-red-500/20 text-red-50 hover:border-red-200/80 hover:bg-red-500/30"
+                      : "border-emerald-300/55 bg-emerald-500/20 text-emerald-50 hover:border-emerald-200/80 hover:bg-emerald-500/30";
+                  const trayStatusClass = isCurrent
+                    ? "bg-ink text-white"
+                    : isUsed
+                      ? "bg-red-100 text-red-700"
+                      : "bg-emerald-100 text-emerald-800";
 
                   return (
                     <button
@@ -717,11 +727,7 @@ export function AlbumDesignWorkbench({
                       type="button"
                       onClick={() => replaceActiveSlotPhoto(photo)}
                       disabled={!activeSpread}
-                      className={`group w-28 shrink-0 overflow-hidden rounded-md border text-left transition ${
-                        isCurrent
-                          ? "border-white bg-white text-ink"
-                          : "border-white/15 bg-white/10 text-white hover:border-white/50 hover:bg-white/15"
-                      } disabled:cursor-not-allowed disabled:opacity-50`}
+                      className={`group w-28 shrink-0 overflow-hidden rounded-md border text-left transition ${trayCardClass} disabled:cursor-not-allowed disabled:opacity-50`}
                     >
                       <span className="relative block aspect-[4/3] bg-ink/30">
                         <Image
@@ -734,8 +740,10 @@ export function AlbumDesignWorkbench({
                         />
                       </span>
                       <span className="block truncate px-2 py-1.5 text-xs font-medium">{photo.filename}</span>
-                      <span className={`block px-2 pb-2 text-[11px] ${isCurrent ? "text-ink/60" : "text-white/55"}`}>
-                        {isCurrent ? "Aktuális" : isUsed ? "Használva" : "Szabad"}
+                      <span className="block px-2 pb-2">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${trayStatusClass}`}>
+                          {isCurrent ? "Aktuális" : isUsed ? "Foglalt" : "Szabad"}
+                        </span>
                       </span>
                     </button>
                   );
