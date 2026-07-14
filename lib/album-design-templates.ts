@@ -174,6 +174,20 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "five-left-mosaic-right-full-hero",
+    name: "Bal négyes mozaik, jobb teljes kép",
+    photoCount: 5,
+    previewSlotInsetPx: 0,
+    exportSlotInsetPx: 0,
+    slots: [
+      { x: 5, y: 10, width: 19.7, height: 39.7 },
+      { x: 5, y: 50.7, width: 19.7, height: 39.3 },
+      { x: 25.3, y: 10, width: 19.7, height: 56.2 },
+      { x: 25.3, y: 67.2, width: 19.7, height: 22.8 },
+      { x: 50, y: 0, width: 50, height: 100 }
+    ]
+  },
+  {
     key: "five-hero-cross",
     name: "Öt kép központi nagy képpel",
     photoCount: 5,
