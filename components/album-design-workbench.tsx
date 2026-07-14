@@ -189,7 +189,7 @@ export function AlbumDesignWorkbench({
   const activeSpread = orderedSpreads.find((spread) => spread.id === activeSpreadId) ?? orderedSpreads[0] ?? null;
   const activeDraftItems = activeSpread ? (draftItemsBySpread[activeSpread.id] ?? getOrderedItems(activeSpread)) : [];
   const activeSlotIndex = activeSpread ? (selectedSlotBySpread[activeSpread.id] ?? activeDraftItems[0]?.slotIndex ?? 0) : 0;
-  const activeSlotItem = activeDraftItems.find((item) => item.slotIndex === activeSlotIndex) ?? activeDraftItems[0] ?? null;
+  const activeSlotItem = activeDraftItems.find((item) => item.slotIndex === activeSlotIndex) ?? null;
   const filteredPhotos = useMemo(() => {
     const normalizedQuery = photoQuery.trim().toLowerCase();
     const searchedPhotos = normalizedQuery ? sourcePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedQuery)) : sourcePhotos;
@@ -463,7 +463,7 @@ export function AlbumDesignWorkbench({
                         className={`rounded-lg border bg-white p-4 shadow-sm transition ${
                           isActive ? "border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.08)]" : "border-ink/10"
                         }`}
-                        onClick={() => setActiveSpreadAndSlot(spread.id, selectedSlotIndex)}
+                        onClick={() => setActiveSpreadId(spread.id)}
                       >
                         <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-3 lg:flex-row lg:items-start">
                           <div className="min-w-0">
