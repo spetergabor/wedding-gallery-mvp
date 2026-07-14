@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Grid3X3, Images, Maximize2, Plus, RefreshCcw, Save, Search, Shuffle, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Download, Grid3X3, Images, Maximize2, Plus, RefreshCcw, Save, Search, Shuffle, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -41,6 +41,22 @@ type AlbumSpread = {
   sortOrder: number;
   items: SpreadItem[];
 };
+
+const MIN_WORKBENCH_ZOOM = 0.55;
+const MAX_WORKBENCH_ZOOM = 1.8;
+const WORKBENCH_ZOOM_STEP = 0.1;
+
+function clampWorkbenchZoom(value: number) {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+
+  return Math.min(MAX_WORKBENCH_ZOOM, Math.max(MIN_WORKBENCH_ZOOM, value));
+}
+
+function formatWorkbenchZoom(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
 
 function getTemplate(layoutKey: string) {
   return ALBUM_LAYOUT_TEMPLATES.find((item) => item.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
@@ -164,6 +180,9 @@ export function AlbumDesignWorkbench({
   );
   const [photoQuery, setPhotoQuery] = useState("");
   const [showUnusedOnly, setShowUnusedOnly] = useState(false);
+  const [workbenchZoom, setWorkbenchZoom] = useState(1);
+  const workbenchZoomRef = useRef(workbenchZoom);
+  const workbenchScrollRef = useRef<HTMLElement | null>(null);
   const originalSignaturesBySpread = useMemo(
     () => Object.fromEntries(spreads.map((spread) => [spread.id, getItemSignature(getOrderedItems(spread))])),
     [spreads]
@@ -212,6 +231,10 @@ export function AlbumDesignWorkbench({
   }, [initialEditorOpen]);
 
   useEffect(() => {
+    workbenchZoomRef.current = workbenchZoom;
+  }, [workbenchZoom]);
+
+  useEffect(() => {
     if (orderedSpreads.length === 0) {
       setActiveSpreadId("");
       return;
@@ -257,6 +280,63 @@ export function AlbumDesignWorkbench({
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [isEditorOpen]);
+
+  useEffect(() => {
+    const element = workbenchScrollRef.current;
+
+    if (!element || !isEditorOpen) {
+      return;
+    }
+
+    let gestureStartZoom = workbenchZoomRef.current;
+
+    function handleGestureStart(event: Event) {
+      event.preventDefault();
+      gestureStartZoom = workbenchZoomRef.current;
+    }
+
+    function handleGestureChange(event: Event) {
+      event.preventDefault();
+      const gestureEvent = event as Event & { scale?: number };
+      const scale = Number.isFinite(gestureEvent.scale) ? gestureEvent.scale ?? 1 : 1;
+
+      setWorkbenchZoom(clampWorkbenchZoom(gestureStartZoom * scale));
+    }
+
+    function handleGestureEnd(event: Event) {
+      event.preventDefault();
+    }
+
+    element.addEventListener("gesturestart", handleGestureStart);
+    element.addEventListener("gesturechange", handleGestureChange);
+    element.addEventListener("gestureend", handleGestureEnd);
+
+    return () => {
+      element.removeEventListener("gesturestart", handleGestureStart);
+      element.removeEventListener("gesturechange", handleGestureChange);
+      element.removeEventListener("gestureend", handleGestureEnd);
+    };
+  }, [isEditorOpen]);
+
+  const adjustWorkbenchZoom = useCallback((delta: number) => {
+    setWorkbenchZoom((current) => clampWorkbenchZoom(current + delta));
+  }, []);
+
+  const resetWorkbenchZoom = useCallback(() => {
+    setWorkbenchZoom(1);
+  }, []);
+
+  const handleWorkbenchWheel = useCallback((event: WheelEvent<HTMLElement>) => {
+    if (!event.ctrlKey && !event.metaKey) {
+      return;
+    }
+
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    const intensity = Math.min(0.18, Math.max(0.035, Math.abs(event.deltaY) / 700));
+
+    setWorkbenchZoom((current) => clampWorkbenchZoom(current + direction * intensity));
+  }, []);
 
   function setActiveSpreadAndSlot(spreadId: string, slotIndex?: number) {
     setActiveSpreadId(spreadId);
@@ -383,6 +463,34 @@ export function AlbumDesignWorkbench({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
+                  <div className="inline-flex h-10 items-center rounded-md border border-white/15 bg-white/10 p-1 text-sm font-medium text-white">
+                    <button
+                      type="button"
+                      onClick={() => adjustWorkbenchZoom(-WORKBENCH_ZOOM_STEP)}
+                      disabled={workbenchZoom <= MIN_WORKBENCH_ZOOM}
+                      className="inline-flex size-8 items-center justify-center rounded-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="Kicsinyítés"
+                    >
+                      <ZoomOut size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetWorkbenchZoom}
+                      className="inline-flex h-8 min-w-14 items-center justify-center rounded-md px-2 text-xs tabular-nums text-white/85 transition hover:bg-white/15"
+                      aria-label="Zoom visszaállítása"
+                    >
+                      {formatWorkbenchZoom(workbenchZoom)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => adjustWorkbenchZoom(WORKBENCH_ZOOM_STEP)}
+                      disabled={workbenchZoom >= MAX_WORKBENCH_ZOOM}
+                      className="inline-flex size-8 items-center justify-center rounded-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="Nagyítás"
+                    >
+                      <ZoomIn size={16} />
+                    </button>
+                  </div>
                   {changedSpreadIds.length > 0 ? (
                     <form action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
                       {changedSpreadIds.map((spreadId) => (
@@ -448,8 +556,15 @@ export function AlbumDesignWorkbench({
                 />
               </aside>
 
-              <main className="min-h-0 overflow-auto px-3 py-4 lg:px-5">
-                <div className="mx-auto max-w-[1500px] space-y-4 pb-6">
+              <main
+                ref={workbenchScrollRef}
+                onWheel={handleWorkbenchWheel}
+                className="min-h-0 overflow-auto px-3 py-4 lg:px-5"
+              >
+                <div
+                  className="mx-auto max-w-[1500px] origin-top space-y-4 pb-6 transition-[filter]"
+                  style={{ zoom: workbenchZoom } as CSSProperties}
+                >
                   {orderedSpreads.map((spread) => {
                     const template = getTemplate(spread.layoutKey);
                     const draftItems = draftItemsBySpread[spread.id] ?? getOrderedItems(spread);
