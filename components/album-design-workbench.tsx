@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Grid3X3, Images, Maximize2, Plus, RefreshCcw, Save, Search, Shuffle, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -120,11 +120,11 @@ function TemplatePreview({ layoutKey }: { layoutKey: string }) {
   );
 }
 
-function AlbumLayoutRadioGrid({ defaultLayoutKey }: { defaultLayoutKey?: string }) {
+function AlbumLayoutRadioGrid({ defaultLayoutKey, className = "max-h-72 overflow-auto" }: { defaultLayoutKey?: string; className?: string }) {
   const fallbackLayoutKey = defaultLayoutKey ?? ALBUM_LAYOUT_TEMPLATES[1]?.key ?? ALBUM_LAYOUT_TEMPLATES[0].key;
 
   return (
-    <div className="grid max-h-72 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+    <div className={`grid gap-2 pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 ${className}`}>
       {ALBUM_LAYOUT_TEMPLATES.map((template) => (
         <label key={template.key} className="group cursor-pointer rounded-md border border-ink/10 bg-white p-2 transition hover:border-brass">
           <input name="layoutKey" value={template.key} type="radio" defaultChecked={template.key === fallbackLayoutKey} className="peer sr-only" />
@@ -181,6 +181,7 @@ export function AlbumDesignWorkbench({
   const [photoQuery, setPhotoQuery] = useState("");
   const [showUnusedOnly, setShowUnusedOnly] = useState(false);
   const [workbenchZoom, setWorkbenchZoom] = useState(1);
+  const [layoutModalSpreadId, setLayoutModalSpreadId] = useState<string | null>(null);
   const workbenchZoomRef = useRef(workbenchZoom);
   const workbenchScrollRef = useRef<HTMLElement | null>(null);
   const originalSignaturesBySpread = useMemo(
@@ -206,6 +207,7 @@ export function AlbumDesignWorkbench({
   );
   const usedPhotoIdSet = useMemo(() => new Set(usedPhotoIds), [usedPhotoIds]);
   const activeSpread = orderedSpreads.find((spread) => spread.id === activeSpreadId) ?? orderedSpreads[0] ?? null;
+  const layoutModalSpread = layoutModalSpreadId ? (orderedSpreads.find((spread) => spread.id === layoutModalSpreadId) ?? null) : null;
   const activeDraftItems = activeSpread ? (draftItemsBySpread[activeSpread.id] ?? getOrderedItems(activeSpread)) : [];
   const activeSlotIndex = activeSpread ? (selectedSlotBySpread[activeSpread.id] ?? activeDraftItems[0]?.slotIndex ?? 0) : 0;
   const activeSlotItem = activeDraftItems.find((item) => item.slotIndex === activeSlotIndex) ?? null;
@@ -269,6 +271,11 @@ export function AlbumDesignWorkbench({
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (layoutModalSpreadId) {
+          setLayoutModalSpreadId(null);
+          return;
+        }
+
         setIsEditorOpen(false);
       }
     }
@@ -279,7 +286,7 @@ export function AlbumDesignWorkbench({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [isEditorOpen]);
+  }, [isEditorOpen, layoutModalSpreadId]);
 
   useEffect(() => {
     const element = workbenchScrollRef.current;
@@ -608,6 +615,17 @@ export function AlbumDesignWorkbench({
                               <Download size={15} />
                               JPG export
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveSpreadId(spread.id);
+                                setLayoutModalSpreadId(spread.id);
+                              }}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                            >
+                              <Grid3X3 size={15} />
+                              Layout cseréje
+                            </button>
                             <form action={regenerateAlbumDesignSpreadLayoutAction.bind(null, customerId, designId, spread.id)}>
                               <FormSubmitButton
                                 variant="secondary"
@@ -648,29 +666,54 @@ export function AlbumDesignWorkbench({
                           onFocusSpread={() => setActiveSpreadId(spread.id)}
                           hasChanges={hasChanges}
                         />
-
-                        <details className="mt-4 rounded-md border border-ink/10 bg-paper">
-                          <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
-                            <RefreshCcw size={15} />
-                            Layout cseréje
-                          </summary>
-                          <form action={updateAlbumDesignSpreadLayoutOnlyAction.bind(null, customerId, designId, spread.id)} className="border-t border-ink/10 p-3">
-                            <p className="mb-3 text-xs text-graphite/60">
-                              Csak az oldalpár szerkezetét cseréli. A már beállított képeket a rendszer megtartja, ameddig az új layout slotjai engedik.
-                            </p>
-                            <AlbumLayoutRadioGrid defaultLayoutKey={spread.layoutKey} />
-                            <FormSubmitButton className="mt-3 w-full" pendingLabel="Mentés...">
-                              <Grid3X3 size={15} />
-                              Layout mentése
-                            </FormSubmitButton>
-                          </form>
-                        </details>
                       </section>
                     );
                   })}
                 </div>
               </main>
             </div>
+
+            {layoutModalSpread ? (
+              <div className="fixed inset-0 z-[95] flex items-center justify-center bg-ink/60 px-4 py-6">
+                <div className="flex max-h-[88dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-ink/10 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+                  <div className="flex flex-col gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Template választás</p>
+                      <h4 className="mt-1 text-xl font-semibold text-ink">Layout cseréje</h4>
+                      <p className="mt-1 text-sm text-graphite/65">
+                        {layoutModalSpread.title ?? `Oldalpár ${layoutModalSpread.sortOrder}`} · a meglévő képek megmaradnak, ameddig az új layout slotjai engedik.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLayoutModalSpreadId(null)}
+                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white text-ink transition hover:border-ink/30"
+                      aria-label="Layout választó bezárása"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <form action={updateAlbumDesignSpreadLayoutOnlyAction.bind(null, customerId, designId, layoutModalSpread.id)} className="flex min-h-0 flex-col">
+                    <div className="max-h-[62dvh] overflow-auto px-5 py-4">
+                      <AlbumLayoutRadioGrid defaultLayoutKey={layoutModalSpread.layoutKey} className="" />
+                    </div>
+                    <div className="flex flex-col-reverse gap-2 border-t border-ink/10 bg-paper px-5 py-4 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setLayoutModalSpreadId(null)}
+                        className="inline-flex h-10 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
+                      >
+                        Mégse
+                      </button>
+                      <FormSubmitButton className="h-10 px-4" pendingLabel="Mentés...">
+                        <Grid3X3 size={15} />
+                        Layout mentése
+                      </FormSubmitButton>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            ) : null}
 
             <footer className="shrink-0 border-t border-white/10 bg-graphite px-4 py-3 text-white shadow-[0_-8px_24px_rgba(0,0,0,0.16)]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
