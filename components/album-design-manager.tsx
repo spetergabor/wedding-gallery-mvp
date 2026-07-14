@@ -616,22 +616,6 @@ export function AlbumDesignManager({
                 {design.spreads.length > 0 ? (
                   <div>
                     <AlbumDesignWorkbench customerId={customerId} designId={design.id} spreads={design.spreads} sourcePhotos={sourcePhotos} />
-                    {sourcePhotos.length > 0 ? (
-                      <details className="mt-4 rounded-lg border border-dashed border-ink/20 bg-white">
-                        <summary className="flex cursor-pointer items-center justify-center gap-2 px-4 py-4 text-sm font-medium text-ink transition hover:bg-paper">
-                          <Plus size={16} />
-                          További oldalpár létrehozása
-                        </summary>
-                        <div className="border-t border-ink/10 p-4">
-                          <AlbumSpreadCreateForm
-                            customerId={customerId}
-                            designId={design.id}
-                            sourcePhotos={sourcePhotos}
-                            title="További oldalpár"
-                          />
-                        </div>
-                      </details>
-                    ) : null}
                   </div>
                 ) : null}
                 </div>

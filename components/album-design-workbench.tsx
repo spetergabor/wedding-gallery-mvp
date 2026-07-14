@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Grid3X3, Images, Maximize2, RefreshCcw, Save, Search, Shuffle, Trash2, X } from "lucide-react";
+import { Download, Grid3X3, Images, Maximize2, Plus, RefreshCcw, Save, Search, Shuffle, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
+  createAutoAlbumDesignSpreadAction,
   deleteAlbumDesignSpreadAction,
   regenerateAlbumDesignSpreadLayoutAction,
   saveAlbumDesignSpreadDraftsAction,
@@ -40,6 +41,8 @@ type AlbumSpread = {
   sortOrder: number;
   items: SpreadItem[];
 };
+
+const maxAlbumLayoutPhotoCount = Math.max(...ALBUM_LAYOUT_TEMPLATES.map((template) => template.photoCount));
 
 function getTemplate(layoutKey: string) {
   return ALBUM_LAYOUT_TEMPLATES.find((item) => item.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
@@ -120,6 +123,72 @@ function AlbumLayoutRadioGrid({ defaultLayoutKey }: { defaultLayoutKey?: string 
         </label>
       ))}
     </div>
+  );
+}
+
+function SidebarSpreadCreateForm({
+  customerId,
+  designId,
+  sourcePhotos,
+  usedPhotoIdSet
+}: {
+  customerId: string | null;
+  designId: string;
+  sourcePhotos: FavoritePhoto[];
+  usedPhotoIdSet: Set<string>;
+}) {
+  const suggestedPhotos = sourcePhotos.filter((photo) => !usedPhotoIdSet.has(photo.id)).slice(0, maxAlbumLayoutPhotoCount);
+  const visiblePhotos = suggestedPhotos.length > 0 ? suggestedPhotos : sourcePhotos.slice(0, maxAlbumLayoutPhotoCount);
+
+  return (
+    <details className="mt-3 rounded-md border border-dashed border-ink/20 bg-white">
+      <summary className="flex cursor-pointer items-center justify-center gap-2 px-3 py-3 text-sm font-semibold text-ink transition hover:bg-paper">
+        <Plus size={16} />
+        Oldalpár hozzáadása
+      </summary>
+      <form action={createAutoAlbumDesignSpreadAction.bind(null, customerId, designId)} className="border-t border-ink/10 p-3">
+        <p className="text-xs leading-5 text-graphite/65">
+          Válassz képeket az új oldalpárhoz. A rendszer a képszámhoz illő layoutot választ.
+        </p>
+        <div className="mt-3 grid max-h-72 grid-cols-2 gap-2 overflow-auto pr-1">
+          {visiblePhotos.map((photo) => {
+            const isSuggested = suggestedPhotos.some((suggestedPhoto) => suggestedPhoto.id === photo.id);
+
+            return (
+              <label key={`sidebar-create-${photo.id}`} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
+                <input
+                  name="photoIds"
+                  value={photo.id}
+                  type="checkbox"
+                  defaultChecked={isSuggested}
+                  className="peer absolute left-2 top-2 z-10 size-4 accent-ink"
+                />
+                <span className="relative block aspect-square">
+                  <Image
+                    src={photo.thumbnailUrl || photo.imageUrl}
+                    alt={photo.filename}
+                    fill
+                    unoptimized
+                    sizes="96px"
+                    className="object-cover transition group-hover:scale-[1.02]"
+                  />
+                </span>
+                <span className="block truncate bg-white px-2 py-1 text-[11px] text-graphite peer-checked:bg-ink peer-checked:text-white">
+                  {photo.filename}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        {sourcePhotos.length === 0 ? (
+          <p className="mt-3 rounded-md bg-paper px-3 py-2 text-xs text-graphite/70">Nincs még forráskép az albumhoz.</p>
+        ) : null}
+        <FormSubmitButton className="mt-3 h-10 w-full px-3" disabled={sourcePhotos.length === 0} pendingLabel="Létrehozás...">
+          <Plus size={15} />
+          Oldalpár létrehozása
+        </FormSubmitButton>
+      </form>
+    </details>
   );
 }
 
@@ -354,7 +423,7 @@ export function AlbumDesignWorkbench({
             <div className="grid min-h-0 flex-1 bg-[#e8e7e2] lg:grid-cols-[230px_minmax(0,1fr)]">
               <aside className="hidden min-h-0 border-r border-ink/10 bg-white/80 p-3 lg:block">
                 <p className="px-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Oldalpárok</p>
-                <div className="mt-3 space-y-2 overflow-auto">
+                <div className="mt-3 max-h-[calc(100dvh-270px)] space-y-2 overflow-auto pr-1">
                   {orderedSpreads.map((spread) => {
                     const isActive = spread.id === activeSpread?.id;
                     const template = getTemplate(spread.layoutKey);
@@ -376,6 +445,12 @@ export function AlbumDesignWorkbench({
                     );
                   })}
                 </div>
+                <SidebarSpreadCreateForm
+                  customerId={customerId}
+                  designId={designId}
+                  sourcePhotos={sourcePhotos}
+                  usedPhotoIdSet={usedPhotoIdSet}
+                />
               </aside>
 
               <main className="min-h-0 overflow-auto px-3 py-4 lg:px-5">
