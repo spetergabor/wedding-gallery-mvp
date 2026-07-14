@@ -43,14 +43,14 @@ export function UpcomingWorkCardGrid({
   missingVenue: string;
 }) {
   return (
-    <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid min-w-0 grid-cols-1 gap-3 p-4 sm:p-5 lg:grid-cols-2 2xl:grid-cols-3">
       {works.map((work) => (
         <Link
           key={work.key}
           href={work.href}
-          className="group rounded-md border border-ink/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brass/30 hover:shadow-sm"
+          className="group min-w-0 overflow-hidden rounded-md border border-ink/10 bg-white p-4 transition hover:-translate-y-0.5 hover:border-brass/30 hover:shadow-sm"
         >
-          <div className="flex items-start gap-3">
+          <div className="flex min-w-0 items-start gap-3">
             <div className="w-20 shrink-0 rounded-md bg-paper px-2 py-2 text-center ring-1 ring-ink/8">
               <p className="text-sm font-semibold text-ink">{formatShortCalendarDate(work.date, language)}</p>
               <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-graphite/55">
@@ -78,9 +78,9 @@ export function UpcomingWorkCardGrid({
             </span>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 border-t border-ink/8 pt-3">
-            <span className="text-xs font-medium text-graphite/60">{work.footer}</span>
-            <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-brass">
+          <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-ink/8 pt-3">
+            <span className="min-w-0 truncate text-xs font-medium text-graphite/60">{work.footer}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-brass">
               {work.footerLabel}
               <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
             </span>
