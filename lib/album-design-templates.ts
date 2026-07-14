@@ -152,6 +152,18 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "five-prep-panorama",
+    name: "Öt képes készülődő panoráma",
+    photoCount: 5,
+    slots: [
+      { x: 0, y: 22, width: 18.5, height: 56 },
+      { x: 18.5, y: 22, width: 19, height: 56 },
+      { x: 37.5, y: 22, width: 20.8, height: 28 },
+      { x: 37.5, y: 50, width: 20.8, height: 28 },
+      { x: 58.3, y: 22, width: 41.7, height: 56 }
+    ]
+  },
+  {
     key: "five-hero-cross",
     name: "Öt kép központi nagy képpel",
     photoCount: 5,
