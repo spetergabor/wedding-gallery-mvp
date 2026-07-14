@@ -188,7 +188,7 @@ export default async function AdminAlbumsPage({
         <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Album szerkesztő</p>
         <h1 className="mt-2 text-3xl font-semibold text-ink">Beépített album szerkesztő</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-graphite/70">
-          Hozz létre albumtervet ügyfél nélkül is, dolgozz favorite listából, majd amikor kész vagy, rendeld hozzá a megfelelő ügyfélhez vagy album projekthez.
+          Hozz létre albumtervet ügyfél nélkül is, dolgozz saját feltöltésből, meglévő galériából vagy favorite listából, majd amikor kész vagy, rendeld hozzá a megfelelő ügyfélhez vagy album projekthez.
         </p>
       </div>
 

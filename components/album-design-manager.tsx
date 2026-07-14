@@ -273,71 +273,88 @@ export function AlbumDesignManager({
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-      <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start">
+      <div className="border-b border-ink/10 pb-5">
         <div>
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <LayoutTemplate size={15} />
             Albumtervező
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">Template alapú oldalpár tervezés</h2>
+          <h2 className="mt-2 text-xl font-semibold text-ink">{standaloneMode ? "Album projektek" : "Template alapú oldalpár tervezés"}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            Dolgozz favorite listából, meglévő teljes galériából vagy saját album képfeltöltésből. A rendszer 60x30 arányú oldalpár template-ekbe rendezi a képeket.
+            {standaloneMode
+              ? "Indíts új albumot egyszerűen, a korábbi albumprojektek pedig lent külön kártyákban maradnak elérhetők."
+              : "Dolgozz favorite listából, meglévő teljes galériából vagy saját album képfeltöltésből. A rendszer 60x30 arányú oldalpár template-ekbe rendezi a képeket."}
           </p>
         </div>
 
         <form
           action={createAlbumDesignAction.bind(null, customerId)}
-          className={`grid min-w-80 gap-2 rounded-md border border-ink/10 bg-paper p-3 ${standaloneMode ? "lg:min-w-[520px] lg:grid-cols-[1fr_1.2fr_auto]" : ""}`}
+          className="mt-5 rounded-lg border border-ink/10 bg-paper p-4"
         >
-          <input
-            name="title"
-            placeholder="pl. Dalma album v1"
-            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-          />
-          <select
-            name="sourceId"
-            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            defaultValue=""
-          >
-            <option value="">Saját képeket töltök fel</option>
-            {sourceGalleries.length > 0 ? (
-              <optgroup label="Meglévő teljes galériák">
-                {sourceGalleries.map((gallery) => (
-                  <option key={gallery.id} value={`gallery:${gallery.id}`}>
-                    {gallery.customerName ? `${gallery.customerName} · ` : ""}
-                    {gallery.title} · {gallery.photoCount} média
-                  </option>
-                ))}
-              </optgroup>
+          <p className="text-sm font-semibold text-ink">Új album indítása</p>
+          <div className={`mt-3 grid gap-3 ${standaloneMode ? "lg:grid-cols-[1.2fr_1.4fr_auto]" : "lg:grid-cols-[1fr_1.25fr_1fr_auto]"}`}>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">1. Név</span>
+              <input
+                name="title"
+                placeholder="pl. Dalma album v1"
+                className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">2. Képforrás</span>
+              <select
+                name="sourceId"
+                className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                defaultValue=""
+              >
+                <option value="">Saját képeket töltök fel</option>
+                {sourceGalleries.length > 0 ? (
+                  <optgroup label="Meglévő teljes galériák">
+                    {sourceGalleries.map((gallery) => (
+                      <option key={gallery.id} value={`gallery:${gallery.id}`}>
+                        {gallery.customerName ? `${gallery.customerName} · ` : ""}
+                        {gallery.title} · {gallery.photoCount} média
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {favoriteLists.length > 0 ? (
+                  <optgroup label="Favorite listák">
+                    {favoriteLists.map((list) => (
+                      <option key={list.id} value={`favorite:${list.id}`}>
+                        {list.gallery.title} · {list.name} · {list._count.items} kép
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+              </select>
+            </label>
+            {!standaloneMode ? (
+              <label className="grid gap-1.5">
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">3. Projekt</span>
+                <select
+                  name="projectId"
+                  className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                  defaultValue=""
+                >
+                  <option value="">Nincs projekthez kapcsolva</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
             ) : null}
-            {favoriteLists.length > 0 ? (
-              <optgroup label="Favorite listák">
-                {favoriteLists.map((list) => (
-                  <option key={list.id} value={`favorite:${list.id}`}>
-                    {list.gallery.title} · {list.name} · {list._count.items} kép
-                  </option>
-                ))}
-              </optgroup>
-            ) : null}
-          </select>
-          {!standaloneMode ? (
-            <select
-              name="projectId"
-              className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-              defaultValue=""
-            >
-              <option value="">Nincs projekthez kapcsolva</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.title}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <FormSubmitButton pendingLabel="Létrehozás...">
-            <Plus size={16} />
-            Új albumterv
-          </FormSubmitButton>
+            <div className="grid gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">{standaloneMode ? "3." : "4."} Mentés</span>
+              <FormSubmitButton className="h-11" pendingLabel="Létrehozás...">
+                <Plus size={16} />
+                Új albumterv
+              </FormSubmitButton>
+            </div>
+          </div>
         </form>
       </div>
 
@@ -356,17 +373,40 @@ export function AlbumDesignManager({
           <p className="mt-1 text-sm text-graphite/70">Hozz létre egy albumtervet saját képekből, meglévő galériából vagy favorite listából.</p>
         </div>
       ) : (
-        <div className="mt-5 space-y-6">
-          {designs.map((design) => {
+        <div className="mt-6">
+          <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-graphite/55">Mentett album projektek</p>
+              <h3 className="mt-1 text-base font-semibold text-ink">{designs.length} albumterv</h3>
+            </div>
+            <p className="text-sm text-graphite/60">A legfrissebb album nyílik ki alapból, a többi bármikor visszanyitható.</p>
+          </div>
+          <div className="space-y-4">
+          {designs.map((design, designIndex) => {
             const sourcePhotos = design.favoriteList?.items.map((item) => item.photo) ?? design.sourceGallery?.photos ?? [];
             const usesUploadedSource = design.sourceGallery?.galleryMode === GALLERY_MODE_ALBUM_SOURCE;
             const usesExistingGallerySource = !design.favoriteList && Boolean(design.sourceGallery) && !usesUploadedSource;
             const linkedProject = design.projectId ? projectById.get(design.projectId) : null;
             const linkedCustomer = design.customer ?? (linkedProject?.customerId ? customers.find((customer) => customer.id === linkedProject.customerId) : null);
+            const sourceLabel = design.favoriteList
+              ? `${design.favoriteList.gallery.title} · ${design.favoriteList.name}`
+              : usesUploadedSource
+                ? "saját album képek"
+                : usesExistingGallerySource
+                  ? design.sourceGallery?.title ?? "meglévő galéria"
+                  : "hiányzó forrás";
+            const sourceBadge = design.favoriteList
+              ? `Favorite lista · ${design.favoriteList._count.items} kép`
+              : usesUploadedSource
+                ? `Saját feltöltés · ${sourcePhotos.length} kép`
+                : usesExistingGallerySource
+                  ? `Meglévő galéria · ${sourcePhotos.length} kép`
+                  : "Hiányzó forrás";
+            const openByDefault = designIndex === 0 || (usesUploadedSource && sourcePhotos.length === 0 && design.spreads.length === 0);
 
             return (
-              <article key={design.id} className="rounded-lg border border-ink/10 bg-paper p-4">
-                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+              <details key={design.id} open={openByDefault} className="rounded-lg border border-ink/10 bg-paper shadow-sm">
+                <summary className="flex cursor-pointer list-none flex-col justify-between gap-3 px-4 py-4 transition hover:bg-white/70 lg:flex-row lg:items-start [&::-webkit-details-marker]:hidden">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-semibold text-ink">{design.title}</h3>
@@ -376,17 +416,31 @@ export function AlbumDesignManager({
                       <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                         {design.spreads.length} oldalpár
                       </span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${usesExistingGallerySource ? "bg-sage/10 text-sage" : "bg-ink/5 text-graphite"}`}>
+                        {sourceBadge}
+                      </span>
                       {standaloneMode ? (
                         linkedCustomer ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
+                          <span className="rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
                             {linkedCustomer.coupleName}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                          <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
                             Ügyfél nélkül
                           </span>
                         )
                       ) : null}
+                    </div>
+                    <p className="mt-1 text-sm text-graphite/70">Forrás: {sourceLabel}</p>
+                  </div>
+                  <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink">
+                    Megnyitás
+                  </span>
+                </summary>
+                <div className="border-t border-ink/10 p-4">
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
                       {linkedProject ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
                           <FolderKanban size={13} />
@@ -398,27 +452,7 @@ export function AlbumDesignManager({
                           Nincs projekthez kapcsolva
                         </span>
                       )}
-                      {usesUploadedSource ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                          Saját feltöltés · {sourcePhotos.length} kép
-                        </span>
-                      ) : null}
-                      {usesExistingGallerySource ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
-                          Meglévő galéria · {sourcePhotos.length} kép
-                        </span>
-                      ) : null}
                     </div>
-                    <p className="mt-1 text-sm text-graphite/70">
-                      Forrás:{" "}
-                      {design.favoriteList
-                        ? `${design.favoriteList.gallery.title} · ${design.favoriteList.name}`
-                        : usesUploadedSource
-                          ? "saját album képek"
-                          : usesExistingGallerySource
-                            ? design.sourceGallery?.title
-                            : "hiányzó forrás"}
-                    </p>
                     {design.favoriteList ? (
                       <p className="mt-1 text-sm text-graphite/60">
                         {design.favoriteList.email} · {design.favoriteList._count.items} kép · Leadva: {formatDate(design.favoriteList.submittedAt)}
@@ -554,9 +588,11 @@ export function AlbumDesignManager({
                     ) : null}
                   </div>
                 ) : null}
-              </article>
+                </div>
+              </details>
             );
           })}
+          </div>
         </div>
       )}
     </section>
