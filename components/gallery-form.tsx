@@ -270,22 +270,25 @@ export function GalleryForm({
           <section className="space-y-5">
             <SectionTitle
               title="Publikus elérés"
-              description="Jelszó, láthatóság és letöltési jogosultság a vendégek felé."
+              description="PIN-kód, láthatóság és letöltési jogosultság a vendégek felé."
             />
 
             <label className="block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">
                 <LockKeyhole size={15} />
-                Galéria jelszó
+                Galéria PIN-kód
               </span>
               <input
                 name="password"
+                type="text"
                 defaultValue={gallery?.password ?? ""}
-                placeholder="Opcionális"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="pl. 2486"
                 className={fieldClass}
               />
               <span className="block text-xs leading-5 text-graphite/70">
-                Üresen hagyva a galéria a publikus linkkel közvetlenül nyitható.
+                Üresen hagyva a publikus galéria PIN nélkül nyitható. Ha kitöltöd, a vendég csak ezzel a kóddal látja a galériát.
               </span>
             </label>
 

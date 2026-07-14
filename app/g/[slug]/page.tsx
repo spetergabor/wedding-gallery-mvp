@@ -186,11 +186,17 @@ export default async function PublicGalleryPage({
             <Lock size={20} />
           </div>
           <h1 className="mt-5 text-2xl font-semibold text-ink">{gallery.title}</h1>
-          <p className="mt-2 text-sm text-graphite/70">{language === "hu" ? "Ez a galéria jelszóval védett." : "Diese Galerie ist passwortgeschützt."}</p>
+          <p className="mt-2 text-sm text-graphite/70">{language === "hu" ? "Ez a galéria PIN-kóddal védett." : "Diese Galerie ist mit PIN-Code geschützt."}</p>
 
           {flags.error ? (
             <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {language === "hu" ? "A galéria jelszava nem megfelelő." : "Das Galerie-Passwort ist nicht korrekt."}
+              {flags.error === "rate"
+                ? language === "hu"
+                  ? "Túl sok próbálkozás történt. Várj pár percet, és próbáld újra."
+                  : "Zu viele Versuche. Bitte warte kurz und versuche es erneut."
+                : language === "hu"
+                  ? "A PIN-kód nem megfelelő."
+                  : "Der PIN-Code ist nicht korrekt."}
             </div>
           ) : null}
 
@@ -200,7 +206,9 @@ export default async function PublicGalleryPage({
               name="password"
               type="password"
               required
-              placeholder={language === "hu" ? "Galéria jelszó" : "Galerie-Passwort"}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder={language === "hu" ? "PIN-kód" : "PIN-Code"}
               className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-left outline-none transition focus:border-ink/50"
             />
             <FormSubmitButton

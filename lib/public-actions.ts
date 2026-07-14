@@ -112,14 +112,25 @@ export async function canViewGallery(slug: string, password: string | null) {
 
 export async function unlockGalleryAction(slug: string, formData: FormData) {
   const value = formData.get("password");
-  const password = typeof value === "string" ? value : "";
+  const password = typeof value === "string" ? value.trim() : "";
+  const langValue = formData.get("lang");
+  const lang = langValue === "de" || langValue === "hu" ? langValue : "";
+
+  if (
+    await isAnyRateLimited([
+      { scope: "public:gallery-pin", limit: 10, windowSeconds: 15 * 60, identifier: slug }
+    ])
+  ) {
+    redirect(`/g/${slug}?error=rate${lang ? `&lang=${lang}` : ""}`);
+  }
+
   const gallery = await prisma.gallery.findUnique({
     where: { slug },
     select: { password: true }
   });
 
   if (!gallery || gallery.password !== password) {
-    redirect(`/g/${slug}?error=1`);
+    redirect(`/g/${slug}?error=1${lang ? `&lang=${lang}` : ""}`);
   }
 
   const cookieStore = await cookies();
@@ -131,7 +142,7 @@ export async function unlockGalleryAction(slug: string, formData: FormData) {
     maxAge: 60 * 60 * 24
   });
 
-  redirect(`/g/${slug}`);
+  redirect(`/g/${slug}${lang ? `?lang=${lang}` : ""}`);
 }
 
 export async function recordGalleryDownloadAction(galleryId: string, email: string) {
