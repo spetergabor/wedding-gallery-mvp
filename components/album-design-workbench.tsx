@@ -388,7 +388,11 @@ export function AlbumDesignWorkbench({
                       {changedSpreadIds.map((spreadId) => (
                         <SpreadDraftInputs key={spreadId} spreadId={spreadId} items={draftItemsBySpread[spreadId] ?? []} />
                       ))}
-                      <FormSubmitButton className="h-10 bg-white px-3 text-ink hover:bg-white/90" pendingLabel="Mentés...">
+                      <FormSubmitButton
+                        variant="secondary"
+                        className="h-10 border-white/20 bg-white px-3 text-ink shadow-none hover:bg-white/90"
+                        pendingLabel="Mentés..."
+                      >
                         <Save size={15} />
                         Összes mentése
                       </FormSubmitButton>
