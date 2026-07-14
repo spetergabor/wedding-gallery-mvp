@@ -130,6 +130,17 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "four-left-story-right-hero",
+    name: "Bal hármas történet, jobb nagy kép",
+    photoCount: 4,
+    slots: [
+      { x: 5, y: 20, width: 21, height: 30 },
+      { x: 5, y: 50, width: 21, height: 30 },
+      { x: 26, y: 20, width: 19, height: 60 },
+      { x: 55, y: 20, width: 40, height: 60 }
+    ]
+  },
+  {
     key: "four-hero-left-grid-right",
     name: "Bal nagy, jobb hármas",
     photoCount: 4,
