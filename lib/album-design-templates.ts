@@ -108,6 +108,16 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     ]
   },
   {
+    key: "three-left-hero-right-portraits",
+    name: "Bal nagy, jobb két portré",
+    photoCount: 3,
+    slots: [
+      { x: 5, y: 18, width: 48, height: 64 },
+      { x: 53, y: 18, width: 21, height: 64 },
+      { x: 74, y: 18, width: 21, height: 64 }
+    ]
+  },
+  {
     key: "four-grid",
     name: "Négyes rács",
     photoCount: 4,
