@@ -506,7 +506,7 @@ export function AlbumDesignManager({
                     ) : null}
                     {design.spreads.length > 0 ? (
                       <p className="mt-2 text-sm font-medium text-ink/80">
-                        Minden oldalpár teljes szélességben látszik, a képcserét az adott oldalpár alatt nyithatod meg.
+                        Az album szerkesztése teljes ablakban nyílik, a képcserét pedig közös alsó képsávból tudod kezelni.
                       </p>
                     ) : null}
                     <form

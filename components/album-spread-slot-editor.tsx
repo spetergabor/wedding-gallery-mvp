@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { ImageIcon, MousePointer2, RotateCcw, Save, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { MousePointer2, RotateCcw, Save } from "lucide-react";
+import { useEffect, useMemo, useRef, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
 import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
@@ -60,59 +60,37 @@ export function AlbumSpreadSlotEditor({
   customerId,
   designId,
   spread,
-  photos,
   draftItems,
   onDraftItemsChange,
+  selectedSlotIndex,
+  onSelectedSlotIndexChange,
+  onFocusSpread,
   hasChanges,
-  usedPhotoIds
 }: {
   customerId: string | null;
   designId: string;
   spread: EditableSpread;
-  photos: FavoritePhoto[];
   draftItems: SpreadItem[];
   onDraftItemsChange: (updater: (items: SpreadItem[]) => SpreadItem[]) => void;
+  selectedSlotIndex: number;
+  onSelectedSlotIndexChange: (slotIndex: number) => void;
+  onFocusSpread?: () => void;
   hasChanges: boolean;
-  usedPhotoIds: string[];
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState(orderedItems[0]?.slotIndex ?? 0);
-  const [photoQuery, setPhotoQuery] = useState("");
-  const [showUnusedOnly, setShowUnusedOnly] = useState(false);
   const cropDragStateRef = useRef<CropDragState | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? draftItems[0] ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
-  const usedPhotoIdSet = useMemo(() => new Set(usedPhotoIds), [usedPhotoIds]);
-  const filteredPhotos = useMemo(() => {
-    const normalizedQuery = photoQuery.trim().toLowerCase();
-    const searchedPhotos = normalizedQuery ? photos.filter((photo) => photo.filename.toLowerCase().includes(normalizedQuery)) : photos;
-
-    if (!showUnusedOnly) {
-      return searchedPhotos;
-    }
-
-    return searchedPhotos.filter((photo) => !usedPhotoIdSet.has(photo.id) || photo.id === selectedItem?.photo.id);
-  }, [photoQuery, photos, selectedItem?.photo.id, showUnusedOnly, usedPhotoIdSet]);
 
   useEffect(() => {
     if (draftItems.length > 0 && !draftItems.some((item) => item.slotIndex === selectedSlotIndex)) {
-      setSelectedSlotIndex(draftItems[0].slotIndex);
+      onSelectedSlotIndexChange(draftItems[0].slotIndex);
     }
-  }, [draftItems, selectedSlotIndex]);
+  }, [draftItems, onSelectedSlotIndexChange, selectedSlotIndex]);
 
-  function replaceSelectedSlotPhoto(photo: FavoritePhoto) {
-    onDraftItemsChange((items) =>
-      items.map((item) =>
-        item.slotIndex === selectedSlotIndex
-          ? {
-              ...item,
-              photo,
-              cropX: 50,
-              cropY: 50
-            }
-          : item
-      )
-    );
+  function selectSlot(slotIndex: number) {
+    onFocusSpread?.();
+    onSelectedSlotIndexChange(slotIndex);
   }
 
   function beginCropDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadItem) {
@@ -121,7 +99,7 @@ export function AlbumSpreadSlotEditor({
     }
 
     const bounds = event.currentTarget.getBoundingClientRect();
-    setSelectedSlotIndex(item.slotIndex);
+    selectSlot(item.slotIndex);
     cropDragStateRef.current = {
       slotIndex: item.slotIndex,
       startClientX: event.clientX,
@@ -170,7 +148,7 @@ export function AlbumSpreadSlotEditor({
 
   function resetDraft() {
     onDraftItemsChange(() => orderedItems);
-    setSelectedSlotIndex(orderedItems[0]?.slotIndex ?? 0);
+    onSelectedSlotIndexChange(orderedItems[0]?.slotIndex ?? 0);
   }
 
   function centerSelectedSlotCrop() {
@@ -203,7 +181,7 @@ export function AlbumSpreadSlotEditor({
                 <button
                   key={`slot-button-${item.id}`}
                   type="button"
-                  onClick={() => setSelectedSlotIndex(item.slotIndex)}
+                  onClick={() => selectSlot(item.slotIndex)}
                   className={`h-9 rounded-md border px-3 text-sm font-medium transition ${
                     isSelected ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-brass hover:text-ink"
                   }`}
@@ -222,7 +200,7 @@ export function AlbumSpreadSlotEditor({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setSelectedSlotIndex(item.slotIndex)}
+                onClick={() => selectSlot(item.slotIndex)}
                 onPointerDown={(event) => beginCropDrag(event, item)}
                 onPointerMove={updateCropDrag}
                 onPointerUp={endCropDrag}
@@ -306,105 +284,6 @@ export function AlbumSpreadSlotEditor({
           </div>
         </div>
 
-        <details className="mt-3 rounded-md border border-ink/10 bg-white">
-          <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-3 text-sm font-medium text-ink transition hover:bg-paper">
-            <span className="inline-flex items-center gap-2">
-              <ImageIcon size={15} />
-              Képcsere megnyitása
-            </span>
-            <span className="text-xs font-normal text-graphite/60">
-              {filteredPhotos.length}/{photos.length} kép
-            </span>
-          </summary>
-          <div className="border-t border-ink/10 p-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <label className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60" htmlFor={`photo-search-${spread.id}`}>
-                  Keresés
-                </label>
-                <div className="relative mt-2">
-                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-graphite/45" />
-                  <input
-                    id={`photo-search-${spread.id}`}
-                    value={photoQuery}
-                    onChange={(event) => setPhotoQuery(event.target.value)}
-                    placeholder="Kép keresése fájlnév alapján"
-                    className="h-10 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm text-ink outline-none transition focus:border-ink/45"
-                  />
-                </div>
-              </div>
-              <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-ink/15 bg-paper px-3 text-sm font-medium text-ink transition hover:border-ink/30">
-                <input
-                  type="checkbox"
-                  checked={showUnusedOnly}
-                  onChange={(event) => setShowUnusedOnly(event.target.checked)}
-                  className="size-4 accent-ink"
-                />
-                Csak nem használt képek
-              </label>
-            </div>
-
-            <div className="mt-3 grid max-h-80 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-              {filteredPhotos.map((photo) => {
-                const isCurrent = selectedItem?.photo.id === photo.id;
-                const isUsed = usedPhotoIdSet.has(photo.id);
-
-                return (
-                  <button
-                    key={`${spread.id}-slot-${selectedSlotIndex}-${photo.id}`}
-                    type="button"
-                    onClick={() => replaceSelectedSlotPhoto(photo)}
-                    className={`grid w-full grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-md border p-1.5 text-left transition ${
-                      isCurrent ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-graphite hover:border-brass hover:bg-brass/10"
-                    }`}
-                  >
-                    <span className="relative block aspect-[4/3] overflow-hidden rounded bg-mist">
-                      <Image
-                        src={photo.thumbnailUrl || photo.imageUrl}
-                        alt={photo.filename}
-                        fill
-                        unoptimized
-                        sizes="72px"
-                        className="object-cover"
-                      />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{photo.filename}</span>
-                      <span className={`mt-0.5 block text-xs ${isCurrent ? "text-white/70" : "text-graphite/60"}`}>
-                        {isCurrent ? "Ebben a slotban van" : `Slot ${selectedSlotIndex + 1}-be tesz`}
-                      </span>
-                      <span
-                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          isCurrent
-                            ? "bg-white/15 text-white"
-                            : isUsed
-                              ? "bg-brass/10 text-brass"
-                              : "bg-emerald-50 text-emerald-700"
-                        }`}
-                      >
-                        {isCurrent ? "Aktuális" : isUsed ? "Már használva" : "Szabad"}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {photos.length === 0 ? (
-              <div className="mt-3 flex items-center gap-2 rounded-md bg-paper px-3 py-3 text-sm text-graphite/70">
-                <ImageIcon size={16} className="shrink-0" />
-                Nincs elérhető kép ehhez a favorite listához.
-              </div>
-            ) : null}
-
-            {photos.length > 0 && filteredPhotos.length === 0 ? (
-              <div className="mt-3 flex items-center gap-2 rounded-md bg-paper px-3 py-3 text-sm text-graphite/70">
-                <ImageIcon size={16} className="shrink-0" />
-                Nincs találat erre a keresésre.
-              </div>
-            ) : null}
-          </div>
-        </details>
       </div>
     </div>
   );
