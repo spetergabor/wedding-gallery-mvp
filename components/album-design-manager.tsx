@@ -9,7 +9,7 @@ import {
   createAlbumDesignSpreadAction,
   deleteAlbumDesignAction,
   exportAlbumDesignToReviewAction,
-  updateAlbumDesignProjectAction
+  updateAlbumDesignAssignmentAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -41,15 +41,27 @@ type FavoriteList = {
 
 type AlbumProjectOption = {
   id: string;
+  customerId?: string;
+  customerName?: string;
   title: string;
+};
+
+type AlbumCustomerOption = {
+  id: string;
+  coupleName: string;
 };
 
 type AlbumDesign = {
   id: string;
+  customerId: string | null;
   projectId: string | null;
   title: string;
   status: string;
   createdAt: Date;
+  customer?: {
+    id: string;
+    coupleName: string;
+  } | null;
   favoriteList: {
     id: string;
     name: string;
@@ -161,7 +173,7 @@ function AlbumSpreadCreateForm({
   sourcePhotos,
   title = "Új oldalpár"
 }: {
-  customerId: string;
+  customerId: string | null;
   designId: string;
   sourcePhotos: FavoritePhoto[];
   title?: string;
@@ -229,14 +241,17 @@ export function AlbumDesignManager({
   customerId,
   favoriteLists,
   designs,
-  projects
+  projects,
+  customers = []
 }: {
-  customerId: string;
+  customerId: string | null;
   favoriteLists: FavoriteList[];
   designs: AlbumDesign[];
   projects: AlbumProjectOption[];
+  customers?: AlbumCustomerOption[];
 }) {
   const projectById = new Map(projects.map((project) => [project.id, project]));
+  const standaloneMode = !customerId;
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
@@ -252,7 +267,10 @@ export function AlbumDesignManager({
           </p>
         </div>
 
-        <form action={createAlbumDesignAction.bind(null, customerId)} className="grid min-w-80 gap-2 rounded-md border border-ink/10 bg-paper p-3">
+        <form
+          action={createAlbumDesignAction.bind(null, customerId)}
+          className={`grid min-w-80 gap-2 rounded-md border border-ink/10 bg-paper p-3 ${standaloneMode ? "lg:min-w-[520px] lg:grid-cols-[1fr_1.2fr_auto]" : ""}`}
+        >
           <input
             name="title"
             placeholder="pl. Dalma album v1"
@@ -273,18 +291,20 @@ export function AlbumDesignManager({
               </option>
             ))}
           </select>
-          <select
-            name="projectId"
-            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            defaultValue=""
-          >
-            <option value="">Nincs projekthez kapcsolva</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
+          {!standaloneMode ? (
+            <select
+              name="projectId"
+              className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              defaultValue=""
+            >
+              <option value="">Nincs projekthez kapcsolva</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.title}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <FormSubmitButton disabled={favoriteLists.length === 0} pendingLabel="Létrehozás...">
             <Plus size={16} />
             Új albumterv
@@ -303,7 +323,7 @@ export function AlbumDesignManager({
 
       {designs.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
-          <p className="text-sm font-medium text-ink">Még nincs albumterv ehhez az ügyfélhez</p>
+          <p className="text-sm font-medium text-ink">{standaloneMode ? "Még nincs önálló albumterv" : "Még nincs albumterv ehhez az ügyfélhez"}</p>
           <p className="mt-1 text-sm text-graphite/70">Hozz létre egy albumtervet valamelyik favorite listából.</p>
         </div>
       ) : (
@@ -311,6 +331,7 @@ export function AlbumDesignManager({
           {designs.map((design) => {
             const sourcePhotos = design.favoriteList?.items.map((item) => item.photo) ?? [];
             const linkedProject = design.projectId ? projectById.get(design.projectId) : null;
+            const linkedCustomer = design.customer ?? (linkedProject?.customerId ? customers.find((customer) => customer.id === linkedProject.customerId) : null);
 
             return (
               <article key={design.id} className="rounded-lg border border-ink/10 bg-paper p-4">
@@ -324,6 +345,17 @@ export function AlbumDesignManager({
                       <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
                         {design.spreads.length} oldalpár
                       </span>
+                      {standaloneMode ? (
+                        linkedCustomer ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
+                            {linkedCustomer.coupleName}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                            Ügyfél nélkül
+                          </span>
+                        )
+                      ) : null}
                       {linkedProject ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
                           <FolderKanban size={13} />
@@ -349,21 +381,40 @@ export function AlbumDesignManager({
                         Minden oldalpár teljes szélességben látszik, a képcserét az adott oldalpár alatt nyithatod meg.
                       </p>
                     ) : null}
-                    <form action={updateAlbumDesignProjectAction.bind(null, customerId, design.id)} className="mt-3 flex max-w-xl flex-col gap-2 sm:flex-row">
+                    <form
+                      action={updateAlbumDesignAssignmentAction.bind(null, customerId, design.id)}
+                      className={`mt-3 grid max-w-3xl gap-2 sm:grid-cols-2 ${
+                        standaloneMode ? "xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" : "xl:grid-cols-[minmax(0,1fr)_auto]"
+                      }`}
+                    >
+                      {standaloneMode ? (
+                        <select
+                          name="customerId"
+                          defaultValue={design.customerId ?? ""}
+                          className="h-10 min-w-0 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                        >
+                          <option value="">Nincs ügyfélhez rendelve</option>
+                          {customers.map((customer) => (
+                            <option key={customer.id} value={customer.id}>
+                              {customer.coupleName}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
                       <select
                         name="projectId"
                         defaultValue={design.projectId ?? ""}
-                        className="h-10 min-w-0 flex-1 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                        className="h-10 min-w-0 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
                       >
                         <option value="">Nincs projekthez kapcsolva</option>
                         {projects.map((project) => (
                           <option key={project.id} value={project.id}>
-                            {project.title}
+                            {project.customerName ? `${project.customerName} · ${project.title}` : project.title}
                           </option>
                         ))}
                       </select>
                       <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
-                        Projekt mentése
+                        Kapcsolat mentése
                       </FormSubmitButton>
                     </form>
                   </div>
@@ -372,8 +423,13 @@ export function AlbumDesignManager({
                       <form action={exportAlbumDesignToReviewAction.bind(null, customerId, design.id)}>
                         <ConfirmSubmitButton
                           title="Album ellenőrző létrehozása"
-                          message="Létrehozunk egy új album ellenőrzőt az albumterv JPG oldalpárjaiból. Mehet?"
+                          message={
+                            design.customerId
+                              ? "Létrehozunk egy új album ellenőrzőt az albumterv JPG oldalpárjaiból. Mehet?"
+                              : "Az albumtervet előbb ügyfélhez kell rendelni."
+                          }
                           className="h-10 px-3"
+                          disabled={!design.customerId}
                         >
                           <Send size={15} />
                           Ellenőrzőbe küldés

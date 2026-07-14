@@ -129,7 +129,7 @@ export function AlbumDesignWorkbench({
   spreads,
   sourcePhotos
 }: {
-  customerId: string;
+  customerId: string | null;
   designId: string;
   spreads: AlbumSpread[];
   sourcePhotos: FavoritePhoto[];

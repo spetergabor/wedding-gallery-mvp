@@ -9,6 +9,7 @@ import {
   ChevronDown,
   CreditCard,
   HardDrive,
+  Images,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -351,6 +352,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <Camera size={17} />
             {copy.galleries}
           </Link>
+          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/albums">
+            <Images size={17} />
+            {copy.albumEditor}
+          </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/mini-sessions">
             <CalendarClock size={17} />
             {copy.bookings}
@@ -471,6 +476,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
                     <Camera size={17} />
                     {copy.galleries}
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/albums">
+                    <Images size={17} />
+                    {copy.albumEditor}
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/mini-sessions">
                     <CalendarClock size={17} />

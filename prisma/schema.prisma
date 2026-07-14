@@ -48,6 +48,7 @@ model Admin {
   deliveryLogs DeliveryLog[]
   stripeConnectIntegration StripeConnectIntegration?
   galleryPurchases GalleryPurchase[]
+  albumDesigns AlbumDesign[]
 }
 
 model AdminPasswordResetToken {
@@ -609,18 +610,21 @@ model AlbumReviewComment {
 
 model AlbumDesign {
   id             String   @id @default(cuid())
-  customerId     String
+  adminId        String?
+  customerId     String?
   projectId      String?
   favoriteListId String?
   title          String   @default("Albumterv")
   status         String   @default("draft")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   project        CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   favoriteList   GalleryFavoriteList? @relation(fields: [favoriteListId], references: [id], onDelete: SetNull)
   spreads        AlbumDesignSpread[]
 
+  @@index([adminId])
   @@index([customerId])
   @@index([projectId])
   @@index([favoriteListId])

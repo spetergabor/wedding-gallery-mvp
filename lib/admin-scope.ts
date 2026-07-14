@@ -102,10 +102,19 @@ export function albumReviewAccessWhere(admin: AdminSession, reviewId: string): P
   };
 }
 
+export function albumDesignOwnedWhere(admin: AdminSession): Prisma.AlbumDesignWhereInput {
+  return {
+    OR: [
+      { adminId: ownerAdminId(admin) },
+      { customer: adminOwnedWhere(admin) }
+    ]
+  };
+}
+
 export function albumDesignAccessWhere(admin: AdminSession, designId: string): Prisma.AlbumDesignWhereInput {
   return {
     id: designId,
-    customer: adminOwnedWhere(admin)
+    ...albumDesignOwnedWhere(admin)
   };
 }
 

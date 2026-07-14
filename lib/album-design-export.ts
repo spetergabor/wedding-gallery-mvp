@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { adminOwnedWhere } from "@/lib/admin-scope";
+import { albumDesignOwnedWhere } from "@/lib/admin-scope";
 import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutExportSlotInsetPx } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
@@ -7,6 +7,7 @@ import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
 type AdminSession = {
   id: string;
   role: string;
+  workspaceAdminId?: string | null;
 };
 
 export type AlbumDesignSpreadExportData = {
@@ -16,7 +17,7 @@ export type AlbumDesignSpreadExportData = {
   sortOrder: number;
   design: {
     title: string;
-    customerId: string;
+    customerId: string | null;
   };
   items: Array<{
     id: string;
@@ -50,9 +51,7 @@ export async function loadAlbumDesignSpreadForExport({
   return prisma.albumDesignSpread.findFirst({
     where: {
       id: spreadId,
-      design: {
-        customer: adminOwnedWhere(admin)
-      }
+      design: albumDesignOwnedWhere(admin)
     },
     select: {
       id: true,

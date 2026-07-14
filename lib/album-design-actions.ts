@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { albumDesignAccessWhere, customerAccessWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, albumDesignAccessWhere, customerAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import {
   ALBUM_DESIGN_EXPORT_HEIGHT,
   ALBUM_DESIGN_EXPORT_WIDTH,
@@ -90,6 +90,24 @@ function createAlbumAccessToken() {
   return randomBytes(32).toString("base64url");
 }
 
+function albumDesignRedirectPath(customerId: string | null | undefined, query = "") {
+  const basePath = customerId ? `/admin/clients/${customerId}?tab=album&albumMode=editor` : "/admin/albums";
+
+  if (!query) {
+    return basePath;
+  }
+
+  return `${basePath}${customerId ? "&" : "?"}${query}`;
+}
+
+function revalidateAlbumDesignPaths(customerId: string | null | undefined) {
+  revalidatePath("/admin/albums");
+
+  if (customerId) {
+    revalidatePath(`/admin/clients/${customerId}`);
+  }
+}
+
 async function requireCustomerAccess(customerId: string) {
   const admin = await requireAdmin();
   const customer = await prisma.customer.findFirst({
@@ -102,6 +120,17 @@ async function requireCustomerAccess(customerId: string) {
   }
 
   return { admin, customer };
+}
+
+async function requireAlbumDesignContext(customerId: string | null | undefined) {
+  if (customerId) {
+    return requireCustomerAccess(customerId);
+  }
+
+  return {
+    admin: await requireAdmin(),
+    customer: null
+  };
 }
 
 async function albumProjectIdForCustomer(admin: Awaited<ReturnType<typeof requireAdmin>>, customerId: string, projectId: string) {
@@ -121,24 +150,24 @@ async function albumProjectIdForCustomer(admin: Awaited<ReturnType<typeof requir
   return project?.id ?? null;
 }
 
-async function requireAlbumDesignAccess(customerId: string, designId: string) {
-  const { admin } = await requireCustomerAccess(customerId);
+async function requireAlbumDesignAccess(customerId: string | null | undefined, designId: string) {
+  const { admin } = await requireAlbumDesignContext(customerId);
   const design = await prisma.albumDesign.findFirst({
     where: {
       ...albumDesignAccessWhere(admin, designId),
-      customerId,
-      customer: customerAccessWhere(admin, customerId)
+      ...(customerId ? { customerId } : {})
     },
     select: {
       id: true,
       customerId: true,
+      adminId: true,
       favoriteListId: true,
       projectId: true
     }
   });
 
   if (!design) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
   return { admin, design };
@@ -150,7 +179,7 @@ async function getVerifiedDesignPhotoIds({
   formData,
   photoCount
 }: {
-  customerId: string;
+  customerId: string | null | undefined;
   favoriteListId: string;
   formData: FormData;
   photoCount: number;
@@ -158,7 +187,7 @@ async function getVerifiedDesignPhotoIds({
   const selectedPhotoIds = getSelectedPhotoIds(formData);
 
   if (selectedPhotoIds.length !== photoCount) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
   }
 
   const photos = await prisma.photo.findMany({
@@ -176,7 +205,7 @@ async function getVerifiedDesignPhotoIds({
   const photoIds = selectedPhotoIds.filter((photoId) => validPhotoIds.has(photoId));
 
   if (photoIds.length !== photoCount) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
   }
 
   return photoIds;
@@ -187,7 +216,7 @@ async function requireFavoritePhoto({
   favoriteListId,
   photoId
 }: {
-  customerId: string;
+  customerId: string | null | undefined;
   favoriteListId: string;
   photoId: string;
 }) {
@@ -204,75 +233,112 @@ async function requireFavoritePhoto({
   });
 
   if (!photo) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
   }
 
   return photo;
 }
 
-export async function createAlbumDesignAction(customerId: string, formData: FormData) {
-  const { admin, customer } = await requireCustomerAccess(customerId);
+export async function createAlbumDesignAction(customerId: string | null, formData: FormData) {
+  const { admin, customer } = await requireAlbumDesignContext(customerId);
   const title = formString(formData, "title") || "Albumterv";
   const favoriteListId = formString(formData, "favoriteListId");
   const requestedProjectId = formString(formData, "projectId");
   const favoriteList = await prisma.galleryFavoriteList.findFirst({
     where: {
       id: favoriteListId,
-      gallery: {
-        customer: customerAccessWhere(admin, customer.id)
-      }
+      gallery: customer ? { customer: customerAccessWhere(admin, customer.id) } : adminOwnedWhere(admin)
     },
     select: { id: true }
   });
 
   if (!favoriteList) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
-  const projectId = await albumProjectIdForCustomer(admin, customer.id, requestedProjectId);
+  const projectId = customer ? await albumProjectIdForCustomer(admin, customer.id, requestedProjectId) : null;
 
   if (requestedProjectId && !projectId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumMode=editor&albumDesignError=project`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=project"));
   }
 
   await prisma.albumDesign.create({
     data: {
-      customerId: customer.id,
+      adminId: ownerAdminId(admin),
+      customerId: customer?.id ?? null,
       projectId,
       favoriteListId: favoriteList.id,
       title
     }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
+  revalidateAlbumDesignPaths(customerId);
   revalidatePath("/admin/clients");
-  redirect(`/admin/clients/${customerId}?tab=album&albumDesignCreated=1`);
+  redirect(albumDesignRedirectPath(customerId, "albumDesignCreated=1"));
 }
 
-export async function updateAlbumDesignProjectAction(customerId: string, designId: string, formData: FormData) {
+export async function updateAlbumDesignAssignmentAction(customerId: string | null, designId: string, formData: FormData) {
   const { admin, design } = await requireAlbumDesignAccess(customerId, designId);
+  const requestedCustomerId = customerId ?? formString(formData, "customerId");
   const requestedProjectId = formString(formData, "projectId");
-  const projectId = await albumProjectIdForCustomer(admin, design.customerId, requestedProjectId);
+  let targetCustomerId = requestedCustomerId || null;
+  let projectId: string | null = null;
 
-  if (requestedProjectId && !projectId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=project`);
+  if (targetCustomerId) {
+    const customer = await prisma.customer.findFirst({
+      where: customerAccessWhere(admin, targetCustomerId),
+      select: { id: true }
+    });
+
+    if (!customer) {
+      redirect(albumDesignRedirectPath(customerId, "albumDesignError=customer"));
+    }
+  }
+
+  if (requestedProjectId) {
+    const project = await prisma.customerProject.findFirst({
+      where: {
+        id: requestedProjectId,
+        customer: adminOwnedWhere(admin),
+        projectType: "album"
+      },
+      select: { id: true, customerId: true }
+    });
+
+    if (!project || (targetCustomerId && project.customerId !== targetCustomerId)) {
+      redirect(albumDesignRedirectPath(customerId, "albumDesignError=project"));
+    }
+
+    targetCustomerId = project.customerId;
+    projectId = project.id;
+  }
+
+  if (customerId && targetCustomerId !== customerId) {
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=customer"));
   }
 
   await prisma.albumDesign.update({
     where: { id: design.id },
-    data: { projectId }
+    data: {
+      adminId: design.adminId ?? ownerAdminId(admin),
+      customerId: targetCustomerId,
+      projectId
+    }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
+  revalidateAlbumDesignPaths(customerId);
+  if (targetCustomerId && targetCustomerId !== customerId) {
+    revalidatePath(`/admin/clients/${targetCustomerId}`);
+  }
   revalidatePath("/admin/clients");
-  redirect(`/admin/clients/${customerId}?tab=album&albumMode=editor&albumDesignUpdated=1`);
+  redirect(albumDesignRedirectPath(customerId, "albumDesignUpdated=1"));
 }
 
-export async function createAlbumDesignSpreadAction(customerId: string, designId: string, formData: FormData) {
+export async function createAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   if (!design.favoriteListId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
   const layout = getAlbumLayoutTemplate(formString(formData, "layoutKey"));
@@ -302,27 +368,27 @@ export async function createAlbumDesignSpreadAction(customerId: string, designId
     }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadCreated=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadCreated=1"));
 }
 
-export async function createAutoAlbumDesignSpreadAction(customerId: string, designId: string, formData: FormData) {
+export async function createAutoAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   if (!design.favoriteListId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
   const selectedPhotoIds = getSelectedPhotoIds(formData);
 
   if (selectedPhotoIds.length === 0) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
   }
 
   const layout = pickRandomAlbumLayoutTemplate(selectedPhotoIds.length);
 
   if (!layout) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=layout-count`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=layout-count"));
   }
 
   const photoIds = await getVerifiedDesignPhotoIds({
@@ -351,15 +417,15 @@ export async function createAutoAlbumDesignSpreadAction(customerId: string, desi
     }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadAutoCreated=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadAutoCreated=1"));
 }
 
-export async function updateAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string, formData: FormData) {
+export async function updateAlbumDesignSpreadAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   if (!design.favoriteListId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
   const spread = await prisma.albumDesignSpread.findFirst({
@@ -371,7 +437,7 @@ export async function updateAlbumDesignSpreadAction(customerId: string, designId
   });
 
   if (!spread) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
   const layout = getAlbumLayoutTemplate(formString(formData, "layoutKey"));
@@ -393,11 +459,11 @@ export async function updateAlbumDesignSpreadAction(customerId: string, designId
     }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadUpdated=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadUpdated=1"));
 }
 
-export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string, designId: string, spreadId: string) {
+export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string | null, designId: string, spreadId: string) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
   const spread = await prisma.albumDesignSpread.findFirst({
     where: {
@@ -415,19 +481,19 @@ export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string
   });
 
   if (!spread) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
   const photoIds = spread.items.map((item) => item.photoId);
 
   if (photoIds.length === 0) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
   }
 
   const layout = pickRandomAlbumLayoutTemplate(photoIds.length, spread.layoutKey);
 
   if (!layout) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=layout-count`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=layout-count"));
   }
 
   await prisma.albumDesignSpread.update({
@@ -441,11 +507,11 @@ export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string
     }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadRegenerated=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadRegenerated=1"));
 }
 
-export async function exportAlbumDesignToReviewAction(customerId: string, designId: string) {
+export async function exportAlbumDesignToReviewAction(customerId: string | null, designId: string) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
   const albumDesign = await prisma.albumDesign.findUnique({
     where: { id: design.id },
@@ -499,13 +565,17 @@ export async function exportAlbumDesignToReviewAction(customerId: string, design
   });
 
   if (!albumDesign) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
+  }
+
+  if (!albumDesign.customerId || !albumDesign.customer) {
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=customer"));
   }
 
   const spreads = albumDesign.spreads.filter((spread) => spread.items.length > 0) satisfies AlbumDesignSpreadExportData[];
 
   if (spreads.length === 0) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=no-spreads`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=no-spreads"));
   }
 
   const review = await prisma.albumReview.create({
@@ -574,26 +644,26 @@ export async function exportAlbumDesignToReviewAction(customerId: string, design
 
     await prisma.albumReview.delete({ where: { id: review.id } }).catch(() => undefined);
     await Promise.all(uploadedObjectKeys.map((r2Key) => deletePhotoObject(r2Key)));
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=export-failed`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=export-failed"));
   }
 
-  revalidatePath(`/admin/clients/${customerId}`);
+  revalidateAlbumDesignPaths(customerId);
   revalidatePath(`/album/${review.accessToken}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumDesignExported=${spreads.length}`);
+  redirect(albumDesignRedirectPath(customerId, `albumDesignExported=${spreads.length}`));
 }
 
-export async function updateAlbumDesignSpreadSlotAction(customerId: string, designId: string, spreadId: string, formData: FormData) {
+export async function updateAlbumDesignSpreadSlotAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   if (!design.favoriteListId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
   const slotIndex = formInteger(formData, "slotIndex");
   const photoId = formString(formData, "photoId");
 
   if (slotIndex === null || !photoId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=slot`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=slot"));
   }
 
   const spread = await prisma.albumDesignSpread.findFirst({
@@ -608,14 +678,14 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string, desi
   });
 
   if (!spread) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
   const layout = getAlbumLayoutTemplate(spread.layoutKey);
   const slot = layout.slots[slotIndex];
 
   if (!slot) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=slot`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=slot"));
   }
 
   await requireFavoritePhoto({
@@ -653,15 +723,15 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string, desi
     });
   }
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadSlotUpdated=1"));
 }
 
-export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, designId: string, spreadId: string, formData: FormData) {
+export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   if (!design.favoriteListId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
   const spread = await prisma.albumDesignSpread.findFirst({
@@ -676,7 +746,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, d
   });
 
   if (!spread) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
   const layout = getAlbumLayoutTemplate(spread.layoutKey);
@@ -684,7 +754,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, d
   const cropPositions = getOrderedCropPositions(formData, layout.slots.length);
 
   if (photoIds.length !== layout.slots.length) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
   }
 
   const uniquePhotoIds = [...new Set(photoIds)];
@@ -702,7 +772,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, d
   const validPhotoIds = new Set(validPhotos.map((photo) => photo.id));
 
   if (uniquePhotoIds.some((photoId) => !validPhotoIds.has(photoId))) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
   }
 
   await prisma.albumDesignSpread.update({
@@ -715,15 +785,15 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string, d
     }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadSlotUpdated=1"));
 }
 
-export async function saveAlbumDesignSpreadDraftsAction(customerId: string, designId: string, formData: FormData) {
+export async function saveAlbumDesignSpreadDraftsAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   if (!design.favoriteListId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=favorite-list`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
   }
 
   const draftSpreadIds = [
@@ -733,7 +803,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string, desi
   ];
 
   if (draftSpreadIds.length === 0) {
-    redirect(`/admin/clients/${customerId}?tab=album`);
+    redirect(albumDesignRedirectPath(customerId));
   }
 
   const spreads = await prisma.albumDesignSpread.findMany({
@@ -748,7 +818,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string, desi
   });
 
   if (spreads.length !== draftSpreadIds.length) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
   const spreadDrafts = spreads.map((spread) => {
@@ -760,7 +830,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string, desi
     });
 
     if (photoIds.length !== layout.slots.length) {
-      redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=photo-count`);
+      redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
     }
 
     return {
@@ -790,7 +860,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string, desi
   const validPhotoIds = new Set(validPhotos.map((photo) => photo.id));
 
   if (uniquePhotoIds.some((photoId) => !validPhotoIds.has(photoId))) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=invalid-photos`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
   }
 
   await prisma.$transaction(
@@ -807,22 +877,22 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string, desi
     )
   );
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadSlotUpdated=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadSlotUpdated=1"));
 }
 
-export async function deleteAlbumDesignAction(customerId: string, designId: string) {
+export async function deleteAlbumDesignAction(customerId: string | null, designId: string) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   await prisma.albumDesign.delete({
     where: { id: design.id }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumDesignDeleted=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumDesignDeleted=1"));
 }
 
-export async function deleteAlbumDesignSpreadAction(customerId: string, designId: string, spreadId: string) {
+export async function deleteAlbumDesignSpreadAction(customerId: string | null, designId: string, spreadId: string) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
   const spread = await prisma.albumDesignSpread.findFirst({
     where: {
@@ -833,13 +903,13 @@ export async function deleteAlbumDesignSpreadAction(customerId: string, designId
   });
 
   if (!spread) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumDesignError=missing`);
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
   await prisma.albumDesignSpread.delete({
     where: { id: spread.id }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
-  redirect(`/admin/clients/${customerId}?tab=album&albumSpreadDeleted=1`);
+  revalidateAlbumDesignPaths(customerId);
+  redirect(albumDesignRedirectPath(customerId, "albumSpreadDeleted=1"));
 }

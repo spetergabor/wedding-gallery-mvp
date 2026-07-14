@@ -66,7 +66,7 @@ export function AlbumSpreadSlotEditor({
   hasChanges,
   usedPhotoIds
 }: {
-  customerId: string;
+  customerId: string | null;
   designId: string;
   spread: EditableSpread;
   photos: FavoritePhoto[];
