@@ -141,6 +141,10 @@ function albumDesignRedirectPath(customerId: string | null | undefined, query = 
   return `${basePath}${customerId ? "&" : "?"}${query}`;
 }
 
+function albumDesignEditorRedirectQuery(designId: string, query: string) {
+  return `${query}&albumWorkspace=projects&albumDesignId=${designId}&albumEditor=1`;
+}
+
 function revalidateAlbumDesignPaths(customerId: string | null | undefined) {
   revalidatePath("/admin/albums");
 
@@ -524,7 +528,7 @@ export async function createAlbumDesignSpreadAction(customerId: string | null, d
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, `albumSpreadCreated=1&albumWorkspace=projects&albumDesignId=${design.id}&albumEditor=1`));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadCreated=1")));
 }
 
 export async function createEmptyAlbumDesignSpreadAction(customerId: string | null, designId: string) {
@@ -552,7 +556,7 @@ export async function createEmptyAlbumDesignSpreadAction(customerId: string | nu
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, `albumSpreadCreated=1&albumWorkspace=projects&albumDesignId=${design.id}&albumEditor=1`));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadCreated=1")));
 }
 
 export async function createAutoAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
@@ -601,7 +605,7 @@ export async function createAutoAlbumDesignSpreadAction(customerId: string | nul
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadAutoCreated=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadAutoCreated=1")));
 }
 
 export async function updateAlbumDesignSpreadAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
@@ -643,7 +647,7 @@ export async function updateAlbumDesignSpreadAction(customerId: string | null, d
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadUpdated=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadUpdated=1")));
 }
 
 export async function updateAlbumDesignSpreadLayoutOnlyAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
@@ -695,7 +699,7 @@ export async function updateAlbumDesignSpreadLayoutOnlyAction(customerId: string
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadUpdated=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadUpdated=1")));
 }
 
 export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string | null, designId: string, spreadId: string) {
@@ -743,7 +747,7 @@ export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadRegenerated=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadRegenerated=1")));
 }
 
 export async function exportAlbumDesignToReviewAction(customerId: string | null, designId: string) {
@@ -959,7 +963,7 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string | nul
   }
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadSlotUpdated=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1")));
 }
 
 export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
@@ -1014,7 +1018,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadSlotUpdated=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1")));
 }
 
 export async function saveAlbumDesignSpreadDraftsAction(customerId: string | null, designId: string, formData: FormData) {
@@ -1100,7 +1104,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
   );
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadSlotUpdated=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1")));
 }
 
 export async function deleteAlbumDesignAction(customerId: string | null, designId: string) {
@@ -1162,5 +1166,5 @@ export async function deleteAlbumDesignSpreadAction(customerId: string | null, d
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, "albumSpreadDeleted=1"));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadDeleted=1")));
 }

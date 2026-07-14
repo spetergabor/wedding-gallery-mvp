@@ -89,6 +89,61 @@ export async function loadAlbumDesignSpreadForExport({
   });
 }
 
+export async function loadAlbumDesignForExport({
+  admin,
+  designId
+}: {
+  admin: AdminSession;
+  designId: string;
+}) {
+  return prisma.albumDesign.findFirst({
+    where: {
+      id: designId,
+      ...albumDesignOwnedWhere(admin)
+    },
+    select: {
+      id: true,
+      title: true,
+      spreads: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          title: true,
+          layoutKey: true,
+          sortOrder: true,
+          design: {
+            select: {
+              title: true,
+              customerId: true
+            }
+          },
+          items: {
+            orderBy: { slotIndex: "asc" },
+            select: {
+              id: true,
+              slotIndex: true,
+              x: true,
+              y: true,
+              width: true,
+              height: true,
+              cropX: true,
+              cropY: true,
+              photo: {
+                select: {
+                  filename: true,
+                  r2Key: true,
+                  imageUrl: true,
+                  previewUrl: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 function clampCropPosition(value: number) {
   if (!Number.isFinite(value)) {
     return 50;
@@ -181,4 +236,15 @@ export function albumDesignSpreadExportFilename(spread: AlbumDesignSpreadExportD
   const paddedSortOrder = String(spread.sortOrder).padStart(2, "0");
 
   return `album-oldalpar-${paddedSortOrder}.jpg`;
+}
+
+export function albumDesignExportFilename(title: string) {
+  const slug = title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+
+  return `${slug || "albumterv"}-oldalparok.zip`;
 }

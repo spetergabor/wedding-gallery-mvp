@@ -394,6 +394,13 @@ export function AlbumDesignWorkbench({
                       </FormSubmitButton>
                     </form>
                   ) : null}
+                  <a
+                    href={`/admin/album-designs/${designId}/export`}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 text-sm font-medium text-white transition hover:bg-white/15"
+                  >
+                    <Download size={16} />
+                    Összes export
+                  </a>
                   <button
                     type="button"
                     onClick={() => setIsEditorOpen(false)}
