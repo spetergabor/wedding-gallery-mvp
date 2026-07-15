@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { type GalleryDownloadQuality } from "@/lib/download-quality";
+import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 
 export const PUBLIC_DOWNLOAD_SCOPE = "public";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
@@ -80,10 +81,11 @@ export async function ensureDownloadPackageAccessToken(packageId: string) {
 }
 
 export async function invalidatePublicGalleryDownloadPackages(galleryId: string) {
+  const trackedScopes = [...PUBLIC_DOWNLOAD_SCOPES, paidGalleryScope(galleryId)];
   const stalePackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId,
-      scope: { in: [...PUBLIC_DOWNLOAD_SCOPES] },
+      scope: { in: trackedScopes },
       status: { in: ["pending", "processing", "completed", "failed"] }
     },
     select: { id: true }
@@ -100,7 +102,7 @@ export async function invalidatePublicGalleryDownloadPackages(galleryId: string)
       where: { id: { in: packageIds } },
       data: {
         status: "stale",
-        errorMessage: "A publikus képlista megváltozott, ezért új vendég ZIP szükséges."
+        errorMessage: "A galéria képlistája megváltozott, ezért új ZIP szükséges."
       }
     }),
     prisma.galleryDownload.updateMany({
@@ -111,7 +113,7 @@ export async function invalidatePublicGalleryDownloadPackages(galleryId: string)
       },
       data: {
         status: "stale",
-        downloadLinkEmailError: "A publikus képlista megváltozott az email kiküldése előtt."
+        downloadLinkEmailError: "A galéria képlistája megváltozott az email kiküldése előtt."
       }
     })
   ]);

@@ -14,8 +14,8 @@ import {
   sendGuestGalleryDownloadReadyEmail
 } from "@/lib/email";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, galleryDownloadQualityLabel, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
-import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
-import { isPaidPurchaseScope, paidPurchaseIdFromScope } from "@/lib/gallery-sales-shared";
+import { galleryDeliveryAllowsDownloads, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
+import { isPaidDownloadScope, paidGalleryScope, paidPurchaseIdFromScope } from "@/lib/gallery-sales-shared";
 import {
   createGalleryZipObjectKey,
   createPhotoReadStream,
@@ -51,6 +51,7 @@ type CompletedDownloadPackage = {
   photoCount: number;
   fileSize: bigint;
   gallery: {
+    id: string;
     title: string;
     customer: {
       preferredLanguage: string | null;
@@ -424,6 +425,41 @@ async function triggerExternalZipWorker(payload: ZipGenerationPayload) {
   }
 }
 
+async function markZipDispatchFailed(payload: ZipGenerationPayload) {
+  const message =
+    "A ZIP háttérmunka nem jutott el a Trigger.dev feldolgozóhoz. Ellenőrizd a Trigger környezeti változókat, majd indítsd újra a ZIP-et.";
+  const updates: Prisma.PrismaPromise<unknown>[] = [
+    prisma.galleryDownloadPackage.updateMany({
+      where: {
+        id: payload.packageId,
+        status: { in: ["pending", "processing"] }
+      },
+      data: {
+        status: "failed",
+        errorMessage: message
+      }
+    })
+  ];
+
+  if (payload.jobId) {
+    updates.push(
+      prisma.backgroundJob.updateMany({
+        where: {
+          id: payload.jobId,
+          status: { in: ["pending", "processing"] }
+        },
+        data: {
+          status: "failed",
+          lockedAt: null,
+          errorMessage: message
+        }
+      })
+    );
+  }
+
+  await prisma.$transaction(updates);
+}
+
 export async function kickGalleryZipJob(payload: ZipGenerationPayload) {
   const payloadWithJob = {
     ...payload,
@@ -431,11 +467,21 @@ export async function kickGalleryZipJob(payload: ZipGenerationPayload) {
   };
   const dispatched = await triggerExternalZipWorker(payloadWithJob);
 
-  if (dispatched || process.env.ZIP_WORKER_DRIVER === "trigger") {
+  if (dispatched) {
     return {
-      driver: dispatched ? "trigger" : "trigger_unavailable",
+      driver: "trigger",
       processed: 0,
       failed: 0
+    };
+  }
+
+  if (process.env.ZIP_WORKER_DRIVER === "trigger") {
+    await markZipDispatchFailed(payloadWithJob);
+
+    return {
+      driver: "trigger_unavailable",
+      processed: 0,
+      failed: 1
     };
   }
 
@@ -499,7 +545,6 @@ export async function preparePublicGalleryZipPackages(
   requestedQuality: GalleryDownloadQuality = DEFAULT_GALLERY_DOWNLOAD_QUALITY
 ): Promise<PreparePublicGalleryZipPackagesResult> {
   const quality = normalizeGalleryDownloadQuality(requestedQuality);
-  const downloadScope = publicDownloadScopeForQuality(quality);
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
     select: {
@@ -525,7 +570,10 @@ export async function preparePublicGalleryZipPackages(
     return { ok: false, reason: "not-active", packages: [], payloads: [] };
   }
 
-  if (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode)) {
+  const paidGallery = galleryDeliveryUsesPayment(gallery.deliveryMode);
+  const downloadScope = paidGallery ? paidGalleryScope(galleryId) : publicDownloadScopeForQuality(quality);
+
+  if (!paidGallery && (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))) {
     return { ok: false, reason: "downloads-disabled", packages: [], payloads: [] };
   }
 
@@ -908,7 +956,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     throw new Error("Diese Galerie wurde nicht gefunden.");
   }
 
-  if (!isPaidPurchaseScope(downloadPackage.scope) && (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))) {
+  if (!isPaidDownloadScope(downloadPackage.scope) && (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))) {
     throw new Error("Downloads sind für diese Galerie derzeit deaktiviert.");
   }
 
@@ -1203,6 +1251,7 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[], 
       fileSize: true,
       gallery: {
         select: {
+          id: true,
           title: true,
           customer: {
             select: {
@@ -1309,14 +1358,31 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[], 
             }
           : {
               status: "email_failed",
-            downloadLinkEmailError: "Missing email configuration."
-          }
+              downloadLinkEmailError: "Missing email configuration."
+            }
       });
       const purchaseId = paidPurchaseIdFromScope(sortedPackages[0].scope);
 
       if (purchaseId) {
         await prisma.galleryPurchase.update({
           where: { id: purchaseId },
+          data: sent
+            ? {
+                fulfillmentEmailSentAt: sentAt,
+                fulfillmentError: null
+              }
+            : {
+                fulfillmentError: "Missing email configuration."
+              }
+        });
+      } else if (isPaidDownloadScope(sortedPackages[0].scope)) {
+        await prisma.galleryPurchase.updateMany({
+          where: {
+            galleryId: sortedPackages[0].gallery.id,
+            email,
+            downloadScope: sortedPackages[0].scope,
+            status: "paid"
+          },
           data: sent
             ? {
                 fulfillmentEmailSentAt: sentAt,
@@ -1341,6 +1407,16 @@ export async function sendGalleryDownloadLinksForPackages(packageIds: string[], 
       if (purchaseId) {
         await prisma.galleryPurchase.update({
           where: { id: purchaseId },
+          data: { fulfillmentError: message }
+        });
+      } else if (isPaidDownloadScope(sortedPackages[0].scope)) {
+        await prisma.galleryPurchase.updateMany({
+          where: {
+            galleryId: sortedPackages[0].gallery.id,
+            email,
+            downloadScope: sortedPackages[0].scope,
+            status: "paid"
+          },
           data: { fulfillmentError: message }
         });
       }

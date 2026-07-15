@@ -37,7 +37,8 @@ import {
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
-import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel } from "@/lib/gallery-delivery";
+import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
+import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -101,9 +102,10 @@ function getZipHandoffState(
     r2Key: string | null;
     generatedAt: Date | null;
     updatedAt: Date;
-  }>
+  }>,
+  scope = PUBLIC_DOWNLOAD_SCOPE
 ): { state: ZipHandoffState; detail: string | null } {
-  const publicPackages = packages.filter((downloadPackage) => downloadPackage.scope === PUBLIC_DOWNLOAD_SCOPE);
+  const publicPackages = packages.filter((downloadPackage) => downloadPackage.scope === scope);
   const manualReadyPackage = publicPackages.find(
     (downloadPackage) =>
       downloadPackage.status === "completed" &&
@@ -415,14 +417,15 @@ export default async function GalleryDetailPage({
     new Set(gallery.favoriteLists.flatMap((list) => list.items.map((item) => item.photo.id)))
   );
   const submittedListCount = gallery.favoriteLists.filter((list) => list.submittedAt).length;
+  const paidGallery = galleryDeliveryUsesPayment(gallery.deliveryMode);
+  const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
   const canPrepareZip =
-    gallery.downloadsEnabled &&
-    galleryDeliveryAllowsDownloads(gallery.deliveryMode) &&
+    (paidGallery || (gallery.downloadsEnabled && galleryDeliveryAllowsDownloads(gallery.deliveryMode))) &&
     gallery.photos.length > 0 &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
-  const publicDownloadPackages = gallery.downloadPackages.filter((downloadPackage) => downloadPackage.scope === PUBLIC_DOWNLOAD_SCOPE);
-  const publicDownloadEntries = gallery.downloads.filter((download) => !download.package || download.package.scope === PUBLIC_DOWNLOAD_SCOPE);
-  const zipHandoff = getZipHandoffState(publicDownloadPackages);
+  const publicDownloadPackages = gallery.downloadPackages.filter((downloadPackage) => downloadPackage.scope === activeDownloadScope);
+  const publicDownloadEntries = gallery.downloads.filter((download) => !download.package || download.package.scope === activeDownloadScope);
+  const zipHandoff = getZipHandoffState(publicDownloadPackages, activeDownloadScope);
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({

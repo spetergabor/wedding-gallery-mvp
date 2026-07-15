@@ -43,6 +43,7 @@ import {
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
 import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery-sales";
+import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
@@ -2793,7 +2794,9 @@ async function getManualZipGalleryState(galleryId: string) {
     return { ok: false as const, reason: "not-active" };
   }
 
-  if (!galleryWithPhotos.downloadsEnabled || !galleryDeliveryAllowsDownloads(galleryWithPhotos.deliveryMode)) {
+  const paidGallery = galleryDeliveryUsesPayment(galleryWithPhotos.deliveryMode);
+
+  if (!paidGallery && (!galleryWithPhotos.downloadsEnabled || !galleryDeliveryAllowsDownloads(galleryWithPhotos.deliveryMode))) {
     return { ok: false as const, reason: "downloads-disabled" };
   }
 
@@ -2811,6 +2814,7 @@ async function getManualZipGalleryState(galleryId: string) {
   return {
     ok: true as const,
     gallery: galleryWithPhotos,
+    downloadScope: paidGallery ? paidGalleryScope(galleryWithPhotos.id) : PUBLIC_DOWNLOAD_SCOPE,
     photoCount: galleryWithPhotos.photos.length
   };
 }
@@ -3115,7 +3119,7 @@ export async function completeManualGalleryZipUploadAction(
   const downloadPackage = await prisma.galleryDownloadPackage.create({
     data: {
       galleryId,
-      scope: PUBLIC_DOWNLOAD_SCOPE,
+      scope: state.downloadScope,
       status: "completed",
       photoCount: state.photoCount,
       processedCount: state.photoCount,
@@ -3137,7 +3141,7 @@ export async function completeManualGalleryZipUploadAction(
   await prisma.galleryDownloadPackage.updateMany({
     where: {
       galleryId,
-      scope: PUBLIC_DOWNLOAD_SCOPE,
+      scope: state.downloadScope,
       id: { not: downloadPackage.id },
       status: { in: ["pending", "processing", "completed", "failed"] }
     },

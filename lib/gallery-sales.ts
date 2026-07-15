@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
 import { createZipPartRanges, enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
 import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
-import { paidPurchaseScope } from "@/lib/gallery-sales-shared";
+import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { retrieveConnectedCheckoutSession, type StripeCheckoutSession } from "@/lib/stripe-connect";
 
 export const GALLERY_PURCHASE_PENDING = "pending";
@@ -89,7 +89,7 @@ export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: Ga
     throw new Error("Gallery does not contain downloadable photos.");
   }
 
-  const scope = purchase.downloadScope ?? paidPurchaseScope(purchase.id);
+  const scope = purchase.downloadScope ?? paidGalleryScope(purchase.gallery.id);
   const existingPackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId: purchase.gallery.id,
@@ -112,7 +112,7 @@ export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: Ga
   if (packages.length === 0) {
     const ranges = createZipPartRanges(purchase.gallery.photos, normalizedQuality);
     const partCount = ranges.length;
-    const groupId = partCount > 1 ? purchase.id : null;
+    const groupId = partCount > 1 ? scope : null;
 
     packages = await prisma.$transaction(
       ranges.map((range, partIndex) =>
@@ -271,7 +271,7 @@ export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: 
       return { ok: false as const, paid: false as const, reason: syncResult.reason };
     }
   } else {
-    const scope = purchase.downloadScope ?? paidPurchaseScope(purchase.id);
+    const scope = purchase.downloadScope ?? paidGalleryScope(galleryId);
     const existingPackage = await prisma.galleryDownloadPackage.findFirst({
       where: {
         galleryId,
@@ -305,6 +305,6 @@ export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: 
     paid: true as const,
     purchaseId: fulfilledPurchase.id,
     email: fulfilledPurchase.email,
-    scope: fulfilledPurchase.downloadScope ?? paidPurchaseScope(fulfilledPurchase.id)
+    scope: fulfilledPurchase.downloadScope ?? paidGalleryScope(galleryId)
   };
 }
