@@ -44,7 +44,9 @@ function createWatermarkSvg({
   const shortestSide = Math.max(1, Math.min(width, height));
   const fontSize = Math.round(clamp(shortestSide / 14, 24, 86));
   const letterSpacing = Math.round(clamp(fontSize * 0.18, 4, 14));
-  const normalizedOpacity = clamp(opacity, 8, 70) / 100;
+  const normalizedOpacity = clamp(opacity, 38, 78) / 100;
+  const strokeWidth = Math.max(1, Math.round(fontSize * 0.045));
+  const strokeOpacity = clamp(normalizedOpacity * 0.9, 0.28, 0.55);
   const textAttributes = [
     `font-family="Arial, Helvetica, sans-serif"`,
     `font-size="${fontSize}"`,
@@ -52,6 +54,10 @@ function createWatermarkSvg({
     `letter-spacing="${letterSpacing}"`,
     `fill="#ffffff"`,
     `fill-opacity="${normalizedOpacity}"`,
+    `stroke="#111111"`,
+    `stroke-opacity="${strokeOpacity}"`,
+    `stroke-width="${strokeWidth}"`,
+    `paint-order="stroke fill"`,
     `text-anchor="middle"`,
     `dominant-baseline="middle"`,
     `filter="url(#shadow)"`
