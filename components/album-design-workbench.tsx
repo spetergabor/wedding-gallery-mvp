@@ -163,18 +163,24 @@ export function AlbumDesignWorkbench({
   designId,
   spreads,
   sourcePhotos,
-  initialEditorOpen = false
+  initialEditorOpen = false,
+  initialActiveSpreadId = null
 }: {
   customerId: string | null;
   designId: string;
   spreads: AlbumSpread[];
   sourcePhotos: FavoritePhoto[];
   initialEditorOpen?: boolean;
+  initialActiveSpreadId?: string | null;
 }) {
   const orderedSpreads = useMemo(() => [...spreads].sort((left, right) => left.sortOrder - right.sortOrder), [spreads]);
+  const resolvedInitialActiveSpreadId =
+    initialActiveSpreadId && orderedSpreads.some((spread) => spread.id === initialActiveSpreadId)
+      ? initialActiveSpreadId
+      : orderedSpreads[0]?.id ?? "";
   const [isEditorOpen, setIsEditorOpen] = useState(initialEditorOpen);
   const [draftItemsBySpread, setDraftItemsBySpread] = useState<Record<string, SpreadItem[]>>(() => createDraftMap(spreads));
-  const [activeSpreadId, setActiveSpreadId] = useState(() => orderedSpreads[0]?.id ?? "");
+  const [activeSpreadId, setActiveSpreadId] = useState(() => resolvedInitialActiveSpreadId);
   const [selectedSlotBySpread, setSelectedSlotBySpread] = useState<Record<string, number>>(() =>
     Object.fromEntries(spreads.map((spread) => [spread.id, getOrderedItems(spread)[0]?.slotIndex ?? 0]))
   );
@@ -232,6 +238,14 @@ export function AlbumDesignWorkbench({
       setIsEditorOpen(true);
     }
   }, [initialEditorOpen]);
+
+  useEffect(() => {
+    if (!initialActiveSpreadId || !orderedSpreads.some((spread) => spread.id === initialActiveSpreadId)) {
+      return;
+    }
+
+    setActiveSpreadId(initialActiveSpreadId);
+  }, [initialActiveSpreadId, orderedSpreads]);
 
   useEffect(() => {
     workbenchZoomRef.current = workbenchZoom;

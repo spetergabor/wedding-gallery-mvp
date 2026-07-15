@@ -141,8 +141,10 @@ function albumDesignRedirectPath(customerId: string | null | undefined, query = 
   return `${basePath}${customerId ? "&" : "?"}${query}`;
 }
 
-function albumDesignEditorRedirectQuery(designId: string, query: string) {
-  return `${query}&albumWorkspace=projects&albumDesignId=${designId}&albumEditor=1`;
+function albumDesignEditorRedirectQuery(designId: string, query: string, activeSpreadId?: string | null) {
+  const activeSpreadQuery = activeSpreadId ? `&albumActiveSpread=${encodeURIComponent(activeSpreadId)}` : "";
+
+  return `${query}&albumWorkspace=projects&albumDesignId=${designId}&albumEditor=1${activeSpreadQuery}`;
 }
 
 function revalidateAlbumDesignPaths(customerId: string | null | undefined) {
@@ -515,7 +517,7 @@ export async function createAlbumDesignSpreadAction(customerId: string | null, d
   });
   const sortOrder = (latestSpread?.sortOrder ?? 0) + 1;
 
-  await prisma.albumDesignSpread.create({
+  const spread = await prisma.albumDesignSpread.create({
     data: {
       designId: design.id,
       title: `Oldalpár ${sortOrder}`,
@@ -528,7 +530,7 @@ export async function createAlbumDesignSpreadAction(customerId: string | null, d
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadCreated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadCreated=1", spread.id)));
 }
 
 export async function createEmptyAlbumDesignSpreadAction(customerId: string | null, designId: string) {
@@ -546,7 +548,7 @@ export async function createEmptyAlbumDesignSpreadAction(customerId: string | nu
   });
   const sortOrder = (latestSpread?.sortOrder ?? 0) + 1;
 
-  await prisma.albumDesignSpread.create({
+  const spread = await prisma.albumDesignSpread.create({
     data: {
       designId: design.id,
       title: `Oldalpár ${sortOrder}`,
@@ -556,7 +558,7 @@ export async function createEmptyAlbumDesignSpreadAction(customerId: string | nu
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadCreated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadCreated=1", spread.id)));
 }
 
 export async function createAutoAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
@@ -592,7 +594,7 @@ export async function createAutoAlbumDesignSpreadAction(customerId: string | nul
   });
   const sortOrder = (latestSpread?.sortOrder ?? 0) + 1;
 
-  await prisma.albumDesignSpread.create({
+  const spread = await prisma.albumDesignSpread.create({
     data: {
       designId: design.id,
       title: `Oldalpár ${sortOrder}`,
@@ -605,7 +607,7 @@ export async function createAutoAlbumDesignSpreadAction(customerId: string | nul
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadAutoCreated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadAutoCreated=1", spread.id)));
 }
 
 export async function updateAlbumDesignSpreadAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
@@ -647,7 +649,7 @@ export async function updateAlbumDesignSpreadAction(customerId: string | null, d
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadUpdated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadUpdated=1", spread.id)));
 }
 
 export async function updateAlbumDesignSpreadLayoutOnlyAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
@@ -699,7 +701,7 @@ export async function updateAlbumDesignSpreadLayoutOnlyAction(customerId: string
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadUpdated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadUpdated=1", spread.id)));
 }
 
 export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string | null, designId: string, spreadId: string) {
@@ -747,7 +749,7 @@ export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadRegenerated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadRegenerated=1", spread.id)));
 }
 
 export async function exportAlbumDesignToReviewAction(customerId: string | null, designId: string) {
@@ -963,7 +965,7 @@ export async function updateAlbumDesignSpreadSlotAction(customerId: string | nul
   }
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1", spread.id)));
 }
 
 export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | null, designId: string, spreadId: string, formData: FormData) {
@@ -1018,7 +1020,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1", spread.id)));
 }
 
 export async function saveAlbumDesignSpreadDraftsAction(customerId: string | null, designId: string, formData: FormData) {
@@ -1104,7 +1106,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
   );
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1", draftSpreadIds.at(-1) ?? null)));
 }
 
 export async function deleteAlbumDesignAction(customerId: string | null, designId: string) {
@@ -1154,17 +1156,35 @@ export async function deleteAlbumDesignSpreadAction(customerId: string | null, d
       id: spreadId,
       designId: design.id
     },
-    select: { id: true }
+    select: { id: true, sortOrder: true }
   });
 
   if (!spread) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
   }
 
+  const fallbackSpread = await prisma.albumDesignSpread.findFirst({
+    where: {
+      designId: design.id,
+      id: { not: spread.id },
+      sortOrder: { gt: spread.sortOrder }
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: { id: true }
+  }) ?? await prisma.albumDesignSpread.findFirst({
+    where: {
+      designId: design.id,
+      id: { not: spread.id },
+      sortOrder: { lt: spread.sortOrder }
+    },
+    orderBy: [{ sortOrder: "desc" }, { createdAt: "desc" }],
+    select: { id: true }
+  });
+
   await prisma.albumDesignSpread.delete({
     where: { id: spread.id }
   });
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadDeleted=1")));
+  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadDeleted=1", fallbackSpread?.id ?? null)));
 }

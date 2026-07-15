@@ -263,7 +263,8 @@ export function AlbumDesignManager({
   customers = [],
   workspaceView = "projects",
   activeDesignId = null,
-  initialEditorOpen = false
+  initialEditorOpen = false,
+  activeSpreadId = null
 }: {
   customerId: string | null;
   favoriteLists: FavoriteList[];
@@ -274,6 +275,7 @@ export function AlbumDesignManager({
   workspaceView?: "projects" | "new";
   activeDesignId?: string | null;
   initialEditorOpen?: boolean;
+  activeSpreadId?: string | null;
 }) {
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const standaloneMode = !customerId;
@@ -623,6 +625,7 @@ export function AlbumDesignManager({
                       spreads={design.spreads}
                       sourcePhotos={sourcePhotos}
                       initialEditorOpen={initialEditorOpen && design.id === selectedDesign?.id}
+                      initialActiveSpreadId={design.id === selectedDesign?.id ? activeSpreadId : null}
                     />
                   </div>
                 ) : null}
