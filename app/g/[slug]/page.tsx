@@ -11,7 +11,7 @@ import {
   PROOFING_STATUS_DELIVERED,
   isProofingGallery
 } from "@/lib/proofing";
-import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
+import { canViewGallery, getPaidGalleryPurchaseDownloadState, unlockGalleryAction } from "@/lib/public-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
@@ -159,9 +159,15 @@ export default async function PublicGalleryPage({
     { href: settings?.tiktokUrl ?? "", label: "TikTok", icon: Music2, external: true },
     { href: settings?.youtubeUrl ?? "", label: "YouTube", icon: Youtube, external: true }
   ].filter((link) => link.href);
+  const paidPurchaseDownloadState =
+    paidGallery && flags.session_id
+      ? await getPaidGalleryPurchaseDownloadState(gallery.id, flags.session_id)
+      : null;
   const paidAccessPurchase =
     paidGallery && flags.session_id
-      ? await prisma.galleryPurchase.findFirst({
+      ? paidPurchaseDownloadState?.paid
+        ? { id: paidPurchaseDownloadState.packageId ?? flags.session_id }
+        : await prisma.galleryPurchase.findFirst({
           where: {
             galleryId: gallery.id,
             stripeCheckoutSessionId: flags.session_id,
@@ -373,7 +379,9 @@ export default async function PublicGalleryPage({
                     priceCents: gallery.salePriceCents,
                     currency: gallery.saleCurrency,
                     priceLabel: formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency, dateLocaleForCustomer(language)),
-                    purchaseStatus: flags.purchase ?? null
+                    purchaseStatus: flags.purchase ?? null,
+                    purchaseSessionId: flags.session_id ?? null,
+                    purchaseDownload: paidPurchaseDownloadState?.paid ? paidPurchaseDownloadState : null
                   }
                 : null
             }

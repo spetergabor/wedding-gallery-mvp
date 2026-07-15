@@ -10,6 +10,7 @@ import {
   createFavoriteListAction,
   getFavoriteListsAction,
   getGalleryDownloadPackageAction,
+  getPaidGalleryPurchaseDownloadState,
   requestGalleryDownloadPackageAction,
   submitFavoriteListAction,
   toggleFavoritePhotoAction
@@ -103,7 +104,12 @@ const GALLERY_COPY = {
     paidSecure: "Sichere Zahlung über Stripe. Der Fotograf erhält die Zahlung direkt über sein eigenes Stripe-Konto.",
     paidSuccess: "Zahlung erhalten. Die Download-Links werden vorbereitet und per E-Mail gesendet.",
     paidCancelled: "Die Zahlung wurde abgebrochen. Du kannst den Kauf jederzeit erneut starten.",
-    paidError: "Der Kauf konnte nicht gestartet werden. Bitte versuche es später erneut."
+    paidError: "Der Kauf konnte nicht gestartet werden. Bitte versuche es später erneut.",
+    paidDownloadReady: "Dein Download ist bereit. Wir schicken den Link zusätzlich per E-Mail.",
+    paidDownloadPreparing: "Dein Download wird vorbereitet. Diese Seite aktualisiert den Status automatisch, und du bekommst den Link per E-Mail.",
+    paidDownloadFailed: "Der Download konnte nicht vorbereitet werden. Bitte kontaktiere den Fotografen.",
+    paidDownloadButton: "Galerie herunterladen",
+    paidDownloadPartButton: (part: number, total: number) => `Teil ${part}/${total} herunterladen`
   },
   hu: {
     selection: "Képválogatás",
@@ -188,7 +194,12 @@ const GALLERY_COPY = {
     paidSecure: "Biztonságos fizetés Stripe-on keresztül. A fizetés közvetlenül a fotós saját Stripe fiókjához kapcsolódik.",
     paidSuccess: "A fizetés sikeres. A letöltési linkeket előkészítjük és e-mailben elküldjük.",
     paidCancelled: "A fizetés megszakadt. A vásárlást bármikor újraindíthatod.",
-    paidError: "A vásárlást nem sikerült elindítani. Próbáld újra később."
+    paidError: "A vásárlást nem sikerült elindítani. Próbáld újra később.",
+    paidDownloadReady: "A letöltés készen van. A linket e-mailben is elküldjük.",
+    paidDownloadPreparing: "A letöltés előkészítés alatt van. Ez az oldal automatikusan frissíti az állapotot, és e-mailben is megkapod a linket.",
+    paidDownloadFailed: "A letöltést nem sikerült előkészíteni. Kérlek, vedd fel a kapcsolatot a fotóssal.",
+    paidDownloadButton: "Galéria letöltése",
+    paidDownloadPartButton: (part: number, total: number) => `${part}/${total}. rész letöltése`
   }
 } as const;
 
@@ -216,20 +227,6 @@ type PublicPhotoItem = {
   index: number;
 };
 
-type GallerySaleSettings = {
-  priceCents: number;
-  currency: string;
-  priceLabel: string;
-  purchaseStatus?: string | null;
-};
-
-type FavoriteListState = {
-  id: string;
-  name: string;
-  submittedAt: string | null;
-  photoIds: string[];
-};
-
 type DownloadPackageStatus = "pending" | "processing" | "completed" | "failed";
 
 type DownloadPackageLink = {
@@ -238,6 +235,33 @@ type DownloadPackageLink = {
   filename: string;
   partIndex: number;
   partCount: number;
+};
+
+type PaidGalleryDownloadState = {
+  ok: boolean;
+  paid: boolean;
+  message: string;
+  status: DownloadPackageStatus | string;
+  packageId: string | null;
+  downloadUrl: string | null;
+  filename: string | null;
+  packages: DownloadPackageLink[];
+};
+
+type GallerySaleSettings = {
+  priceCents: number;
+  currency: string;
+  priceLabel: string;
+  purchaseStatus?: string | null;
+  purchaseSessionId?: string | null;
+  purchaseDownload?: PaidGalleryDownloadState | null;
+};
+
+type FavoriteListState = {
+  id: string;
+  name: string;
+  submittedAt: string | null;
+  photoIds: string[];
 };
 
 function photoFileName(photo: PublicPhoto, index: number) {
@@ -417,6 +441,7 @@ export function PublicGallery({
   const [zipPackageId, setZipPackageId] = useState<string | null>(null);
   const [zipPackageStatus, setZipPackageStatus] = useState<DownloadPackageStatus | null>(null);
   const [zipDownloadLinks, setZipDownloadLinks] = useState<DownloadPackageLink[]>([]);
+  const [paidDownloadState, setPaidDownloadState] = useState<PaidGalleryDownloadState | null>(sale?.purchaseDownload ?? null);
   const [favoriteEmail, setFavoriteEmail] = useState("");
   const [favoriteEmailDraft, setFavoriteEmailDraft] = useState("");
   const [favoriteLists, setFavoriteLists] = useState<FavoriteListState[]>([]);
@@ -543,6 +568,41 @@ export function PublicGallery({
       setShowFavoritesOnly(false);
     }
   }, [favoriteCount, favoritesEnabled, showFavoritesOnly]);
+
+  useEffect(() => {
+    setPaidDownloadState(sale?.purchaseDownload ?? null);
+  }, [sale?.purchaseDownload]);
+
+  useEffect(() => {
+    if (!paidGallery || !sale?.purchaseSessionId || !paidDownloadState?.paid) {
+      return;
+    }
+
+    if (paidDownloadState.status === "completed" || paidDownloadState.status === "failed") {
+      return;
+    }
+
+    let isMounted = true;
+    const sessionId = sale.purchaseSessionId;
+
+    async function refreshPaidDownloadState() {
+      const result = await getPaidGalleryPurchaseDownloadState(galleryId, sessionId);
+
+      if (!isMounted) {
+        return;
+      }
+
+      setPaidDownloadState(result as PaidGalleryDownloadState);
+    }
+
+    const interval = window.setInterval(refreshPaidDownloadState, 4000);
+    void refreshPaidDownloadState();
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, [galleryId, paidDownloadState?.paid, paidDownloadState?.status, paidGallery, sale?.purchaseSessionId]);
 
   useEffect(() => {
     if (selectedIndex !== null && selectedIndex >= visiblePhotos.length) {
@@ -1028,6 +1088,67 @@ export function PublicGallery({
     });
   }
 
+  function renderPaidDownloadStatus() {
+    if (!sale?.purchaseSessionId || sale.purchaseStatus !== "success") {
+      return null;
+    }
+
+    const state = paidDownloadState;
+    const paidLinks =
+      state?.packages?.length
+        ? state.packages
+        : state?.downloadUrl
+          ? [
+              {
+                id: "paid-download",
+                downloadUrl: state.downloadUrl,
+                filename: state.filename ?? "gallery.zip",
+                partIndex: 0,
+                partCount: 1
+              }
+            ]
+          : [];
+    const isReady = state?.status === "completed" && paidLinks.length > 0;
+    const isFailed = state?.status === "failed";
+
+    return (
+      <div
+        className={`mt-4 rounded-md border px-3 py-3 text-sm ${
+          isFailed
+            ? "border-red-200 bg-red-50 text-red-700"
+            : isReady
+              ? "border-sage/20 bg-sage/10 text-sage"
+              : "border-ink/10 bg-paper text-graphite"
+        }`}
+      >
+        <p className="font-medium">
+          {isFailed
+            ? copy.paidDownloadFailed
+            : isReady
+              ? copy.paidDownloadReady
+              : copy.paidDownloadPreparing}
+        </p>
+        {isReady ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {paidLinks.map((downloadPackage) => (
+              <a
+                key={downloadPackage.id}
+                href={downloadPackage.downloadUrl}
+                download={downloadPackage.filename}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-graphite"
+              >
+                <Download size={16} />
+                {downloadPackage.partCount > 1
+                  ? copy.paidDownloadPartButton(downloadPackage.partIndex + 1, downloadPackage.partCount)
+                  : copy.paidDownloadButton}
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   function renderVideoItem({ photo, index }: PublicPhotoItem) {
     return (
       <div
@@ -1258,6 +1379,7 @@ export function PublicGallery({
                     {purchaseNotice.text}
                   </p>
                 ) : null}
+                {renderPaidDownloadStatus()}
               </div>
               <form action={createPaidGalleryCheckoutAction} className="rounded-md border border-ink/10 bg-paper p-4">
                 <input type="hidden" name="galleryId" value={galleryId} />

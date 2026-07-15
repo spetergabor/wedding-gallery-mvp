@@ -12,6 +12,7 @@ import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
+import { ensurePaidGalleryPurchaseFulfillmentForSession } from "@/lib/gallery-sales";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -548,6 +549,173 @@ export async function getGalleryDownloadPackageAction(packageId: string) {
     filename: galleryZipFileName(downloadPackage.gallery.title, undefined, undefined, publicDownloadQualityFromScope(downloadPackage.scope)),
     packages: []
   };
+}
+
+export async function getPaidGalleryPurchaseDownloadState(galleryId: string, sessionId: string) {
+  const normalizedSessionId = sessionId.trim();
+
+  if (!galleryId || !normalizedSessionId) {
+    return {
+      ok: false,
+      paid: false,
+      message: "Der Kauf konnte nicht zugeordnet werden.",
+      status: "failed",
+      packageId: null,
+      downloadUrl: null,
+      filename: null,
+      packages: []
+    };
+  }
+
+  try {
+    const fulfillment = await ensurePaidGalleryPurchaseFulfillmentForSession(galleryId, normalizedSessionId);
+
+    if (!fulfillment.ok) {
+      return {
+        ok: false,
+        paid: false,
+        message: "Die Zahlung ist noch nicht bestätigt. Bitte lade die Seite in einem Moment neu.",
+        status: "failed",
+        packageId: null,
+        downloadUrl: null,
+        filename: null,
+        packages: []
+      };
+    }
+
+    const gallery = await prisma.gallery.findUnique({
+      where: { id: galleryId },
+      select: { title: true }
+    });
+
+    if (!gallery) {
+      return {
+        ok: false,
+        paid: true,
+        message: "Die Galerie konnte nicht gefunden werden.",
+        status: "failed",
+        packageId: null,
+        downloadUrl: null,
+        filename: null,
+        packages: []
+      };
+    }
+
+    const packages = await prisma.galleryDownloadPackage.findMany({
+      where: {
+        galleryId,
+        scope: fulfillment.scope,
+        status: { in: ["pending", "processing", "completed", "failed"] }
+      },
+      orderBy: [{ partIndex: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        status: true,
+        downloadUrl: true,
+        errorMessage: true,
+        partIndex: true,
+        partCount: true
+      }
+    });
+
+    if (packages.length === 0) {
+      return {
+        ok: true,
+        paid: true,
+        message: "Das Download-Paket wird vorbereitet. Du bekommst den Link zusätzlich per E-Mail.",
+        status: "pending",
+        packageId: null,
+        downloadUrl: null,
+        filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
+        packages: []
+      };
+    }
+
+    const packageIds = packages.map((downloadPackage) => downloadPackage.id);
+    const existingDownloads = await prisma.galleryDownload.findMany({
+      where: {
+        galleryId,
+        packageId: { in: packageIds },
+        email: fulfillment.email
+      },
+      select: { packageId: true }
+    });
+    const existingDownloadPackageIds = new Set(existingDownloads.map((download) => download.packageId).filter(Boolean));
+    const missingDownloadPackageIds = packageIds.filter((packageId) => !existingDownloadPackageIds.has(packageId));
+
+    if (missingDownloadPackageIds.length > 0) {
+      await prisma.galleryDownload.createMany({
+        data: missingDownloadPackageIds.map((packageId) => ({
+          galleryId,
+          packageId,
+          email: fulfillment.email,
+          status: "waiting"
+        }))
+      });
+    }
+
+    const failedPackage = packages.find((downloadPackage) => downloadPackage.status === "failed");
+
+    if (failedPackage) {
+      return {
+        ok: false,
+        paid: true,
+        message: failedPackage.errorMessage || "Die ZIP-Datei konnte nicht erstellt werden.",
+        status: "failed",
+        packageId: failedPackage.id,
+        downloadUrl: null,
+        filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
+        packages: []
+      };
+    }
+
+    if (isCompletePackageSet(packages)) {
+      const packageLinks = await publicDownloadPackageLinks(packages, gallery.title, DEFAULT_GALLERY_DOWNLOAD_QUALITY);
+
+      await sendGalleryDownloadLinksForPackages(packageIds);
+
+      return {
+        ok: true,
+        paid: true,
+        message: "Die Download-Links sind bereit und wurden zusätzlich per E-Mail gesendet.",
+        status: "completed",
+        packageId: packages[0]?.id ?? null,
+        downloadUrl: packageLinks[0]?.downloadUrl ?? null,
+        filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
+        packages: packageLinks
+      };
+    }
+
+    const packageStatus = packages.some((downloadPackage) => downloadPackage.status === "processing") ? "processing" : "pending";
+
+    return {
+      ok: true,
+      paid: true,
+      message: "Das Download-Paket wird vorbereitet. Du bekommst den Link zusätzlich per E-Mail.",
+      status: packageStatus,
+      packageId: packages[0]?.id ?? null,
+      downloadUrl: null,
+      filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
+      packages: []
+    };
+  } catch (error) {
+    console.error("Paid gallery download state failed", {
+      galleryId,
+      sessionId: normalizedSessionId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+
+    return {
+      ok: false,
+      paid: false,
+      message: "Der Kauf konnte gerade nicht geprüft werden. Bitte versuche es später erneut.",
+      status: "failed",
+      packageId: null,
+      downloadUrl: null,
+      filename: null,
+      packages: []
+    };
+  }
 }
 
 export async function recordGalleryViewAction(galleryId: string) {

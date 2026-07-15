@@ -3,7 +3,7 @@ import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type
 import { createZipPartRanges, enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
 import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { paidPurchaseScope } from "@/lib/gallery-sales-shared";
-import type { StripeCheckoutSession } from "@/lib/stripe-connect";
+import { retrieveConnectedCheckoutSession, type StripeCheckoutSession } from "@/lib/stripe-connect";
 
 export const GALLERY_PURCHASE_PENDING = "pending";
 export const GALLERY_PURCHASE_PAID = "paid";
@@ -242,4 +242,69 @@ export async function markPaidGalleryPurchaseFromCheckoutSession(session: Stripe
   await fulfillPaidGalleryPurchase(purchase.id);
 
   return { ok: true as const, purchaseId: purchase.id };
+}
+
+export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: string, sessionId: string) {
+  const purchase = await prisma.galleryPurchase.findFirst({
+    where: {
+      galleryId,
+      stripeCheckoutSessionId: sessionId
+    },
+    select: {
+      id: true,
+      email: true,
+      status: true,
+      stripeAccountId: true,
+      downloadScope: true
+    }
+  });
+
+  if (!purchase) {
+    return { ok: false as const, paid: false as const, reason: "purchase-not-found" };
+  }
+
+  if (purchase.status !== GALLERY_PURCHASE_PAID) {
+    const session = await retrieveConnectedCheckoutSession(purchase.stripeAccountId, sessionId);
+    const syncResult = await markPaidGalleryPurchaseFromCheckoutSession(session, purchase.stripeAccountId);
+
+    if (!syncResult.ok) {
+      return { ok: false as const, paid: false as const, reason: syncResult.reason };
+    }
+  } else {
+    const scope = purchase.downloadScope ?? paidPurchaseScope(purchase.id);
+    const existingPackage = await prisma.galleryDownloadPackage.findFirst({
+      where: {
+        galleryId,
+        scope,
+        status: { in: ["pending", "processing", "completed", "failed"] }
+      },
+      select: { id: true }
+    });
+
+    if (!existingPackage) {
+      await fulfillPaidGalleryPurchase(purchase.id);
+    }
+  }
+
+  const fulfilledPurchase = await prisma.galleryPurchase.findUnique({
+    where: { id: purchase.id },
+    select: {
+      id: true,
+      email: true,
+      status: true,
+      downloadScope: true
+    }
+  });
+
+  if (!fulfilledPurchase || fulfilledPurchase.status !== GALLERY_PURCHASE_PAID) {
+    return { ok: false as const, paid: false as const, reason: "not-paid" };
+  }
+
+  return {
+    ok: true as const,
+    paid: true as const,
+    purchaseId: fulfilledPurchase.id,
+    email: fulfilledPurchase.email,
+    scope: fulfilledPurchase.downloadScope ?? paidPurchaseScope(fulfilledPurchase.id)
+  };
 }
