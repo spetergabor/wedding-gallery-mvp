@@ -18,13 +18,77 @@ function normalizeWatermarkPosition(value: string | null | undefined): GalleryWa
   return value === "bottom_left" || value === "bottom_right" || value === "tile" ? value : "center";
 }
 
-function escapeSvgText(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+const VECTOR_GLYPHS: Record<string, string> = {
+  E: "M76 8H10V96H76M10 52H64",
+  I: "M10 8H76M43 8V96M10 96H76",
+  P: "M10 96V8H50C70 8 78 18 78 35C78 52 68 62 50 62H10",
+  R: "M10 96V8H50C70 8 78 18 78 35C78 52 68 62 50 62H10M45 62L80 96",
+  V: "M8 8L43 96L78 8",
+  W: "M6 8L20 96L43 38L66 96L80 8"
+};
+
+const VECTOR_GLYPH_WIDTH = 86;
+const VECTOR_GLYPH_HEIGHT = 104;
+const VECTOR_GLYPH_ADVANCE = 96;
+
+function normalizeVectorWatermarkText(value: string) {
+  const supportedText = value
+    .trim()
+    .toUpperCase()
+    .split("")
+    .filter((letter) => VECTOR_GLYPHS[letter])
+    .join("");
+
+  return supportedText || "PREVIEW";
+}
+
+function vectorWordWidth(word: string) {
+  return Math.max(VECTOR_GLYPH_WIDTH, (word.length - 1) * VECTOR_GLYPH_ADVANCE + VECTOR_GLYPH_WIDTH);
+}
+
+function createVectorWatermarkWord({
+  word,
+  x,
+  y,
+  scale,
+  rotate,
+  opacity,
+  strokeOpacity,
+  strokeWidth
+}: {
+  word: string;
+  x: number;
+  y: number;
+  scale: number;
+  rotate: number;
+  opacity: number;
+  strokeOpacity: number;
+  strokeWidth: number;
+}) {
+  const glyphs = word
+    .split("")
+    .map((letter, index) => {
+      const path = VECTOR_GLYPHS[letter];
+
+      if (!path) {
+        return "";
+      }
+
+      return `<path d="${path}" transform="translate(${index * VECTOR_GLYPH_ADVANCE} 0)"/>`;
+    })
+    .join("\n");
+  const wordWidth = vectorWordWidth(word);
+  const underlayStroke = Math.round(strokeWidth * 2.8);
+  const highlightStroke = Math.round(strokeWidth * 1.35);
+
+  return `<g transform="translate(${x} ${y}) rotate(${rotate}) scale(${scale}) translate(${-wordWidth / 2} ${-VECTOR_GLYPH_HEIGHT / 2})">
+    <g fill="none" stroke="#111111" stroke-opacity="${strokeOpacity}" stroke-width="${underlayStroke}" stroke-linecap="round" stroke-linejoin="round">
+      ${glyphs}
+    </g>
+    <g fill="none" stroke="#ffffff" stroke-opacity="${opacity}" stroke-width="${highlightStroke}" stroke-linecap="round" stroke-linejoin="round">
+      ${glyphs}
+    </g>
+  </g>`;
 }
 
 function createWatermarkSvg({
@@ -40,29 +104,14 @@ function createWatermarkSvg({
   position: GalleryWatermarkPosition;
   opacity: number;
 }) {
-  const escapedText = escapeSvgText(text);
+  const watermarkText = normalizeVectorWatermarkText(text);
   const shortestSide = Math.max(1, Math.min(width, height));
-  const fontSize = Math.round(clamp(shortestSide / 8, 42, 138));
-  const letterSpacing = Math.round(clamp(fontSize * 0.08, 2, 10));
+  const markHeight = Math.round(clamp(shortestSide / 6.6, 82, 150));
+  const markScale = markHeight / VECTOR_GLYPH_HEIGHT;
   const normalizedOpacity = clamp(opacity, 58, 86) / 100;
-  const strokeWidth = Math.max(2, Math.round(fontSize * 0.06));
+  const strokeWidth = Math.max(5, Math.round(markHeight * 0.08));
   const strokeOpacity = clamp(normalizedOpacity * 0.95, 0.44, 0.76);
   const bandOpacity = clamp(normalizedOpacity * 0.18, 0.12, 0.22);
-  const textAttributes = [
-    `font-family="DejaVu Sans, Liberation Sans, Helvetica, sans-serif"`,
-    `font-size="${fontSize}"`,
-    `font-weight="800"`,
-    `letter-spacing="${letterSpacing}"`,
-    `fill="#ffffff"`,
-    `fill-opacity="${normalizedOpacity}"`,
-    `stroke="#111111"`,
-    `stroke-opacity="${strokeOpacity}"`,
-    `stroke-width="${strokeWidth}"`,
-    `paint-order="stroke fill"`,
-    `text-anchor="middle"`,
-    `dominant-baseline="middle"`,
-    `filter="url(#shadow)"`
-  ].join(" ");
   const protectivePattern = `
     <rect width="${width}" height="${height}" fill="url(#diagonalBands)" opacity="${bandOpacity}"/>
     <path d="M ${Math.round(width * 0.08)} ${Math.round(height * 0.12)} L ${Math.round(width * 0.92)} ${Math.round(height * 0.88)} M ${Math.round(width * 0.92)} ${Math.round(height * 0.12)} L ${Math.round(width * 0.08)} ${Math.round(height * 0.88)}"
@@ -84,15 +133,23 @@ function createWatermarkSvg({
     </defs>`;
 
   if (position === "tile") {
-    const spacingX = Math.round(clamp(width / 2.15, 240, 460));
-    const spacingY = Math.round(clamp(height / 2.65, 150, 320));
+    const renderedWordWidth = vectorWordWidth(watermarkText) * markScale;
+    const spacingX = Math.round(clamp(renderedWordWidth * 0.74, 300, 620));
+    const spacingY = Math.round(clamp(markHeight * 2.1, 190, 340));
     const tiles: string[] = [];
 
     for (let y = -Math.round(spacingY / 2); y <= height + spacingY; y += spacingY) {
       for (let x = -Math.round(spacingX / 2); x <= width + spacingX; x += spacingX) {
-        tiles.push(
-          `<text x="${x}" y="${y}" transform="rotate(-24 ${x} ${y})" ${textAttributes}>${escapedText}</text>`
-        );
+        tiles.push(createVectorWatermarkWord({
+          word: watermarkText,
+          x,
+          y,
+          scale: markScale,
+          rotate: -24,
+          opacity: normalizedOpacity,
+          strokeOpacity,
+          strokeWidth
+        }));
       }
     }
 
@@ -103,19 +160,29 @@ function createWatermarkSvg({
     </svg>`;
   }
 
-  const padding = Math.round(fontSize * 0.9);
+  const renderedWordWidth = vectorWordWidth(watermarkText) * markScale;
+  const padding = Math.round(markHeight * 0.9);
   const x =
     position === "bottom_left"
-      ? padding + Math.round(text.length * fontSize * 0.34)
+      ? padding + renderedWordWidth / 2
       : position === "bottom_right"
-        ? width - padding - Math.round(text.length * fontSize * 0.34)
+        ? width - padding - renderedWordWidth / 2
         : width / 2;
   const y = position === "center" ? height / 2 : height - padding;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     ${defs}
     ${protectivePattern}
-    <text x="${x}" y="${y}" ${textAttributes}>${escapedText}</text>
+    ${createVectorWatermarkWord({
+      word: watermarkText,
+      x,
+      y,
+      scale: markScale,
+      rotate: -16,
+      opacity: normalizedOpacity,
+      strokeOpacity,
+      strokeWidth
+    })}
   </svg>`;
 }
 
