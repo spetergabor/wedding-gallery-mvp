@@ -137,6 +137,14 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
     });
     checkoutUrl = session.url;
   } catch (error) {
+    console.error("Paid gallery Stripe Checkout failed", {
+      galleryId: gallery.id,
+      purchaseId: purchase.id,
+      amountCents: gallery.salePriceCents,
+      currency: normalizeSaleCurrency(gallery.saleCurrency),
+      error: error instanceof Error ? error.message : String(error)
+    });
+
     await prisma.galleryPurchase.update({
       where: { id: purchase.id },
       data: {

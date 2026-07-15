@@ -105,7 +105,7 @@ export function isStripeWebhookConfigured() {
 async function stripeRequest<T>(
   path: string,
   params?: URLSearchParams,
-  options: { connectedAccountId?: string } = {}
+  options: { connectedAccountId?: string; stripeVersion?: string } = {}
 ): Promise<T> {
   const secretKey = stripeSecretKey();
 
@@ -118,6 +118,7 @@ async function stripeRequest<T>(
     headers: {
       Authorization: `Bearer ${secretKey}`,
       ...(options.connectedAccountId ? { "Stripe-Account": options.connectedAccountId } : {}),
+      ...(options.stripeVersion ? { "Stripe-Version": options.stripeVersion } : {}),
       ...(params ? { "Content-Type": "application/x-www-form-urlencoded" } : {})
     },
     body: params?.toString(),
@@ -315,7 +316,8 @@ export async function createConnectedCheckoutSession({
   }
 
   return stripeRequest<StripeCheckoutSession>("/v1/checkout/sessions", params, {
-    connectedAccountId: stripeAccountId
+    connectedAccountId: stripeAccountId,
+    stripeVersion: normalizedAmountCents === 0 ? "2023-08-16" : undefined
   });
 }
 
