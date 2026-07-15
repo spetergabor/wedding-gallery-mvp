@@ -171,7 +171,7 @@ export default async function PublicGalleryPage({
         })
       : null;
   const paidPreviewProtected = paidGallery && !paidAccessPurchase;
-  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}`;
+  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}?v=3`;
   const coverPhotoSrc =
     paidPreviewProtected && coverPhoto
       ? protectedPhotoUrl(coverPhoto.id)

@@ -1096,6 +1096,8 @@ export function PublicGallery({
                 width={photo.imageWidth}
                 height={photo.imageHeight}
                 unoptimized
+                draggable={!paidGallery}
+                onDragStart={paidGallery ? (event) => event.preventDefault() : undefined}
                 className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
                 sizes={imageSizes}
               />
@@ -1104,6 +1106,8 @@ export function PublicGallery({
                 src={hasLightweightThumbnail(photo) ? photo.thumbnailUrl : photo.imageUrl}
                 alt={photo.filename}
                 loading="lazy"
+                draggable={!paidGallery}
+                onDragStart={paidGallery ? (event) => event.preventDefault() : undefined}
                 className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
               />
             )}
@@ -1618,7 +1622,10 @@ export function PublicGallery({
       ) : null}
 
       {selectedPhoto ? (
-        <div className="fixed inset-0 z-50 animate-[galleryFadeIn_160ms_ease-out] bg-ink/95 p-4 text-white">
+        <div
+          className="fixed inset-0 z-50 animate-[galleryFadeIn_160ms_ease-out] bg-ink/95 p-4 text-white"
+          onContextMenu={paidGallery ? (event) => event.preventDefault() : undefined}
+        >
           <div className="mb-4 flex items-center justify-between gap-4">
             <p className="truncate text-sm text-white/80">{selectedPhoto.filename}</p>
             <div className="flex items-center gap-2">
@@ -1681,8 +1688,11 @@ export function PublicGallery({
                 src={selectedPhoto.imageUrl}
                 poster={videoPosterUrl(selectedPhoto)}
                 controls
+                controlsList={paidGallery ? "nodownload noplaybackrate" : undefined}
                 autoPlay
                 playsInline
+                draggable={!paidGallery}
+                onDragStart={paidGallery ? (event) => event.preventDefault() : undefined}
                 className="h-full w-full object-contain"
               />
             ) : (
@@ -1692,6 +1702,8 @@ export function PublicGallery({
                   alt={selectedPhoto.filename}
                   fill
                   unoptimized
+                  draggable={!paidGallery}
+                  onDragStart={paidGallery ? (event) => event.preventDefault() : undefined}
                   className="object-contain"
                   sizes="100vw"
                   priority

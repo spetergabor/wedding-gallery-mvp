@@ -99,20 +99,6 @@ export async function GET(
     return plainTextResponse("Image not found.", 404);
   }
 
-  const settings = await prisma.siteSettings.findFirst({
-    where: {
-      OR: [
-        ...(photo.gallery.adminId ? [{ adminId: photo.gallery.adminId }] : []),
-        ...(photo.gallery.adminId ? [] : [{ id: "default" }])
-      ]
-    },
-    select: {
-      businessName: true,
-      galleryWatermarkText: true,
-      galleryWatermarkPosition: true,
-      galleryWatermarkOpacity: true
-    }
-  });
   const sourceUrl = photo.previewUrl || photo.thumbnailUrl || photo.imageUrl;
   const sourceR2Key =
     getR2KeyFromPublicUrl(photo.previewUrl) ??
@@ -126,9 +112,9 @@ export async function GET(
       publicUrl: sourceUrl
     });
     const watermarkedBuffer = await createWatermarkedGalleryPreview(sourceBuffer, {
-      text: settings?.galleryWatermarkText?.trim() || settings?.businessName?.trim() || "Preview",
-      position: settings?.galleryWatermarkPosition ?? "center",
-      opacity: settings?.galleryWatermarkOpacity ?? 38
+      text: "PREVIEW",
+      position: "tile",
+      opacity: 76
     });
 
     const responseBody = new ArrayBuffer(watermarkedBuffer.byteLength);
@@ -136,7 +122,7 @@ export async function GET(
 
     return new NextResponse(responseBody, {
       headers: {
-        "Cache-Control": "public, max-age=3600, s-maxage=86400",
+        "Cache-Control": "public, max-age=300, s-maxage=3600",
         "Content-Disposition": "inline",
         "Content-Type": "image/jpeg",
         "X-Content-Type-Options": "nosniff"
