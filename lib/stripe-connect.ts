@@ -303,9 +303,7 @@ export async function createConnectedCheckoutSession({
   params.set("metadata[galleryId]", galleryId);
   params.set("metadata[adminId]", adminId);
 
-  if (normalizedAmountCents === 0) {
-    params.set("payment_method_collection", "if_required");
-  } else {
+  if (normalizedAmountCents > 0) {
     params.set("payment_intent_data[metadata][purchaseId]", purchaseId);
     params.set("payment_intent_data[metadata][galleryId]", galleryId);
     params.set("payment_intent_data[metadata][adminId]", adminId);
