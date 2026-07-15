@@ -526,6 +526,7 @@ export function PublicGallery({
     : 0;
   const cartTotalLabel = sale ? formatSaleMoney(cartTotalCents, sale.currency, locale) : "";
   const unitPriceLabel = sale ? formatSaleMoney(sale.unitPriceCents, sale.currency, locale) : "";
+  const showBaseUnitPrice = Boolean(sale && (sale.unitPriceCents > 0 || sale.pricingTiers.length === 0));
   const canDownload = downloadsEnabled && !paidGallery;
   const hasPaidCartBar = paidGallery && Boolean(sale) && !fullGalleryPurchased;
   const purchaseNotice =
@@ -1372,10 +1373,10 @@ export function PublicGallery({
                   event.stopPropagation();
                   toggleCartPhoto(photo.id);
                 }}
-                className={`absolute bottom-3 right-3 z-10 inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold shadow-soft transition active:scale-95 ${
+                className={`absolute inset-x-2 bottom-2 z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold shadow-[0_12px_30px_rgba(0,0,0,0.28)] ring-1 transition active:scale-[0.98] ${
                   isInCart
-                    ? "bg-ink text-white"
-                    : "bg-white/92 text-ink hover:bg-white"
+                    ? "bg-brass text-white ring-white/35 hover:bg-brass/90"
+                    : "bg-ink text-white ring-white/20 hover:bg-graphite"
                 }`}
               >
                 <ShoppingCart size={15} />
@@ -1476,142 +1477,143 @@ export function PublicGallery({
 
         {paidGallery && sale ? (
           <section id="paid-gallery-checkout" className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft md:p-6">
-            <div className="grid gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
-              <div>
-                <div className="flex size-11 items-center justify-center rounded-md bg-ink text-white">
+            <div className="flex flex-col gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex gap-4">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-ink text-white">
                   <CreditCard size={20} />
                 </div>
-                <h2 className="mt-4 text-2xl font-semibold text-ink">{copy.paidTitle}</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/75">
-                  {sale.priceCents <= 0 ? copy.paidNoCostIntro : copy.paidIntro}
-                </p>
-                <div className="mt-4 flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1 text-sm font-semibold text-brass">
-                  <ShieldCheck size={15} />
-                  {sale.priceLabel}
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-graphite/55">{copy.baseUnitPrice}</p>
-                    <p className="mt-1 text-lg font-semibold text-ink">{unitPriceLabel}</p>
-                  </div>
-                  {sale.pricingTiers.length > 0 ? (
-                    <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-graphite/55">{copy.priceTiers}</p>
-                      <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-medium text-graphite">
-                        {sale.pricingTiers.map((tier) => (
-                          <span key={`${tier.from}-${tier.to ?? "plus"}-${tier.unitPriceCents}`} className="rounded-full bg-white px-2 py-1">
-                            {pricingTierLabel(tier, sale.currency, locale, language === "hu" ? "kép" : "Foto")}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                <p className="mt-4 max-w-2xl text-xs leading-5 text-graphite/60">{copy.paidSecure}</p>
-                {purchaseNotice ? (
-                  <p
-                    className={`mt-4 rounded-md border px-3 py-2 text-sm ${
-                      purchaseNotice.tone === "success"
-                        ? "border-sage/20 bg-sage/10 text-sage"
-                        : purchaseNotice.tone === "error"
-                          ? "border-red-200 bg-red-50 text-red-700"
-                          : "border-ink/10 bg-paper text-graphite"
-                    }`}
-                  >
-                    {purchaseNotice.text}
+                <div>
+                  <h2 className="text-2xl font-semibold text-ink">{copy.paidTitle}</h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/75">
+                    {sale.priceCents <= 0 ? copy.paidNoCostIntro : copy.paidIntro}
                   </p>
-                ) : null}
-                {renderPaidDownloadStatus()}
+                </div>
               </div>
-              <div className="space-y-4">
-                {!fullGalleryPurchased ? (
-                  <form action={createPaidGalleryCheckoutAction} className="rounded-md border border-ink/10 bg-paper p-4">
-                    <input type="hidden" name="galleryId" value={galleryId} />
-                    <input type="hidden" name="gallerySlug" value={gallerySlug} />
-                    <input type="hidden" name="purchaseKind" value="photos" />
-                    <input type="hidden" name="photoIds" value={cartPhotoIds.join(",")} />
-                    <div className="mb-4 rounded-md bg-white px-3 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-ink">{copy.photoCartTitle}</p>
-                          <p className="mt-1 text-xs leading-5 text-graphite/65">{copy.photoCartIntro}</p>
-                        </div>
-                        <ShoppingCart size={19} className="mt-0.5 shrink-0 text-brass" />
-                      </div>
-                      <div className="mt-3 flex items-end justify-between gap-3 border-t border-ink/10 pt-3">
-                        <div>
-                          <p className="text-sm font-medium text-ink">
-                            {cartPhotoIds.length > 0 ? copy.selectedPhotos(cartPhotoIds.length) : copy.cartEmpty}
-                          </p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-graphite/50">{copy.cartTotal}</p>
-                        </div>
-                        <p className="text-xl font-semibold text-ink">{cartTotalLabel}</p>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
-                        <input
-                          name="name"
-                          autoComplete="name"
-                          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
-                        />
-                      </label>
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium text-graphite">{copy.paidEmail}</span>
-                        <input
-                          name="email"
-                          type="email"
-                          required
-                          autoComplete="email"
-                          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
-                        />
-                      </label>
-                      <FormSubmitButton pendingLabel={copy.sending} disabled={cartPhotoIds.length === 0} className="w-full">
-                        <ShoppingCart size={16} />
-                        {cartTotalCents <= 0 ? copy.paidNoCostButton : copy.cartCheckout}
-                      </FormSubmitButton>
-                    </div>
-                  </form>
-                ) : null}
-                <form action={createPaidGalleryCheckoutAction} className="rounded-md border border-ink/10 bg-white p-4">
-                  <input type="hidden" name="galleryId" value={galleryId} />
-                  <input type="hidden" name="gallerySlug" value={gallerySlug} />
-                  <input type="hidden" name="purchaseKind" value="gallery" />
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-ink">{copy.wholeGalleryTitle}</p>
-                      <p className="mt-1 text-2xl font-semibold text-ink">{sale.priceLabel}</p>
-                    </div>
-                    <ShieldCheck size={19} className="mt-1 shrink-0 text-brass" />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
-                      <input
-                        name="name"
-                        autoComplete="name"
-                        className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
-                      />
-                    </label>
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-graphite">{copy.paidEmail}</span>
-                      <input
-                        name="email"
-                        type="email"
-                        required
-                        autoComplete="email"
-                        className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
-                      />
-                    </label>
-                    <FormSubmitButton pendingLabel={copy.sending} className="w-full">
-                      <CreditCard size={16} />
-                      {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.buyWholeGallery}
-                    </FormSubmitButton>
-                  </div>
-                </form>
+              <div className="flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1 text-sm font-semibold text-brass">
+                <ShieldCheck size={15} />
+                {sale.priceLabel}
               </div>
             </div>
+
+            {purchaseNotice ? (
+              <p
+                className={`mt-4 rounded-md border px-3 py-2 text-sm ${
+                  purchaseNotice.tone === "success"
+                    ? "border-sage/20 bg-sage/10 text-sage"
+                    : purchaseNotice.tone === "error"
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : "border-ink/10 bg-paper text-graphite"
+                }`}
+              >
+                {purchaseNotice.text}
+              </p>
+            ) : null}
+            {renderPaidDownloadStatus()}
+
+            <form action={createPaidGalleryCheckoutAction} className="mt-5 grid gap-4 xl:grid-cols-[1fr_420px] xl:items-start">
+              <input type="hidden" name="galleryId" value={galleryId} />
+              <input type="hidden" name="gallerySlug" value={gallerySlug} />
+              <input type="hidden" name="photoIds" value={cartPhotoIds.join(",")} />
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {!fullGalleryPurchased ? (
+                  <div className="rounded-md border border-ink/10 bg-paper p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-ink">{copy.photoCartTitle}</p>
+                        <p className="mt-1 text-xs leading-5 text-graphite/65">{copy.photoCartIntro}</p>
+                      </div>
+                      <ShoppingCart size={20} className="mt-0.5 shrink-0 text-brass" />
+                    </div>
+                    <div className="mt-4 flex items-end justify-between gap-3 rounded-md bg-white px-3 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">
+                          {cartPhotoIds.length > 0 ? copy.selectedPhotos(cartPhotoIds.length) : copy.cartEmpty}
+                        </p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-graphite/50">{copy.cartTotal}</p>
+                      </div>
+                      <p className="text-2xl font-semibold text-ink">{cartTotalLabel}</p>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-ink">{copy.wholeGalleryTitle}</p>
+                      <p className="mt-2 text-3xl font-semibold text-ink">{sale.priceLabel}</p>
+                    </div>
+                    <ShieldCheck size={20} className="mt-1 shrink-0 text-brass" />
+                  </div>
+                </div>
+
+                {showBaseUnitPrice || sale.pricingTiers.length > 0 ? (
+                  <div className="rounded-md border border-ink/10 bg-paper p-4 md:col-span-2">
+                    <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+                      {showBaseUnitPrice ? (
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-graphite/55">{copy.baseUnitPrice}</p>
+                          <p className="mt-1 text-lg font-semibold text-ink">{unitPriceLabel}</p>
+                        </div>
+                      ) : null}
+                      {sale.pricingTiers.length > 0 ? (
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-graphite/55">{copy.priceTiers}</p>
+                          <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-medium text-graphite">
+                            {sale.pricingTiers.map((tier) => (
+                              <span key={`${tier.from}-${tier.to ?? "plus"}-${tier.unitPriceCents}`} className="rounded-full bg-white px-2 py-1">
+                                {pricingTierLabel(tier, sale.currency, locale, language === "hu" ? "kép" : "Foto")}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                <p className="text-xs leading-5 text-graphite/60 md:col-span-2">{copy.paidSecure}</p>
+              </div>
+
+              <div className="rounded-md border border-ink/10 bg-white p-4">
+                <div className="space-y-3">
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
+                    <input
+                      name="name"
+                      autoComplete="name"
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="block space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.paidEmail}</span>
+                    <input
+                      name="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  {!fullGalleryPurchased ? (
+                    <FormSubmitButton
+                      name="purchaseKind"
+                      value="photos"
+                      pendingLabel={copy.sending}
+                      disabled={cartPhotoIds.length === 0}
+                      className="w-full"
+                    >
+                      <ShoppingCart size={16} />
+                      {cartTotalCents <= 0 ? copy.paidNoCostButton : copy.cartCheckout}
+                    </FormSubmitButton>
+                  ) : null}
+                  <FormSubmitButton name="purchaseKind" value="gallery" pendingLabel={copy.sending} variant="secondary" className="w-full">
+                    <CreditCard size={16} />
+                    {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.buyWholeGallery}
+                  </FormSubmitButton>
+                </div>
+              </div>
+            </form>
           </section>
         ) : null}
 
