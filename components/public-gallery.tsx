@@ -212,13 +212,6 @@ type PublicPhotoItem = {
   index: number;
 };
 
-type GalleryWatermarkSettings = {
-  enabled: boolean;
-  text: string;
-  position: string;
-  opacity: number;
-};
-
 type GallerySaleSettings = {
   priceCents: number;
   currency: string;
@@ -349,52 +342,6 @@ function hasLightweightPreview(photo: PublicPhoto) {
   return !isVideo(photo) && photo.previewUrl && photo.previewUrl !== photo.imageUrl;
 }
 
-function WatermarkOverlay({ watermark }: { watermark: GalleryWatermarkSettings | null }) {
-  if (!watermark?.enabled || !watermark.text.trim()) {
-    return null;
-  }
-
-  const opacity = Math.min(70, Math.max(8, watermark.opacity || 32)) / 100;
-  const text = watermark.text.trim();
-
-  if (watermark.position === "tile") {
-    return (
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-10 opacity-100"
-        style={{
-          backgroundImage: `repeating-linear-gradient(-32deg, transparent 0 86px, rgba(255,255,255,${opacity}) 86px 88px, transparent 88px 174px)`
-        }}
-      >
-        <span className="absolute inset-0 grid grid-cols-2 gap-10 p-8 text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80 md:grid-cols-3">
-          {Array.from({ length: 9 }).map((_, index) => (
-            <span key={index} className="rotate-[-24deg] self-center drop-shadow">
-              {text}
-            </span>
-          ))}
-        </span>
-      </span>
-    );
-  }
-
-  const positionClass =
-    watermark.position === "bottom_left"
-      ? "bottom-4 left-4"
-      : watermark.position === "bottom_right"
-        ? "bottom-4 right-4"
-        : "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2";
-
-  return (
-    <span
-      aria-hidden="true"
-      className={`pointer-events-none absolute z-10 max-w-[80%] rounded-md bg-ink/35 px-4 py-2 text-center text-xs font-semibold uppercase tracking-[0.22em] text-white shadow-soft backdrop-blur-sm ${positionClass}`}
-      style={{ opacity }}
-    >
-      {text}
-    </span>
-  );
-}
-
 function getColumnCount(width: number) {
   if (width >= 1280) {
     return 4;
@@ -437,7 +384,6 @@ export function PublicGallery({
   sections = [],
   downloadsEnabled,
   deliveryMode = "free_download",
-  watermark = null,
   sale = null,
   favoritesEnabled = true,
   favoriteMode = "favorites",
@@ -451,7 +397,6 @@ export function PublicGallery({
   sections?: PublicGallerySection[];
   downloadsEnabled: boolean;
   deliveryMode?: string;
-  watermark?: GalleryWatermarkSettings | null;
   sale?: GallerySaleSettings | null;
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
@@ -1162,7 +1107,6 @@ export function PublicGallery({
                 className="block h-auto w-full transition duration-500 ease-out group-hover:scale-[1.025]"
               />
             )}
-            {paidGallery ? <WatermarkOverlay watermark={watermark} /> : null}
             <span className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md bg-white/90 opacity-0 shadow-sm transition duration-200 group-hover:opacity-100">
               <Maximize2 size={16} />
             </span>
@@ -1752,7 +1696,6 @@ export function PublicGallery({
                   sizes="100vw"
                   priority
                 />
-                {paidGallery ? <WatermarkOverlay watermark={watermark} /> : null}
               </>
             )}
           </div>

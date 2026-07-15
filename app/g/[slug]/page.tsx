@@ -15,7 +15,7 @@ import { canViewGallery, unlockGalleryAction } from "@/lib/public-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
-import { formatGallerySalePrice } from "@/lib/gallery-sales";
+import { GALLERY_PURCHASE_PAID, formatGallerySalePrice } from "@/lib/gallery-sales";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -106,11 +106,7 @@ export default async function PublicGalleryPage({
       instagramUrl: true,
       facebookUrl: true,
       tiktokUrl: true,
-      youtubeUrl: true,
-      galleryWatermarkEnabled: true,
-      galleryWatermarkText: true,
-      galleryWatermarkPosition: true,
-      galleryWatermarkOpacity: true
+      youtubeUrl: true
     }
   });
 
@@ -163,17 +159,34 @@ export default async function PublicGalleryPage({
     { href: settings?.tiktokUrl ?? "", label: "TikTok", icon: Music2, external: true },
     { href: settings?.youtubeUrl ?? "", label: "YouTube", icon: Youtube, external: true }
   ].filter((link) => link.href);
-  const watermarkText =
-    settings?.galleryWatermarkText?.trim() ||
-    settings?.businessName?.trim() ||
-    (language === "hu" ? "Előnézet" : "Preview");
-  const publicGalleryPhotos = paidGallery
+  const paidAccessPurchase =
+    paidGallery && flags.session_id
+      ? await prisma.galleryPurchase.findFirst({
+          where: {
+            galleryId: gallery.id,
+            stripeCheckoutSessionId: flags.session_id,
+            status: GALLERY_PURCHASE_PAID
+          },
+          select: { id: true }
+        })
+      : null;
+  const paidPreviewProtected = paidGallery && !paidAccessPurchase;
+  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}`;
+  const coverPhotoSrc =
+    paidPreviewProtected && coverPhoto
+      ? protectedPhotoUrl(coverPhoto.id)
+      : coverPhoto
+        ? coverPhoto.previewUrl || coverPhoto.imageUrl
+        : "";
+  const publicGalleryPhotos = paidPreviewProtected
     ? publicPhotos.map((photo) =>
         photo.mediaType === "video"
           ? photo
           : {
               ...photo,
-              imageUrl: photo.previewUrl || photo.thumbnailUrl || photo.imageUrl
+              imageUrl: protectedPhotoUrl(photo.id),
+              thumbnailUrl: protectedPhotoUrl(photo.id),
+              previewUrl: protectedPhotoUrl(photo.id)
             }
       )
     : publicPhotos;
@@ -231,7 +244,7 @@ export default async function PublicGalleryPage({
         <div className="absolute inset-0 overflow-hidden bg-ink">
           {coverPhoto ? (
             <Image
-              src={coverPhoto.previewUrl || coverPhoto.imageUrl}
+              src={coverPhotoSrc}
               alt={gallery.title}
               fill
               priority
@@ -354,12 +367,6 @@ export default async function PublicGalleryPage({
             sections={visibleSections}
             downloadsEnabled={downloadsEnabled}
             deliveryMode={deliveryMode}
-            watermark={{
-              enabled: Boolean(settings?.galleryWatermarkEnabled),
-              text: watermarkText,
-              position: settings?.galleryWatermarkPosition ?? "center",
-              opacity: settings?.galleryWatermarkOpacity ?? 32
-            }}
             sale={
               paidGallery
                 ? {
