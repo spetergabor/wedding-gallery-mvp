@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, ShieldCheck, ShoppingCart, X } from "lucide-react";
 import { Button } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -19,6 +19,11 @@ import { createPaidGalleryCheckoutAction } from "@/lib/gallery-sales-actions";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY } from "@/lib/download-quality";
 import { GALLERY_DELIVERY_PAID, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
+import {
+  priceForGalleryPhotoQuantity,
+  pricingTierLabel,
+  type GallerySalePricingTier
+} from "@/lib/gallery-sale-pricing";
 
 const GALLERY_COPY = {
   de: {
@@ -95,21 +100,36 @@ const GALLERY_COPY = {
     videoSectionTitle: "Videos",
     videoCount: (count: number) => `${count} ${count === 1 ? "Video" : "Videos"}`,
     paidTitle: "Galerie kaufen",
-    paidIntro: "Diese Galerie ist als Vorschau geschützt. Nach erfolgreicher Zahlung erhältst du den Download-Link per E-Mail.",
+    paidIntro: "Diese Galerie ist als Vorschau geschützt. Du kannst einzelne Fotos oder die ganze Galerie kaufen.",
     paidNoCostIntro: "Diese Galerie nutzt einen 0-EUR-Test-Checkout. Stripe schließt den Ablauf ohne Kartendaten ab.",
     paidName: "Name",
     paidEmail: "E-Mail-Adresse",
     paidButton: "Mit Stripe bezahlen",
     paidNoCostButton: "Test-Checkout starten",
     paidSecure: "Sichere Zahlung über Stripe. Der Fotograf erhält die Zahlung direkt über sein eigenes Stripe-Konto.",
-    paidSuccess: "Zahlung erhalten. Die Download-Links werden vorbereitet und per E-Mail gesendet.",
+    paidSuccess: "Zahlung erhalten. Dein Kauf wird freigeschaltet.",
     paidCancelled: "Die Zahlung wurde abgebrochen. Du kannst den Kauf jederzeit erneut starten.",
     paidError: "Der Kauf konnte nicht gestartet werden. Bitte versuche es später erneut.",
     paidDownloadReady: "Dein Download ist bereit. Wir schicken den Link zusätzlich per E-Mail.",
     paidDownloadPreparing: "Dein Download wird vorbereitet. Diese Seite aktualisiert den Status automatisch, und du bekommst den Link per E-Mail.",
     paidDownloadFailed: "Der Download konnte nicht vorbereitet werden. Bitte kontaktiere den Fotografen.",
     paidDownloadButton: "Galerie herunterladen",
-    paidDownloadPartButton: (part: number, total: number) => `Teil ${part}/${total} herunterladen`
+    paidDownloadPartButton: (part: number, total: number) => `Teil ${part}/${total} herunterladen`,
+    paidPhotosUnlocked: "Die gekauften Fotos sind freigeschaltet. Du kannst sie direkt in der Galerie herunterladen.",
+    wholeGalleryTitle: "Komplette Galerie",
+    buyWholeGallery: "Komplette Galerie kaufen",
+    photoCartTitle: "Einzelne Fotos kaufen",
+    photoCartIntro: "Lege Fotos in den Warenkorb. Der Preis passt sich automatisch an die Menge an.",
+    addToCart: "In den Warenkorb",
+    removeFromCart: "Aus dem Warenkorb entfernen",
+    inCart: "Im Warenkorb",
+    purchased: "Gekauft",
+    cartEmpty: "Wähle unten Fotos aus.",
+    selectedPhotos: (count: number) => `${count} ${count === 1 ? "Foto" : "Fotos"}`,
+    cartTotal: "Summe",
+    cartCheckout: "Warenkorb kaufen",
+    priceTiers: "Mengenpreise",
+    baseUnitPrice: "Einzelpreis"
   },
   hu: {
     selection: "Képválogatás",
@@ -185,21 +205,36 @@ const GALLERY_COPY = {
     videoSectionTitle: "Videók",
     videoCount: (count: number) => `${count} videó`,
     paidTitle: "Galéria megvásárlása",
-    paidIntro: "Ez a galéria előnézetként védett. Sikeres fizetés után e-mailben kapod meg a letöltő linket.",
+    paidIntro: "Ez a galéria előnézetként védett. Megvehetsz egyes fotókat vagy a teljes galériát.",
     paidNoCostIntro: "Ez 0 EUR-os teszt Checkout. A Stripe kártyaadat nélkül zárja le a folyamatot.",
     paidName: "Név",
     paidEmail: "E-mail cím",
     paidButton: "Fizetés Stripe-pal",
     paidNoCostButton: "Teszt Checkout indítása",
     paidSecure: "Biztonságos fizetés Stripe-on keresztül. A fizetés közvetlenül a fotós saját Stripe fiókjához kapcsolódik.",
-    paidSuccess: "A fizetés sikeres. A letöltési linkeket előkészítjük és e-mailben elküldjük.",
+    paidSuccess: "A fizetés sikeres. A vásárlás feloldása folyamatban van.",
     paidCancelled: "A fizetés megszakadt. A vásárlást bármikor újraindíthatod.",
     paidError: "A vásárlást nem sikerült elindítani. Próbáld újra később.",
     paidDownloadReady: "A letöltés készen van. A linket e-mailben is elküldjük.",
     paidDownloadPreparing: "A letöltés előkészítés alatt van. Ez az oldal automatikusan frissíti az állapotot, és e-mailben is megkapod a linket.",
     paidDownloadFailed: "A letöltést nem sikerült előkészíteni. Kérlek, vedd fel a kapcsolatot a fotóssal.",
     paidDownloadButton: "Galéria letöltése",
-    paidDownloadPartButton: (part: number, total: number) => `${part}/${total}. rész letöltése`
+    paidDownloadPartButton: (part: number, total: number) => `${part}/${total}. rész letöltése`,
+    paidPhotosUnlocked: "A megvásárolt képek feloldva. Közvetlenül a galériából le tudod tölteni őket.",
+    wholeGalleryTitle: "Teljes galéria",
+    buyWholeGallery: "Teljes galéria megvásárlása",
+    photoCartTitle: "Képek vásárlása darabonként",
+    photoCartIntro: "Tedd kosárba a képeket. Az ár automatikusan igazodik a darabszámhoz.",
+    addToCart: "Kosárba",
+    removeFromCart: "Kivétel a kosárból",
+    inCart: "Kosárban",
+    purchased: "Megvásárolva",
+    cartEmpty: "Válassz képeket lent.",
+    selectedPhotos: (count: number) => `${count} kép`,
+    cartTotal: "Összesen",
+    cartCheckout: "Kosár megvásárlása",
+    priceTiers: "Darabszám szerinti árak",
+    baseUnitPrice: "Darabár"
   }
 } as const;
 
@@ -246,15 +281,21 @@ type PaidGalleryDownloadState = {
   downloadUrl: string | null;
   filename: string | null;
   packages: DownloadPackageLink[];
+  purchaseKind?: string | null;
+  purchasedPhotoIds?: string[];
 };
 
 type GallerySaleSettings = {
   priceCents: number;
+  unitPriceCents: number;
+  pricingTiers: GallerySalePricingTier[];
   currency: string;
   priceLabel: string;
   purchaseStatus?: string | null;
   purchaseSessionId?: string | null;
   purchaseDownload?: PaidGalleryDownloadState | null;
+  purchasedPhotoIds?: string[];
+  fullGalleryPurchased?: boolean;
 };
 
 type FavoriteListState = {
@@ -267,6 +308,13 @@ type FavoriteListState = {
 function photoFileName(photo: PublicPhoto, index: number) {
   const fallback = `photo-${String(index + 1).padStart(3, "0")}.jpg`;
   return (photo.filename || fallback).replace(/[\\/:*?"<>|]/g, "-");
+}
+
+function formatSaleMoney(cents: number, currency: string, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: (currency || "eur").toUpperCase()
+  }).format(Math.max(0, cents) / 100);
 }
 
 function hasImageDimensions(photo: PublicPhoto) {
@@ -457,11 +505,29 @@ export function PublicGallery({
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [cartPhotoIds, setCartPhotoIds] = useState<string[]>([]);
   const [isSelectionSummaryOpen, setIsSelectionSummaryOpen] = useState(false);
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
   const copy = GALLERY_COPY[language];
   const paidGallery = normalizeGalleryDeliveryMode(deliveryMode) === GALLERY_DELIVERY_PAID;
+  const fullGalleryPurchased = Boolean(sale?.fullGalleryPurchased);
+  const unlockedPaidPhotoIds = useMemo(
+    () => new Set([...(sale?.purchasedPhotoIds ?? []), ...(paidDownloadState?.purchasedPhotoIds ?? [])]),
+    [paidDownloadState?.purchasedPhotoIds, sale?.purchasedPhotoIds]
+  );
+  const cartPhotoIdSet = useMemo(() => new Set(cartPhotoIds), [cartPhotoIds]);
+  const locale = dateLocaleForCustomer(language);
+  const cartTotalCents = sale
+    ? priceForGalleryPhotoQuantity({
+        quantity: cartPhotoIds.length,
+        fallbackUnitPriceCents: sale.unitPriceCents,
+        tiers: sale.pricingTiers
+      })
+    : 0;
+  const cartTotalLabel = sale ? formatSaleMoney(cartTotalCents, sale.currency, locale) : "";
+  const unitPriceLabel = sale ? formatSaleMoney(sale.unitPriceCents, sale.currency, locale) : "";
   const canDownload = downloadsEnabled && !paidGallery;
+  const hasPaidCartBar = paidGallery && Boolean(sale) && !fullGalleryPurchased;
   const purchaseNotice =
     sale?.purchaseStatus === "success"
       ? { tone: "success", text: copy.paidSuccess }
@@ -572,6 +638,14 @@ export function PublicGallery({
   useEffect(() => {
     setPaidDownloadState(sale?.purchaseDownload ?? null);
   }, [sale?.purchaseDownload]);
+
+  useEffect(() => {
+    if (!paidGallery || unlockedPaidPhotoIds.size === 0) {
+      return;
+    }
+
+    setCartPhotoIds((current) => current.filter((photoId) => !unlockedPaidPhotoIds.has(photoId)));
+  }, [paidGallery, unlockedPaidPhotoIds]);
 
   useEffect(() => {
     if (!paidGallery || !sale?.purchaseSessionId || !paidDownloadState?.paid) {
@@ -806,8 +880,20 @@ export function PublicGallery({
     await createZipDownload();
   }
 
+  function canDownloadPhoto(photo: PublicPhoto) {
+    return canDownload || (paidGallery && !isVideo(photo) && (fullGalleryPurchased || unlockedPaidPhotoIds.has(photo.id)));
+  }
+
+  function toggleCartPhoto(photoId: string) {
+    setCartPhotoIds((current) =>
+      current.includes(photoId)
+        ? current.filter((currentPhotoId) => currentPhotoId !== photoId)
+        : [...current, photoId]
+    );
+  }
+
   async function downloadSinglePhoto(photo: PublicPhoto) {
-    if (downloadingPhotoId || !canDownload) {
+    if (downloadingPhotoId || !canDownloadPhoto(photo)) {
       return;
     }
 
@@ -1094,6 +1180,15 @@ export function PublicGallery({
     }
 
     const state = paidDownloadState;
+
+    if (state?.paid && state.purchaseKind === "photos") {
+      return (
+        <div className="mt-4 rounded-md border border-sage/20 bg-sage/10 px-3 py-3 text-sm text-sage">
+          <p className="font-medium">{copy.paidPhotosUnlocked}</p>
+        </div>
+      );
+    }
+
     const paidLinks =
       state?.packages?.length
         ? state.packages
@@ -1197,6 +1292,9 @@ export function PublicGallery({
   }
 
   function renderImageItem({ photo, index }: PublicPhotoItem) {
+    const isUnlockedPaidPhoto = fullGalleryPurchased || unlockedPaidPhotoIds.has(photo.id);
+    const isInCart = cartPhotoIdSet.has(photo.id);
+
     return (
       <div
         key={photo.id}
@@ -1258,6 +1356,32 @@ export function PublicGallery({
                 fill={favoriteIds.has(photo.id) ? "currentColor" : "none"}
               />
             </button>
+          ) : null}
+          {paidGallery && sale && !fullGalleryPurchased ? (
+            isUnlockedPaidPhoto ? (
+              <span className="absolute bottom-3 right-3 z-10 inline-flex min-h-9 items-center justify-center gap-2 rounded-md bg-sage px-3 text-xs font-semibold text-white shadow-soft">
+                <Check size={15} />
+                {copy.purchased}
+              </span>
+            ) : (
+              <button
+                type="button"
+                title={isInCart ? copy.removeFromCart : copy.addToCart}
+                aria-label={`${photo.filename}: ${isInCart ? copy.removeFromCart : copy.addToCart}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleCartPhoto(photo.id);
+                }}
+                className={`absolute bottom-3 right-3 z-10 inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold shadow-soft transition active:scale-95 ${
+                  isInCart
+                    ? "bg-ink text-white"
+                    : "bg-white/92 text-ink hover:bg-white"
+                }`}
+              >
+                <ShoppingCart size={15} />
+                {isInCart ? copy.inCart : copy.addToCart}
+              </button>
+            )
           ) : null}
         </span>
       </div>
@@ -1351,7 +1475,7 @@ export function PublicGallery({
         ) : null}
 
         {paidGallery && sale ? (
-          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft md:p-6">
+          <section id="paid-gallery-checkout" className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft md:p-6">
             <div className="grid gap-5 lg:grid-cols-[1fr_380px] lg:items-start">
               <div>
                 <div className="flex size-11 items-center justify-center rounded-md bg-ink text-white">
@@ -1364,6 +1488,24 @@ export function PublicGallery({
                 <div className="mt-4 flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1 text-sm font-semibold text-brass">
                   <ShieldCheck size={15} />
                   {sale.priceLabel}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-graphite/55">{copy.baseUnitPrice}</p>
+                    <p className="mt-1 text-lg font-semibold text-ink">{unitPriceLabel}</p>
+                  </div>
+                  {sale.pricingTiers.length > 0 ? (
+                    <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-graphite/55">{copy.priceTiers}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-medium text-graphite">
+                        {sale.pricingTiers.map((tier) => (
+                          <span key={`${tier.from}-${tier.to ?? "plus"}-${tier.unitPriceCents}`} className="rounded-full bg-white px-2 py-1">
+                            {pricingTierLabel(tier, sale.currency, locale, language === "hu" ? "kép" : "Foto")}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <p className="mt-4 max-w-2xl text-xs leading-5 text-graphite/60">{copy.paidSecure}</p>
                 {purchaseNotice ? (
@@ -1381,34 +1523,94 @@ export function PublicGallery({
                 ) : null}
                 {renderPaidDownloadStatus()}
               </div>
-              <form action={createPaidGalleryCheckoutAction} className="rounded-md border border-ink/10 bg-paper p-4">
-                <input type="hidden" name="galleryId" value={galleryId} />
-                <input type="hidden" name="gallerySlug" value={gallerySlug} />
-                <div className="space-y-3">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
-                    <input
-                      name="name"
-                      autoComplete="name"
-                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
-                    />
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">{copy.paidEmail}</span>
-                    <input
-                      name="email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
-                    />
-                  </label>
-                  <FormSubmitButton pendingLabel={copy.sending} className="w-full">
-                    <CreditCard size={16} />
-                    {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.paidButton}
-                  </FormSubmitButton>
-                </div>
-              </form>
+              <div className="space-y-4">
+                {!fullGalleryPurchased ? (
+                  <form action={createPaidGalleryCheckoutAction} className="rounded-md border border-ink/10 bg-paper p-4">
+                    <input type="hidden" name="galleryId" value={galleryId} />
+                    <input type="hidden" name="gallerySlug" value={gallerySlug} />
+                    <input type="hidden" name="purchaseKind" value="photos" />
+                    <input type="hidden" name="photoIds" value={cartPhotoIds.join(",")} />
+                    <div className="mb-4 rounded-md bg-white px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-ink">{copy.photoCartTitle}</p>
+                          <p className="mt-1 text-xs leading-5 text-graphite/65">{copy.photoCartIntro}</p>
+                        </div>
+                        <ShoppingCart size={19} className="mt-0.5 shrink-0 text-brass" />
+                      </div>
+                      <div className="mt-3 flex items-end justify-between gap-3 border-t border-ink/10 pt-3">
+                        <div>
+                          <p className="text-sm font-medium text-ink">
+                            {cartPhotoIds.length > 0 ? copy.selectedPhotos(cartPhotoIds.length) : copy.cartEmpty}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-graphite/50">{copy.cartTotal}</p>
+                        </div>
+                        <p className="text-xl font-semibold text-ink">{cartTotalLabel}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
+                        <input
+                          name="name"
+                          autoComplete="name"
+                          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-graphite">{copy.paidEmail}</span>
+                        <input
+                          name="email"
+                          type="email"
+                          required
+                          autoComplete="email"
+                          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
+                        />
+                      </label>
+                      <FormSubmitButton pendingLabel={copy.sending} disabled={cartPhotoIds.length === 0} className="w-full">
+                        <ShoppingCart size={16} />
+                        {cartTotalCents <= 0 ? copy.paidNoCostButton : copy.cartCheckout}
+                      </FormSubmitButton>
+                    </div>
+                  </form>
+                ) : null}
+                <form action={createPaidGalleryCheckoutAction} className="rounded-md border border-ink/10 bg-white p-4">
+                  <input type="hidden" name="galleryId" value={galleryId} />
+                  <input type="hidden" name="gallerySlug" value={gallerySlug} />
+                  <input type="hidden" name="purchaseKind" value="gallery" />
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-ink">{copy.wholeGalleryTitle}</p>
+                      <p className="mt-1 text-2xl font-semibold text-ink">{sale.priceLabel}</p>
+                    </div>
+                    <ShieldCheck size={19} className="mt-1 shrink-0 text-brass" />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
+                      <input
+                        name="name"
+                        autoComplete="name"
+                        className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-graphite">{copy.paidEmail}</span>
+                      <input
+                        name="email"
+                        type="email"
+                        required
+                        autoComplete="email"
+                        className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+                      />
+                    </label>
+                    <FormSubmitButton pendingLabel={copy.sending} className="w-full">
+                      <CreditCard size={16} />
+                      {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.buyWholeGallery}
+                    </FormSubmitButton>
+                  </div>
+                </form>
+              </div>
             </div>
           </section>
         ) : null}
@@ -1464,7 +1666,7 @@ export function PublicGallery({
         ) : null}
       </section>
 
-      {favoritesEnabled || canDownload ? (
+      {favoritesEnabled || canDownload || hasPaidCartBar ? (
         <div className="fixed bottom-3 left-1/2 z-20 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-lg border border-ink/10 bg-white/90 px-3 py-2 shadow-soft backdrop-blur sm:bottom-5 sm:flex-nowrap sm:gap-3 sm:py-3">
           <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
             <Images size={16} />
@@ -1488,6 +1690,21 @@ export function PublicGallery({
               <Download size={16} />
               {isZipping ? copy.zipPreparing : copy.zipEmail}
             </Button>
+          ) : null}
+          {hasPaidCartBar ? (
+            <a
+              href="#paid-gallery-checkout"
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition ${
+                cartPhotoIds.length > 0
+                  ? "bg-ink text-white hover:bg-graphite"
+                  : "border border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
+              }`}
+            >
+              <ShoppingCart size={16} />
+              {cartPhotoIds.length > 0
+                ? `${copy.selectedPhotos(cartPhotoIds.length)} · ${cartTotalLabel}`
+                : copy.photoCartTitle}
+            </a>
           ) : null}
         </div>
       ) : null}
@@ -1768,7 +1985,7 @@ export function PublicGallery({
                   {proofingSelection ? copy.choose : copy.favorite}
                 </button>
               ) : null}
-              {canDownload ? (
+              {canDownloadPhoto(selectedPhoto) ? (
                 <button
                   type="button"
                   onClick={() => void downloadSinglePhoto(selectedPhoto)}

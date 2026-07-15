@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_DELIVERY_PAID } from "@/lib/gallery-delivery";
 import { GALLERY_PURCHASE_PENDING, normalizeSaleCurrency } from "@/lib/gallery-sales";
+import { normalizeGallerySalePricingTiers, priceForGalleryPhotoQuantity } from "@/lib/gallery-sale-pricing";
 import { createConnectedCheckoutSession } from "@/lib/stripe-connect";
 import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 
@@ -18,6 +19,21 @@ function normalizeName(value: FormDataEntryValue | null) {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function normalizePurchaseKind(value: FormDataEntryValue | null) {
+  return String(value ?? "") === "photos" ? "photos" : "gallery";
+}
+
+function selectedPhotoIdsFromForm(value: FormDataEntryValue | null) {
+  return Array.from(
+    new Set(
+      String(value ?? "")
+        .split(",")
+        .map((photoId) => photoId.trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 500);
 }
 
 async function requestOrigin() {
@@ -36,6 +52,8 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
   const galleryId = String(formData.get("galleryId") ?? "");
   const email = normalizeEmail(formData.get("email"));
   const name = normalizeName(formData.get("name"));
+  const purchaseKind = normalizePurchaseKind(formData.get("purchaseKind"));
+  const requestedPhotoIds = selectedPhotoIdsFromForm(formData.get("photoIds"));
 
   if (!galleryId || !isValidEmail(email)) {
     redirect(`/g/${String(formData.get("gallerySlug") ?? "")}?purchase=invalid-email`);
@@ -53,6 +71,8 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
       deliveryMode: true,
       proofingStatus: true,
       salePriceCents: true,
+      saleUnitPriceCents: true,
+      salePricingTiers: true,
       saleCurrency: true,
       admin: {
         select: {
@@ -65,7 +85,7 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
         }
       },
       photos: {
-        where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+        where: { isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL, mediaType: { not: "video" } },
         select: { id: true }
       }
     }
@@ -89,6 +109,16 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
     redirect(`${failureBase}?purchase=no-photos`);
   }
 
+  const availablePhotoIds = new Set(gallery.photos.map((photo) => photo.id));
+  const purchasedPhotoIds =
+    purchaseKind === "photos"
+      ? requestedPhotoIds.filter((photoId) => availablePhotoIds.has(photoId))
+      : [];
+
+  if (purchaseKind === "photos" && purchasedPhotoIds.length === 0) {
+    redirect(`${failureBase}?purchase=no-selection`);
+  }
+
   const stripe = gallery.admin.stripeConnectIntegration;
 
   if (!stripe?.chargesEnabled) {
@@ -96,6 +126,20 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
   }
 
   const origin = await requestOrigin();
+  const currency = normalizeSaleCurrency(gallery.saleCurrency);
+  const tiers = normalizeGallerySalePricingTiers(gallery.salePricingTiers);
+  const amountCents =
+    purchaseKind === "photos"
+      ? priceForGalleryPhotoQuantity({
+          quantity: purchasedPhotoIds.length,
+          fallbackUnitPriceCents: gallery.saleUnitPriceCents,
+          tiers
+        })
+      : gallery.salePriceCents;
+  const checkoutTitle =
+    purchaseKind === "photos"
+      ? `${gallery.title} - ${purchasedPhotoIds.length} ${purchasedPhotoIds.length === 1 ? "photo" : "photos"}`
+      : gallery.title;
   const purchase = await prisma.galleryPurchase.create({
     data: {
       galleryId: gallery.id,
@@ -103,8 +147,11 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
       email,
       name: name || null,
       stripeAccountId: stripe.stripeAccountId,
-      amountTotal: gallery.salePriceCents,
-      currency: normalizeSaleCurrency(gallery.saleCurrency),
+      amountTotal: amountCents,
+      currency,
+      purchaseKind,
+      purchasedPhotoIds: purchaseKind === "photos" ? purchasedPhotoIds : undefined,
+      itemCount: purchaseKind === "photos" ? purchasedPhotoIds.length : gallery.photos.length,
       status: GALLERY_PURCHASE_PENDING
     },
     select: { id: true }
@@ -118,11 +165,15 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
       purchaseId: purchase.id,
       galleryId: gallery.id,
       adminId: gallery.adminId,
-      galleryTitle: gallery.title,
+      galleryTitle: checkoutTitle,
+      description:
+        purchaseKind === "photos"
+          ? `Digitális fotóvásárlás: ${purchasedPhotoIds.length} kép`
+          : "Digitális galéria letöltés",
       customerEmail: email,
       customerName: name,
-      amountCents: gallery.salePriceCents,
-      currency: normalizeSaleCurrency(gallery.saleCurrency),
+      amountCents,
+      currency,
       successUrl: `${origin}/g/${gallery.slug}?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${origin}/g/${gallery.slug}?purchase=cancelled`
     });
@@ -140,8 +191,8 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
     console.error("Paid gallery Stripe Checkout failed", {
       galleryId: gallery.id,
       purchaseId: purchase.id,
-      amountCents: gallery.salePriceCents,
-      currency: normalizeSaleCurrency(gallery.saleCurrency),
+      amountCents,
+      currency,
       error: error instanceof Error ? error.message : String(error)
     });
 

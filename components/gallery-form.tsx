@@ -14,6 +14,7 @@ import {
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
 import { formatGallerySalePrice, normalizeSaleCurrency } from "@/lib/gallery-sales";
+import { formatPriceInput, normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
 
 type CustomerOption = {
   id: string;
@@ -48,6 +49,8 @@ type GalleryFormProps = {
     galleryMode: string;
     deliveryMode: string;
     salePriceCents: number;
+    saleUnitPriceCents: number;
+    salePricingTiers: unknown;
     saleCurrency: string;
     downloadsEnabled: boolean;
     publicColumnCount: number;
@@ -147,8 +150,121 @@ export function GalleryForm({
   );
   const defaultSaleCurrency = normalizeSaleCurrency(gallery?.saleCurrency);
   const defaultMobileColumnCount = Math.min(3, Math.max(1, gallery?.publicColumnCount ?? 1));
+  const pricingTierRows = [
+    ...normalizeGallerySalePricingTiers(gallery?.salePricingTiers),
+    ...Array.from({ length: 3 }, () => ({ from: null, to: null, unitPriceCents: null }))
+  ].slice(0, 4);
   const proofingMode = defaultGalleryMode === GALLERY_MODE_PROOFING;
   const paidModeAvailable = stripeReady || defaultDeliveryMode === GALLERY_DELIVERY_PAID;
+  const pricingSection = (
+    <section className="rounded-md border border-brass/20 bg-brass/[0.04] p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-brass">
+            <CreditCard size={15} />
+            Vásárlás és árak
+          </p>
+          <h3 className="mt-2 text-lg font-semibold text-ink">Fizetős galéria árazása</h3>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">
+            Itt állíthatod be a teljes galéria árát, az egyedi képek darabárát és a mennyiségi sávokat. Az ügyféloldalon akkor
+            jelenik meg vásárlásként, ha az átadás módjánál a <span className="font-medium text-ink">Megvásárolható galéria</span>
+            opció aktív.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-graphite/60">
+            0,00 árral Stripe teszt Checkout indul kártyaadat nélkül. Ha a teszt bankkártyás mezőt is látni akarod, adj meg kis
+            összeget, például 0,50 EUR-t Stripe test módban.
+          </p>
+        </div>
+        {gallery?.salePriceCents ? (
+          <span className="w-fit rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass">
+            {formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency)}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_140px]">
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-graphite">Teljes galéria ára</span>
+          <input
+            name="salePrice"
+            inputMode="decimal"
+            defaultValue={salePriceInputValue(gallery?.salePriceCents)}
+            placeholder="pl. 49,00"
+            className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
+          />
+        </label>
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-graphite">Alap darabár / kép</span>
+          <input
+            name="saleUnitPrice"
+            inputMode="decimal"
+            defaultValue={formatPriceInput(gallery?.saleUnitPriceCents)}
+            placeholder="pl. 6,00"
+            className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
+          />
+        </label>
+        <label className="block space-y-2">
+          <span className="text-sm font-medium text-graphite">Deviza</span>
+          <select
+            name="saleCurrency"
+            defaultValue={defaultSaleCurrency}
+            className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 outline-none transition focus:border-ink/50"
+          >
+            <option value="eur">EUR</option>
+            <option value="usd">USD</option>
+            <option value="gbp">GBP</option>
+            <option value="chf">CHF</option>
+          </select>
+        </label>
+      </div>
+      <div className="mt-5 rounded-md border border-ink/10 bg-white p-3">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-ink">Sávos képenkénti ár</p>
+            <p className="mt-1 text-xs leading-5 text-graphite/65">
+              Példa: 1-10 kép 6 EUR/db, 11-15 kép 5 EUR/db. A teljes kosár darabszáma választja ki az aktuális darabárat.
+            </p>
+          </div>
+          <span className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/45">opcionális</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {pricingTierRows.map((tier, index) => (
+            <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_1.3fr]">
+              <label className="block space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">Mettől</span>
+                <input
+                  name="saleTierFrom"
+                  inputMode="numeric"
+                  defaultValue={tier.from ?? ""}
+                  placeholder={index === 0 ? "1" : ""}
+                  className="h-10 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">Meddig</span>
+                <input
+                  name="saleTierTo"
+                  inputMode="numeric"
+                  defaultValue={tier.to ?? ""}
+                  placeholder={index === 2 ? "üres = nincs felső határ" : "10"}
+                  className="h-10 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">Darabár</span>
+                <input
+                  name="saleTierPrice"
+                  inputMode="decimal"
+                  defaultValue={formatPriceInput(tier.unitPriceCents)}
+                  placeholder="pl. 5,00"
+                  className="h-10 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -165,6 +281,7 @@ export function GalleryForm({
 
       <div className="mt-6 space-y-7">
         <SlugFields defaultTitle={gallery?.title} defaultSlug={gallery?.slug} />
+        {pricingSection}
 
         <div className="grid gap-7 lg:grid-cols-2 lg:items-start">
           <section className="space-y-5">
@@ -365,50 +482,6 @@ export function GalleryForm({
                   Stripe összekötése a fizetős galériákhoz
                 </a>
               ) : null}
-              <div className="rounded-md border border-ink/10 bg-white p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-ink">Fizetős galéria ára</p>
-                    <p className="mt-1 text-sm leading-6 text-graphite/70">
-                      Csak a megvásárolható galéria módnál használjuk. Sikeres fizetés után a vendég e-mailben kapja meg a letöltő linket.
-                    </p>
-                    <p className="mt-2 text-xs leading-5 text-graphite/60">
-                      0,00 árral Stripe teszt Checkout indul kártyaadat nélkül. Ha a teszt bankkártyás mezőt is látni akarod, adj meg kis
-                      összeget, például 0,50 EUR-t Stripe test módban.
-                    </p>
-                  </div>
-                  {gallery?.salePriceCents ? (
-                    <span className="w-fit rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass">
-                      {formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency)}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_160px]">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">Ár</span>
-                    <input
-                      name="salePrice"
-                      inputMode="decimal"
-                      defaultValue={salePriceInputValue(gallery?.salePriceCents)}
-                      placeholder="pl. 49,00"
-                      className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
-                    />
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">Deviza</span>
-                    <select
-                      name="saleCurrency"
-                      defaultValue={defaultSaleCurrency}
-                      className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50"
-                    >
-                      <option value="eur">EUR</option>
-                      <option value="usd">USD</option>
-                      <option value="gbp">GBP</option>
-                      <option value="chf">CHF</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
             </fieldset>
 
             <label className="block space-y-2">

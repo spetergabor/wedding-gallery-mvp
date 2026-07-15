@@ -762,6 +762,8 @@ model Gallery {
   galleryMode  String   @default("full")
   deliveryMode String   @default("free_download")
   salePriceCents Int    @default(0)
+  saleUnitPriceCents Int @default(0)
+  salePricingTiers Json?
   saleCurrency String   @default("eur")
   proofingStatus String @default("not_opened")
   proofingStatusUpdatedAt DateTime?
@@ -813,6 +815,9 @@ model GalleryPurchase {
   stripePaymentIntentId   String?
   amountTotal             Int
   currency                String
+  purchaseKind            String   @default("gallery")
+  purchasedPhotoIds       Json?
+  itemCount               Int      @default(0)
   status                  String   @default("pending")
   downloadScope           String?
   paidAt                  DateTime?
@@ -828,6 +833,7 @@ model GalleryPurchase {
   @@index([adminId])
   @@index([email])
   @@index([status])
+  @@index([purchaseKind])
   @@index([createdAt])
 }
 

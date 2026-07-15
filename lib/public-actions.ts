@@ -12,7 +12,10 @@ import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import { sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
-import { ensurePaidGalleryPurchaseFulfillmentForSession } from "@/lib/gallery-sales";
+import {
+  GALLERY_PURCHASE_KIND_PHOTOS,
+  ensurePaidGalleryPurchaseFulfillmentForSession
+} from "@/lib/gallery-sales";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -563,7 +566,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
       packageId: null,
       downloadUrl: null,
       filename: null,
-      packages: []
+      packages: [],
+      purchaseKind: null,
+      purchasedPhotoIds: []
     };
   }
 
@@ -579,7 +584,24 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
         packageId: null,
         downloadUrl: null,
         filename: null,
-        packages: []
+        packages: [],
+        purchaseKind: null,
+        purchasedPhotoIds: []
+      };
+    }
+
+    if (fulfillment.purchaseKind === GALLERY_PURCHASE_KIND_PHOTOS) {
+      return {
+        ok: true,
+        paid: true,
+        message: "Die gekauften Fotos sind freigeschaltet.",
+        status: "completed",
+        packageId: null,
+        downloadUrl: null,
+        filename: null,
+        packages: [],
+        purchaseKind: fulfillment.purchaseKind,
+        purchasedPhotoIds: fulfillment.purchasedPhotoIds
       };
     }
 
@@ -597,7 +619,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
         packageId: null,
         downloadUrl: null,
         filename: null,
-        packages: []
+        packages: [],
+        purchaseKind: fulfillment.purchaseKind,
+        purchasedPhotoIds: fulfillment.purchasedPhotoIds
       };
     }
 
@@ -627,7 +651,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
         packageId: null,
         downloadUrl: null,
         filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
-        packages: []
+        packages: [],
+        purchaseKind: fulfillment.purchaseKind,
+        purchasedPhotoIds: fulfillment.purchasedPhotoIds
       };
     }
 
@@ -665,7 +691,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
         packageId: failedPackage.id,
         downloadUrl: null,
         filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
-        packages: []
+        packages: [],
+        purchaseKind: fulfillment.purchaseKind,
+        purchasedPhotoIds: fulfillment.purchasedPhotoIds
       };
     }
 
@@ -682,7 +710,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
         packageId: packages[0]?.id ?? null,
         downloadUrl: packageLinks[0]?.downloadUrl ?? null,
         filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
-        packages: packageLinks
+        packages: packageLinks,
+        purchaseKind: fulfillment.purchaseKind,
+        purchasedPhotoIds: fulfillment.purchasedPhotoIds
       };
     }
 
@@ -696,7 +726,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
       packageId: packages[0]?.id ?? null,
       downloadUrl: null,
       filename: galleryZipFileName(gallery.title, undefined, undefined, DEFAULT_GALLERY_DOWNLOAD_QUALITY),
-      packages: []
+      packages: [],
+      purchaseKind: fulfillment.purchaseKind,
+      purchasedPhotoIds: fulfillment.purchasedPhotoIds
     };
   } catch (error) {
     console.error("Paid gallery download state failed", {
@@ -713,7 +745,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
       packageId: null,
       downloadUrl: null,
       filename: null,
-      packages: []
+      packages: [],
+      purchaseKind: null,
+      purchasedPhotoIds: []
     };
   }
 }

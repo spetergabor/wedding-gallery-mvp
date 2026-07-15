@@ -114,7 +114,7 @@ export async function GET(
     const watermarkedBuffer = await createWatermarkedGalleryPreview(sourceBuffer, {
       text: "PREVIEW",
       position: "tile",
-      opacity: 76
+      opacity: 34
     });
 
     const responseBody = new ArrayBuffer(watermarkedBuffer.byteLength);

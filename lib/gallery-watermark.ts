@@ -8,7 +8,7 @@ export type BakedGalleryWatermarkOptions = {
   opacity?: number | null;
 };
 
-const WATERMARK_PREVIEW_MAX_SIZE = 1200;
+const WATERMARK_PREVIEW_MAX_SIZE = 900;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -106,18 +106,18 @@ function createWatermarkSvg({
 }) {
   const watermarkText = normalizeVectorWatermarkText(text);
   const shortestSide = Math.max(1, Math.min(width, height));
-  const markHeight = Math.round(clamp(shortestSide / 6.6, 82, 150));
+  const markHeight = Math.round(clamp(shortestSide / 8.4, 58, 112));
   const markScale = markHeight / VECTOR_GLYPH_HEIGHT;
-  const normalizedOpacity = clamp(opacity, 58, 86) / 100;
-  const strokeWidth = Math.max(5, Math.round(markHeight * 0.08));
-  const strokeOpacity = clamp(normalizedOpacity * 0.95, 0.44, 0.76);
-  const bandOpacity = clamp(normalizedOpacity * 0.18, 0.12, 0.22);
+  const normalizedOpacity = clamp(opacity, 24, 52) / 100;
+  const strokeWidth = Math.max(4, Math.round(markHeight * 0.07));
+  const strokeOpacity = clamp(normalizedOpacity * 0.7, 0.16, 0.34);
+  const bandOpacity = clamp(normalizedOpacity * 0.07, 0.03, 0.07);
   const protectivePattern = `
     <rect width="${width}" height="${height}" fill="url(#diagonalBands)" opacity="${bandOpacity}"/>
     <path d="M ${Math.round(width * 0.08)} ${Math.round(height * 0.12)} L ${Math.round(width * 0.92)} ${Math.round(height * 0.88)} M ${Math.round(width * 0.92)} ${Math.round(height * 0.12)} L ${Math.round(width * 0.08)} ${Math.round(height * 0.88)}"
       stroke="#ffffff"
-      stroke-opacity="${clamp(normalizedOpacity * 0.28, 0.18, 0.34)}"
-      stroke-width="${Math.max(10, Math.round(shortestSide * 0.018))}"
+      stroke-opacity="${clamp(normalizedOpacity * 0.16, 0.07, 0.16)}"
+      stroke-width="${Math.max(7, Math.round(shortestSide * 0.012))}"
       stroke-linecap="round"
     />`;
   const defs = `
@@ -198,7 +198,7 @@ export async function createWatermarkedGalleryPreview(
       fit: "inside",
       withoutEnlargement: true
     })
-    .jpeg({ quality: 66, mozjpeg: true })
+    .jpeg({ quality: 58, mozjpeg: true })
     .toBuffer();
   const metadata = await sharp(basePreview).metadata();
   const width = metadata.width ?? 1200;
@@ -208,11 +208,11 @@ export async function createWatermarkedGalleryPreview(
     height,
     text: options.text.trim() || "PREVIEW",
     position: normalizeWatermarkPosition(options.position),
-    opacity: options.opacity ?? 72
+    opacity: options.opacity ?? 34
   });
 
   return sharp(basePreview)
     .composite([{ input: Buffer.from(watermarkSvg), left: 0, top: 0 }])
-    .jpeg({ quality: 66, mozjpeg: true })
+    .jpeg({ quality: 58, mozjpeg: true })
     .toBuffer();
 }

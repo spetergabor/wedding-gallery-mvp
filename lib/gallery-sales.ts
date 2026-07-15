@@ -4,11 +4,14 @@ import { createZipPartRanges, enqueueGalleryZipJob, kickGalleryZipJobs, sendGall
 import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { retrieveConnectedCheckoutSession, type StripeCheckoutSession } from "@/lib/stripe-connect";
+import { publicGalleryUrl, sendPaidGalleryPhotoPurchaseEmail } from "@/lib/email";
 
 export const GALLERY_PURCHASE_PENDING = "pending";
 export const GALLERY_PURCHASE_PAID = "paid";
 export const GALLERY_PURCHASE_FAILED = "failed";
 export const GALLERY_PURCHASE_EXPIRED = "expired";
+export const GALLERY_PURCHASE_KIND_GALLERY = "gallery";
+export const GALLERY_PURCHASE_KIND_PHOTOS = "photos";
 
 const SALE_CURRENCIES = ["eur", "usd", "gbp", "chf"] as const;
 export type GallerySaleCurrency = (typeof SALE_CURRENCIES)[number];
@@ -39,6 +42,87 @@ export function formatGallerySalePrice(cents: number | null | undefined, currenc
   }).format(amount);
 }
 
+export function galleryPurchasePhotoIds(value: unknown) {
+  return Array.isArray(value) ? value.filter((photoId): photoId is string => typeof photoId === "string" && photoId.length > 0) : [];
+}
+
+async function sendPaidGalleryPhotoPurchaseReceipt(purchaseId: string, sessionId?: string | null) {
+  const purchase = await prisma.galleryPurchase.findUnique({
+    where: { id: purchaseId },
+    select: {
+      id: true,
+      email: true,
+      amountTotal: true,
+      currency: true,
+      itemCount: true,
+      status: true,
+      purchaseKind: true,
+      stripeCheckoutSessionId: true,
+      fulfillmentEmailSentAt: true,
+      gallery: {
+        select: {
+          title: true,
+          slug: true,
+          admin: {
+            select: {
+              siteSettings: {
+                select: { publicSubdomain: true }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (
+    !purchase ||
+    purchase.status !== GALLERY_PURCHASE_PAID ||
+    purchase.purchaseKind !== GALLERY_PURCHASE_KIND_PHOTOS ||
+    purchase.fulfillmentEmailSentAt
+  ) {
+    return;
+  }
+
+  const galleryUrl = new URL(publicGalleryUrl(purchase.gallery.slug, undefined, purchase.gallery.admin.siteSettings?.publicSubdomain ?? null));
+  galleryUrl.searchParams.set("purchase", "success");
+  const checkoutSessionId = sessionId ?? purchase.stripeCheckoutSessionId;
+
+  if (checkoutSessionId) {
+    galleryUrl.searchParams.set("session_id", checkoutSessionId);
+  }
+
+  try {
+    const sent = await sendPaidGalleryPhotoPurchaseEmail({
+      to: purchase.email,
+      galleryTitle: purchase.gallery.title,
+      galleryUrl: galleryUrl.toString(),
+      photoCount: purchase.itemCount,
+      amountLabel: formatGallerySalePrice(purchase.amountTotal, purchase.currency, "de-AT")
+    });
+
+    await prisma.galleryPurchase.update({
+      where: { id: purchase.id },
+      data: sent
+        ? {
+            fulfillmentEmailSentAt: new Date(),
+            fulfillmentError: null
+          }
+        : {
+            fulfillmentError: "Missing email configuration."
+          }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : "Email sending failed.";
+    console.error("Paid gallery photo purchase email failed", { purchaseId: purchase.id, error: message });
+
+    await prisma.galleryPurchase.update({
+      where: { id: purchase.id },
+      data: { fulfillmentError: message }
+    });
+  }
+}
+
 export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: GalleryDownloadQuality = DEFAULT_GALLERY_DOWNLOAD_QUALITY) {
   const normalizedQuality = normalizeGalleryDownloadQuality(quality);
   const purchase = await prisma.galleryPurchase.findUnique({
@@ -47,6 +131,7 @@ export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: Ga
       id: true,
       email: true,
       status: true,
+      purchaseKind: true,
       downloadScope: true,
       fulfilledAt: true,
       gallery: {
@@ -75,6 +160,18 @@ export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: Ga
 
   if (purchase.status !== GALLERY_PURCHASE_PAID) {
     return { ok: false as const, reason: "not-paid" };
+  }
+
+  if (purchase.purchaseKind === GALLERY_PURCHASE_KIND_PHOTOS) {
+    await prisma.galleryPurchase.update({
+      where: { id: purchase.id },
+      data: {
+        fulfilledAt: purchase.fulfilledAt ?? new Date(),
+        fulfillmentError: null
+      }
+    });
+
+    return { ok: true as const, packageIds: [] };
   }
 
   if (!purchase.gallery.isActive) {
@@ -207,7 +304,8 @@ export async function markPaidGalleryPurchaseFromCheckoutSession(session: Stripe
       id: true,
       stripeAccountId: true,
       amountTotal: true,
-      currency: true
+      currency: true,
+      purchaseKind: true
     }
   });
 
@@ -239,7 +337,18 @@ export async function markPaidGalleryPurchaseFromCheckoutSession(session: Stripe
     }
   });
 
-  await fulfillPaidGalleryPurchase(purchase.id);
+  if (purchase.purchaseKind === GALLERY_PURCHASE_KIND_PHOTOS) {
+    await prisma.galleryPurchase.update({
+      where: { id: purchase.id },
+      data: {
+        fulfilledAt: new Date(),
+        fulfillmentError: null
+      }
+    });
+    await sendPaidGalleryPhotoPurchaseReceipt(purchase.id, session.id);
+  } else {
+    await fulfillPaidGalleryPurchase(purchase.id);
+  }
 
   return { ok: true as const, purchaseId: purchase.id };
 }
@@ -255,7 +364,9 @@ export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: 
       email: true,
       status: true,
       stripeAccountId: true,
-      downloadScope: true
+      downloadScope: true,
+      purchaseKind: true,
+      purchasedPhotoIds: true
     }
   });
 
@@ -271,18 +382,29 @@ export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: 
       return { ok: false as const, paid: false as const, reason: syncResult.reason };
     }
   } else {
-    const scope = purchase.downloadScope ?? paidGalleryScope(galleryId);
-    const existingPackage = await prisma.galleryDownloadPackage.findFirst({
-      where: {
-        galleryId,
-        scope,
-        status: { in: ["pending", "processing", "completed", "failed"] }
-      },
-      select: { id: true }
-    });
+    if (purchase.purchaseKind === GALLERY_PURCHASE_KIND_PHOTOS) {
+      await prisma.galleryPurchase.update({
+        where: { id: purchase.id },
+        data: {
+          fulfilledAt: new Date(),
+          fulfillmentError: null
+        }
+      });
+      await sendPaidGalleryPhotoPurchaseReceipt(purchase.id, sessionId);
+    } else {
+      const scope = purchase.downloadScope ?? paidGalleryScope(galleryId);
+      const existingPackage = await prisma.galleryDownloadPackage.findFirst({
+        where: {
+          galleryId,
+          scope,
+          status: { in: ["pending", "processing", "completed", "failed"] }
+        },
+        select: { id: true }
+      });
 
-    if (!existingPackage) {
-      await fulfillPaidGalleryPurchase(purchase.id);
+      if (!existingPackage) {
+        await fulfillPaidGalleryPurchase(purchase.id);
+      }
     }
   }
 
@@ -292,7 +414,9 @@ export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: 
       id: true,
       email: true,
       status: true,
-      downloadScope: true
+      downloadScope: true,
+      purchaseKind: true,
+      purchasedPhotoIds: true
     }
   });
 
@@ -305,6 +429,8 @@ export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: 
     paid: true as const,
     purchaseId: fulfilledPurchase.id,
     email: fulfilledPurchase.email,
+    purchaseKind: fulfilledPurchase.purchaseKind,
+    purchasedPhotoIds: galleryPurchasePhotoIds(fulfilledPurchase.purchasedPhotoIds),
     scope: fulfilledPurchase.downloadScope ?? paidGalleryScope(galleryId)
   };
 }

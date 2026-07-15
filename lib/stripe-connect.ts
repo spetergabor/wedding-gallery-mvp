@@ -268,6 +268,7 @@ export async function createConnectedCheckoutSession({
   galleryId,
   adminId,
   galleryTitle,
+  description = "Digitális galéria letöltés",
   customerEmail,
   customerName,
   amountCents,
@@ -280,6 +281,7 @@ export async function createConnectedCheckoutSession({
   galleryId: string;
   adminId: string;
   galleryTitle: string;
+  description?: string;
   customerEmail: string;
   customerName?: string | null;
   amountCents: number;
@@ -298,7 +300,7 @@ export async function createConnectedCheckoutSession({
   params.set("line_items[0][price_data][currency]", currency.toLowerCase());
   params.set("line_items[0][price_data][unit_amount]", String(normalizedAmountCents));
   params.set("line_items[0][price_data][product_data][name]", galleryTitle);
-  params.set("line_items[0][price_data][product_data][description]", "Digitális galéria letöltés");
+  params.set("line_items[0][price_data][product_data][description]", description);
   params.set("metadata[purchaseId]", purchaseId);
   params.set("metadata[galleryId]", galleryId);
   params.set("metadata[adminId]", adminId);

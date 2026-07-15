@@ -72,6 +72,15 @@ type GuestGalleryDownloadReadyEmail = {
   language?: CustomerLanguage;
 };
 
+type PaidGalleryPhotoPurchaseEmail = {
+  to: string;
+  galleryTitle: string;
+  galleryUrl: string;
+  photoCount: number;
+  amountLabel: string;
+  language?: CustomerLanguage;
+};
+
 type MiniSessionBookingEmail = {
   to: string;
   replyTo?: string;
@@ -176,6 +185,16 @@ const CUSTOMER_EMAIL_COPY = {
       downloadLabel: "ZIP herunterladen",
       fallback: "Falls ein Button nicht funktioniert, kopiere den jeweiligen Link in den Browser:"
     },
+    paidPhotoPurchase: {
+      subject: "Deine gekauften Fotos sind bereit",
+      heading: "Deine gekauften Fotos sind bereit",
+      body: "Danke für deinen Kauf. Die ausgewählten Fotos sind jetzt in der Galerie freigeschaltet.",
+      galleryLabel: "Galerie",
+      photoCountLabel: "Gekaufte Fotos",
+      amountLabel: "Betrag",
+      cta: "Fotos öffnen",
+      fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
+    },
     adminZipReady: {
       heading: "Galéria ZIP elkészült",
       body: "A galéria letölthető ZIP fájlja elkészült, így küldés előtt minden készen áll.",
@@ -251,6 +270,16 @@ const CUSTOMER_EMAIL_COPY = {
       expiresAtLabel: "Link érvényessége",
       downloadLabel: "ZIP letöltése",
       fallback: "Ha a gomb nem működik, másold be ezt a linket a böngészőbe:"
+    },
+    paidPhotoPurchase: {
+      subject: "A megvásárolt fotók elérhetők",
+      heading: "A megvásárolt fotók elérhetők",
+      body: "Köszönjük a vásárlást. A kiválasztott fotók mostantól fel vannak oldva a galériában.",
+      galleryLabel: "Galéria",
+      photoCountLabel: "Megvásárolt fotók",
+      amountLabel: "Összeg",
+      cta: "Fotók megnyitása",
+      fallback: "Ha nem működik a gomb, másold be ezt a linket:"
     },
     adminZipReady: {
       heading: "A galéria ZIP elkészült",
@@ -1263,6 +1292,74 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     throw new Error(`Guest ZIP download email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+}
+
+function paidGalleryPhotoPurchaseHtml({
+  galleryTitle,
+  galleryUrl,
+  photoCount,
+  amountLabel,
+  language
+}: PaidGalleryPhotoPurchaseEmail) {
+  const copy = copyForLanguage(language).paidPhotoPurchase;
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(copy.heading)}</h1>
+      <p style="margin: 0 0 18px;">${escapeHtml(copy.body)}</p>
+      <table style="border-collapse: collapse; margin-bottom: 20px;">
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.galleryLabel)}</td><td style="padding: 4px 0;"><strong>${escapeHtml(galleryTitle)}</strong></td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.photoCountLabel)}</td><td style="padding: 4px 0;">${photoCount}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.amountLabel)}</td><td style="padding: 4px 0;">${escapeHtml(amountLabel)}</td></tr>
+      </table>
+      <p style="margin: 0 0 16px;">
+        <a href="${escapeHtml(galleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(copy.cta)}</a>
+      </p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${escapeHtml(copy.fallback)}<br>${escapeHtml(galleryUrl)}</p>
+    </div>
+  `;
+}
+
+export async function sendPaidGalleryPhotoPurchaseEmail(payload: PaidGalleryPhotoPurchaseEmail) {
+  const copy = copyForLanguage(payload.language).paidPhotoPurchase;
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Paid gallery photo purchase email skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject: `${copy.subject}: ${payload.galleryTitle}`,
+      html: paidGalleryPhotoPurchaseHtml(payload),
+      text: [
+        copy.heading,
+        "",
+        copy.body,
+        "",
+        `${copy.galleryLabel}: ${payload.galleryTitle}`,
+        `${copy.photoCountLabel}: ${payload.photoCount}`,
+        `${copy.amountLabel}: ${payload.amountLabel}`,
+        "",
+        `${copy.cta}: ${payload.galleryUrl}`
+      ].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Paid gallery photo purchase email failed: ${response.status} ${errorText}`);
   }
 
   return true;

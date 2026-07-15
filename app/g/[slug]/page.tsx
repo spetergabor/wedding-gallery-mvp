@@ -15,7 +15,13 @@ import { canViewGallery, getPaidGalleryPurchaseDownloadState, unlockGalleryActio
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
-import { GALLERY_PURCHASE_PAID, formatGallerySalePrice } from "@/lib/gallery-sales";
+import {
+  GALLERY_PURCHASE_KIND_PHOTOS,
+  GALLERY_PURCHASE_PAID,
+  formatGallerySalePrice,
+  galleryPurchasePhotoIds
+} from "@/lib/gallery-sales";
+import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -164,29 +170,43 @@ export default async function PublicGalleryPage({
       ? await getPaidGalleryPurchaseDownloadState(gallery.id, flags.session_id)
       : null;
   const paidAccessPurchase =
-    paidGallery && flags.session_id
-      ? paidPurchaseDownloadState?.paid
-        ? { id: paidPurchaseDownloadState.packageId ?? flags.session_id }
-        : await prisma.galleryPurchase.findFirst({
+    paidGallery && flags.session_id && !paidPurchaseDownloadState?.paid
+      ? await prisma.galleryPurchase.findFirst({
           where: {
             galleryId: gallery.id,
             stripeCheckoutSessionId: flags.session_id,
             status: GALLERY_PURCHASE_PAID
           },
-          select: { id: true }
+          select: {
+            id: true,
+            purchaseKind: true,
+            purchasedPhotoIds: true
+          }
         })
       : null;
-  const paidPreviewProtected = paidGallery && !paidAccessPurchase;
-  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}?v=4`;
+  const paidPurchaseKind =
+    paidPurchaseDownloadState?.paid
+      ? paidPurchaseDownloadState.purchaseKind
+      : paidAccessPurchase?.purchaseKind ?? null;
+  const purchasedPhotoIds =
+    paidPurchaseDownloadState?.paid
+      ? paidPurchaseDownloadState.purchasedPhotoIds
+      : galleryPurchasePhotoIds(paidAccessPurchase?.purchasedPhotoIds);
+  const purchasedPhotoIdSet = new Set(purchasedPhotoIds);
+  const fullGalleryPurchased = paidGallery && Boolean(paidPurchaseKind && paidPurchaseKind !== GALLERY_PURCHASE_KIND_PHOTOS);
+  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}?v=5`;
+  const canAccessOriginalPhoto = (photo: (typeof publicPhotos)[number]) => {
+    return !paidGallery || fullGalleryPurchased || purchasedPhotoIdSet.has(photo.id);
+  };
   const coverPhotoSrc =
-    paidPreviewProtected && coverPhoto
+    paidGallery && coverPhoto && !canAccessOriginalPhoto(coverPhoto)
       ? protectedPhotoUrl(coverPhoto.id)
       : coverPhoto
         ? coverPhoto.previewUrl || coverPhoto.imageUrl
         : "";
-  const publicGalleryPhotos = paidPreviewProtected
+  const publicGalleryPhotos = paidGallery
     ? publicPhotos.map((photo) =>
-        photo.mediaType === "video"
+        photo.mediaType === "video" || canAccessOriginalPhoto(photo)
           ? photo
           : {
               ...photo,
@@ -377,11 +397,15 @@ export default async function PublicGalleryPage({
               paidGallery
                 ? {
                     priceCents: gallery.salePriceCents,
+                    unitPriceCents: gallery.saleUnitPriceCents,
+                    pricingTiers: normalizeGallerySalePricingTiers(gallery.salePricingTiers),
                     currency: gallery.saleCurrency,
                     priceLabel: formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency, dateLocaleForCustomer(language)),
                     purchaseStatus: flags.purchase ?? null,
                     purchaseSessionId: flags.session_id ?? null,
-                    purchaseDownload: paidPurchaseDownloadState?.paid ? paidPurchaseDownloadState : null
+                    purchaseDownload: paidPurchaseDownloadState?.paid ? paidPurchaseDownloadState : null,
+                    purchasedPhotoIds,
+                    fullGalleryPurchased
                   }
                 : null
             }

@@ -43,6 +43,7 @@ import {
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
 import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery-sales";
+import { parseGallerySalePricingTiersFromForm, parsePriceCents } from "@/lib/gallery-sale-pricing";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { isAnyRateLimited } from "@/lib/rate-limit";
@@ -103,6 +104,10 @@ function galleryDeliveryModeFromForm(formData: FormData) {
 
 function gallerySalePriceCentsFromForm(formData: FormData) {
   return parseGallerySalePriceCents(formString(formData, "salePrice"));
+}
+
+function gallerySaleUnitPriceCentsFromForm(formData: FormData) {
+  return parsePriceCents(formString(formData, "saleUnitPrice")) ?? 0;
 }
 
 async function photographerHasActiveStripe(adminId: string) {
@@ -961,6 +966,8 @@ export async function createGalleryAction(formData: FormData) {
   const deliveryMode = galleryDeliveryModeFromForm(formData);
   const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
   const salePriceCents = gallerySalePriceCentsFromForm(formData);
+  const saleUnitPriceCents = gallerySaleUnitPriceCentsFromForm(formData);
+  const salePricingTiers = parseGallerySalePricingTiersFromForm(formData);
   const saleCurrency = normalizeSaleCurrency(formString(formData, "saleCurrency"));
   const publicColumnCount = mobileColumnCountFromForm(formData);
 
@@ -1025,6 +1032,8 @@ export async function createGalleryAction(formData: FormData) {
         galleryMode,
         deliveryMode,
         salePriceCents,
+        saleUnitPriceCents,
+        salePricingTiers,
         saleCurrency,
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
@@ -1065,6 +1074,8 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const deliveryMode = galleryDeliveryModeFromForm(formData);
   const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
   const salePriceCents = gallerySalePriceCentsFromForm(formData);
+  const saleUnitPriceCents = gallerySaleUnitPriceCentsFromForm(formData);
+  const salePricingTiers = parseGallerySalePricingTiersFromForm(formData);
   const saleCurrency = normalizeSaleCurrency(formString(formData, "saleCurrency"));
   const publicColumnCount = mobileColumnCountFromForm(formData);
 
@@ -1136,6 +1147,8 @@ export async function updateGalleryAction(id: string, formData: FormData) {
         galleryMode,
         deliveryMode,
         salePriceCents,
+        saleUnitPriceCents,
+        salePricingTiers,
         saleCurrency,
         clientEmail: selectedCustomer ? normalizeEmail(selectedCustomer.primaryEmail) : null,
         proofingInviteEmailError: null,
