@@ -372,6 +372,10 @@ export function GalleryForm({
                     <p className="mt-1 text-sm leading-6 text-graphite/70">
                       Csak a megvásárolható galéria módnál használjuk. Sikeres fizetés után a vendég e-mailben kapja meg a letöltő linket.
                     </p>
+                    <p className="mt-2 text-xs leading-5 text-graphite/60">
+                      0,00 árral Stripe teszt Checkout indul kártyaadat nélkül. Ha a teszt bankkártyás mezőt is látni akarod, adj meg kis
+                      összeget, például 0,50 EUR-t Stripe test módban.
+                    </p>
                   </div>
                   {gallery?.salePriceCents ? (
                     <span className="w-fit rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass">

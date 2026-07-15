@@ -219,7 +219,10 @@ export async function markPaidGalleryPurchaseFromCheckoutSession(session: Stripe
     throw new Error("Stripe account mismatch for purchase.");
   }
 
-  if (session.payment_status !== "paid") {
+  const sessionAmountTotal = session.amount_total ?? purchase.amountTotal;
+  const noCostCheckoutCompleted = sessionAmountTotal === 0 && session.payment_status === "no_payment_required";
+
+  if (session.payment_status !== "paid" && !noCostCheckoutCompleted) {
     return { ok: false as const, reason: "not-paid" };
   }
 
@@ -229,7 +232,7 @@ export async function markPaidGalleryPurchaseFromCheckoutSession(session: Stripe
       status: GALLERY_PURCHASE_PAID,
       stripeCheckoutSessionId: session.id,
       stripePaymentIntentId: session.payment_intent ?? null,
-      amountTotal: session.amount_total ?? purchase.amountTotal,
+      amountTotal: sessionAmountTotal,
       currency: normalizeSaleCurrency(session.currency ?? purchase.currency),
       paidAt: new Date(),
       fulfillmentError: null

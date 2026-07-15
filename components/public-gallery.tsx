@@ -95,9 +95,11 @@ const GALLERY_COPY = {
     videoCount: (count: number) => `${count} ${count === 1 ? "Video" : "Videos"}`,
     paidTitle: "Galerie kaufen",
     paidIntro: "Diese Galerie ist als Vorschau geschützt. Nach erfolgreicher Zahlung erhältst du den Download-Link per E-Mail.",
+    paidNoCostIntro: "Diese Galerie nutzt einen 0-EUR-Test-Checkout. Stripe schließt den Ablauf ohne Kartendaten ab.",
     paidName: "Name",
     paidEmail: "E-Mail-Adresse",
     paidButton: "Mit Stripe bezahlen",
+    paidNoCostButton: "Test-Checkout starten",
     paidSecure: "Sichere Zahlung über Stripe. Der Fotograf erhält die Zahlung direkt über sein eigenes Stripe-Konto.",
     paidSuccess: "Zahlung erhalten. Die Download-Links werden vorbereitet und per E-Mail gesendet.",
     paidCancelled: "Die Zahlung wurde abgebrochen. Du kannst den Kauf jederzeit erneut starten.",
@@ -178,9 +180,11 @@ const GALLERY_COPY = {
     videoCount: (count: number) => `${count} videó`,
     paidTitle: "Galéria megvásárlása",
     paidIntro: "Ez a galéria előnézetként védett. Sikeres fizetés után e-mailben kapod meg a letöltő linket.",
+    paidNoCostIntro: "Ez 0 EUR-os teszt Checkout. A Stripe kártyaadat nélkül zárja le a folyamatot.",
     paidName: "Név",
     paidEmail: "E-mail cím",
     paidButton: "Fizetés Stripe-pal",
+    paidNoCostButton: "Teszt Checkout indítása",
     paidSecure: "Biztonságos fizetés Stripe-on keresztül. A fizetés közvetlenül a fotós saját Stripe fiókjához kapcsolódik.",
     paidSuccess: "A fizetés sikeres. A letöltési linkeket előkészítjük és e-mailben elküldjük.",
     paidCancelled: "A fizetés megszakadt. A vásárlást bármikor újraindíthatod.",
@@ -1233,7 +1237,9 @@ export function PublicGallery({
                   <CreditCard size={20} />
                 </div>
                 <h2 className="mt-4 text-2xl font-semibold text-ink">{copy.paidTitle}</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/75">{copy.paidIntro}</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/75">
+                  {sale.priceCents <= 0 ? copy.paidNoCostIntro : copy.paidIntro}
+                </p>
                 <div className="mt-4 flex w-fit items-center gap-2 rounded-full bg-brass/10 px-3 py-1 text-sm font-semibold text-brass">
                   <ShieldCheck size={15} />
                   {sale.priceLabel}
@@ -1275,9 +1281,9 @@ export function PublicGallery({
                       className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm outline-none transition focus:border-ink/50"
                     />
                   </label>
-                  <FormSubmitButton pendingLabel={copy.sending} className="w-full" disabled={sale.priceCents <= 0}>
+                  <FormSubmitButton pendingLabel={copy.sending} className="w-full">
                     <CreditCard size={16} />
-                    {copy.paidButton}
+                    {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.paidButton}
                   </FormSubmitButton>
                 </div>
               </form>

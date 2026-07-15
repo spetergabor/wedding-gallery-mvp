@@ -971,10 +971,6 @@ export async function createGalleryAction(formData: FormData) {
     redirect("/admin/galleries/new?error=stripe_required");
   }
 
-  if (galleryDeliveryUsesPayment(deliveryMode) && salePriceCents <= 0) {
-    redirect("/admin/galleries/new?error=price_required");
-  }
-
   const customer = customerId
     ? await prisma.customer.findFirst({
         where: {
@@ -1077,10 +1073,6 @@ export async function updateGalleryAction(id: string, formData: FormData) {
 
   if (galleryDeliveryUsesPayment(deliveryMode) && !(await photographerHasActiveStripe(ownerAdminId(admin)))) {
     redirect(`/admin/galleries/${id}?error=stripe_required`);
-  }
-
-  if (galleryDeliveryUsesPayment(deliveryMode) && salePriceCents <= 0) {
-    redirect(`/admin/galleries/${id}?error=price_required`);
   }
 
   const selectedCustomer = customerId

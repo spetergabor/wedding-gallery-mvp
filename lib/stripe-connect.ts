@@ -286,6 +286,7 @@ export async function createConnectedCheckoutSession({
   successUrl: string;
   cancelUrl: string;
 }) {
+  const normalizedAmountCents = Math.max(0, amountCents);
   const params = new URLSearchParams();
   params.set("mode", "payment");
   params.set("success_url", successUrl);
@@ -294,15 +295,20 @@ export async function createConnectedCheckoutSession({
   params.set("client_reference_id", purchaseId);
   params.set("line_items[0][quantity]", "1");
   params.set("line_items[0][price_data][currency]", currency.toLowerCase());
-  params.set("line_items[0][price_data][unit_amount]", String(amountCents));
+  params.set("line_items[0][price_data][unit_amount]", String(normalizedAmountCents));
   params.set("line_items[0][price_data][product_data][name]", galleryTitle);
   params.set("line_items[0][price_data][product_data][description]", "Digitális galéria letöltés");
   params.set("metadata[purchaseId]", purchaseId);
   params.set("metadata[galleryId]", galleryId);
   params.set("metadata[adminId]", adminId);
-  params.set("payment_intent_data[metadata][purchaseId]", purchaseId);
-  params.set("payment_intent_data[metadata][galleryId]", galleryId);
-  params.set("payment_intent_data[metadata][adminId]", adminId);
+
+  if (normalizedAmountCents === 0) {
+    params.set("payment_method_collection", "if_required");
+  } else {
+    params.set("payment_intent_data[metadata][purchaseId]", purchaseId);
+    params.set("payment_intent_data[metadata][galleryId]", galleryId);
+    params.set("payment_intent_data[metadata][adminId]", adminId);
+  }
 
   if (customerName?.trim()) {
     params.set("metadata[customerName]", customerName.trim().slice(0, 250));

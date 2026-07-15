@@ -77,7 +77,7 @@ export async function createPaidGalleryCheckoutAction(formData: FormData) {
 
   const failureBase = `/g/${gallery.slug}`;
 
-  if (gallery.deliveryMode !== GALLERY_DELIVERY_PAID || gallery.salePriceCents <= 0) {
+  if (gallery.deliveryMode !== GALLERY_DELIVERY_PAID) {
     redirect(`${failureBase}?purchase=not-for-sale`);
   }
 
