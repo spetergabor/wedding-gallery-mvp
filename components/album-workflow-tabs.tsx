@@ -50,11 +50,14 @@ export function AlbumWorkflowTabs({
 
   return (
     <div className="space-y-5">
+      <div hidden={mode !== "editor"}>{editorContent}</div>
+      <div hidden={mode !== "upload"}>{uploadContent}</div>
+
       <section className="rounded-lg border border-ink/10 bg-white p-3 shadow-soft">
         <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
           <div>
-            <p className="text-sm font-semibold text-ink">Munkaterület</p>
-            <p className="mt-1 text-xs text-graphite/65">Válts a beépített szerkesztő és a külső ellenőrzők kezelése között.</p>
+            <p className="text-sm font-semibold text-ink">Munkaterület váltása</p>
+            <p className="mt-1 text-xs text-graphite/65">Itt válthatsz a beépített szerkesztő és a külső ellenőrzők kezelése között.</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[520px]">
             <button
@@ -96,9 +99,6 @@ export function AlbumWorkflowTabs({
           </div>
         </div>
       </section>
-
-      <div hidden={mode !== "editor"}>{editorContent}</div>
-      <div hidden={mode !== "upload"}>{uploadContent}</div>
 
       {dashboardContent}
     </div>
