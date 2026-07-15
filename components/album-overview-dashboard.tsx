@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ExternalLink, ImagePlus, LayoutTemplate, Upload } from "lucide-react";
+import { ArrowRight, ExternalLink, ImagePlus } from "lucide-react";
 
 type AlbumDashboardDesign = {
   id: string;
@@ -63,7 +63,7 @@ export function AlbumOverviewDashboard({
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-      <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start">
+      <div className="border-b border-ink/10 pb-5">
         <div>
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <ImagePlus size={15} />
@@ -73,22 +73,6 @@ export function AlbumOverviewDashboard({
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
             Itt éred el az ügyfél összes albumtervét és ellenőrzőjét, függetlenül attól, hogy a Spetlyben készült vagy külső programból lett feltöltve.
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href={clientAlbumHref(customerId, { albumMode: "editor", albumWorkspace: "new" })}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
-          >
-            <LayoutTemplate size={15} />
-            Új Spetly album
-          </Link>
-          <Link
-            href={clientAlbumHref(customerId, { albumMode: "upload" })}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-          >
-            <Upload size={15} />
-            Külső ellenőrző
-          </Link>
         </div>
       </div>
 
@@ -110,7 +94,7 @@ export function AlbumOverviewDashboard({
       {!hasAlbums ? (
         <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5">
           <p className="text-sm font-medium text-ink">Még nincs album ehhez az ügyfélhez.</p>
-          <p className="mt-1 text-sm text-graphite/70">Indíts egy Spetly albumot, vagy hozz létre külső ellenőrzőt SmartAlbumsból exportált oldalpárokhoz.</p>
+          <p className="mt-1 text-sm text-graphite/70">Az albumtervező vagy a feltöltött ellenőrzők munkaterületén tudsz új album munkát indítani.</p>
         </div>
       ) : (
         <div className="mt-5 grid gap-3 lg:grid-cols-2">

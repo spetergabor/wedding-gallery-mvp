@@ -416,11 +416,7 @@ export function AlbumDesignManager({
       {activeWorkspaceView === "projects" ? designs.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
           <p className="text-sm font-medium text-ink">{standaloneMode ? "Még nincs önálló albumterv" : "Még nincs albumterv ehhez az ügyfélhez"}</p>
-          <p className="mt-1 text-sm text-graphite/70">Hozz létre egy albumtervet saját képekből, meglévő galériából vagy favorite listából.</p>
-          <Link href={workspaceHref("new")} className="mt-3 inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white">
-            <Plus size={16} className="mr-2" />
-            Új album indítása
-          </Link>
+          <p className="mt-1 text-sm text-graphite/70">Válaszd fent az Új album indítása fület, és hozz létre albumtervet saját képekből, meglévő galériából vagy favorite listából.</p>
         </div>
       ) : (
         <div className="mt-6">
