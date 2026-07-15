@@ -7,7 +7,7 @@ import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import {
-  createEmptyAlbumDesignSpreadAction,
+  createEmptyAlbumDesignSpreadInlineAction,
   deleteAlbumDesignSpreadAction,
   regenerateAlbumDesignSpreadLayoutAction,
   saveAlbumDesignSpreadDraftsAction,
@@ -142,19 +142,27 @@ function AlbumLayoutRadioGrid({ defaultLayoutKey, className = "max-h-72 overflow
 }
 
 function SidebarSpreadCreateForm({
-  customerId,
-  designId
+  isCreating,
+  errorMessage,
+  onCreateSpread
 }: {
-  customerId: string | null;
-  designId: string;
+  isCreating: boolean;
+  errorMessage: string | null;
+  onCreateSpread: () => void;
 }) {
   return (
-    <form action={createEmptyAlbumDesignSpreadAction.bind(null, customerId, designId)} className="mt-3">
-      <FormSubmitButton variant="secondary" className="h-11 w-full justify-center border-dashed bg-white px-3" pendingLabel="Létrehozás...">
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={onCreateSpread}
+        disabled={isCreating}
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-dashed border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30 disabled:cursor-not-allowed disabled:opacity-60"
+      >
         <Plus size={16} />
-        Oldalpár hozzáadása
-      </FormSubmitButton>
-    </form>
+        {isCreating ? "Létrehozás..." : "Oldalpár hozzáadása"}
+      </button>
+      {errorMessage ? <p className="mt-2 text-xs leading-5 text-red-600">{errorMessage}</p> : null}
+    </div>
   );
 }
 
@@ -173,7 +181,8 @@ export function AlbumDesignWorkbench({
   initialEditorOpen?: boolean;
   initialActiveSpreadId?: string | null;
 }) {
-  const orderedSpreads = useMemo(() => [...spreads].sort((left, right) => left.sortOrder - right.sortOrder), [spreads]);
+  const [localSpreads, setLocalSpreads] = useState(spreads);
+  const orderedSpreads = useMemo(() => [...localSpreads].sort((left, right) => left.sortOrder - right.sortOrder), [localSpreads]);
   const resolvedInitialActiveSpreadId =
     initialActiveSpreadId && orderedSpreads.some((spread) => spread.id === initialActiveSpreadId)
       ? initialActiveSpreadId
@@ -189,18 +198,20 @@ export function AlbumDesignWorkbench({
   const [workbenchZoom, setWorkbenchZoom] = useState(1);
   const [layoutModalSpreadId, setLayoutModalSpreadId] = useState<string | null>(null);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
+  const [createSpreadError, setCreateSpreadError] = useState<string | null>(null);
+  const [isCreatingSpread, setIsCreatingSpread] = useState(false);
   const workbenchZoomRef = useRef(workbenchZoom);
   const workbenchScrollRef = useRef<HTMLElement | null>(null);
   const originalSignaturesBySpread = useMemo(
-    () => Object.fromEntries(spreads.map((spread) => [spread.id, getItemSignature(getOrderedItems(spread))])),
-    [spreads]
+    () => Object.fromEntries(localSpreads.map((spread) => [spread.id, getItemSignature(getOrderedItems(spread))])),
+    [localSpreads]
   );
   const changedSpreadIds = useMemo(
     () =>
-      spreads
+      localSpreads
         .filter((spread) => getItemSignature(draftItemsBySpread[spread.id] ?? getOrderedItems(spread)) !== originalSignaturesBySpread[spread.id])
         .map((spread) => spread.id),
-    [draftItemsBySpread, originalSignaturesBySpread, spreads]
+    [draftItemsBySpread, localSpreads, originalSignaturesBySpread]
   );
   const usedPhotoIds = useMemo(
     () => [
@@ -228,6 +239,10 @@ export function AlbumDesignWorkbench({
 
     return searchedPhotos.filter((photo) => !usedPhotoIdSet.has(photo.id) || photo.id === activeSlotItem?.photo.id);
   }, [activeSlotItem?.photo.id, photoQuery, showUnusedOnly, sourcePhotos, usedPhotoIdSet]);
+
+  useEffect(() => {
+    setLocalSpreads(spreads);
+  }, [spreads]);
 
   useEffect(() => {
     setDraftItemsBySpread(createDraftMap(spreads));
@@ -440,7 +455,38 @@ export function AlbumDesignWorkbench({
     replaceSpreadSlotPhoto(spreadId, slotIndex, photo);
   }
 
-  if (spreads.length === 0) {
+  const createInlineSpread = useCallback(() => {
+    if (isCreatingSpread) {
+      return;
+    }
+
+    setCreateSpreadError(null);
+    setIsCreatingSpread(true);
+    void (async () => {
+      try {
+        const spread = await createEmptyAlbumDesignSpreadInlineAction(customerId, designId);
+
+        setLocalSpreads((current) => [...current.filter((item) => item.id !== spread.id), spread]);
+        setDraftItemsBySpread((current) => ({
+          ...current,
+          [spread.id]: []
+        }));
+        setSelectedSlotBySpread((current) => ({
+          ...current,
+          [spread.id]: 0
+        }));
+        setActiveSpreadId(spread.id);
+        setLayoutModalSpreadId(null);
+      } catch (error) {
+        console.error("Failed to create inline album spread", error);
+        setCreateSpreadError("Nem sikerült létrehozni az oldalpárt. Próbáld újra.");
+      } finally {
+        setIsCreatingSpread(false);
+      }
+    })();
+  }, [customerId, designId, isCreatingSpread]);
+
+  if (orderedSpreads.length === 0) {
     return null;
   }
 
@@ -594,8 +640,9 @@ export function AlbumDesignWorkbench({
                   })}
                 </div>
                 <SidebarSpreadCreateForm
-                  customerId={customerId}
-                  designId={designId}
+                  isCreating={isCreatingSpread}
+                  errorMessage={createSpreadError}
+                  onCreateSpread={createInlineSpread}
                 />
               </aside>
 

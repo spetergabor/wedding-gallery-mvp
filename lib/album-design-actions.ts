@@ -561,6 +561,44 @@ export async function createEmptyAlbumDesignSpreadAction(customerId: string | nu
   redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadCreated=1", spread.id)));
 }
 
+export async function createEmptyAlbumDesignSpreadInlineAction(customerId: string | null, designId: string) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+
+  if (!design.favoriteListId && !design.sourceGalleryId) {
+    throw new Error("Album design source is missing.");
+  }
+
+  const layout = ALBUM_LAYOUT_TEMPLATES[1] ?? ALBUM_LAYOUT_TEMPLATES[0];
+  const latestSpread = await prisma.albumDesignSpread.findFirst({
+    where: { designId: design.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true }
+  });
+  const sortOrder = (latestSpread?.sortOrder ?? 0) + 1;
+
+  const spread = await prisma.albumDesignSpread.create({
+    data: {
+      designId: design.id,
+      title: `Oldalpár ${sortOrder}`,
+      layoutKey: layout.key,
+      sortOrder
+    },
+    select: {
+      id: true,
+      title: true,
+      layoutKey: true,
+      sortOrder: true
+    }
+  });
+
+  revalidateAlbumDesignPaths(customerId);
+
+  return {
+    ...spread,
+    items: []
+  };
+}
+
 export async function createAutoAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
