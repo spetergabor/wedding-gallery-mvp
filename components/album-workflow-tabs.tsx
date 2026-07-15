@@ -50,8 +50,6 @@ export function AlbumWorkflowTabs({
 
   return (
     <div className="space-y-5">
-      {dashboardContent}
-
       <section className="rounded-lg border border-ink/10 bg-white p-3 shadow-soft">
         <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
           <div>
@@ -101,6 +99,8 @@ export function AlbumWorkflowTabs({
 
       <div hidden={mode !== "editor"}>{editorContent}</div>
       <div hidden={mode !== "upload"}>{uploadContent}</div>
+
+      {dashboardContent}
     </div>
   );
 }
