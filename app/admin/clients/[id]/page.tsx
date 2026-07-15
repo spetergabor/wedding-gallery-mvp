@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { AlbumDesignManager } from "@/components/album-design-manager";
+import { AlbumOverviewDashboard } from "@/components/album-overview-dashboard";
 import { AlbumReviewManager } from "@/components/album-review-manager";
 import { AlbumWorkflowTabs } from "@/components/album-workflow-tabs";
 import { Alert } from "@/components/alert";
@@ -2182,6 +2183,7 @@ export default async function AdminClientDetailPage({
           initialMode={albumMode}
           editorCount={albumDesigns.length}
           reviewCount={albumReviews.length}
+          dashboardContent={<AlbumOverviewDashboard customerId={customer.id} designs={albumDesigns} reviews={albumReviews} />}
           editorContent={
             <AlbumDesignManager
               customerId={customer.id}

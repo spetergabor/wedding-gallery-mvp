@@ -85,11 +85,11 @@ export function AlbumReviewManager({
         <div>
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <ImagePlus size={15} />
-            Egyéni albumterv
+            Feltöltött ellenőrzők
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">Külső oldalpár képek feltöltése</h2>
+          <h2 className="mt-2 text-xl font-semibold text-ink">Külső albumtervek kezelése</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            Tölts fel SmartAlbumsból vagy más programból exportált JPG oldalpárokat. Az ügyfél a privát linken bárhova kattinthat a képen, és címkés megjegyzést írhat képcseréhez vagy javításhoz.
+            Hozz létre ellenőrzőt SmartAlbumsból vagy más programból exportált JPG oldalpárokhoz. A meglévő ellenőrzők felül, az album áttekintőben is elérhetők.
           </p>
         </div>
         <form action={createAlbumReviewAction.bind(null, customerId)} className="grid min-w-72 gap-2 rounded-md border border-ink/10 bg-paper p-3">
@@ -131,7 +131,7 @@ export function AlbumReviewManager({
             const linkedProject = review.projectId ? projectById.get(review.projectId) : null;
 
             return (
-              <article key={review.id} className="rounded-lg border border-ink/10 bg-paper p-4">
+              <article id={`album-review-${review.id}`} key={review.id} className="scroll-mt-28 rounded-lg border border-ink/10 bg-paper p-4">
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">

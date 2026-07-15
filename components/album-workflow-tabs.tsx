@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ImagePlus, LayoutTemplate, Upload } from "lucide-react";
+import { LayoutTemplate, Upload } from "lucide-react";
 
 type AlbumMode = "editor" | "upload";
 
@@ -10,6 +10,7 @@ type AlbumWorkflowTabsProps = {
   initialMode: AlbumMode;
   editorCount: number;
   reviewCount: number;
+  dashboardContent: ReactNode;
   editorContent: ReactNode;
   uploadContent: ReactNode;
 };
@@ -25,6 +26,7 @@ export function AlbumWorkflowTabs({
   initialMode,
   editorCount,
   reviewCount,
+  dashboardContent,
   editorContent,
   uploadContent
 }: AlbumWorkflowTabsProps) {
@@ -47,56 +49,50 @@ export function AlbumWorkflowTabs({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+    <div className="space-y-5">
+      {dashboardContent}
+
+      <section className="rounded-lg border border-ink/10 bg-white p-3 shadow-soft">
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
           <div>
-            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-              <ImagePlus size={15} />
-              Album workflow
-            </div>
-            <h2 className="mt-2 text-xl font-semibold text-ink">Albumterv indítása</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-              Válaszd ki, hogy az appon belül építed fel az oldalpárokat, vagy egy külső programból exportált albumtervet töltesz fel ellenőrzésre.
-            </p>
+            <p className="text-sm font-semibold text-ink">Munkaterület</p>
+            <p className="mt-1 text-xs text-graphite/65">Válts a beépített szerkesztő és a külső ellenőrzők kezelése között.</p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
+          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[520px]">
             <button
               type="button"
               aria-pressed={mode === "editor"}
               onClick={() => selectMode("editor")}
-              className={`rounded-md border p-4 text-left transition ${
+              className={`rounded-md border px-4 py-3 text-left transition ${
                 mode === "editor" ? "border-ink bg-ink text-white shadow-soft" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
               }`}
             >
-              <span className="flex items-center gap-2 text-sm font-semibold">
-                <LayoutTemplate size={16} />
-                Beépített szerkesztő
-              </span>
-              <span className={`mt-1 block text-xs leading-5 ${mode === "editor" ? "text-white/70" : "text-graphite/65"}`}>
-                Favorite listából automatikus oldalpárok és JPG export.
-              </span>
-              <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${mode === "editor" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
-                {editorCount} albumterv
+              <span className="flex items-center justify-between gap-3 text-sm font-semibold">
+                <span className="inline-flex items-center gap-2">
+                  <LayoutTemplate size={16} />
+                  Beépített szerkesztő
+                </span>
+                <span className={`rounded-full px-2 py-0.5 text-xs ${mode === "editor" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
+                  {editorCount}
+                </span>
               </span>
             </button>
             <button
               type="button"
               aria-pressed={mode === "upload"}
               onClick={() => selectMode("upload")}
-              className={`rounded-md border p-4 text-left transition ${
+              className={`rounded-md border px-4 py-3 text-left transition ${
                 mode === "upload" ? "border-ink bg-ink text-white shadow-soft" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
               }`}
             >
-              <span className="flex items-center gap-2 text-sm font-semibold">
-                <Upload size={16} />
-                Egyéni albumterv feltöltése
-              </span>
-              <span className={`mt-1 block text-xs leading-5 ${mode === "upload" ? "text-white/70" : "text-graphite/65"}`}>
-                SmartAlbumsból vagy máshonnan exportált JPG oldalpárok ellenőrzése.
-              </span>
-              <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${mode === "upload" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
-                {reviewCount} ellenőrző
+              <span className="flex items-center justify-between gap-3 text-sm font-semibold">
+                <span className="inline-flex items-center gap-2">
+                  <Upload size={16} />
+                  Feltöltött ellenőrzők
+                </span>
+                <span className={`rounded-full px-2 py-0.5 text-xs ${mode === "upload" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
+                  {reviewCount}
+                </span>
               </span>
             </button>
           </div>
