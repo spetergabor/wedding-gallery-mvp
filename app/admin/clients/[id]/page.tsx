@@ -1211,6 +1211,54 @@ function getAlbumMode(flags: { albumMode?: string }): AlbumMode {
   return flags.albumMode === "upload" ? "upload" : "editor";
 }
 
+function getAlbumWorkflowOpen(flags: {
+  albumCreated?: string;
+  albumDeleted?: string;
+  albumUpdated?: string;
+  albumMode?: string;
+  albumUploaded?: string;
+  albumError?: string;
+  albumDesignCreated?: string;
+  albumDesignDeleted?: string;
+  albumDesignUpdated?: string;
+  albumDesignExported?: string;
+  albumSpreadAutoCreated?: string;
+  albumSpreadCreated?: string;
+  albumSpreadRegenerated?: string;
+  albumSpreadUpdated?: string;
+  albumSpreadSlotUpdated?: string;
+  albumSpreadDeleted?: string;
+  albumDesignError?: string;
+  albumWorkspace?: string;
+  albumDesignId?: string;
+  albumEditor?: string;
+  albumActiveSpread?: string;
+}) {
+  return Boolean(
+    flags.albumCreated ||
+      flags.albumDeleted ||
+      flags.albumUpdated ||
+      flags.albumMode ||
+      flags.albumUploaded ||
+      flags.albumError ||
+      flags.albumDesignCreated ||
+      flags.albumDesignDeleted ||
+      flags.albumDesignUpdated ||
+      flags.albumDesignExported ||
+      flags.albumSpreadAutoCreated ||
+      flags.albumSpreadCreated ||
+      flags.albumSpreadRegenerated ||
+      flags.albumSpreadUpdated ||
+      flags.albumSpreadSlotUpdated ||
+      flags.albumSpreadDeleted ||
+      flags.albumDesignError ||
+      flags.albumWorkspace ||
+      flags.albumDesignId ||
+      flags.albumEditor ||
+      flags.albumActiveSpread
+  );
+}
+
 export default async function AdminClientDetailPage({
   params,
   searchParams
@@ -1279,6 +1327,7 @@ export default async function AdminClientDetailPage({
   const copy = CLIENT_DETAIL_COPY[language];
   const activeTab = getActiveTab(flags);
   const albumMode = getAlbumMode(flags);
+  const albumWorkflowOpen = getAlbumWorkflowOpen(flags);
   const customer = await prisma.customer.findFirst({
     where: customerAccessWhere(admin, id),
     select: {
@@ -2181,8 +2230,8 @@ export default async function AdminClientDetailPage({
       <div data-customer-tab-panel="album" hidden={activeTab !== "album"}>
         <AlbumWorkflowTabs
           initialMode={albumMode}
-          editorCount={albumDesigns.length}
-          reviewCount={albumReviews.length}
+          initialOpen={albumWorkflowOpen}
+          backHref={`/admin/clients/${customer.id}?tab=album`}
           dashboardContent={<AlbumOverviewDashboard customerId={customer.id} designs={albumDesigns} reviews={albumReviews} />}
           editorContent={
             <AlbumDesignManager

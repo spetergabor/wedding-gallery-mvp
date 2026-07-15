@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ExternalLink, ImagePlus } from "lucide-react";
+import { ArrowRight, ExternalLink, ImagePlus, LayoutTemplate, Upload } from "lucide-react";
 
 type AlbumDashboardDesign = {
   id: string;
@@ -69,11 +69,57 @@ export function AlbumOverviewDashboard({
             <ImagePlus size={15} />
             Albumok
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">Album áttekintés</h2>
+          <h2 className="mt-2 text-xl font-semibold text-ink">Album központ</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            Itt éred el az ügyfél összes albumtervét és ellenőrzőjét, függetlenül attól, hogy a Spetlyben készült vagy külső programból lett feltöltve.
+            Innen indítasz új album munkát, és itt éred el az összes meglévő Spetly albumot vagy feltöltött ellenőrzőt.
           </p>
         </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        <Link
+          href={clientAlbumHref(customerId, { albumMode: "editor", albumWorkspace: "new" })}
+          className="group rounded-lg border border-ink/10 bg-ink p-5 text-white transition hover:bg-ink/90"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white/10">
+              <LayoutTemplate size={19} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/55">Online album</p>
+              <h3 className="mt-1 text-lg font-semibold">Spetlyben tervezem</h3>
+              <p className="mt-1 text-sm leading-6 text-white/70">
+                Válassz képeket meglévő galériából, favorite listából vagy saját feltöltésből, majd szerkeszd az oldalpárokat.
+              </p>
+              <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium">
+                Új online album
+                <ArrowRight size={15} className="transition group-hover:translate-x-0.5" />
+              </span>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href={clientAlbumHref(customerId, { albumMode: "upload" })}
+          className="group rounded-lg border border-ink/10 bg-paper p-5 transition hover:border-ink/25 hover:bg-white"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-white text-ink shadow-sm">
+              <Upload size={19} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Külső albumterv</p>
+              <h3 className="mt-1 text-lg font-semibold text-ink">Kész oldalpárokat töltök fel</h3>
+              <p className="mt-1 text-sm leading-6 text-graphite/70">
+                SmartAlbumsból vagy más programból exportált JPG oldalpárokhoz készítesz ügyfél ellenőrző linket.
+              </p>
+              <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-brass">
+                Új ellenőrző
+                <ArrowRight size={15} className="transition group-hover:translate-x-0.5" />
+              </span>
+            </div>
+          </div>
+        </Link>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -94,86 +140,95 @@ export function AlbumOverviewDashboard({
       {!hasAlbums ? (
         <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5">
           <p className="text-sm font-medium text-ink">Még nincs album ehhez az ügyfélhez.</p>
-          <p className="mt-1 text-sm text-graphite/70">Az albumtervező vagy a feltöltött ellenőrzők munkaterületén tudsz új album munkát indítani.</p>
+          <p className="mt-1 text-sm text-graphite/70">Válaszd ki felül, hogy online tervezel albumot, vagy kész oldalpárokat töltesz fel ellenőrzésre.</p>
         </div>
       ) : (
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
-          {designs.map((design) => {
-            const usedImages = design.spreads.reduce((total, spread) => total + spread.items.length, 0);
+        <div className="mt-6">
+          <div className="mb-3 flex flex-col justify-between gap-2 border-t border-ink/10 pt-5 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-graphite/55">Meglévő album munkák</p>
+              <h3 className="mt-1 text-base font-semibold text-ink">{designs.length + reviews.length} album munka</h3>
+            </div>
+            <p className="text-sm text-graphite/60">Megnyitás után csak az adott album munkafelülete látszik.</p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {designs.map((design) => {
+              const usedImages = design.spreads.reduce((total, spread) => total + spread.items.length, 0);
 
-            return (
-              <Link
-                key={design.id}
-                href={clientAlbumHref(customerId, {
-                  albumMode: "editor",
-                  albumWorkspace: "projects",
-                  albumDesignId: design.id,
-                  albumEditor: "1"
-                })}
-                className="group rounded-lg border border-ink/10 bg-paper p-4 transition hover:border-ink/25 hover:bg-white"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">Spetly album</span>
-                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                        {designStatusLabels[design.status] ?? design.status}
-                      </span>
+              return (
+                <Link
+                  key={design.id}
+                  href={clientAlbumHref(customerId, {
+                    albumMode: "editor",
+                    albumWorkspace: "projects",
+                    albumDesignId: design.id,
+                    albumEditor: "1"
+                  })}
+                  className="group rounded-lg border border-ink/10 bg-paper p-4 transition hover:border-ink/25 hover:bg-white"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">Online album</span>
+                        <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          {designStatusLabels[design.status] ?? design.status}
+                        </span>
+                      </div>
+                      <h3 className="mt-3 truncate text-lg font-semibold text-ink">{design.title}</h3>
+                      <p className="mt-1 text-sm text-graphite/70">
+                        {design.spreads.length} oldalpár · {usedImages} kép használva
+                      </p>
                     </div>
-                    <h3 className="mt-3 truncate text-lg font-semibold text-ink">{design.title}</h3>
-                    <p className="mt-1 text-sm text-graphite/70">
-                      {design.spreads.length} oldalpár · {usedImages} kép használva
-                    </p>
+                    <span className="mt-1 inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brass">
+                      Szerkesztés
+                      <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
+                    </span>
                   </div>
-                  <span className="mt-1 inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brass">
-                    Szerkesztés
-                    <ArrowRight size={14} className="transition group-hover:translate-x-0.5" />
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })}
 
-          {reviews.map((review) => {
-            const approvedCount = review.spreads.filter((spread) => spread.approvedAt).length;
-            const commentCount = review.spreads.reduce((total, spread) => total + spread.comments.length, 0);
+            {reviews.map((review) => {
+              const approvedCount = review.spreads.filter((spread) => spread.approvedAt).length;
+              const commentCount = review.spreads.reduce((total, spread) => total + spread.comments.length, 0);
 
-            return (
-              <div key={review.id} className="rounded-lg border border-ink/10 bg-paper p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-ink px-2.5 py-1 text-xs font-medium text-white">Külső ellenőrző</span>
-                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                        {reviewStatusLabels[review.status] ?? review.status}
-                      </span>
+              return (
+                <div key={review.id} className="rounded-lg border border-ink/10 bg-paper p-4">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-ink px-2.5 py-1 text-xs font-medium text-white">Feltöltött ellenőrző</span>
+                        <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                          {reviewStatusLabels[review.status] ?? review.status}
+                        </span>
+                      </div>
+                      <h3 className="mt-3 truncate text-lg font-semibold text-ink">{review.title}</h3>
+                      <p className="mt-1 text-sm text-graphite/70">
+                        {review.spreads.length} oldalpár · {approvedCount}/{review.spreads.length} rendben · {commentCount} címke
+                      </p>
                     </div>
-                    <h3 className="mt-3 truncate text-lg font-semibold text-ink">{review.title}</h3>
-                    <p className="mt-1 text-sm text-graphite/70">
-                      {review.spreads.length} oldalpár · {approvedCount}/{review.spreads.length} rendben · {commentCount} címke
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
-                    <a
-                      href={`/album/${review.accessToken}`}
-                      target="_blank"
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-                    >
-                      <ExternalLink size={14} />
-                      Ügyfél link
-                    </a>
-                    <Link
-                      href={`${clientAlbumHref(customerId, { albumMode: "upload" })}#album-review-${review.id}`}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
-                    >
-                      Kezelés
-                      <ArrowRight size={14} />
-                    </Link>
+                    <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
+                      <a
+                        href={`/album/${review.accessToken}`}
+                        target="_blank"
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                      >
+                        <ExternalLink size={14} />
+                        Ügyfél link
+                      </a>
+                      <Link
+                        href={`${clientAlbumHref(customerId, { albumMode: "upload" })}#album-review-${review.id}`}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
+                      >
+                        Kezelés
+                        <ArrowRight size={14} />
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </section>
