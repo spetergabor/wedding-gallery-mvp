@@ -182,6 +182,7 @@ export function AlbumDesignWorkbench({
   const [showUnusedOnly, setShowUnusedOnly] = useState(false);
   const [workbenchZoom, setWorkbenchZoom] = useState(1);
   const [layoutModalSpreadId, setLayoutModalSpreadId] = useState<string | null>(null);
+  const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const workbenchZoomRef = useRef(workbenchZoom);
   const workbenchScrollRef = useRef<HTMLElement | null>(null);
   const originalSignaturesBySpread = useMemo(
@@ -356,26 +357,29 @@ export function AlbumDesignWorkbench({
     }
   }
 
-  function replaceActiveSlotPhoto(photo: FavoritePhoto) {
-    if (!activeSpread) {
+  function replaceSpreadSlotPhoto(spreadId: string, slotIndex: number, photo: FavoritePhoto) {
+    const targetSpread = orderedSpreads.find((spread) => spread.id === spreadId);
+
+    if (!targetSpread) {
       return;
     }
 
-    const layout = getTemplate(activeSpread.layoutKey);
-    const slot = layout.slots[activeSlotIndex];
+    const layout = getTemplate(targetSpread.layoutKey);
+    const slot = layout.slots[slotIndex];
 
     if (!slot) {
       return;
     }
 
+    setActiveSpreadAndSlot(targetSpread.id, slotIndex);
     setDraftItemsBySpread((current) => ({
       ...current,
-      [activeSpread.id]: (() => {
-        const currentItems = current[activeSpread.id] ?? getOrderedItems(activeSpread);
-        const hasSlotItem = currentItems.some((item) => item.slotIndex === activeSlotIndex);
+      [targetSpread.id]: (() => {
+        const currentItems = current[targetSpread.id] ?? getOrderedItems(targetSpread);
+        const hasSlotItem = currentItems.some((item) => item.slotIndex === slotIndex);
         const nextItems = hasSlotItem
           ? currentItems.map((item) =>
-              item.slotIndex === activeSlotIndex
+              item.slotIndex === slotIndex
                 ? {
                     ...item,
                     photo,
@@ -387,8 +391,8 @@ export function AlbumDesignWorkbench({
           : [
               ...currentItems,
               {
-                id: `draft-${activeSpread.id}-${activeSlotIndex}`,
-                slotIndex: activeSlotIndex,
+                id: `draft-${targetSpread.id}-${slotIndex}`,
+                slotIndex,
                 x: slot.x,
                 y: slot.y,
                 width: slot.width,
@@ -402,6 +406,24 @@ export function AlbumDesignWorkbench({
         return nextItems.sort((left, right) => left.slotIndex - right.slotIndex);
       })()
     }));
+  }
+
+  function replaceActiveSlotPhoto(photo: FavoritePhoto) {
+    if (!activeSpread) {
+      return;
+    }
+
+    replaceSpreadSlotPhoto(activeSpread.id, activeSlotIndex, photo);
+  }
+
+  function replaceSpreadSlotPhotoById(spreadId: string, slotIndex: number, photoId: string) {
+    const photo = sourcePhotos.find((sourcePhoto) => sourcePhoto.id === photoId);
+
+    if (!photo) {
+      return;
+    }
+
+    replaceSpreadSlotPhoto(spreadId, slotIndex, photo);
   }
 
   if (spreads.length === 0) {
@@ -664,6 +686,7 @@ export function AlbumDesignWorkbench({
                           selectedSlotIndex={selectedSlotIndex}
                           onSelectedSlotIndexChange={(slotIndex) => setActiveSpreadAndSlot(spread.id, slotIndex)}
                           onFocusSpread={() => setActiveSpreadId(spread.id)}
+                          onPhotoDropToSlot={(slotIndex, photoId) => replaceSpreadSlotPhotoById(spread.id, slotIndex, photoId)}
                           hasChanges={hasChanges}
                         />
                       </section>
@@ -768,9 +791,19 @@ export function AlbumDesignWorkbench({
                     <button
                       key={`global-tray-${activeSpread?.id ?? "none"}-${activeSlotIndex}-${photo.id}`}
                       type="button"
+                      draggable={Boolean(activeSpread)}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "copy";
+                        event.dataTransfer.setData("application/x-spetly-album-photo-id", photo.id);
+                        event.dataTransfer.setData("text/plain", photo.id);
+                        setDraggedPhotoId(photo.id);
+                      }}
+                      onDragEnd={() => setDraggedPhotoId(null)}
                       onClick={() => replaceActiveSlotPhoto(photo)}
                       disabled={!activeSpread}
-                      className={`group w-28 shrink-0 overflow-hidden rounded-md border text-left transition ${trayCardClass} disabled:cursor-not-allowed disabled:opacity-50`}
+                      className={`group w-28 shrink-0 overflow-hidden rounded-md border text-left transition ${trayCardClass} ${
+                        draggedPhotoId === photo.id ? "scale-[0.98] opacity-70 ring-2 ring-white/50" : ""
+                      } cursor-grab active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50`}
                     >
                       <span className="relative block aspect-[4/3] bg-ink/30">
                         <Image

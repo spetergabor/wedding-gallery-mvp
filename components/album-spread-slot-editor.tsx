@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { MousePointer2, RotateCcw, Save } from "lucide-react";
-import { useEffect, useMemo, useRef, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
 import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumLayoutTemplate } from "@/lib/album-design-templates";
@@ -65,6 +65,7 @@ export function AlbumSpreadSlotEditor({
   selectedSlotIndex,
   onSelectedSlotIndexChange,
   onFocusSpread,
+  onPhotoDropToSlot,
   hasChanges,
 }: {
   customerId: string | null;
@@ -75,11 +76,13 @@ export function AlbumSpreadSlotEditor({
   selectedSlotIndex: number;
   onSelectedSlotIndexChange: (slotIndex: number) => void;
   onFocusSpread?: () => void;
+  onPhotoDropToSlot?: (slotIndex: number, photoId: string) => void;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
   const template = getAlbumLayoutTemplate(spread.layoutKey);
   const cropDragStateRef = useRef<CropDragState | null>(null);
+  const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
 
@@ -166,6 +169,54 @@ export function AlbumSpreadSlotEditor({
     );
   }
 
+  function getDraggedPhotoId(event: DragEvent<HTMLElement>) {
+    return event.dataTransfer.getData("application/x-spetly-album-photo-id") || event.dataTransfer.getData("text/plain");
+  }
+
+  function hasDraggedAlbumPhoto(event: DragEvent<HTMLElement>) {
+    return Array.from(event.dataTransfer.types).includes("application/x-spetly-album-photo-id");
+  }
+
+  function handleSlotDragOver(event: DragEvent<HTMLButtonElement>, slotIndex: number) {
+    if (!onPhotoDropToSlot || !hasDraggedAlbumPhoto(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+
+    if (dragOverSlotIndex !== slotIndex) {
+      setDragOverSlotIndex(slotIndex);
+    }
+
+    if (selectedSlotIndex !== slotIndex) {
+      selectSlot(slotIndex);
+    } else {
+      onFocusSpread?.();
+    }
+  }
+
+  function handleSlotDragLeave(event: DragEvent<HTMLButtonElement>, slotIndex: number) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+
+    setDragOverSlotIndex((current) => (current === slotIndex ? null : current));
+  }
+
+  function handleSlotDrop(event: DragEvent<HTMLButtonElement>, slotIndex: number) {
+    const photoId = getDraggedPhotoId(event);
+
+    if (!onPhotoDropToSlot || !photoId) {
+      return;
+    }
+
+    event.preventDefault();
+    setDragOverSlotIndex(null);
+    selectSlot(slotIndex);
+    onPhotoDropToSlot(slotIndex, photoId);
+  }
+
   return (
     <div className="mt-4 space-y-3">
       <div className="rounded-md border border-ink/10 bg-paper p-3">
@@ -199,6 +250,7 @@ export function AlbumSpreadSlotEditor({
           {template.slots.map((slot, slotIndex) => {
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
             const isSelected = slotIndex === selectedSlotIndex;
+            const isDragOver = slotIndex === dragOverSlotIndex;
 
             if (!item) {
               return (
@@ -206,8 +258,15 @@ export function AlbumSpreadSlotEditor({
                   key={`empty-slot-${spread.id}-${slotIndex}`}
                   type="button"
                   onClick={() => selectSlot(slotIndex)}
+                  onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
+                  onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
+                  onDrop={(event) => handleSlotDrop(event, slotIndex)}
                   className={`absolute overflow-hidden border border-dashed transition ${
-                    isSelected ? "z-10 border-ink bg-ink/[0.04] shadow-[0_0_0_3px_rgba(25,25,25,0.12)]" : "border-ink/20 bg-white/65 hover:border-brass"
+                    isDragOver
+                      ? "z-20 border-brass bg-brass/15 shadow-[0_0_0_4px_rgba(181,143,77,0.18)]"
+                      : isSelected
+                        ? "z-10 border-ink bg-ink/[0.04] shadow-[0_0_0_3px_rgba(25,25,25,0.12)]"
+                        : "border-ink/20 bg-white/65 hover:border-brass"
                   }`}
                   style={{
                     left: `calc(${slot.x}% + ${slotInset}px)`,
@@ -221,7 +280,7 @@ export function AlbumSpreadSlotEditor({
                     {slotIndex + 1}
                   </span>
                   <span className="flex h-full items-center justify-center px-3 text-center text-xs font-medium text-graphite/45">
-                    Válassz képet lent
+                    Húzz ide képet lentről
                   </span>
                 </button>
               );
@@ -231,13 +290,20 @@ export function AlbumSpreadSlotEditor({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => selectSlot(item.slotIndex)}
-                onPointerDown={(event) => beginCropDrag(event, item)}
-                onPointerMove={updateCropDrag}
-                onPointerUp={endCropDrag}
-                onPointerCancel={endCropDrag}
-                className={`absolute overflow-hidden border bg-white transition ${
-                  isSelected ? "z-10 border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.18)]" : "border-white hover:border-brass"
+                  onClick={() => selectSlot(item.slotIndex)}
+                  onPointerDown={(event) => beginCropDrag(event, item)}
+                  onPointerMove={updateCropDrag}
+                  onPointerUp={endCropDrag}
+                  onPointerCancel={endCropDrag}
+                  onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
+                  onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
+                  onDrop={(event) => handleSlotDrop(event, slotIndex)}
+                  className={`absolute overflow-hidden border bg-white transition ${
+                  isDragOver
+                    ? "z-20 border-brass shadow-[0_0_0_4px_rgba(181,143,77,0.2)]"
+                    : isSelected
+                      ? "z-10 border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.18)]"
+                      : "border-white hover:border-brass"
                 } cursor-grab touch-none active:cursor-grabbing`}
                 style={{
                   left: `calc(${item.x}% + ${slotInset}px)`,
