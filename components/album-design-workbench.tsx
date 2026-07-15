@@ -597,18 +597,20 @@ export function AlbumDesignWorkbench({
                   ) : null}
                   <a
                     href={`/admin/album-designs/${designId}/export`}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 text-sm font-medium text-white transition hover:bg-white/15"
+                    className="inline-flex size-10 items-center justify-center rounded-md border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
+                    aria-label="Összes oldalpár exportálása"
+                    title="Összes export"
                   >
-                    <Download size={16} />
-                    Összes export
+                    <Download size={19} />
                   </a>
                   <button
                     type="button"
                     onClick={() => setIsEditorOpen(false)}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 text-sm font-medium text-white transition hover:bg-white/15"
+                    className="inline-flex size-10 items-center justify-center rounded-md border border-red-300/25 bg-red-500/10 text-red-200 transition hover:border-red-200/50 hover:bg-red-500/20 hover:text-red-100"
+                    aria-label="Szerkesztő bezárása"
+                    title="Bezárás"
                   >
-                    <X size={16} />
-                    Bezárás
+                    <X size={21} />
                   </button>
                 </div>
               </div>
