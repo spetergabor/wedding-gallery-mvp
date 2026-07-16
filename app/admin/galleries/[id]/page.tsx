@@ -6,7 +6,6 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { CoverPositionControl } from "@/components/cover-position-control";
-import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
@@ -27,11 +26,10 @@ import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { clientGalleryUrl, publicGalleryUrl } from "@/lib/email";
+import { publicGalleryUrl } from "@/lib/email";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
-  generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
   updateGalleryProofingStatusAction
@@ -39,7 +37,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
-import { CLIENT_GALLERY_REVIEW_ENABLED } from "@/lib/feature-flags";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -167,8 +164,6 @@ function getZipHandoffState(
 function getActiveTab(flags: {
   activated?: string;
   archived?: string;
-  clientLink?: string;
-  clientRestored?: string;
   deliveryEmail?: string;
   zip?: string;
   error?: string;
@@ -179,10 +174,6 @@ function getActiveTab(flags: {
 }): GalleryTab {
   if (galleryTabs.some((tab) => tab.key === flags.tab)) {
     return flags.tab as GalleryTab;
-  }
-
-  if (CLIENT_GALLERY_REVIEW_ENABLED && (flags.clientLink || flags.clientRestored)) {
-    return "client";
   }
 
   if (flags.proofingInvite || flags.deliveryEmail) {
@@ -210,8 +201,6 @@ export default async function GalleryDetailPage({
     downloadEmail?: string;
     zip?: string;
     duplicateCleanup?: string;
-    clientLink?: string;
-    clientRestored?: string;
     error?: string;
     mediaProcessing?: string;
     ordered?: string;
@@ -452,10 +441,6 @@ export default async function GalleryDetailPage({
   const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
   const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
   const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
-  const galleryClientUrl =
-    CLIENT_GALLERY_REVIEW_ENABLED && gallery.clientAccessToken
-      ? clientGalleryUrl(gallery.slug, gallery.clientAccessToken, publicSubdomain)
-      : null;
 
   return (
     <AdminShell>
@@ -561,7 +546,6 @@ export default async function GalleryDetailPage({
         {flags.zip === "proofing-pending" ? <Alert title="A galéria még nem került átadásra." variant="error" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
         {flags.coverPosition ? <Alert title="Borítókép pozíciója mentve." variant="success" /> : null}
-        {CLIENT_GALLERY_REVIEW_ENABLED && flags.clientLink ? <Alert title="Privát kezelő link elkészítve." variant="success" /> : null}
         {flags.proofingInvite === "sent" ? <Alert title="Válogató link elküldve emailben." variant="success" /> : null}
         {flags.proofingInvite === "missing-email" ? (
           <Alert title="Hiányzik az ügyfél email címe." variant="error">
@@ -589,7 +573,6 @@ export default async function GalleryDetailPage({
             {gallery.finalDeliveryEmailError ?? "Ellenőrizd a Resend beállításokat, majd próbáld újra."}
           </Alert>
         ) : null}
-        {CLIENT_GALLERY_REVIEW_ENABLED && flags.clientRestored ? <Alert title="Fotó visszaállítva a publikus galériába." variant="success" /> : null}
         {flags.proofingStatus ? <Alert title="Ügyfélválogató státusz frissítve." variant="success" /> : null}
         {flags.ordered ? <Alert title="Fotósorrend frissítve." variant="success" /> : null}
         {flags.archived ? <Alert title="Galéria archiválva." variant="success">A publikus link most nem elérhető.</Alert> : null}
@@ -885,34 +868,6 @@ export default async function GalleryDetailPage({
               selectedProjectId={gallery.projectId}
               stripeReady={Boolean(stripeIntegration?.chargesEnabled)}
             />
-            {CLIENT_GALLERY_REVIEW_ENABLED && !proofingGallery ? (
-              <section className="rounded-md border border-ink/12 bg-white p-4">
-                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                  <div>
-                    <div className={sectionMetaClass}>
-                      <KeyRound size={15} />
-                      Privát kezelő link
-                    </div>
-                    <h2 className="mt-2 text-lg font-semibold text-ink">Képek elrejtése az ügyfélnek</h2>
-                    <p className="mt-1 text-sm text-graphite/70">
-                      Ezen a linken az ügyfél végig tudja nézni a kész galériát, és elrejtheti azokat a képeket, amelyeket nem szeretne a publikus galériában látni.
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    {gallery.clientAccessToken ? (
-                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} url={galleryClientUrl ?? undefined} variant="secondary" />
-                    ) : (
-                      <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                        <FormSubmitButton variant="secondary" pendingLabel="Link készítése...">
-                          <KeyRound size={16} />
-                          Privát kezelő link generálása
-                        </FormSubmitButton>
-                      </form>
-                    )}
-                  </div>
-                </div>
-              </section>
-            ) : null}
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
           </div>
