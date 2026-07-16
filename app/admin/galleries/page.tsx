@@ -147,25 +147,27 @@ export default async function AdminGalleriesPage({
                         role="switch"
                         aria-checked={gallery.isActive}
                         aria-label={gallery.isActive ? `${gallery.title} kikapcsolása` : `${gallery.title} aktiválása`}
-                        className={`inline-flex min-w-[116px] items-center gap-2 rounded-full border px-2 py-1 text-xs font-semibold transition hover:shadow-sm ${
+                        className={`group relative inline-flex h-10 w-24 items-center rounded-full border px-1 text-xs font-semibold uppercase tracking-[0.14em] transition hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
                           gallery.isActive
-                            ? "border-sage/25 bg-sage/10 text-sage hover:bg-sage/15"
-                            : "border-ink/10 bg-ink/5 text-graphite hover:bg-ink/10"
+                            ? "border-sage/30 bg-sage text-white hover:bg-sage/95"
+                            : "border-ink/10 bg-ink/5 text-graphite/55 hover:bg-ink/10"
                         }`}
                       >
+                        <span className={`absolute transition ${gallery.isActive ? "left-5 opacity-90" : "left-5 opacity-0"}`} aria-hidden="true">
+                          {gallery.isActive ? "ON" : "OFF"}
+                        </span>
                         <span
-                          className={`relative h-5 w-9 rounded-full transition ${
-                            gallery.isActive ? "bg-sage" : "bg-graphite/35"
-                          }`}
+                          className={`absolute right-5 transition ${gallery.isActive ? "opacity-0" : "opacity-70"}`}
                           aria-hidden="true"
                         >
-                          <span
-                            className={`absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition ${
-                              gallery.isActive ? "translate-x-[18px]" : "translate-x-0.5"
-                            }`}
-                          />
+                          OFF
                         </span>
-                        {gallery.isActive ? "Aktív" : "Kikapcsolt"}
+                        <span
+                          className={`absolute left-1 top-1 size-8 rounded-full bg-white shadow-[0_2px_8px_rgba(25,25,25,0.18)] transition ${
+                            gallery.isActive ? "translate-x-14" : "translate-x-0"
+                          }`}
+                          aria-hidden="true"
+                        />
                       </button>
                     </form>
                     <a
