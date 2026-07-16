@@ -5,6 +5,7 @@ import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
+import { GalleryActiveSwitch } from "@/components/gallery-active-switch";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
@@ -142,33 +143,7 @@ export default async function AdminGalleriesPage({
                   </Link>
                   <div className="flex items-center gap-3">
                     <form action={toggleGalleryActiveFromListAction.bind(null, gallery.id, !gallery.isActive)}>
-                      <button
-                        type="submit"
-                        role="switch"
-                        aria-checked={gallery.isActive}
-                        aria-label={gallery.isActive ? `${gallery.title} kikapcsolása` : `${gallery.title} aktiválása`}
-                        className={`group relative inline-flex h-10 w-24 items-center rounded-full border px-1 text-xs font-semibold uppercase tracking-[0.14em] transition hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/20 ${
-                          gallery.isActive
-                            ? "border-sage/30 bg-sage text-white hover:bg-sage/95"
-                            : "border-ink/10 bg-ink/5 text-graphite/55 hover:bg-ink/10"
-                        }`}
-                      >
-                        <span className={`absolute transition ${gallery.isActive ? "left-5 opacity-90" : "left-5 opacity-0"}`} aria-hidden="true">
-                          {gallery.isActive ? "ON" : "OFF"}
-                        </span>
-                        <span
-                          className={`absolute right-5 transition ${gallery.isActive ? "opacity-0" : "opacity-70"}`}
-                          aria-hidden="true"
-                        >
-                          OFF
-                        </span>
-                        <span
-                          className={`absolute left-1 top-1 size-8 rounded-full bg-white shadow-[0_2px_8px_rgba(25,25,25,0.18)] transition ${
-                            gallery.isActive ? "translate-x-14" : "translate-x-0"
-                          }`}
-                          aria-hidden="true"
-                        />
-                      </button>
+                      <GalleryActiveSwitch initialIsActive={gallery.isActive} title={gallery.title} />
                     </form>
                     <a
                       className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5"
