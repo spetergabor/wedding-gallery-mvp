@@ -1,7 +1,5 @@
-import { CalendarDays, Check, Columns3, CreditCard, Download, Eye, Images, LockKeyhole, UserRound } from "lucide-react";
-import type { ReactNode } from "react";
+import { CalendarDays, Columns3, Images, LockKeyhole, UserRound } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
-import { Button } from "@/components/button";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { SlugFields } from "@/components/slug-fields";
@@ -13,8 +11,9 @@ import {
   GALLERY_DELIVERY_VIEW_ONLY,
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
-import { formatGallerySalePrice, normalizeSaleCurrency } from "@/lib/gallery-sales";
-import { formatPriceInput, normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
+import { normalizeSaleCurrency } from "@/lib/gallery-sales";
+import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
+import { GalleryPublishSettings } from "@/components/gallery-publish-settings";
 
 type CustomerOption = {
   id: string;
@@ -72,14 +71,6 @@ function dateInputValue(date: Date | null | undefined) {
   return date.toISOString().slice(0, 10);
 }
 
-function salePriceInputValue(cents: number | null | undefined) {
-  if (!cents) {
-    return "";
-  }
-
-  return (cents / 100).toFixed(2).replace(".", ",");
-}
-
 const fieldClass =
   "h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 
@@ -89,41 +80,6 @@ function SectionTitle({ title, description }: { title: string; description: stri
       <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-brass">{title}</h3>
       <p className="mt-1 text-sm leading-6 text-graphite/70">{description}</p>
     </div>
-  );
-}
-
-function ToggleField({
-  name,
-  defaultChecked,
-  icon,
-  title,
-  description
-}: {
-  name: string;
-  defaultChecked?: boolean;
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <label className="flex min-h-24 cursor-pointer items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 transition hover:border-ink/20">
-      <span className="relative mt-1 flex size-5 shrink-0 items-center justify-center rounded border border-ink/20 bg-white">
-        <input
-          name={name}
-          type="checkbox"
-          defaultChecked={defaultChecked}
-          className="peer absolute inset-0 cursor-pointer opacity-0"
-        />
-        <Check className="hidden text-ink peer-checked:block" size={14} />
-      </span>
-      <span className="min-w-0">
-        <span className="flex items-center gap-2 text-sm font-semibold text-ink">
-          {icon}
-          {title}
-        </span>
-        <span className="mt-1 block text-sm leading-6 text-graphite/70">{description}</span>
-      </span>
-    </label>
   );
 }
 
@@ -156,115 +112,6 @@ export function GalleryForm({
   ].slice(0, 4);
   const proofingMode = defaultGalleryMode === GALLERY_MODE_PROOFING;
   const paidModeAvailable = stripeReady || defaultDeliveryMode === GALLERY_DELIVERY_PAID;
-  const pricingSection = (
-    <section className="rounded-md border border-brass/20 bg-brass/[0.04] p-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-brass">
-            <CreditCard size={15} />
-            Vásárlás és árak
-          </p>
-          <h3 className="mt-2 text-lg font-semibold text-ink">Fizetős galéria árazása</h3>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">
-            Itt állíthatod be a teljes galéria árát, az egyedi képek darabárát és a mennyiségi sávokat. Az ügyféloldalon akkor
-            jelenik meg vásárlásként, ha az átadás módjánál a <span className="font-medium text-ink">Megvásárolható galéria</span>
-            opció aktív.
-          </p>
-          <p className="mt-2 text-xs leading-5 text-graphite/60">
-            0,00 árral Stripe teszt Checkout indul kártyaadat nélkül. Ha a teszt bankkártyás mezőt is látni akarod, adj meg kis
-            összeget, például 0,50 EUR-t Stripe test módban.
-          </p>
-        </div>
-        {gallery?.salePriceCents ? (
-          <span className="w-fit rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass">
-            {formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency)}
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_140px]">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Teljes galéria ára</span>
-          <input
-            name="salePrice"
-            inputMode="decimal"
-            defaultValue={salePriceInputValue(gallery?.salePriceCents)}
-            placeholder="pl. 49,00"
-            className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Alap darabár / kép</span>
-          <input
-            name="saleUnitPrice"
-            inputMode="decimal"
-            defaultValue={formatPriceInput(gallery?.saleUnitPriceCents)}
-            placeholder="pl. 6,00"
-            className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Deviza</span>
-          <select
-            name="saleCurrency"
-            defaultValue={defaultSaleCurrency}
-            className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 outline-none transition focus:border-ink/50"
-          >
-            <option value="eur">EUR</option>
-            <option value="usd">USD</option>
-            <option value="gbp">GBP</option>
-            <option value="chf">CHF</option>
-          </select>
-        </label>
-      </div>
-      <div className="mt-5 rounded-md border border-ink/10 bg-white p-3">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-ink">Sávos képenkénti ár</p>
-            <p className="mt-1 text-xs leading-5 text-graphite/65">
-              Példa: 1-10 kép 6 EUR/db, 11-15 kép 5 EUR/db. A teljes kosár darabszáma választja ki az aktuális darabárat.
-            </p>
-          </div>
-          <span className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/45">opcionális</span>
-        </div>
-        <div className="mt-3 space-y-2">
-          {pricingTierRows.map((tier, index) => (
-            <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_1.3fr]">
-              <label className="block space-y-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">Mettől</span>
-                <input
-                  name="saleTierFrom"
-                  inputMode="numeric"
-                  defaultValue={tier.from ?? ""}
-                  placeholder={index === 0 ? "1" : ""}
-                  className="h-10 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
-                />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">Meddig</span>
-                <input
-                  name="saleTierTo"
-                  inputMode="numeric"
-                  defaultValue={tier.to ?? ""}
-                  placeholder={index === 2 ? "üres = nincs felső határ" : "10"}
-                  className="h-10 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
-                />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">Darabár</span>
-                <input
-                  name="saleTierPrice"
-                  inputMode="decimal"
-                  defaultValue={formatPriceInput(tier.unitPriceCents)}
-                  placeholder="pl. 5,00"
-                  className="h-10 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
-                />
-              </label>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
@@ -280,8 +127,24 @@ export function GalleryForm({
       </div>
 
       <div className="mt-6 space-y-7">
-        <SlugFields defaultTitle={gallery?.title} defaultSlug={gallery?.slug} />
-        {pricingSection}
+        <GalleryPublishSettings
+          defaultIsActive={Boolean(gallery?.isActive)}
+          defaultDeliveryMode={defaultDeliveryMode}
+          stripeReady={stripeReady}
+          paidModeAvailable={paidModeAvailable}
+          salePriceCents={gallery?.salePriceCents ?? 0}
+          saleUnitPriceCents={gallery?.saleUnitPriceCents ?? 0}
+          salePricingTiers={pricingTierRows}
+          saleCurrency={defaultSaleCurrency}
+        />
+
+        <section className="space-y-5 rounded-md border border-ink/10 bg-white p-4">
+          <SectionTitle
+            title="Név és publikus link"
+            description="A vendégoldalon megjelenő név és a megosztható galéria útvonala."
+          />
+          <SlugFields defaultTitle={gallery?.title} defaultSlug={gallery?.slug} />
+        </section>
 
         <div className="grid gap-7 lg:grid-cols-2 lg:items-start">
           <section className="space-y-5">
@@ -352,7 +215,7 @@ export function GalleryForm({
             <label className="block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">
                 <Images size={15} />
-                Galéria típusa
+                Galéria workflow
               </span>
               <select
                 name="galleryMode"
@@ -387,7 +250,7 @@ export function GalleryForm({
           <section className="space-y-5">
             <SectionTitle
               title="Publikus elérés"
-              description="PIN-kód, láthatóság és letöltési jogosultság a vendégek felé."
+              description="PIN-kód és mobilos megjelenés a vendégek felé."
             />
 
             <label className="block space-y-2">
@@ -408,81 +271,6 @@ export function GalleryForm({
                 Üresen hagyva a publikus galéria PIN nélkül nyitható. Ha kitöltöd, a vendég csak ezzel a kóddal látja a galériát.
               </span>
             </label>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <ToggleField
-                name="isActive"
-                defaultChecked={gallery?.isActive}
-                icon={<Eye size={15} />}
-                title="Aktív galéria"
-                description="Csak aktív galéria érhető el a publikus linken."
-              />
-            </div>
-
-            <fieldset className="space-y-3">
-              <legend className="text-sm font-medium text-graphite">Átadás módja</legend>
-              <div className="grid gap-3">
-                {[
-                  {
-                    value: GALLERY_DELIVERY_VIEW_ONLY,
-                    icon: <Eye size={15} />,
-                    title: "Csak megtekintés",
-                    description: "A vendég láthatja a galériát, de nincs letöltés és nincs vásárlás."
-                  },
-                  {
-                    value: GALLERY_DELIVERY_FREE_DOWNLOAD,
-                    icon: <Download size={15} />,
-                    title: "Ingyenesen letölthető",
-                    description: "A vendég ZIP-et és egyes képeket is kérhet letöltésre."
-                  },
-                  {
-                    value: GALLERY_DELIVERY_PAID,
-                    icon: <CreditCard size={15} />,
-                    title: "Megvásárolható galéria",
-                    description: stripeReady
-                      ? "A vendég preview képeket lát, a teljes felbontás fizetés után lesz elérhető."
-                      : "Előbb kösd össze a saját Stripe fiókodat a Beállítások > Integrációk alatt."
-                  }
-                ].map((option) => {
-                  const disabled = option.value === GALLERY_DELIVERY_PAID && !paidModeAvailable;
-
-                  return (
-                    <label
-                      key={option.value}
-                      className={`flex cursor-pointer items-start gap-3 rounded-md border px-4 py-4 transition ${
-                        disabled
-                          ? "cursor-not-allowed border-ink/10 bg-ink/[0.03] opacity-60"
-                          : "border-ink/10 bg-paper hover:border-ink/25"
-                      }`}
-                    >
-                      <span className="relative mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-ink/20 bg-white">
-                        <input
-                          name="deliveryMode"
-                          type="radio"
-                          value={option.value}
-                          defaultChecked={defaultDeliveryMode === option.value}
-                          disabled={disabled}
-                          className="peer absolute inset-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                        />
-                        <span className="hidden size-2.5 rounded-full bg-ink peer-checked:block" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-2 text-sm font-semibold text-ink">
-                          {option.icon}
-                          {option.title}
-                        </span>
-                        <span className="mt-1 block text-sm leading-6 text-graphite/70">{option.description}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-              {!stripeReady ? (
-                <a href="/admin/settings?tab=integrations" className="inline-flex text-sm font-medium text-brass hover:text-ink">
-                  Stripe összekötése a fizetős galériákhoz
-                </a>
-              ) : null}
-            </fieldset>
 
             <label className="block space-y-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">
