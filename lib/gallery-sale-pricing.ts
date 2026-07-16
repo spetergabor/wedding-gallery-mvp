@@ -110,12 +110,19 @@ export function priceForGalleryPhotoQuantity({
     return 0;
   }
 
-  const matchingTier = normalizeGallerySalePricingTiers(tiers).find((tier) => {
-    return safeQuantity >= tier.from && (tier.to === null || safeQuantity <= tier.to);
-  });
-  const unitPriceCents = matchingTier?.unitPriceCents ?? Math.max(0, fallbackUnitPriceCents);
+  const normalizedTiers = normalizeGallerySalePricingTiers(tiers);
+  const defaultUnitPriceCents = Math.max(0, fallbackUnitPriceCents);
+  let totalCents = 0;
 
-  return safeQuantity * unitPriceCents;
+  for (let itemNumber = 1; itemNumber <= safeQuantity; itemNumber += 1) {
+    const matchingTier = normalizedTiers.find((tier) => {
+      return itemNumber >= tier.from && (tier.to === null || itemNumber <= tier.to);
+    });
+
+    totalCents += matchingTier?.unitPriceCents ?? defaultUnitPriceCents;
+  }
+
+  return totalCents;
 }
 
 export function pricingTierLabel(tier: GallerySalePricingTier, currency: string, locale = "hu-HU", unitLabel = "kép") {
