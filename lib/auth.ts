@@ -21,6 +21,7 @@ const ADMIN_SESSION_SELECT = {
   name: true,
   role: true,
   status: true,
+  onboardingCompletedAt: true,
   teamMembership: {
     select: {
       owner: {
@@ -46,6 +47,7 @@ type RawAdminSession = {
   name: string;
   role: string;
   status: string;
+  onboardingCompletedAt: Date | null;
   teamMembership: {
     owner: {
       id: string;
@@ -74,6 +76,7 @@ export type AdminSession = {
   isTeamMember: boolean;
   isTeamWorkspace: boolean;
   publicSubdomain: string | null;
+  onboardingCompletedAt: Date | null;
 };
 
 function normalizeWorkspaceMode(value: string | undefined, hasTeam: boolean): AdminWorkspaceMode {
@@ -104,7 +107,8 @@ function toAdminSession(admin: RawAdminSession, workspaceCookieValue?: string): 
     teamOwnerEmail: activeOwner?.email ?? null,
     isTeamMember: Boolean(activeOwner),
     isTeamWorkspace: Boolean(teamWorkspaceOwner),
-    publicSubdomain: admin.siteSettings?.publicSubdomain ?? null
+    publicSubdomain: admin.siteSettings?.publicSubdomain ?? null,
+    onboardingCompletedAt: admin.onboardingCompletedAt
   };
 }
 
@@ -247,7 +251,7 @@ export async function refreshAdminSession() {
   return toAdminSession(admin, workspaceMode);
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(options: { allowIncompleteOnboarding?: boolean } = {}) {
   const admin = await getAdminSession();
 
   if (!admin) {
@@ -260,6 +264,10 @@ export async function requireAdmin() {
 
   if (admin.role !== "super_admin" && !admin.publicSubdomain) {
     await ensureDefaultPublicSubdomainForAdmin(admin);
+  }
+
+  if (!options.allowIncompleteOnboarding && admin.role !== "super_admin" && !admin.onboardingCompletedAt) {
+    redirect("/admin/onboarding");
   }
 
   return admin;

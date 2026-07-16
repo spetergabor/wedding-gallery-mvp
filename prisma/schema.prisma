@@ -28,6 +28,7 @@ model Admin {
   status       String   @default("pending")
   approvedAt   DateTime?
   approvedById String?
+  onboardingCompletedAt DateTime?
   twoFactorEnabled Boolean @default(false)
   twoFactorSecret  String?
   createdAt    DateTime @default(now())
