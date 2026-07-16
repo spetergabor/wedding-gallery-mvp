@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Camera, ShieldCheck } from "lucide-react";
 import { ClientGalleryReview } from "@/components/client-gallery-review";
 import { prisma } from "@/lib/prisma";
+import { CLIENT_GALLERY_REVIEW_ENABLED } from "@/lib/feature-flags";
 import {
   PHOTO_DELIVERY_STAGE_RAW,
   PROOFING_STATUS_IN_PROGRESS,
@@ -18,6 +19,10 @@ export default async function ClientGalleryReviewPage({
   searchParams: Promise<{ token?: string; lang?: string }>;
 }) {
   const [{ slug }, { token, lang }] = await Promise.all([params, searchParams]);
+
+  if (!CLIENT_GALLERY_REVIEW_ENABLED) {
+    notFound();
+  }
 
   if (!token) {
     notFound();
