@@ -1215,6 +1215,21 @@ export async function activateGalleryAction(id: string) {
   redirect(`/admin/galleries/${id}?activated=1`);
 }
 
+export async function toggleGalleryActiveFromListAction(id: string, nextIsActive: boolean) {
+  await requireGalleryAccess(id);
+
+  const gallery = await prisma.gallery.update({
+    where: { id },
+    data: { isActive: nextIsActive },
+    select: { slug: true }
+  });
+
+  revalidatePath("/admin/galleries");
+  revalidatePath(`/admin/galleries/${id}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect("/admin/galleries?updated=1");
+}
+
 export async function deleteGalleryAction(id: string) {
   await requireGalleryAccess(id);
 

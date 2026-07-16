@@ -9,13 +9,14 @@ import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { publicGalleryUrl } from "@/lib/email";
+import { toggleGalleryActiveFromListAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
 
 export default async function AdminGalleriesPage({
   searchParams
 }: {
-  searchParams: Promise<{ deleted?: string }>;
+  searchParams: Promise<{ deleted?: string; updated?: string }>;
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
@@ -71,6 +72,11 @@ export default async function AdminGalleriesPage({
       {flags.deleted ? (
         <div className="mb-5">
           <Alert title="Galéria törölve." variant="success">A local feltöltött fájlokat is eltávolítottam.</Alert>
+        </div>
+      ) : null}
+      {flags.updated ? (
+        <div className="mb-5">
+          <Alert title="Galéria állapota frissítve." variant="success" />
         </div>
       ) : null}
 
@@ -135,13 +141,33 @@ export default async function AdminGalleriesPage({
                     </div>
                   </Link>
                   <div className="flex items-center gap-3">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"
-                      }`}
-                    >
-                      {gallery.isActive ? "Aktív" : "Archivált"}
-                    </span>
+                    <form action={toggleGalleryActiveFromListAction.bind(null, gallery.id, !gallery.isActive)}>
+                      <button
+                        type="submit"
+                        role="switch"
+                        aria-checked={gallery.isActive}
+                        aria-label={gallery.isActive ? `${gallery.title} kikapcsolása` : `${gallery.title} aktiválása`}
+                        className={`inline-flex min-w-[116px] items-center gap-2 rounded-full border px-2 py-1 text-xs font-semibold transition hover:shadow-sm ${
+                          gallery.isActive
+                            ? "border-sage/25 bg-sage/10 text-sage hover:bg-sage/15"
+                            : "border-ink/10 bg-ink/5 text-graphite hover:bg-ink/10"
+                        }`}
+                      >
+                        <span
+                          className={`relative h-5 w-9 rounded-full transition ${
+                            gallery.isActive ? "bg-sage" : "bg-graphite/35"
+                          }`}
+                          aria-hidden="true"
+                        >
+                          <span
+                            className={`absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition ${
+                              gallery.isActive ? "translate-x-[18px]" : "translate-x-0.5"
+                            }`}
+                          />
+                        </span>
+                        {gallery.isActive ? "Aktív" : "Kikapcsolt"}
+                      </button>
+                    </form>
                     <a
                       className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5"
                       href={galleryPublicUrl}
