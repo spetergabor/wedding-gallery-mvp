@@ -32,10 +32,10 @@ import {
   customerProjectTypeLabel
 } from "@/lib/customer-project-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { googleCalendarUrl } from "@/lib/google-calendar";
 import {
   deleteCustomerProjectAction,
   createCustomerProjectAction,
+  syncCustomerProjectGoogleCalendarAction,
   updateCustomerProjectAction,
   updateCustomerProjectStatusAction
 } from "@/lib/customer-actions";
@@ -69,6 +69,8 @@ type CustomerProject = {
   endTime: string | null;
   venue: string | null;
   notes: string | null;
+  googleCalendarSyncedAt: Date | null;
+  googleCalendarSyncError: string | null;
   createdAt: Date;
   galleries: ProjectGallery[];
   contracts: Array<{
@@ -163,28 +165,44 @@ function CountPill({ icon: Icon, label, count }: { icon: LucideIcon; label: stri
   );
 }
 
-function projectGoogleCalendarUrl(project: CustomerProject) {
-  if (!project.eventDate) {
-    return null;
-  }
+function projectCalendarIcsUrl(project: CustomerProject) {
+  return project.eventDate ? `/admin/projects/${project.id}/calendar` : null;
+}
 
-  const details = [
-    customerProjectTypeLabel(project.projectType),
-    project.notes ? `\n${project.notes}` : ""
-  ].join("");
-
-  return googleCalendarUrl({
-    title: project.title,
-    date: project.eventDate,
-    startTime: project.startTime,
-    endTime: project.endTime,
-    location: project.venue,
-    details
+function formatCalendarSyncDate(date: Date) {
+  return date.toLocaleString("hu-HU", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: APP_TIME_ZONE
   });
 }
 
-function projectCalendarIcsUrl(project: CustomerProject) {
-  return project.eventDate ? `/admin/projects/${project.id}/calendar` : null;
+function calendarSyncLabel(project: CustomerProject) {
+  if (project.googleCalendarSyncError) {
+    return {
+      className: "border-red-200 bg-red-50 text-red-700",
+      text: `Google Calendar hiba: ${project.googleCalendarSyncError}`
+    };
+  }
+
+  if (project.googleCalendarSyncedAt) {
+    return {
+      className: "border-sage/20 bg-sage/10 text-sage",
+      text: `Google naptárban: ${formatCalendarSyncDate(project.googleCalendarSyncedAt)}`
+    };
+  }
+
+  if (project.eventDate) {
+    return {
+      className: "border-brass/20 bg-brass/10 text-brass",
+      text: "Google naptár: még nincs szinkronizálva"
+    };
+  }
+
+  return null;
 }
 
 const workflowIconMap: Record<ProjectWorkflowIconKey, LucideIcon> = {
@@ -376,8 +394,8 @@ export function CustomerProjectManager({
                 });
                 const StepIcon = workflowIconMap[nextStep.iconKey];
                 const nextStepStyle = stepStyle(nextStep.state);
-                const calendarUrl = projectGoogleCalendarUrl(project);
                 const calendarIcsUrl = projectCalendarIcsUrl(project);
+                const googleCalendarStatus = calendarSyncLabel(project);
                 const attachmentCounts = [
                   { icon: Camera, label: "galéria", count: project._count.galleries },
                   { icon: FileText, label: "szerződés", count: project._count.contracts },
@@ -413,19 +431,22 @@ export function CustomerProjectManager({
                       {project.venue || "Nincs helyszín"}
                     </span>
                   </div>
+                  {googleCalendarStatus ? (
+                    <p className={`mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${googleCalendarStatus.className}`}>
+                      <CalendarPlus size={13} />
+                      <span className="truncate">{googleCalendarStatus.text}</span>
+                    </p>
+                  ) : null}
                   {project.notes ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-graphite/70">{project.notes}</p> : null}
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                  {calendarUrl ? (
-                    <a
-                      href={calendarUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
-                    >
-                      <CalendarPlus size={16} />
-                      Google naptár
-                    </a>
+                  {project.eventDate ? (
+                    <form action={syncCustomerProjectGoogleCalendarAction.bind(null, customerId, project.id)}>
+                      <FormSubmitButton variant="secondary" className="h-11 px-4" pendingLabel="Szinkron...">
+                        <CalendarPlus size={16} />
+                        Google naptár
+                      </FormSubmitButton>
+                    </form>
                   ) : null}
                   {calendarIcsUrl ? (
                     <a

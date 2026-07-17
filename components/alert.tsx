@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 
 const styles = {
   success: {
@@ -8,6 +8,10 @@ const styles = {
   error: {
     box: "border-red-200 bg-red-50 text-red-700",
     icon: AlertCircle
+  },
+  warning: {
+    box: "border-brass/25 bg-brass/10 text-brass",
+    icon: AlertTriangle
   },
   info: {
     box: "border-ink/10 bg-white text-graphite",

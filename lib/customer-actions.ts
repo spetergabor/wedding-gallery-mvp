@@ -88,6 +88,20 @@ function taskDueTimePayload(formData: FormData) {
   return dueTime.valid ? dueTime.value : undefined;
 }
 
+async function customerProjectGoogleCalendarStatus(projectId: string) {
+  try {
+    const result = await syncCustomerProjectToGoogleCalendar(projectId);
+    return result.status;
+  } catch (error) {
+    console.error("Customer project Google Calendar sync failed", error);
+    return "error";
+  }
+}
+
+function projectCalendarQuery(status: string) {
+  return `&projectCalendar=${encodeURIComponent(status)}`;
+}
+
 async function projectIdForCustomer(admin: Awaited<ReturnType<typeof requireAdmin>>, customerId: string, projectId: string) {
   if (!projectId) {
     return null;
@@ -266,15 +280,13 @@ export async function createCustomerProjectAction(customerId: string, formData: 
     select: { id: true }
   });
 
-  try {
-    await syncCustomerProjectToGoogleCalendar(project.id);
-  } catch (error) {
-    console.error("Customer project Google Calendar sync failed", error);
-  }
+  const googleCalendarStatus = await customerProjectGoogleCalendarStatus(project.id);
 
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/clients");
-  redirect(`/admin/clients/${customerId}?tab=projects&projectCreated=1`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=projects&projectCreated=1${projectCalendarQuery(googleCalendarStatus)}`);
 }
 
 export async function updateCustomerProjectAction(customerId: string, projectId: string, formData: FormData) {
@@ -322,15 +334,13 @@ export async function updateCustomerProjectAction(customerId: string, projectId:
     }
   });
 
-  try {
-    await syncCustomerProjectToGoogleCalendar(project.id);
-  } catch (error) {
-    console.error("Customer project Google Calendar sync failed", error);
-  }
+  const googleCalendarStatus = await customerProjectGoogleCalendarStatus(project.id);
 
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/clients");
-  redirect(`/admin/clients/${customerId}?tab=projects&projectUpdated=1`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=projects&projectUpdated=1${projectCalendarQuery(googleCalendarStatus)}`);
 }
 
 export async function updateCustomerProjectStatusAction(customerId: string, projectId: string, formData: FormData) {
@@ -354,15 +364,36 @@ export async function updateCustomerProjectStatusAction(customerId: string, proj
     data: { status }
   });
 
-  try {
-    await syncCustomerProjectToGoogleCalendar(project.id);
-  } catch (error) {
-    console.error("Customer project Google Calendar status sync failed", error);
-  }
+  const googleCalendarStatus = await customerProjectGoogleCalendarStatus(project.id);
 
   revalidatePath(`/admin/clients/${customerId}`);
   revalidatePath("/admin/clients");
-  redirect(`/admin/clients/${customerId}?tab=projects&projectStatusUpdated=1`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=projects&projectStatusUpdated=1${projectCalendarQuery(googleCalendarStatus)}`);
+}
+
+export async function syncCustomerProjectGoogleCalendarAction(customerId: string, projectId: string) {
+  const admin = await requireAdmin();
+
+  const project = await prisma.customerProject.findFirst({
+    where: {
+      id: projectId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true }
+  });
+
+  if (!project) {
+    redirect(`/admin/clients/${customerId}?tab=projects&projectError=missing`);
+  }
+
+  const googleCalendarStatus = await customerProjectGoogleCalendarStatus(project.id);
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  redirect(`/admin/clients/${customerId}?tab=projects${projectCalendarQuery(googleCalendarStatus)}`);
 }
 
 export async function deleteCustomerProjectAction(customerId: string, projectId: string) {
