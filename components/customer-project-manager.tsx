@@ -35,7 +35,6 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   deleteCustomerProjectAction,
   createCustomerProjectAction,
-  syncCustomerProjectGoogleCalendarAction,
   updateCustomerProjectAction,
   updateCustomerProjectStatusAction
 } from "@/lib/customer-actions";
@@ -184,21 +183,21 @@ function calendarSyncLabel(project: CustomerProject) {
   if (project.googleCalendarSyncError) {
     return {
       className: "border-red-200 bg-red-50 text-red-700",
-      text: `Google Calendar hiba: ${project.googleCalendarSyncError}`
+      text: `Automatikus Google Calendar hiba: ${project.googleCalendarSyncError}`
     };
   }
 
   if (project.googleCalendarSyncedAt) {
     return {
       className: "border-sage/20 bg-sage/10 text-sage",
-      text: `Google naptárban: ${formatCalendarSyncDate(project.googleCalendarSyncedAt)}`
+      text: `Automatikusan a Google naptárban: ${formatCalendarSyncDate(project.googleCalendarSyncedAt)}`
     };
   }
 
   if (project.eventDate) {
     return {
       className: "border-brass/20 bg-brass/10 text-brass",
-      text: "Google naptár: még nincs szinkronizálva"
+      text: "Automatikus Google naptár: még nincs visszaigazolva"
     };
   }
 
@@ -440,14 +439,6 @@ export function CustomerProjectManager({
                   {project.notes ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-graphite/70">{project.notes}</p> : null}
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                  {project.eventDate ? (
-                    <form action={syncCustomerProjectGoogleCalendarAction.bind(null, customerId, project.id)}>
-                      <FormSubmitButton variant="secondary" className="h-11 px-4" pendingLabel="Szinkron...">
-                        <CalendarPlus size={16} />
-                        Google naptár
-                      </FormSubmitButton>
-                    </form>
-                  ) : null}
                   {calendarIcsUrl ? (
                     <a
                       href={calendarIcsUrl}

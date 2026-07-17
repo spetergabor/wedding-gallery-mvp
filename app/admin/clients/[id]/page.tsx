@@ -1771,20 +1771,20 @@ export default async function AdminClientDetailPage({
         {flags.projectUpdated ? <Alert title="Projekt időpont és adatok mentve." variant="success" /> : null}
         {flags.projectDeleted ? <Alert title="Projekt törölve." variant="success" /> : null}
         {flags.projectStatusUpdated ? <Alert title="Projekt státusz mentve." variant="success" /> : null}
-        {flags.projectCalendar === "synced" ? <Alert title="Projekt hozzáadva a Google naptárhoz." variant="success" /> : null}
-        {flags.projectCalendar === "deleted" ? <Alert title="Projekt törölve a Google naptárból." variant="success" /> : null}
+        {flags.projectCalendar === "synced" ? <Alert title="Projekt automatikusan hozzáadva a Google naptárhoz." variant="success" /> : null}
+        {flags.projectCalendar === "deleted" ? <Alert title="Projekt automatikusan törölve a Google naptárból." variant="success" /> : null}
         {flags.projectCalendar === "skipped" ? (
-          <Alert title="A projekt nem került Google naptárba." variant="warning">
+          <Alert title="A projekt automatikus Google naptár szinkronja kimaradt." variant="warning">
             Adj meg dátumot, vagy ellenőrizd, hogy a projekt nincs-e lezárva / archiválva.
           </Alert>
         ) : null}
         {flags.projectCalendar === "not_configured" ? (
-          <Alert title="A Google naptár szinkron nincs bekapcsolva." variant="warning">
+          <Alert title="Az automatikus Google naptár szinkron nincs bekapcsolva." variant="warning">
             A Beállítások / Integrációk alatt kösd össze a Google naptárat, és kapcsold be a projektek szinkronját.
           </Alert>
         ) : null}
         {flags.projectCalendar === "error" ? (
-          <Alert title="A Google naptár szinkron hibára futott." variant="error">
+          <Alert title="Az automatikus Google naptár szinkron hibára futott." variant="error">
             A projektkártyán látod a részletes hibát, vagy a Beállítások / Integrációk alatt ellenőrizheted a kapcsolatot.
           </Alert>
         ) : null}
