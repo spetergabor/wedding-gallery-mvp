@@ -33,6 +33,7 @@ import { requireAdmin } from "@/lib/auth";
 import {
   getGoogleCalendarOptionsForIntegration,
   googleCalendarMissingConfigKeys,
+  isGoogleCalendarReconnectRequiredError,
   isGoogleCalendarConfigured,
   type GoogleCalendarOption
 } from "@/lib/google-calendar-api";
@@ -389,6 +390,9 @@ const SETTINGS_COPY = {
       targetCalendar: "Célnaptár",
       primarySuffix: "primary",
       calendarListError: "A naptárlista most nem tölthető be, de a mentett naptár továbbra is használható.",
+      reconnectRequiredStatus: "Újrakötés kell",
+      reconnectRequiredTitle: "A Google kapcsolat lejárt vagy vissza lett vonva.",
+      reconnectRequiredBody: "Kösd össze újra a Google naptárat, különben az automatikus projekt- és foglalásszinkron nem fog működni.",
       syncBookings: "Foglalások",
       syncProjects: "Ügyfélmunkák",
       blockAvailability: "Google események blokkolnak",
@@ -483,6 +487,9 @@ const SETTINGS_COPY = {
       targetCalendar: "Zielkalender",
       primarySuffix: "primary",
       calendarListError: "Die Kalenderliste kann gerade nicht geladen werden, der gespeicherte Kalender bleibt nutzbar.",
+      reconnectRequiredStatus: "Neu verbinden",
+      reconnectRequiredTitle: "Die Google-Verbindung ist abgelaufen oder wurde widerrufen.",
+      reconnectRequiredBody: "Verbinde Google Kalender erneut, sonst funktionieren automatische Projekt- und Buchungssynchronisierung nicht.",
       syncBookings: "Buchungen",
       syncProjects: "Kundenarbeiten",
       blockAvailability: "Google-Ereignisse blockieren",
@@ -577,6 +584,9 @@ const SETTINGS_COPY = {
       targetCalendar: "Target calendar",
       primarySuffix: "primary",
       calendarListError: "The calendar list cannot be loaded right now, but the saved calendar can still be used.",
+      reconnectRequiredStatus: "Reconnect required",
+      reconnectRequiredTitle: "The Google connection expired or was revoked.",
+      reconnectRequiredBody: "Reconnect Google Calendar, otherwise automatic project and booking sync will not work.",
       syncBookings: "Bookings",
       syncProjects: "Client work",
       blockAvailability: "Google events block availability",
@@ -1089,7 +1099,8 @@ function GoogleCalendarSettings({
   missingConfigKeys,
   integration,
   calendarOptions,
-  calendarOptionsError
+  calendarOptionsError,
+  calendarReconnectRequired
 }: {
   language: AdminLanguage;
   configured: boolean;
@@ -1097,6 +1108,7 @@ function GoogleCalendarSettings({
   integration: GoogleCalendarIntegrationSettings | null;
   calendarOptions: GoogleCalendarOption[];
   calendarOptionsError: boolean;
+  calendarReconnectRequired: boolean;
 }) {
   const copy = SETTINGS_COPY[language].google;
   const selectedCalendar = integration
@@ -1125,9 +1137,9 @@ function GoogleCalendarSettings({
           </p>
         </div>
         {integration ? (
-          <span className="inline-flex w-fit items-center gap-2 rounded-full bg-sage/10 px-3 py-1 text-xs font-medium text-sage">
+          <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${calendarReconnectRequired ? "bg-red-50 text-red-700" : "bg-sage/10 text-sage"}`}>
             <CheckCircle2 size={14} />
-            {copy.connected}
+            {calendarReconnectRequired ? copy.reconnectRequiredStatus : copy.connected}
           </span>
         ) : (
           <span className="w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">{copy.disconnected}</span>
@@ -1154,6 +1166,18 @@ function GoogleCalendarSettings({
           </div>
         </div>
       </div>
+
+      {calendarReconnectRequired ? (
+        <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm leading-6 text-red-700">
+          <p className="font-semibold">{copy.reconnectRequiredTitle}</p>
+          <p className="mt-1">{copy.reconnectRequiredBody}</p>
+          {configured ? (
+            <Link href="/api/google-calendar/connect" className="mt-3 inline-flex h-10 items-center justify-center rounded-md bg-red-700 px-4 text-sm font-medium text-white transition hover:bg-red-800">
+              {copy.reconnect}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {!integration ? (
         <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
@@ -1202,7 +1226,9 @@ function GoogleCalendarSettings({
                 )}
               </select>
               {calendarOptionsError ? (
-                <span className="block text-xs leading-5 text-brass">{copy.calendarListError}</span>
+                <span className={`block text-xs leading-5 ${calendarReconnectRequired ? "text-red-700" : "text-brass"}`}>
+                  {calendarReconnectRequired ? copy.reconnectRequiredBody : copy.calendarListError}
+                </span>
               ) : null}
             </label>
 
@@ -1673,7 +1699,7 @@ export default async function AdminSettingsPage({
           : params.tab === "profile" || isTeamWorkspace
             ? "profile"
             : "brand";
-  const [settings, photographerProfile, serviceUsage, googleIntegration, stripeIntegration, systemEvents, deliveryLogs, workspaceStats] = await Promise.all([
+  const [settings, photographerProfile, serviceUsage, loadedGoogleIntegration, stripeIntegration, systemEvents, deliveryLogs, workspaceStats] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
         OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -1800,14 +1826,27 @@ export default async function AdminSettingsPage({
       : Promise.resolve([]),
     getWorkspaceGalleryStats(workspaceAdminId)
   ]);
+  let googleIntegration = loadedGoogleIntegration;
   let googleCalendarOptions: GoogleCalendarOption[] = [];
   let googleCalendarOptionsError = false;
+  let googleCalendarReconnectRequired = false;
 
   if (googleIntegration) {
     try {
       googleCalendarOptions = await getGoogleCalendarOptionsForIntegration(googleIntegration);
     } catch (error) {
       googleCalendarOptionsError = true;
+      googleCalendarReconnectRequired = isGoogleCalendarReconnectRequiredError(error);
+
+      if (googleCalendarReconnectRequired) {
+        googleIntegration = {
+          ...googleIntegration,
+          accessTokenEncrypted: null,
+          accessTokenExpiresAt: null,
+          lastSyncError: "A Google Calendar kapcsolat lejárt vagy vissza lett vonva. Kösd össze újra a Google naptárat."
+        };
+      }
+
       console.error("Google calendar options load failed", error);
     }
   }
@@ -1987,6 +2026,7 @@ export default async function AdminSettingsPage({
             } : null}
             calendarOptions={googleCalendarOptions}
             calendarOptionsError={googleCalendarOptionsError}
+            calendarReconnectRequired={googleCalendarReconnectRequired}
           />
           <DeliveryReliabilityPanel language={language} deliveryLogs={deliveryLogs} />
         </div>

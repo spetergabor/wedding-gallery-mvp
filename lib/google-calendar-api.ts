@@ -109,13 +109,19 @@ type GoogleFreeBusyResponse = {
   }>;
 };
 
-class GoogleCalendarApiError extends Error {
+export class GoogleCalendarApiError extends Error {
   status: number;
 
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
   }
+}
+
+export function isGoogleCalendarReconnectRequiredError(error: unknown) {
+  return error instanceof GoogleCalendarApiError
+    && error.status === 400
+    && /expired|revoked|invalid_grant/i.test(error.message);
 }
 
 export function googleCalendarConfig() {
@@ -271,7 +277,25 @@ async function getFreshGoogleCalendarAccessToken(integration: GoogleCalendarInte
     throw new Error("Google Calendar refresh token is missing.");
   }
 
-  const refreshed = await refreshGoogleCalendarToken(refreshToken);
+  let refreshed: GoogleTokenResponse;
+
+  try {
+    refreshed = await refreshGoogleCalendarToken(refreshToken);
+  } catch (error) {
+    if (isGoogleCalendarReconnectRequiredError(error)) {
+      await prisma.googleCalendarIntegration.update({
+        where: { id: integration.id },
+        data: {
+          accessTokenEncrypted: null,
+          accessTokenExpiresAt: null,
+          lastSyncError: "A Google Calendar kapcsolat lejárt vagy vissza lett vonva. Kösd össze újra a Google naptárat."
+        }
+      }).catch(() => undefined);
+    }
+
+    throw error;
+  }
+
   const encryptedToken = encryptGoogleToken(refreshed.access_token);
   const accessTokenExpiresAt = tokenExpiryDate(refreshed.expires_in);
 
