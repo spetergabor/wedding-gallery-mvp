@@ -14,8 +14,11 @@ import {
   HardDrive,
   Layers,
   Mail,
+  PackageCheck,
+  RefreshCw,
   Server,
   ShieldCheck,
+  ShoppingCart,
   TrendingUp,
   UserRound,
   Zap
@@ -39,9 +42,20 @@ import {
   isGoogleCalendarConfigured,
   type GoogleCalendarOption
 } from "@/lib/google-calendar-api";
+import { retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
-import { disconnectGoogleCalendarAction, updateGoogleCalendarSettingsAction } from "@/lib/settings-actions";
+import {
+  disconnectGoogleCalendarAction,
+  retryAutomationGoogleCalendarAction,
+  retryAutomationStripeFulfillmentAction,
+  updateGoogleCalendarSettingsAction
+} from "@/lib/settings-actions";
+import {
+  resendMiniSessionAdminNotificationAction,
+  resendMiniSessionBookingConfirmationAction,
+  retryMiniSessionBookingCalendarSyncAction
+} from "@/lib/mini-session-actions";
 import { isStripeConnectConfigured, isStripeWebhookConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
 type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security" | "health" | "logs";
@@ -439,7 +453,10 @@ const SETTINGS_COPY = {
       googleRefreshTitle: "A Google nem adott hosszú távú hozzáférést.",
       googleRefreshBody: "Indítsd újra az összekötést, és engedélyezd a naptár hozzáférést.",
       googleErrorTitle: "A Google naptár összekötése nem sikerült.",
-      googleErrorBody: "Próbáld újra pár perc múlva."
+      googleErrorBody: "Próbáld újra pár perc múlva.",
+      automationRetryOk: "Az automata folyamat újrapróbálása elindult.",
+      automationRetryFailed: "Az újrapróbálás nem sikerült.",
+      automationRetryUnavailable: "Ehhez a folyamathoz nincs közvetlen újrapróbálási útvonal."
     },
     google: {
       eyebrow: "Google naptár",
@@ -537,7 +554,10 @@ const SETTINGS_COPY = {
       googleRefreshTitle: "Google hat keinen langfristigen Zugriff bereitgestellt.",
       googleRefreshBody: "Verbinde erneut und erlaube den Kalenderzugriff.",
       googleErrorTitle: "Google Kalender konnte nicht verbunden werden.",
-      googleErrorBody: "Bitte versuche es in ein paar Minuten erneut."
+      googleErrorBody: "Bitte versuche es in ein paar Minuten erneut.",
+      automationRetryOk: "Der Automations-Retry wurde gestartet.",
+      automationRetryFailed: "Der Retry konnte nicht gestartet werden.",
+      automationRetryUnavailable: "Für diesen Prozess gibt es keinen direkten Retry."
     },
     google: {
       eyebrow: "Google Kalender",
@@ -635,7 +655,10 @@ const SETTINGS_COPY = {
       googleRefreshTitle: "Google did not provide long-term access.",
       googleRefreshBody: "Reconnect and allow calendar access.",
       googleErrorTitle: "Google Calendar could not be connected.",
-      googleErrorBody: "Try again in a few minutes."
+      googleErrorBody: "Try again in a few minutes.",
+      automationRetryOk: "Automation retry started.",
+      automationRetryFailed: "The retry could not be started.",
+      automationRetryUnavailable: "This process does not have a direct retry path."
     },
     google: {
       eyebrow: "Google Calendar",
@@ -732,46 +755,175 @@ type SettingsDeliveryLog = {
   status: string;
   recipient: string | null;
   subject: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  attemptCount: number;
+  maxAttempts: number;
   lastError: string | null;
   sentAt: Date | null;
   nextAttemptAt: Date | null;
+  metadata: unknown;
   createdAt: Date;
   updatedAt: Date;
 };
 
-const DELIVERY_PANEL_COPY = {
+type SettingsZipPackage = {
+  id: string;
+  galleryId: string;
+  scope: string;
+  status: string;
+  photoCount: number;
+  partIndex: number;
+  partCount: number;
+  groupId: string | null;
+  fileSize: bigint;
+  processedCount: number;
+  processedBytes: bigint;
+  errorMessage: string | null;
+  generatedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  gallery: {
+    title: string;
+    slug: string;
+  };
+};
+
+type SettingsGalleryPurchase = {
+  id: string;
+  galleryId: string;
+  email: string;
+  name: string | null;
+  status: string;
+  amountTotal: number;
+  currency: string;
+  purchaseKind: string;
+  itemCount: number;
+  fulfillmentError: string | null;
+  paidAt: Date | null;
+  fulfilledAt: Date | null;
+  fulfillmentEmailSentAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  gallery: {
+    title: string;
+    slug: string;
+  };
+};
+
+type AutomationStatus = "pending" | "success" | "failed" | "retrying" | "processing" | "skipped";
+type AutomationKind = "email" | "google_calendar" | "zip" | "stripe";
+type AutomationRetry =
+  | { kind: "mini_customer_email"; entityId: string }
+  | { kind: "mini_admin_email"; entityId: string }
+  | { kind: "mini_calendar"; entityId: string }
+  | { kind: "google_delivery"; deliveryLogId: string }
+  | { kind: "zip"; galleryId: string; groupKey: string }
+  | { kind: "stripe_fulfillment"; purchaseId: string };
+
+type SettingsAutomationItem = {
+  id: string;
+  kind: AutomationKind;
+  status: AutomationStatus;
+  title: string;
+  detail: string;
+  target: string | null;
+  updatedAt: Date;
+  createdAt: Date;
+  error: string | null;
+  href: string | null;
+  retry: AutomationRetry | null;
+  attempts?: string | null;
+  nextRetryAt?: Date | null;
+};
+
+const AUTOMATION_PANEL_COPY = {
   hu: {
-    eyebrow: "Kézbesítések",
-    title: "E-mail és Google Calendar megbízhatóság",
-    description: "A legutóbbi elakadt vagy várakozó kézbesítések az aktuális workspace-ben.",
-    emptyTitle: "Nincs elakadt kézbesítés",
-    emptyBody: "Ha egy e-mail vagy Google Calendar sync hibázik, itt fog megjelenni.",
-    recipient: "Címzett",
+    eyebrow: "Automata folyamatok",
+    title: "E-mail, Google Calendar, ZIP és Stripe státusz",
+    description: "Minden háttérfolyamat egy helyen: pending, success, failed és retrying állapotokkal. Hibánál innen tudod újrapróbálni.",
+    emptyTitle: "Nincs automata folyamat",
+    emptyBody: "Ha e-mail, Google Calendar sync, ZIP vagy Stripe teljesítés indul, itt fog megjelenni a legfrissebb állapota.",
+    target: "Cél",
     updated: "Frissítve",
+    attempts: "Próbálkozás",
     nextRetry: "Következő retry",
-    error: "Hiba"
+    error: "Hiba",
+    open: "Megnyitás",
+    retry: "Újrapróbálás",
+    noRetry: "Nincs automata retry ehhez",
+    kinds: {
+      email: "E-mail",
+      google_calendar: "Google Calendar",
+      zip: "ZIP",
+      stripe: "Stripe"
+    },
+    statuses: {
+      pending: "pending",
+      success: "success",
+      failed: "failed",
+      retrying: "retrying",
+      processing: "pending",
+      skipped: "skipped"
+    }
   },
   de: {
-    eyebrow: "Zustellung",
-    title: "E-Mail- und Google-Calendar-Zuverlässigkeit",
-    description: "Die neuesten blockierten oder wartenden Zustellungen im aktuellen Workspace.",
-    emptyTitle: "Keine blockierten Zustellungen",
-    emptyBody: "Wenn eine E-Mail oder ein Google-Calendar-Sync fehlschlägt, erscheint es hier.",
-    recipient: "Empfänger",
+    eyebrow: "Automationen",
+    title: "E-Mail-, Google-Calendar-, ZIP- und Stripe-Status",
+    description: "Alle Hintergrundprozesse an einem Ort: mit pending, success, failed und retrying. Fehler können direkt erneut gestartet werden.",
+    emptyTitle: "Keine Automation vorhanden",
+    emptyBody: "Wenn E-Mail, Google Calendar, ZIP oder Stripe-Fulfillment läuft, erscheint hier der aktuelle Status.",
+    target: "Ziel",
     updated: "Aktualisiert",
+    attempts: "Versuche",
     nextRetry: "Nächster Retry",
-    error: "Fehler"
+    error: "Fehler",
+    open: "Öffnen",
+    retry: "Erneut versuchen",
+    noRetry: "Kein direkter Retry verfügbar",
+    kinds: {
+      email: "E-Mail",
+      google_calendar: "Google Calendar",
+      zip: "ZIP",
+      stripe: "Stripe"
+    },
+    statuses: {
+      pending: "pending",
+      success: "success",
+      failed: "failed",
+      retrying: "retrying",
+      processing: "pending",
+      skipped: "skipped"
+    }
   },
   en: {
-    eyebrow: "Delivery",
-    title: "E-mail and Google Calendar reliability",
-    description: "Recent failed, retrying or pending deliveries in the current workspace.",
-    emptyTitle: "No stuck deliveries",
-    emptyBody: "Failed e-mails or Google Calendar sync attempts will appear here.",
-    recipient: "Recipient",
+    eyebrow: "Automations",
+    title: "E-mail, Google Calendar, ZIP and Stripe status",
+    description: "All background work in one place with pending, success, failed and retrying states. Failed runs can be retried from here.",
+    emptyTitle: "No automation runs yet",
+    emptyBody: "E-mail, Google Calendar, ZIP and Stripe fulfillment status will appear here once they run.",
+    target: "Target",
     updated: "Updated",
+    attempts: "Attempts",
     nextRetry: "Next retry",
-    error: "Error"
+    error: "Error",
+    open: "Open",
+    retry: "Retry",
+    noRetry: "No direct retry available",
+    kinds: {
+      email: "E-mail",
+      google_calendar: "Google Calendar",
+      zip: "ZIP",
+      stripe: "Stripe"
+    },
+    statuses: {
+      pending: "pending",
+      success: "success",
+      failed: "failed",
+      retrying: "retrying",
+      processing: "pending",
+      skipped: "skipped"
+    }
   }
 } as const;
 
@@ -970,52 +1122,227 @@ const SYSTEM_HEALTH_COPY = {
   }
 } as const;
 
-function deliveryStatusLabel(status: string, language: AdminLanguage) {
-  const labels = {
-    hu: {
-      pending: "Függőben",
-      sent: "Elküldve",
-      failed: "Hiba",
-      retry: "Retry",
-      skipped: "Kihagyva"
-    },
-    de: {
-      pending: "Ausstehend",
-      sent: "Gesendet",
-      failed: "Fehler",
-      retry: "Retry",
-      skipped: "Übersprungen"
-    },
-    en: {
-      pending: "Pending",
-      sent: "Sent",
-      failed: "Failed",
-      retry: "Retry",
-      skipped: "Skipped"
-    }
-  } as const;
-
-  return labels[language][status as keyof (typeof labels)[AdminLanguage]] ?? status;
+function automationStatusLabel(status: AutomationStatus, language: AdminLanguage) {
+  return AUTOMATION_PANEL_COPY[language].statuses[status] ?? status;
 }
 
-function deliveryStatusClass(status: string) {
+function automationStatusClass(status: AutomationStatus) {
   if (status === "failed") {
     return "bg-red-50 text-red-700 ring-red-200";
   }
 
-  if (status === "retry") {
+  if (status === "retrying") {
     return "bg-brass/10 text-brass ring-brass/25";
   }
 
-  if (status === "pending") {
+  if (status === "pending" || status === "processing") {
     return "bg-ink/[0.05] text-graphite ring-ink/10";
   }
 
-  if (status === "sent") {
+  if (status === "success") {
     return "bg-sage/10 text-sage ring-sage/20";
   }
 
   return "bg-ink/[0.05] text-graphite/70 ring-ink/10";
+}
+
+function automationKindIcon(kind: AutomationKind): LucideIcon {
+  if (kind === "google_calendar") {
+    return CalendarDays;
+  }
+
+  if (kind === "zip") {
+    return PackageCheck;
+  }
+
+  if (kind === "stripe") {
+    return ShoppingCart;
+  }
+
+  return Mail;
+}
+
+function metadataStringValue(metadata: unknown, key: string) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const value = (metadata as Record<string, unknown>)[key];
+
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function normalizeDeliveryAutomationStatus(status: string): AutomationStatus {
+  if (status === "sent") {
+    return "success";
+  }
+
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "retry") {
+    return "retrying";
+  }
+
+  if (status === "skipped") {
+    return "skipped";
+  }
+
+  return "pending";
+}
+
+function normalizeZipAutomationStatus(status: string): AutomationStatus {
+  if (status === "completed") {
+    return "success";
+  }
+
+  if (status === "failed" || status === "stale") {
+    return "failed";
+  }
+
+  if (status === "processing") {
+    return "processing";
+  }
+
+  return "pending";
+}
+
+function normalizeStripeAutomationStatus(purchase: SettingsGalleryPurchase): AutomationStatus {
+  if (purchase.fulfillmentError || purchase.status === "failed" || purchase.status === "expired") {
+    return "failed";
+  }
+
+  if (purchase.status === "paid" && purchase.fulfilledAt) {
+    return "success";
+  }
+
+  if (purchase.status === "paid") {
+    return "retrying";
+  }
+
+  return "pending";
+}
+
+function formatMoneyCents(cents: number, currency: string, language: AdminLanguage) {
+  return new Intl.NumberFormat(dateLocaleForAdmin(language), {
+    style: "currency",
+    currency: currency.toUpperCase()
+  }).format(Math.max(0, cents) / 100);
+}
+
+function deliveryLogHref(deliveryLog: SettingsDeliveryLog) {
+  const customerId = metadataStringValue(deliveryLog.metadata, "customerId");
+  const sessionId = metadataStringValue(deliveryLog.metadata, "sessionId");
+
+  if (deliveryLog.entityType === "mini_session_booking" && sessionId) {
+    return `/admin/mini-sessions/${sessionId}`;
+  }
+
+  if ((deliveryLog.entityType === "customer_project" || deliveryLog.entityType === "customer_meeting" || deliveryLog.entityType === "customer_task") && customerId) {
+    return `/admin/clients/${customerId}?tab=work`;
+  }
+
+  return null;
+}
+
+function deliveryLogRetry(deliveryLog: SettingsDeliveryLog): AutomationRetry | null {
+  if (!deliveryLog.entityId || deliveryLog.status === "sent" || deliveryLog.status === "skipped") {
+    return null;
+  }
+
+  if (deliveryLog.type === "email.mini_session.customer_confirmation") {
+    return { kind: "mini_customer_email", entityId: deliveryLog.entityId };
+  }
+
+  if (deliveryLog.type === "email.mini_session.admin_notification") {
+    return { kind: "mini_admin_email", entityId: deliveryLog.entityId };
+  }
+
+  if (deliveryLog.type === "google_calendar.mini_session_booking.sync") {
+    return { kind: "mini_calendar", entityId: deliveryLog.entityId };
+  }
+
+  if (deliveryLog.channel === "google_calendar") {
+    return { kind: "google_delivery", deliveryLogId: deliveryLog.id };
+  }
+
+  return null;
+}
+
+function buildAutomationItems(
+  deliveryLogs: SettingsDeliveryLog[],
+  zipPackages: SettingsZipPackage[],
+  stripePurchases: SettingsGalleryPurchase[],
+  language: AdminLanguage
+) {
+  const items: SettingsAutomationItem[] = [];
+  const seenDeliveryKeys = new Set<string>();
+
+  for (const deliveryLog of [...deliveryLogs].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())) {
+    const deliveryKey = `${deliveryLog.channel}:${deliveryLog.type}:${deliveryLog.entityType ?? "none"}:${deliveryLog.entityId ?? deliveryLog.recipient ?? deliveryLog.id}`;
+
+    if (seenDeliveryKeys.has(deliveryKey)) {
+      continue;
+    }
+
+    seenDeliveryKeys.add(deliveryKey);
+    items.push({
+      id: `delivery-${deliveryLog.id}`,
+      kind: deliveryLog.channel === "google_calendar" ? "google_calendar" : "email",
+      status: normalizeDeliveryAutomationStatus(deliveryLog.status),
+      title: deliveryLog.subject || deliveryLog.type,
+      detail: deliveryLog.type,
+      target: deliveryLog.recipient,
+      updatedAt: deliveryLog.sentAt ?? deliveryLog.updatedAt,
+      createdAt: deliveryLog.createdAt,
+      error: deliveryLog.lastError,
+      href: deliveryLogHref(deliveryLog),
+      retry: deliveryLogRetry(deliveryLog),
+      attempts: `${deliveryLog.attemptCount}/${deliveryLog.maxAttempts}`,
+      nextRetryAt: deliveryLog.nextAttemptAt
+    });
+  }
+
+  for (const zipPackage of zipPackages) {
+    const groupKey = zipPackage.groupId ?? zipPackage.id;
+    const isFailed = zipPackage.status === "failed" || zipPackage.status === "stale";
+
+    items.push({
+      id: `zip-${zipPackage.id}`,
+      kind: "zip",
+      status: normalizeZipAutomationStatus(zipPackage.status),
+      title: `${zipPackage.scope === "public" ? "Teljes méret ZIP" : "ZIP"} · ${zipPackage.gallery.title}`,
+      detail: `${zipPackage.processedCount}/${zipPackage.photoCount} média · ${formatBytes(zipPackage.processedBytes)} / ${formatBytes(zipPackage.fileSize)} · rész ${zipPackage.partIndex + 1}/${zipPackage.partCount}`,
+      target: `/g/${zipPackage.gallery.slug}`,
+      updatedAt: zipPackage.generatedAt ?? zipPackage.updatedAt,
+      createdAt: zipPackage.createdAt,
+      error: zipPackage.errorMessage,
+      href: `/admin/galleries/${zipPackage.galleryId}?tab=downloads`,
+      retry: isFailed ? { kind: "zip", galleryId: zipPackage.galleryId, groupKey } : null
+    });
+  }
+
+  for (const purchase of stripePurchases) {
+    const status = normalizeStripeAutomationStatus(purchase);
+    const isPaidButUnfulfilled = purchase.status === "paid" && !purchase.fulfilledAt;
+
+    items.push({
+      id: `stripe-${purchase.id}`,
+      kind: "stripe",
+      status,
+      title: `Stripe · ${purchase.gallery.title}`,
+      detail: `${purchase.purchaseKind === "photos" ? `${purchase.itemCount} fotó` : "Teljes galéria"} · ${formatMoneyCents(purchase.amountTotal, purchase.currency, language)}`,
+      target: purchase.email,
+      updatedAt: purchase.fulfilledAt ?? purchase.paidAt ?? purchase.updatedAt,
+      createdAt: purchase.createdAt,
+      error: purchase.fulfillmentError,
+      href: `/admin/galleries/${purchase.galleryId}?tab=downloads`,
+      retry: isPaidButUnfulfilled || purchase.fulfillmentError ? { kind: "stripe_fulfillment", purchaseId: purchase.id } : null
+    });
+  }
+
+  return items.sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime()).slice(0, 40);
 }
 
 const SYSTEM_EVENT_STATUS_LABELS = {
@@ -1518,32 +1845,80 @@ function GoogleCalendarSettings({
   );
 }
 
-function DeliveryReliabilityPanel({
+function AutomationRetryForm({
+  retry,
+  copy
+}: {
+  retry: AutomationRetry | null;
+  copy: (typeof AUTOMATION_PANEL_COPY)[AdminLanguage];
+}) {
+  if (!retry) {
+    return (
+      <span className="inline-flex h-9 items-center rounded-md bg-ink/[0.04] px-3 text-xs font-medium text-graphite/60">
+        {copy.noRetry}
+      </span>
+    );
+  }
+
+  const button = (
+    <button
+      type="submit"
+      className="inline-flex h-9 items-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-xs font-semibold text-ink transition hover:border-ink/25 hover:bg-paper"
+    >
+      <RefreshCw size={14} />
+      {copy.retry}
+    </button>
+  );
+
+  if (retry.kind === "mini_customer_email") {
+    return <form action={resendMiniSessionBookingConfirmationAction.bind(null, retry.entityId)}>{button}</form>;
+  }
+
+  if (retry.kind === "mini_admin_email") {
+    return <form action={resendMiniSessionAdminNotificationAction.bind(null, retry.entityId)}>{button}</form>;
+  }
+
+  if (retry.kind === "mini_calendar") {
+    return <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, retry.entityId)}>{button}</form>;
+  }
+
+  if (retry.kind === "google_delivery") {
+    return <form action={retryAutomationGoogleCalendarAction.bind(null, retry.deliveryLogId)}>{button}</form>;
+  }
+
+  if (retry.kind === "zip") {
+    return <form action={retryGalleryZipPackageGroupAction.bind(null, retry.galleryId, retry.groupKey)}>{button}</form>;
+  }
+
+  return <form action={retryAutomationStripeFulfillmentAction.bind(null, retry.purchaseId)}>{button}</form>;
+}
+
+function AutomationStatusPanel({
   language,
-  deliveryLogs
+  items
 }: {
   language: AdminLanguage;
-  deliveryLogs: SettingsDeliveryLog[];
+  items: SettingsAutomationItem[];
 }) {
-  const copy = DELIVERY_PANEL_COPY[language];
+  const copy = AUTOMATION_PANEL_COPY[language];
 
   return (
-    <section id="delivery-reliability" className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+    <section id="automation-runs" className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
-            <Mail size={15} />
+            <Activity size={15} />
             {copy.eyebrow}
           </div>
           <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
         </div>
         <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-          {deliveryLogs.length}
+          {items.length}
         </span>
       </div>
 
-      {deliveryLogs.length === 0 ? (
+      {items.length === 0 ? (
         <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5">
           <p className="text-sm font-semibold text-ink">{copy.emptyTitle}</p>
           <p className="mt-1 text-sm leading-6 text-graphite/65">{copy.emptyBody}</p>
@@ -1551,42 +1926,68 @@ function DeliveryReliabilityPanel({
       ) : (
         <div className="mt-5 overflow-hidden rounded-md border border-ink/10">
           <div className="divide-y divide-ink/10">
-            {deliveryLogs.map((deliveryLog) => (
-              <div key={deliveryLog.id} className="grid gap-3 bg-white px-4 py-4 lg:grid-cols-[minmax(0,1fr)_180px_180px] lg:items-start">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${deliveryStatusClass(deliveryLog.status)}`}>
-                      {deliveryStatusLabel(deliveryLog.status, language)}
-                    </span>
-                    <span className="rounded-full bg-ink/5 px-2 py-1 text-[11px] font-medium text-graphite">
-                      {deliveryLog.channel === "google_calendar" ? "Google Calendar" : "E-mail"}
-                    </span>
+            {items.map((item) => {
+              const KindIcon = automationKindIcon(item.kind);
+
+              return (
+                <div key={item.id} className="grid gap-3 bg-white px-4 py-4 xl:grid-cols-[minmax(0,1fr)_170px_180px_220px] xl:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${automationStatusClass(item.status)}`}>
+                        {automationStatusLabel(item.status, language)}
+                      </span>
+                      <span className="rounded-full bg-ink/5 px-2 py-1 text-[11px] font-medium text-graphite">
+                        {copy.kinds[item.kind]}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-start gap-2">
+                      <KindIcon className="mt-0.5 shrink-0 text-brass" size={16} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-graphite/60">{item.detail}</p>
+                      </div>
+                    </div>
+                    {item.error ? (
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-red-700">
+                        {copy.error}: {item.error}
+                      </p>
+                    ) : null}
                   </div>
-                  <p className="mt-2 truncate text-sm font-semibold text-ink">{deliveryLog.subject || deliveryLog.type}</p>
-                  <p className="mt-1 truncate text-xs text-graphite/60">{deliveryLog.type}</p>
-                  {deliveryLog.lastError ? (
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-red-700">
-                      {copy.error}: {deliveryLog.lastError}
+                  <div className="text-xs leading-5 text-graphite/65">
+                    <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.target}</p>
+                    <p className="mt-1 truncate text-sm normal-case tracking-normal text-graphite">{item.target || "-"}</p>
+                    {item.attempts ? (
+                      <p className="mt-1 text-xs text-graphite/55">
+                        {copy.attempts}: {item.attempts}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="text-xs leading-5 text-graphite/65">
+                    <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.updated}</p>
+                    <p className="mt-1 text-sm normal-case tracking-normal text-graphite">
+                      {formatSettingsDateTime(item.updatedAt ?? item.createdAt, language, "-")}
                     </p>
-                  ) : null}
+                    {item.nextRetryAt ? (
+                      <p className="mt-1 text-xs text-brass">
+                        {copy.nextRetry}: {formatSettingsDateTime(item.nextRetryAt, language, "-")}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                    {item.href ? (
+                      <Link
+                        href={item.href}
+                        className="inline-flex h-9 items-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-xs font-semibold text-ink transition hover:border-ink/25 hover:bg-paper"
+                      >
+                        <ExternalLink size={14} />
+                        {copy.open}
+                      </Link>
+                    ) : null}
+                    <AutomationRetryForm retry={item.retry} copy={copy} />
+                  </div>
                 </div>
-                <div className="text-xs leading-5 text-graphite/65">
-                  <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.recipient}</p>
-                  <p className="mt-1 truncate text-sm normal-case tracking-normal text-graphite">{deliveryLog.recipient || "-"}</p>
-                </div>
-                <div className="text-xs leading-5 text-graphite/65">
-                  <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.updated}</p>
-                  <p className="mt-1 text-sm normal-case tracking-normal text-graphite">
-                    {formatSettingsDateTime(deliveryLog.sentAt ?? deliveryLog.updatedAt ?? deliveryLog.createdAt, language, "-")}
-                  </p>
-                  {deliveryLog.nextAttemptAt ? (
-                    <p className="mt-1 text-xs text-brass">
-                      {copy.nextRetry}: {formatSettingsDateTime(deliveryLog.nextAttemptAt, language, "-")}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1706,7 +2107,7 @@ function SystemHealthPanel({
     }
   ];
   const actionCandidates: Array<{ label: string; href: string; icon: LucideIcon } | null> = [
-    summary.delivery.total > 0 ? { label: copy.actions.delivery, href: "#delivery-reliability", icon: Mail } : null,
+    summary.delivery.total > 0 ? { label: copy.actions.delivery, href: "#automation-runs", icon: Mail } : null,
     needsIntegrations ? { label: copy.actions.integrations, href: "/admin/settings?tab=integrations", icon: CalendarDays } : null,
     zipTone !== "ok" ? { label: copy.actions.galleries, href: "/admin/galleries", icon: Layers } : null,
     storageTone !== "ok" ? { label: copy.actions.storage, href: "/admin/r2-storage", icon: HardDrive } : null,
@@ -2239,6 +2640,7 @@ export default async function AdminSettingsPage({
     enabled?: string;
     google?: string;
     stripe?: string;
+    automation?: string;
   }>;
 }) {
   const [admin, params, language] = await Promise.all([requireAdmin(), searchParams, getAdminLanguage()]);
@@ -2249,7 +2651,7 @@ export default async function AdminSettingsPage({
       ? "security"
       : params.tab === "logs" && admin.role === "super_admin"
         ? "logs"
-      : params.tab === "health" && admin.role === "super_admin" && !isTeamWorkspace
+      : params.tab === "health" && !isTeamWorkspace
         ? "health"
       : params.tab === "integrations" && !isTeamWorkspace
         ? "integrations"
@@ -2260,7 +2662,18 @@ export default async function AdminSettingsPage({
           : params.tab === "profile" || isTeamWorkspace
             ? "profile"
             : "brand";
-  const [settings, photographerProfile, serviceUsage, loadedGoogleIntegration, stripeIntegration, systemEvents, deliveryLogs, workspaceStats] = await Promise.all([
+  const [
+    settings,
+    photographerProfile,
+    serviceUsage,
+    loadedGoogleIntegration,
+    stripeIntegration,
+    systemEvents,
+    deliveryLogs,
+    zipPackages,
+    stripePurchases,
+    workspaceStats
+  ] = await Promise.all([
     prisma.siteSettings.findFirst({
       where: {
         OR: [{ adminId: admin.id }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
@@ -2367,10 +2780,13 @@ export default async function AdminSettingsPage({
       ? prisma.deliveryLog.findMany({
           where: {
             adminId: workspaceAdminId,
-            status: { in: ["pending", "retry", "failed"] }
+            OR: [
+              { status: { in: ["pending", "retry", "failed"] } },
+              { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }
+            ]
           },
-          orderBy: { createdAt: "desc" },
-          take: 20,
+          orderBy: { updatedAt: "desc" },
+          take: 40,
           select: {
             id: true,
             channel: true,
@@ -2378,11 +2794,88 @@ export default async function AdminSettingsPage({
             status: true,
             recipient: true,
             subject: true,
+            entityType: true,
+            entityId: true,
+            attemptCount: true,
+            maxAttempts: true,
             lastError: true,
             sentAt: true,
             nextAttemptAt: true,
+            metadata: true,
             createdAt: true,
             updatedAt: true
+          }
+        })
+      : Promise.resolve([]),
+    !isTeamWorkspace
+      ? prisma.galleryDownloadPackage.findMany({
+          where: {
+            gallery: { adminId: workspaceAdminId },
+            OR: [
+              { status: { in: ["pending", "processing", "failed", "stale"] } },
+              { generatedAt: { not: null } }
+            ]
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 30,
+          select: {
+            id: true,
+            galleryId: true,
+            scope: true,
+            status: true,
+            photoCount: true,
+            partIndex: true,
+            partCount: true,
+            groupId: true,
+            fileSize: true,
+            processedCount: true,
+            processedBytes: true,
+            errorMessage: true,
+            generatedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            gallery: {
+              select: {
+                title: true,
+                slug: true
+              }
+            }
+          }
+        })
+      : Promise.resolve([]),
+    !isTeamWorkspace
+      ? prisma.galleryPurchase.findMany({
+          where: {
+            adminId: workspaceAdminId,
+            OR: [
+              { status: { in: ["pending", "paid", "failed", "expired"] } },
+              { fulfillmentError: { not: null } }
+            ]
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 30,
+          select: {
+            id: true,
+            galleryId: true,
+            email: true,
+            name: true,
+            status: true,
+            amountTotal: true,
+            currency: true,
+            purchaseKind: true,
+            itemCount: true,
+            fulfillmentError: true,
+            paidAt: true,
+            fulfilledAt: true,
+            fulfillmentEmailSentAt: true,
+            createdAt: true,
+            updatedAt: true,
+            gallery: {
+              select: {
+                title: true,
+                slug: true
+              }
+            }
           }
         })
       : Promise.resolve([]),
@@ -2418,7 +2911,7 @@ export default async function AdminSettingsPage({
   const stripeConfigured = isStripeConnectConfigured();
   const stripeWebhookConfigured = isStripeWebhookConfigured();
   const stripeMissingConfigKeys = stripeConnectMissingConfigKeys();
-  const healthSummary = admin.role === "super_admin" && !isTeamWorkspace
+  const healthSummary = !isTeamWorkspace
     ? await getSystemHealthSummary({
         adminId: workspaceAdminId,
         workspaceStats,
@@ -2445,7 +2938,8 @@ export default async function AdminSettingsPage({
         stripeIntegration
       })
     : null;
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-7" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4";
+  const automationItems = !isTeamWorkspace ? buildAutomationItems(deliveryLogs, zipPackages, stripePurchases, language) : [];
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-7" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5";
   const copy = SETTINGS_COPY[language];
 
   return (
@@ -2489,7 +2983,7 @@ export default async function AdminSettingsPage({
             <ShieldCheck size={16} />
             {copy.tabs.security}
           </Link>
-          {admin.role === "super_admin" && !isTeamWorkspace ? (
+          {!isTeamWorkspace ? (
             <Link
               href="/admin/settings?tab=health"
               className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
@@ -2586,6 +3080,9 @@ export default async function AdminSettingsPage({
         {params.stripe === "state-error" ? <Alert title="A Stripe összekötés biztonsági ellenőrzése sikertelen." variant="error">Indítsd újra az összekötést a Stripe gombbal.</Alert> : null}
         {params.stripe === "oauth-error" ? <Alert title="A Stripe összekötést megszakították." variant="error">A fotós nem engedélyezte a Stripe kapcsolatot, vagy a Stripe megszakította az OAuth folyamatot.</Alert> : null}
         {params.stripe === "callback-error" || params.stripe === "error" ? <Alert title="A Stripe összekötése nem sikerült." variant="error">Próbáld újra pár perc múlva, vagy ellenőrizd a Stripe OAuth beállításokat.</Alert> : null}
+        {params.automation === "retry_ok" ? <Alert title={copy.alerts.automationRetryOk} variant="success" /> : null}
+        {params.automation === "retry_failed" ? <Alert title={copy.alerts.automationRetryFailed} variant="error" /> : null}
+        {params.automation === "retry_unavailable" ? <Alert title={copy.alerts.automationRetryUnavailable} variant="error" /> : null}
       </div>
 
       {activeTab === "brand" && !isTeamWorkspace ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
@@ -2634,7 +3131,7 @@ export default async function AdminSettingsPage({
       {activeTab === "health" && healthSummary ? (
         <div className="space-y-5">
           <SystemHealthPanel language={language} summary={healthSummary} showLogsAction={admin.role === "super_admin"} />
-          <DeliveryReliabilityPanel language={language} deliveryLogs={deliveryLogs} />
+          <AutomationStatusPanel language={language} items={automationItems} />
         </div>
       ) : null}
 

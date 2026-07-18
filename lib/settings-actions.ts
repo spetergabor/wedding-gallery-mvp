@@ -4,6 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { fulfillPaidGalleryPurchase } from "@/lib/gallery-sales";
+import {
+  syncCustomerMeetingToGoogleCalendar,
+  syncCustomerProjectToGoogleCalendar,
+  syncCustomerTaskToGoogleCalendar,
+  syncMiniSessionBookingToGoogleCalendar
+} from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 import {
   ensureDefaultPublicSubdomainForAdmin,
@@ -17,6 +24,8 @@ import {
   getPhotoPublicUrl,
   savePhotoObject
 } from "@/lib/storage";
+
+const AUTOMATION_STATUS_PATH = "/admin/settings?tab=health#automation-runs";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -189,6 +198,131 @@ export async function disconnectGoogleCalendarAction() {
 
   revalidatePath("/admin/settings");
   redirect("/admin/settings?tab=integrations&google=disconnected");
+}
+
+export async function retryAutomationGoogleCalendarAction(deliveryLogId: string) {
+  const admin = await requireAdmin();
+
+  if (admin.isTeamWorkspace) {
+    redirect("/admin/settings?tab=profile");
+  }
+
+  const adminId = ownerAdminId(admin);
+  const deliveryLog = await prisma.deliveryLog.findFirst({
+    where: {
+      id: deliveryLogId,
+      adminId,
+      channel: "google_calendar"
+    },
+    select: {
+      id: true,
+      type: true,
+      entityType: true,
+      entityId: true
+    }
+  });
+
+  if (!deliveryLog?.entityId) {
+    redirect("/admin/settings?tab=health&automation=retry_unavailable#automation-runs");
+  }
+
+  let result: { status: string } | null = null;
+
+  if (deliveryLog.entityType === "mini_session_booking") {
+    result = await syncMiniSessionBookingToGoogleCalendar(deliveryLog.entityId);
+  } else if (deliveryLog.entityType === "customer_project") {
+    result = await syncCustomerProjectToGoogleCalendar(deliveryLog.entityId);
+  } else if (deliveryLog.entityType === "customer_meeting") {
+    result = await syncCustomerMeetingToGoogleCalendar(deliveryLog.entityId);
+  } else if (deliveryLog.entityType === "customer_task") {
+    result = await syncCustomerTaskToGoogleCalendar(deliveryLog.entityId);
+  }
+
+  const ok =
+    result?.status === "synced" ||
+    result?.status === "deleted" ||
+    result?.status === "cancelled" ||
+    result?.status === "skipped";
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: adminId,
+    type: "automation.google_calendar.retry",
+    title: ok ? "Google Calendar újrapróbálás sikeres" : "Google Calendar újrapróbálás sikertelen",
+    message: result ? `Eredmény: ${result.status}` : "Ehhez a Google Calendar naplóhoz nincs ismert újrapróbálási útvonal.",
+    severity: ok ? "success" : "error",
+    status: ok ? "success" : "failed",
+    source: "google_calendar",
+    href: AUTOMATION_STATUS_PATH,
+    metadata: {
+      deliveryLogId: deliveryLog.id,
+      type: deliveryLog.type,
+      entityType: deliveryLog.entityType,
+      entityId: deliveryLog.entityId,
+      result: result?.status ?? null
+    }
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/dashboard");
+  redirect(ok ? "/admin/settings?tab=health&automation=retry_ok#automation-runs" : "/admin/settings?tab=health&automation=retry_failed#automation-runs");
+}
+
+export async function retryAutomationStripeFulfillmentAction(purchaseId: string) {
+  const admin = await requireAdmin();
+
+  if (admin.isTeamWorkspace) {
+    redirect("/admin/settings?tab=profile");
+  }
+
+  const adminId = ownerAdminId(admin);
+  const purchase = await prisma.galleryPurchase.findFirst({
+    where: {
+      id: purchaseId,
+      adminId
+    },
+    select: {
+      id: true,
+      galleryId: true,
+      status: true
+    }
+  });
+
+  if (!purchase || purchase.status !== "paid") {
+    redirect("/admin/settings?tab=health&automation=retry_unavailable#automation-runs");
+  }
+
+  let ok = false;
+  let message = "";
+
+  try {
+    const result = await fulfillPaidGalleryPurchase(purchase.id);
+    ok = result.ok;
+    message = ok ? "Stripe vásárlás teljesítése újra lefutott." : `Stripe teljesítés nem indult: ${"reason" in result ? result.reason : "ismeretlen ok"}`;
+  } catch (error) {
+    message = error instanceof Error ? error.message : "Stripe teljesítés újrapróbálása sikertelen.";
+  }
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: adminId,
+    type: "automation.stripe.fulfillment_retry",
+    title: ok ? "Stripe teljesítés újrapróbálva" : "Stripe teljesítés újrapróbálása hibás",
+    message,
+    severity: ok ? "success" : "error",
+    status: ok ? "success" : "failed",
+    source: "stripe",
+    href: AUTOMATION_STATUS_PATH,
+    metadata: {
+      purchaseId: purchase.id,
+      galleryId: purchase.galleryId
+    }
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath(`/admin/galleries/${purchase.galleryId}`);
+  revalidatePath("/admin/dashboard");
+  redirect(ok ? "/admin/settings?tab=health&automation=retry_ok#automation-runs" : "/admin/settings?tab=health&automation=retry_failed#automation-runs");
 }
 
 export async function updateSiteSettingsAction(formData: FormData) {
