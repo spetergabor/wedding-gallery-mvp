@@ -236,11 +236,7 @@ type SystemHealthSummary = {
     latestFailedError: string | null;
     latestFailedAt: Date | null;
   };
-  storage: WorkspaceGalleryStats & {
-    freeLimitBytes: number;
-    usagePercent: number;
-    overFreeLimit: boolean;
-  };
+  storage: WorkspaceGalleryStats;
 };
 
 function startOfCurrentMonth() {
@@ -857,7 +853,7 @@ const SYSTEM_HEALTH_COPY = {
       zipOk: "Nincs elakadt ZIP folyamat.",
       zipRunning: (running: number, pending: number) => `${running} fut, ${pending} várakozik.`,
       zipProblem: (failed: number, stale: number) => `${failed} hibás, ${stale} elavult futás.`,
-      storageUsage: (used: string, percent: number) => `${used} ismert feltöltés, kb. ${percent}% a 10 GB-os ingyenes kerethez képest.`,
+      storageUsage: (used: string) => `${used} ismert feltöltött médiaméret.`,
       latestError: "Legutóbbi hiba"
     },
     actionsTitle: "Gyors teendők",
@@ -908,7 +904,7 @@ const SYSTEM_HEALTH_COPY = {
       zipOk: "Keine hängenden ZIP-Prozesse.",
       zipRunning: (running: number, pending: number) => `${running} läuft, ${pending} wartet.`,
       zipProblem: (failed: number, stale: number) => `${failed} fehlerhaft, ${stale} veraltete Läufe.`,
-      storageUsage: (used: string, percent: number) => `${used} bekannte Uploads, ca. ${percent}% des 10-GB-Free-Limits.`,
+      storageUsage: (used: string) => `${used} bekannte Upload-Größe.`,
       latestError: "Letzter Fehler"
     },
     actionsTitle: "Schnelle Aktionen",
@@ -959,7 +955,7 @@ const SYSTEM_HEALTH_COPY = {
       zipOk: "No stuck ZIP processes.",
       zipRunning: (running: number, pending: number) => `${running} running, ${pending} pending.`,
       zipProblem: (failed: number, stale: number) => `${failed} failed, ${stale} stale runs.`,
-      storageUsage: (used: string, percent: number) => `${used} known uploads, about ${percent}% of the 10 GB free limit.`,
+      storageUsage: (used: string) => `${used} known uploaded media size.`,
       latestError: "Latest error"
     },
     actionsTitle: "Quick actions",
@@ -1632,7 +1628,7 @@ function SystemHealthPanel({
       : summary.zip.pending > 0 || summary.zip.processing > 0
         ? "watch"
         : "ok";
-  const storageTone: ProviderTone = summary.storage.overFreeLimit ? "watch" : "ok";
+  const storageTone: ProviderTone = "ok";
   const tones = [deliveryTone, googleTone, stripeTone, zipTone, storageTone];
   const overallTone: ProviderTone = tones.includes("attention") ? "attention" : tones.includes("watch") ? "watch" : "ok";
   const overallIcon = overallTone === "attention" ? AlertTriangle : overallTone === "watch" ? Activity : CheckCircle2;
@@ -1705,7 +1701,7 @@ function SystemHealthPanel({
       tone: storageTone,
       icon: HardDrive,
       value: formatBytes(summary.storage.storageBytes),
-      detail: copy.details.storageUsage(formatBytes(summary.storage.storageBytes), summary.storage.usagePercent),
+      detail: copy.details.storageUsage(formatBytes(summary.storage.storageBytes)),
       error: null
     }
   ];
@@ -1966,10 +1962,6 @@ async function getSystemHealthSummary({
       }
     })
   ]);
-  const freeLimitBytes = R2_STORAGE_FREE_GB * ONE_GB;
-  const storageBytesNumber = Number(workspaceStats.storageBytes);
-  const usagePercent = freeLimitBytes > 0 ? Math.round((storageBytesNumber / freeLimitBytes) * 100) : 0;
-
   return {
     delivery: {
       pending: pendingDelivery,
@@ -2008,12 +2000,7 @@ async function getSystemHealthSummary({
       latestFailedError: latestFailedZip?.errorMessage ?? null,
       latestFailedAt: latestFailedZip?.updatedAt ?? null
     },
-    storage: {
-      ...workspaceStats,
-      freeLimitBytes,
-      usagePercent,
-      overFreeLimit: storageBytesNumber > freeLimitBytes
-    }
+    storage: workspaceStats
   };
 }
 
