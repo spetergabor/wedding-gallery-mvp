@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Activity,
+  AlertTriangle,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
@@ -19,6 +20,7 @@ import {
   UserRound,
   Zap
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { AdminSecuritySettings } from "@/components/admin-security-settings";
@@ -42,7 +44,7 @@ import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
 import { disconnectGoogleCalendarAction, updateGoogleCalendarSettingsAction } from "@/lib/settings-actions";
 import { isStripeConnectConfigured, isStripeWebhookConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
-type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security" | "logs";
+type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security" | "health" | "logs";
 
 const providerLinks = [
   {
@@ -196,6 +198,51 @@ type WorkspaceGalleryStats = {
   storageBytes: bigint;
 };
 
+type SystemHealthSummary = {
+  delivery: {
+    pending: number;
+    retry: number;
+    failed: number;
+    total: number;
+    latestError: string | null;
+  };
+  google: {
+    configured: boolean;
+    connected: boolean;
+    reconnectRequired: boolean;
+    optionsError: boolean;
+    accountLabel: string | null;
+    calendarLabel: string | null;
+    lastSyncError: string | null;
+    syncMiniSessionBookings: boolean;
+    syncCustomerProjects: boolean;
+    blockAvailabilityFromGoogleCalendar: boolean;
+  };
+  stripe: {
+    configured: boolean;
+    webhookConfigured: boolean;
+    connected: boolean;
+    chargesEnabled: boolean;
+    payoutsEnabled: boolean;
+    accountLabel: string | null;
+    lastSyncError: string | null;
+  };
+  zip: {
+    pending: number;
+    processing: number;
+    failed: number;
+    staleProcessing: number;
+    latestFailedTitle: string | null;
+    latestFailedError: string | null;
+    latestFailedAt: Date | null;
+  };
+  storage: WorkspaceGalleryStats & {
+    freeLimitBytes: number;
+    usagePercent: number;
+    overFreeLimit: boolean;
+  };
+};
+
 function startOfCurrentMonth() {
   const date = new Date();
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -304,6 +351,30 @@ function providerCardClass(tone: ProviderTone) {
   return "border-ink/10";
 }
 
+function healthPanelClass(tone: ProviderTone) {
+  if (tone === "attention") {
+    return "border-red-200 bg-red-50/55";
+  }
+
+  if (tone === "watch") {
+    return "border-brass/25 bg-brass/[0.06]";
+  }
+
+  return "border-sage/25 bg-sage/[0.06]";
+}
+
+function healthBadgeClass(tone: ProviderTone) {
+  if (tone === "attention") {
+    return "bg-red-100 text-red-700 ring-red-200";
+  }
+
+  if (tone === "watch") {
+    return "bg-brass/12 text-brass ring-brass/20";
+  }
+
+  return "bg-sage/12 text-sage ring-sage/20";
+}
+
 type GoogleCalendarIntegrationSettings = {
   googleAccountEmail: string | null;
   calendarId: string;
@@ -341,6 +412,7 @@ const SETTINGS_COPY = {
       profile: "Fotós adatok",
       security: "Biztonság",
       integrations: "Integrációk",
+      health: "Rendszerállapot",
       providers: "Szolgáltatók",
       logs: "Napló"
     },
@@ -438,6 +510,7 @@ const SETTINGS_COPY = {
       profile: "Fotografendaten",
       security: "Sicherheit",
       integrations: "Integrationen",
+      health: "Systemstatus",
       providers: "Dienste",
       logs: "Protokoll"
     },
@@ -535,6 +608,7 @@ const SETTINGS_COPY = {
       profile: "Photographer details",
       security: "Security",
       integrations: "Integrations",
+      health: "System health",
       providers: "Providers",
       logs: "Logs"
     },
@@ -666,6 +740,7 @@ type SettingsDeliveryLog = {
   sentAt: Date | null;
   nextAttemptAt: Date | null;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 const DELIVERY_PANEL_COPY = {
@@ -739,6 +814,162 @@ const WORKSPACE_STATS_COPY = {
       active: ["Active", "Publicly available galleries"],
       media: ["Media", "Images and videos recorded in the database"],
       storage: ["R2 storage", "Total uploaded media size"]
+    }
+  }
+} as const;
+
+const SYSTEM_HEALTH_COPY = {
+  hu: {
+    eyebrow: "Rendszerállapot",
+    title: "Stabilitási központ",
+    description: "Gyors áttekintés azokról a részekről, amelyek napi működés közben el tudnak akadni: e-mail, Google naptár, Stripe, ZIP és tárhely.",
+    overall: {
+      ok: ["Minden rendben", "Nincs nyitott hiba az aktuális workspace-ben."],
+      watch: ["Figyelmet kér", "Van folyamatban lévő vagy hiányzó beállítás."],
+      attention: ["Beavatkozás kell", "Van hiba vagy újrakötést igénylő integráció."]
+    },
+    cards: {
+      delivery: "E-mail és sync",
+      google: "Google naptár",
+      stripe: "Stripe",
+      zip: "ZIP folyamatok",
+      storage: "Tárhely"
+    },
+    states: {
+      ok: "Rendben",
+      watch: "Figyelni",
+      attention: "Hiba",
+      notConnected: "Nincs összekötve",
+      connected: "Összekötve",
+      configured: "Konfigurálva",
+      missingConfig: "Hiányzó konfiguráció"
+    },
+    details: {
+      deliveryOk: "Nincs elakadt kézbesítés.",
+      deliveryProblem: (failed: number, retry: number, pending: number) => `${failed} hibás, ${retry} retry, ${pending} várakozó kézbesítés.`,
+      googleOk: "A naptár kapcsolat használható.",
+      googleDisconnected: "A Google naptár nincs összekötve.",
+      googleReconnect: "A Google kapcsolat lejárt vagy vissza lett vonva.",
+      stripeOk: "A Stripe kapcsolat aktív fizetéshez használható.",
+      stripeDisconnected: "A Stripe nincs összekötve.",
+      stripePending: "A Stripe fiók még nem teljesen aktív.",
+      stripeWebhookMissing: "A Stripe webhook nincs konfigurálva.",
+      zipOk: "Nincs elakadt ZIP folyamat.",
+      zipRunning: (running: number, pending: number) => `${running} fut, ${pending} várakozik.`,
+      zipProblem: (failed: number, stale: number) => `${failed} hibás, ${stale} elavult futás.`,
+      storageUsage: (used: string, percent: number) => `${used} ismert feltöltés, kb. ${percent}% a 10 GB-os ingyenes kerethez képest.`,
+      latestError: "Legutóbbi hiba"
+    },
+    actionsTitle: "Gyors teendők",
+    actions: {
+      delivery: "Kézbesítések megnyitása",
+      integrations: "Integrációk megnyitása",
+      storage: "R2 tárhely megnyitása",
+      galleries: "Galériák megnyitása",
+      logs: "Rendszernapló",
+      noAction: "Nincs sürgős teendő."
+    }
+  },
+  de: {
+    eyebrow: "Systemstatus",
+    title: "Stabilitätszentrale",
+    description: "Schneller Überblick über Bereiche, die im täglichen Betrieb hängen bleiben können: E-Mail, Google Kalender, Stripe, ZIP und Speicher.",
+    overall: {
+      ok: ["Alles in Ordnung", "Keine offenen Fehler im aktuellen Workspace."],
+      watch: ["Aufmerksamkeit nötig", "Es gibt laufende Prozesse oder fehlende Einstellungen."],
+      attention: ["Eingriff nötig", "Es gibt Fehler oder Integrationen, die neu verbunden werden müssen."]
+    },
+    cards: {
+      delivery: "E-Mail und Sync",
+      google: "Google Kalender",
+      stripe: "Stripe",
+      zip: "ZIP-Prozesse",
+      storage: "Speicher"
+    },
+    states: {
+      ok: "OK",
+      watch: "Prüfen",
+      attention: "Fehler",
+      notConnected: "Nicht verbunden",
+      connected: "Verbunden",
+      configured: "Konfiguriert",
+      missingConfig: "Konfiguration fehlt"
+    },
+    details: {
+      deliveryOk: "Keine blockierten Zustellungen.",
+      deliveryProblem: (failed: number, retry: number, pending: number) => `${failed} fehlgeschlagen, ${retry} Retry, ${pending} ausstehend.`,
+      googleOk: "Die Kalenderverbindung ist nutzbar.",
+      googleDisconnected: "Google Kalender ist nicht verbunden.",
+      googleReconnect: "Die Google-Verbindung ist abgelaufen oder wurde widerrufen.",
+      stripeOk: "Die Stripe-Verbindung kann Zahlungen verarbeiten.",
+      stripeDisconnected: "Stripe ist nicht verbunden.",
+      stripePending: "Das Stripe-Konto ist noch nicht vollständig aktiv.",
+      stripeWebhookMissing: "Der Stripe-Webhook ist nicht konfiguriert.",
+      zipOk: "Keine hängenden ZIP-Prozesse.",
+      zipRunning: (running: number, pending: number) => `${running} läuft, ${pending} wartet.`,
+      zipProblem: (failed: number, stale: number) => `${failed} fehlerhaft, ${stale} veraltete Läufe.`,
+      storageUsage: (used: string, percent: number) => `${used} bekannte Uploads, ca. ${percent}% des 10-GB-Free-Limits.`,
+      latestError: "Letzter Fehler"
+    },
+    actionsTitle: "Schnelle Aktionen",
+    actions: {
+      delivery: "Zustellungen öffnen",
+      integrations: "Integrationen öffnen",
+      storage: "R2-Speicher öffnen",
+      galleries: "Galerien öffnen",
+      logs: "Systemprotokoll",
+      noAction: "Keine dringende Aktion."
+    }
+  },
+  en: {
+    eyebrow: "System health",
+    title: "Reliability center",
+    description: "A quick view of the parts that can get stuck during daily operation: e-mail, Google Calendar, Stripe, ZIP and storage.",
+    overall: {
+      ok: ["Everything is healthy", "No open issues in the current workspace."],
+      watch: ["Needs attention", "There are running processes or missing settings."],
+      attention: ["Action required", "There are failures or integrations that need reconnecting."]
+    },
+    cards: {
+      delivery: "E-mail and sync",
+      google: "Google Calendar",
+      stripe: "Stripe",
+      zip: "ZIP processes",
+      storage: "Storage"
+    },
+    states: {
+      ok: "Healthy",
+      watch: "Watch",
+      attention: "Issue",
+      notConnected: "Not connected",
+      connected: "Connected",
+      configured: "Configured",
+      missingConfig: "Missing config"
+    },
+    details: {
+      deliveryOk: "No stuck deliveries.",
+      deliveryProblem: (failed: number, retry: number, pending: number) => `${failed} failed, ${retry} retrying, ${pending} pending deliveries.`,
+      googleOk: "The calendar connection is usable.",
+      googleDisconnected: "Google Calendar is not connected.",
+      googleReconnect: "The Google connection expired or was revoked.",
+      stripeOk: "The Stripe connection can process payments.",
+      stripeDisconnected: "Stripe is not connected.",
+      stripePending: "The Stripe account is not fully active yet.",
+      stripeWebhookMissing: "Stripe webhook is not configured.",
+      zipOk: "No stuck ZIP processes.",
+      zipRunning: (running: number, pending: number) => `${running} running, ${pending} pending.`,
+      zipProblem: (failed: number, stale: number) => `${failed} failed, ${stale} stale runs.`,
+      storageUsage: (used: string, percent: number) => `${used} known uploads, about ${percent}% of the 10 GB free limit.`,
+      latestError: "Latest error"
+    },
+    actionsTitle: "Quick actions",
+    actions: {
+      delivery: "Open deliveries",
+      integrations: "Open integrations",
+      storage: "Open R2 storage",
+      galleries: "Open galleries",
+      logs: "System log",
+      noAction: "No urgent action."
     }
   }
 } as const;
@@ -1301,7 +1532,7 @@ function DeliveryReliabilityPanel({
   const copy = DELIVERY_PANEL_COPY[language];
 
   return (
-    <section className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+    <section id="delivery-reliability" className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
@@ -1350,7 +1581,7 @@ function DeliveryReliabilityPanel({
                 <div className="text-xs leading-5 text-graphite/65">
                   <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.updated}</p>
                   <p className="mt-1 text-sm normal-case tracking-normal text-graphite">
-                    {formatSettingsDateTime(deliveryLog.sentAt ?? deliveryLog.createdAt, language, "-")}
+                    {formatSettingsDateTime(deliveryLog.sentAt ?? deliveryLog.updatedAt ?? deliveryLog.createdAt, language, "-")}
                   </p>
                   {deliveryLog.nextAttemptAt ? (
                     <p className="mt-1 text-xs text-brass">
@@ -1363,6 +1594,205 @@ function DeliveryReliabilityPanel({
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+function SystemHealthPanel({
+  language,
+  summary,
+  showLogsAction
+}: {
+  language: AdminLanguage;
+  summary: SystemHealthSummary;
+  showLogsAction: boolean;
+}) {
+  const copy = SYSTEM_HEALTH_COPY[language];
+  const deliveryTone: ProviderTone =
+    summary.delivery.failed > 0 ? "attention" : summary.delivery.total > 0 ? "watch" : "ok";
+  const googleTone: ProviderTone =
+    summary.google.reconnectRequired || summary.google.lastSyncError
+      ? "attention"
+      : !summary.google.configured || !summary.google.connected || summary.google.optionsError
+        ? "watch"
+        : "ok";
+  const stripeTone: ProviderTone =
+    summary.stripe.connected && !summary.stripe.webhookConfigured
+      ? "attention"
+      : !summary.stripe.configured ||
+          !summary.stripe.connected ||
+          !summary.stripe.chargesEnabled ||
+          !summary.stripe.payoutsEnabled ||
+          summary.stripe.lastSyncError
+        ? "watch"
+        : "ok";
+  const zipTone: ProviderTone =
+    summary.zip.failed > 0 || summary.zip.staleProcessing > 0
+      ? "attention"
+      : summary.zip.pending > 0 || summary.zip.processing > 0
+        ? "watch"
+        : "ok";
+  const storageTone: ProviderTone = summary.storage.overFreeLimit ? "watch" : "ok";
+  const tones = [deliveryTone, googleTone, stripeTone, zipTone, storageTone];
+  const overallTone: ProviderTone = tones.includes("attention") ? "attention" : tones.includes("watch") ? "watch" : "ok";
+  const overallIcon = overallTone === "attention" ? AlertTriangle : overallTone === "watch" ? Activity : CheckCircle2;
+  const OverallIcon = overallIcon;
+  const [overallTitle, overallDetail] = copy.overall[overallTone];
+  const needsIntegrations = googleTone !== "ok" || stripeTone !== "ok";
+  const cards = [
+    {
+      label: copy.cards.delivery,
+      tone: deliveryTone,
+      icon: Mail,
+      value: deliveryTone === "ok" ? copy.states.ok : deliveryTone === "attention" ? copy.states.attention : copy.states.watch,
+      detail:
+        deliveryTone === "ok"
+          ? copy.details.deliveryOk
+          : copy.details.deliveryProblem(summary.delivery.failed, summary.delivery.retry, summary.delivery.pending),
+      error: summary.delivery.latestError
+    },
+    {
+      label: copy.cards.google,
+      tone: googleTone,
+      icon: CalendarDays,
+      value:
+        !summary.google.configured
+          ? copy.states.missingConfig
+          : summary.google.connected
+            ? copy.states.connected
+            : copy.states.notConnected,
+      detail: summary.google.reconnectRequired
+        ? copy.details.googleReconnect
+        : summary.google.connected
+          ? `${copy.details.googleOk} ${summary.google.calendarLabel ?? summary.google.accountLabel ?? ""}`.trim()
+          : copy.details.googleDisconnected,
+      error: summary.google.lastSyncError
+    },
+    {
+      label: copy.cards.stripe,
+      tone: stripeTone,
+      icon: CreditCard,
+      value:
+        !summary.stripe.configured
+          ? copy.states.missingConfig
+          : summary.stripe.connected
+            ? copy.states.connected
+            : copy.states.notConnected,
+      detail: !summary.stripe.connected
+        ? copy.details.stripeDisconnected
+        : !summary.stripe.webhookConfigured
+          ? copy.details.stripeWebhookMissing
+          : summary.stripe.chargesEnabled && summary.stripe.payoutsEnabled
+            ? copy.details.stripeOk
+            : copy.details.stripePending,
+      error: summary.stripe.lastSyncError
+    },
+    {
+      label: copy.cards.zip,
+      tone: zipTone,
+      icon: Layers,
+      value: zipTone === "ok" ? copy.states.ok : zipTone === "attention" ? copy.states.attention : copy.states.watch,
+      detail:
+        zipTone === "ok"
+          ? copy.details.zipOk
+          : zipTone === "attention"
+            ? copy.details.zipProblem(summary.zip.failed, summary.zip.staleProcessing)
+            : copy.details.zipRunning(summary.zip.processing, summary.zip.pending),
+      error: summary.zip.latestFailedError
+    },
+    {
+      label: copy.cards.storage,
+      tone: storageTone,
+      icon: HardDrive,
+      value: formatBytes(summary.storage.storageBytes),
+      detail: copy.details.storageUsage(formatBytes(summary.storage.storageBytes), summary.storage.usagePercent),
+      error: null
+    }
+  ];
+  const actionCandidates: Array<{ label: string; href: string; icon: LucideIcon } | null> = [
+    summary.delivery.total > 0 ? { label: copy.actions.delivery, href: "#delivery-reliability", icon: Mail } : null,
+    needsIntegrations ? { label: copy.actions.integrations, href: "/admin/settings?tab=integrations", icon: CalendarDays } : null,
+    zipTone !== "ok" ? { label: copy.actions.galleries, href: "/admin/galleries", icon: Layers } : null,
+    storageTone !== "ok" ? { label: copy.actions.storage, href: "/admin/r2-storage", icon: HardDrive } : null,
+    showLogsAction && overallTone !== "ok" ? { label: copy.actions.logs, href: "/admin/settings?tab=logs", icon: ClipboardList } : null
+  ];
+  const actions = actionCandidates.filter((action): action is { label: string; href: string; icon: LucideIcon } => Boolean(action));
+
+  return (
+    <section className={`rounded-md border p-5 shadow-soft sm:p-6 ${healthPanelClass(overallTone)}`}>
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
+            <Activity size={15} />
+            {copy.eyebrow}
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
+        </div>
+        <div className={`flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ring-1 ${healthBadgeClass(overallTone)}`}>
+          <OverallIcon size={16} />
+          {overallTitle}
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-md border border-ink/10 bg-white px-4 py-4">
+        <p className="text-sm font-semibold text-ink">{overallTitle}</p>
+        <p className="mt-1 text-sm leading-6 text-graphite/70">{overallDetail}</p>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {cards.map((card) => {
+          const Icon = card.icon;
+
+          return (
+            <div key={card.label} className={`rounded-md border bg-white p-4 ${providerCardClass(card.tone)}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
+                  <Icon size={17} />
+                </div>
+                <span className={`rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${healthBadgeClass(card.tone)}`}>
+                  {card.tone === "attention" ? copy.states.attention : card.tone === "watch" ? copy.states.watch : copy.states.ok}
+                </span>
+              </div>
+              <p className="mt-4 text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">{card.label}</p>
+              <p className="mt-1 text-lg font-semibold leading-tight text-ink">{card.value}</p>
+              <p className="mt-2 text-sm leading-5 text-graphite/70">{card.detail}</p>
+              {card.error ? (
+                <p className="mt-3 line-clamp-3 rounded-md bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+                  {copy.details.latestError}: {card.error}
+                </p>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 rounded-md border border-ink/10 bg-white p-4">
+        <p className="text-sm font-semibold text-ink">{copy.actionsTitle}</p>
+        {actions.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {actions.map((action) => {
+              const Icon = action.icon;
+              const className =
+                "inline-flex h-10 items-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper";
+
+              return action.href.startsWith("#") ? (
+                <a key={action.href} href={action.href} className={className}>
+                  <Icon size={16} />
+                  {action.label}
+                </a>
+              ) : (
+                <Link key={action.href} href={action.href} className={className}>
+                  <Icon size={16} />
+                  {action.label}
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-graphite/65">{copy.actions.noAction}</p>
+        )}
+      </div>
     </section>
   );
 }
@@ -1442,6 +1872,148 @@ async function getWorkspaceGalleryStats(adminId: string): Promise<WorkspaceGalle
     activeGalleryCount,
     mediaCount,
     storageBytes: toBigInt(photoStorage._sum.fileSize)
+  };
+}
+
+async function getSystemHealthSummary({
+  adminId,
+  workspaceStats,
+  googleConfigured,
+  googleConnected,
+  googleCalendarReconnectRequired,
+  googleCalendarOptionsError,
+  googleIntegration,
+  stripeConfigured,
+  stripeWebhookConfigured,
+  stripeIntegration
+}: {
+  adminId: string;
+  workspaceStats: WorkspaceGalleryStats;
+  googleConfigured: boolean;
+  googleConnected: boolean;
+  googleCalendarReconnectRequired: boolean;
+  googleCalendarOptionsError: boolean;
+  googleIntegration: GoogleCalendarIntegrationSettings | null;
+  stripeConfigured: boolean;
+  stripeWebhookConfigured: boolean;
+  stripeIntegration: StripeConnectIntegrationSettings | null;
+}): Promise<SystemHealthSummary> {
+  const staleZipCutoff = new Date(Date.now() - 20 * 60 * 1000);
+  const [
+    pendingDelivery,
+    retryDelivery,
+    failedDelivery,
+    latestDeliveryProblem,
+    pendingZipPackages,
+    processingZipPackages,
+    failedZipPackages,
+    staleZipPackages,
+    latestFailedZip
+  ] = await Promise.all([
+    prisma.deliveryLog.count({ where: { adminId, status: "pending" } }),
+    prisma.deliveryLog.count({ where: { adminId, status: "retry" } }),
+    prisma.deliveryLog.count({ where: { adminId, status: "failed" } }),
+    prisma.deliveryLog.findFirst({
+      where: {
+        adminId,
+        status: { in: ["pending", "retry", "failed"] },
+        lastError: { not: null }
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { lastError: true }
+    }),
+    prisma.galleryDownloadPackage.count({
+      where: {
+        gallery: { adminId },
+        status: "pending"
+      }
+    }),
+    prisma.galleryDownloadPackage.count({
+      where: {
+        gallery: { adminId },
+        status: "processing"
+      }
+    }),
+    prisma.galleryDownloadPackage.count({
+      where: {
+        gallery: { adminId },
+        status: "failed",
+        NOT: { errorMessage: { startsWith: "Superseded by" } }
+      }
+    }),
+    prisma.galleryDownloadPackage.count({
+      where: {
+        gallery: { adminId },
+        status: "processing",
+        updatedAt: { lt: staleZipCutoff }
+      }
+    }),
+    prisma.galleryDownloadPackage.findFirst({
+      where: {
+        gallery: { adminId },
+        status: "failed",
+        NOT: { errorMessage: { startsWith: "Superseded by" } }
+      },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        errorMessage: true,
+        updatedAt: true,
+        gallery: {
+          select: {
+            title: true
+          }
+        }
+      }
+    })
+  ]);
+  const freeLimitBytes = R2_STORAGE_FREE_GB * ONE_GB;
+  const storageBytesNumber = Number(workspaceStats.storageBytes);
+  const usagePercent = freeLimitBytes > 0 ? Math.round((storageBytesNumber / freeLimitBytes) * 100) : 0;
+
+  return {
+    delivery: {
+      pending: pendingDelivery,
+      retry: retryDelivery,
+      failed: failedDelivery,
+      total: pendingDelivery + retryDelivery + failedDelivery,
+      latestError: latestDeliveryProblem?.lastError ?? null
+    },
+    google: {
+      configured: googleConfigured,
+      connected: googleConnected,
+      reconnectRequired: googleCalendarReconnectRequired,
+      optionsError: googleCalendarOptionsError,
+      accountLabel: googleIntegration?.googleAccountEmail ?? null,
+      calendarLabel: googleIntegration?.calendarSummary ?? googleIntegration?.calendarId ?? null,
+      lastSyncError: googleIntegration?.lastSyncError ?? null,
+      syncMiniSessionBookings: googleIntegration?.syncMiniSessionBookings ?? false,
+      syncCustomerProjects: googleIntegration?.syncCustomerProjects ?? false,
+      blockAvailabilityFromGoogleCalendar: googleIntegration?.blockAvailabilityFromGoogleCalendar ?? false
+    },
+    stripe: {
+      configured: stripeConfigured,
+      webhookConfigured: stripeWebhookConfigured,
+      connected: Boolean(stripeIntegration),
+      chargesEnabled: stripeIntegration?.chargesEnabled ?? false,
+      payoutsEnabled: stripeIntegration?.payoutsEnabled ?? false,
+      accountLabel: stripeIntegration?.stripeAccountEmail ?? stripeIntegration?.stripeAccountId ?? null,
+      lastSyncError: stripeIntegration?.lastSyncError ?? null
+    },
+    zip: {
+      pending: pendingZipPackages,
+      processing: processingZipPackages,
+      failed: failedZipPackages,
+      staleProcessing: staleZipPackages,
+      latestFailedTitle: latestFailedZip?.gallery.title ?? null,
+      latestFailedError: latestFailedZip?.errorMessage ?? null,
+      latestFailedAt: latestFailedZip?.updatedAt ?? null
+    },
+    storage: {
+      ...workspaceStats,
+      freeLimitBytes,
+      usagePercent,
+      overFreeLimit: storageBytesNumber > freeLimitBytes
+    }
   };
 }
 
@@ -1690,6 +2262,8 @@ export default async function AdminSettingsPage({
       ? "security"
       : params.tab === "logs" && admin.role === "super_admin"
         ? "logs"
+      : params.tab === "health" && admin.role === "super_admin" && !isTeamWorkspace
+        ? "health"
       : params.tab === "integrations" && !isTeamWorkspace
         ? "integrations"
       : params.tab === "providers" && admin.role === "super_admin"
@@ -1820,7 +2394,8 @@ export default async function AdminSettingsPage({
             lastError: true,
             sentAt: true,
             nextAttemptAt: true,
-            createdAt: true
+            createdAt: true,
+            updatedAt: true
           }
         })
       : Promise.resolve([]),
@@ -1856,7 +2431,34 @@ export default async function AdminSettingsPage({
   const stripeConfigured = isStripeConnectConfigured();
   const stripeWebhookConfigured = isStripeWebhookConfigured();
   const stripeMissingConfigKeys = stripeConnectMissingConfigKeys();
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-6" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-4";
+  const healthSummary = admin.role === "super_admin" && !isTeamWorkspace
+    ? await getSystemHealthSummary({
+        adminId: workspaceAdminId,
+        workspaceStats,
+        googleConfigured,
+        googleConnected: Boolean(googleIntegration?.accessTokenEncrypted || googleIntegration?.refreshTokenEncrypted),
+        googleCalendarReconnectRequired,
+        googleCalendarOptionsError,
+        googleIntegration: googleIntegration
+          ? {
+              googleAccountEmail: googleIntegration.googleAccountEmail,
+              calendarId: googleIntegration.calendarId,
+              calendarSummary: googleIntegration.calendarSummary,
+              syncMiniSessionBookings: googleIntegration.syncMiniSessionBookings,
+              syncCustomerProjects: googleIntegration.syncCustomerProjects,
+              blockAvailabilityFromGoogleCalendar: googleIntegration.blockAvailabilityFromGoogleCalendar,
+              deleteCancelledEvents: googleIntegration.deleteCancelledEvents,
+              lastSyncError: googleIntegration.lastSyncError,
+              connectedAt: googleIntegration.connectedAt,
+              updatedAt: googleIntegration.updatedAt
+            }
+          : null,
+        stripeConfigured,
+        stripeWebhookConfigured,
+        stripeIntegration
+      })
+    : null;
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-7" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4";
   const copy = SETTINGS_COPY[language];
 
   return (
@@ -1900,6 +2502,17 @@ export default async function AdminSettingsPage({
             <ShieldCheck size={16} />
             {copy.tabs.security}
           </Link>
+          {admin.role === "super_admin" && !isTeamWorkspace ? (
+            <Link
+              href="/admin/settings?tab=health"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                activeTab === "health" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <Activity size={16} />
+              {copy.tabs.health}
+            </Link>
+          ) : null}
           {!isTeamWorkspace ? (
             <Link
               href="/admin/settings?tab=integrations"
@@ -2028,6 +2641,12 @@ export default async function AdminSettingsPage({
             calendarOptionsError={googleCalendarOptionsError}
             calendarReconnectRequired={googleCalendarReconnectRequired}
           />
+        </div>
+      ) : null}
+
+      {activeTab === "health" && healthSummary ? (
+        <div className="space-y-5">
+          <SystemHealthPanel language={language} summary={healthSummary} showLogsAction={admin.role === "super_admin"} />
           <DeliveryReliabilityPanel language={language} deliveryLogs={deliveryLogs} />
         </div>
       ) : null}
