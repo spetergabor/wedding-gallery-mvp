@@ -1590,8 +1590,13 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
       id: true,
       name: true,
       email: true,
+      phone: true,
+      attendeeCount: true,
+      cancelToken: true,
       startsAt: true,
       endsAt: true,
+      createdAt: true,
+      updatedAt: true,
       status: true,
       customerId: true,
       projectId: true,
@@ -1600,7 +1605,19 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
           id: true,
           adminId: true,
           title: true,
-          slug: true
+          slug: true,
+          location: true,
+          admin: {
+            select: {
+              name: true,
+              email: true,
+              siteSettings: {
+                select: {
+                  publicSubdomain: true
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -1611,6 +1628,8 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
   }
 
   if (booking.status !== MINI_SESSION_BOOKING_STATUS_CANCELLED) {
+    const cancelledAt = new Date();
+
     await deleteLinkedMiniSessionProjectCalendarEvent(booking.projectId);
 
     await prisma.$transaction(async (tx) => {
@@ -1618,7 +1637,7 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
         where: { id: booking.id },
         data: {
           status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
-          cancelledAt: new Date()
+          cancelledAt
         }
       });
 
@@ -1651,6 +1670,112 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
           sessionId: booking.miniSession.id,
           startsAt: booking.startsAt.toISOString(),
           endsAt: booking.endsAt.toISOString()
+        }
+      });
+    }
+
+    try {
+      const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
+      const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
+      const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
+      const cancellationIcs = buildMiniSessionCalendarIcs({
+        uid: miniSessionCalendarUid(booking.id),
+        sessionTitle: booking.miniSession.title,
+        location: booking.miniSession.location,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        createdAt: booking.createdAt,
+        updatedAt: cancelledAt,
+        url: adminUrl,
+        status: "CANCELLED",
+        method: "CANCEL",
+        sequence: 1,
+        description: miniSessionCalendarDescription({
+          location: booking.miniSession.location,
+          name: booking.name,
+          email: booking.email,
+          phone: booking.phone,
+          attendeeCount: booking.attendeeCount,
+          adminUrl,
+          status: "cancelled"
+        })
+      });
+      const delivery = await runLoggedDelivery({
+        adminId: booking.miniSession.adminId,
+        channel: DELIVERY_CHANNEL_EMAIL,
+        type: "email.mini_session.cancellation_notification",
+        recipient: booking.miniSession.admin.email,
+        subject: `Mini session foglalás törölve: ${booking.miniSession.title}`,
+        provider: "resend",
+        entityType: "mini_session_booking",
+        entityId: booking.id,
+        metadata: {
+          sessionId: booking.miniSession.id,
+          recipient: booking.miniSession.admin.email,
+          source: "admin_booking_cancelled"
+        },
+        send: () => sendMiniSessionBookingCancelledEmail({
+          to: booking.miniSession.admin.email,
+          replyTo: booking.email,
+          senderName: booking.miniSession.admin.name,
+          sessionTitle: booking.miniSession.title,
+          sessionDate: booking.startsAt,
+          location: booking.miniSession.location,
+          startsAt: booking.startsAt,
+          endsAt: booking.endsAt,
+          name: booking.name,
+          email: booking.email,
+          phone: booking.phone,
+          attendeeCount: booking.attendeeCount,
+          adminUrl,
+          calendarUrl,
+          calendarIcs: cancellationIcs,
+          calendarFilename: miniSessionCalendarFilename(booking.miniSession.title, "CANCELLED"),
+          calendarButtonLabel: "Naptárból eltávolítás"
+        })
+      });
+
+      if (delivery.ok) {
+        await prisma.miniSessionBooking.update({
+          where: { id: booking.id },
+          data: { cancellationEmailSentAt: delivery.log.sentAt ?? new Date() }
+        });
+      } else {
+        await logSystemEvent({
+          actorAdminId: admin.id,
+          targetAdminId: booking.miniSession.adminId,
+          type: "email.mini_session.cancellation_notification.failed",
+          title: "Admin törlési értesítő email nem ment ki",
+          message: delivery.errorMessage || `${booking.name} · ${booking.email}`,
+          severity: "warning",
+          status: delivery.status === "retry" ? "warning" : "failed",
+          source: "email",
+          href: adminUrl,
+          metadata: {
+            bookingId: booking.id,
+            sessionId: booking.miniSession.id,
+            recipient: booking.miniSession.admin.email,
+            deliveryLogId: delivery.log.id,
+            deliveryStatus: delivery.status
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Mini session admin cancellation email failed", error);
+      await logSystemEvent({
+        actorAdminId: admin.id,
+        targetAdminId: booking.miniSession.adminId,
+        type: "email.mini_session.cancellation_notification.failed",
+        title: "Admin törlési értesítő email hiba",
+        message: systemEventErrorMessage(error),
+        severity: "error",
+        status: "failed",
+        source: "email",
+        href: `/admin/mini-sessions/${booking.miniSession.id}`,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: booking.miniSession.id,
+          recipient: booking.miniSession.admin.email
         }
       });
     }
