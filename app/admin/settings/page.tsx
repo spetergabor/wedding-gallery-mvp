@@ -3,6 +3,7 @@ import {
   Activity,
   AlertTriangle,
   CalendarDays,
+  ChevronDown,
   CheckCircle2,
   ClipboardList,
   Cloud,
@@ -1930,9 +1931,9 @@ function AutomationStatusPanel({
               const KindIcon = automationKindIcon(item.kind);
 
               return (
-                <div key={item.id} className="grid gap-3 bg-white px-4 py-4 xl:grid-cols-[minmax(0,1fr)_170px_180px_220px] xl:items-start">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
+                <details key={item.id} className="group bg-white">
+                  <summary className="grid min-h-16 cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-paper/70 md:grid-cols-[170px_minmax(0,1fr)_minmax(150px,220px)_180px_28px] md:items-center [&::-webkit-details-marker]:hidden">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className={`rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${automationStatusClass(item.status)}`}>
                         {automationStatusLabel(item.status, language)}
                       </span>
@@ -1940,52 +1941,68 @@ function AutomationStatusPanel({
                         {copy.kinds[item.kind]}
                       </span>
                     </div>
-                    <div className="mt-2 flex items-start gap-2">
-                      <KindIcon className="mt-0.5 shrink-0 text-brass" size={16} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-graphite/60">{item.detail}</p>
-                      </div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <KindIcon className="shrink-0 text-brass" size={16} />
+                      <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
                     </div>
-                    {item.error ? (
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-red-700">
-                        {copy.error}: {item.error}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="text-xs leading-5 text-graphite/65">
-                    <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.target}</p>
-                    <p className="mt-1 truncate text-sm normal-case tracking-normal text-graphite">{item.target || "-"}</p>
-                    {item.attempts ? (
-                      <p className="mt-1 text-xs text-graphite/55">
-                        {copy.attempts}: {item.attempts}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="text-xs leading-5 text-graphite/65">
-                    <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.updated}</p>
-                    <p className="mt-1 text-sm normal-case tracking-normal text-graphite">
+                    <p className="truncate text-sm text-graphite">{item.target || "-"}</p>
+                    <p className="truncate text-sm text-graphite">
                       {formatSettingsDateTime(item.updatedAt ?? item.createdAt, language, "-")}
                     </p>
-                    {item.nextRetryAt ? (
-                      <p className="mt-1 text-xs text-brass">
-                        {copy.nextRetry}: {formatSettingsDateTime(item.nextRetryAt, language, "-")}
-                      </p>
-                    ) : null}
+                    <ChevronDown className="justify-self-end text-graphite/50 transition group-open:rotate-180 group-hover:text-ink" size={18} />
+                  </summary>
+                  <div className="border-t border-ink/10 bg-paper/55 px-4 py-4">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px_220px] xl:items-start">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.kinds[item.kind]}</p>
+                        <p className="mt-1 text-sm font-semibold text-ink">{item.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-graphite/70">{item.detail}</p>
+                        {item.error ? (
+                          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm leading-6 text-red-700">
+                            {copy.error}: {item.error}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="grid gap-3 text-xs leading-5 text-graphite/65 sm:grid-cols-2 xl:grid-cols-1">
+                        <div>
+                          <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.target}</p>
+                          <p className="mt-1 break-words text-sm normal-case tracking-normal text-graphite">{item.target || "-"}</p>
+                        </div>
+                        {item.attempts ? (
+                          <div>
+                            <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.attempts}</p>
+                            <p className="mt-1 text-sm normal-case tracking-normal text-graphite">{item.attempts}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="grid gap-3 text-xs leading-5 text-graphite/65">
+                        <div>
+                          <p className="font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.updated}</p>
+                          <p className="mt-1 text-sm normal-case tracking-normal text-graphite">
+                            {formatSettingsDateTime(item.updatedAt ?? item.createdAt, language, "-")}
+                          </p>
+                          {item.nextRetryAt ? (
+                            <p className="mt-1 text-xs text-brass">
+                              {copy.nextRetry}: {formatSettingsDateTime(item.nextRetryAt, language, "-")}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex flex-wrap gap-2 xl:justify-end">
+                          {item.href ? (
+                            <Link
+                              href={item.href}
+                              className="inline-flex h-9 items-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-xs font-semibold text-ink transition hover:border-ink/25 hover:bg-paper"
+                            >
+                              <ExternalLink size={14} />
+                              {copy.open}
+                            </Link>
+                          ) : null}
+                          <AutomationRetryForm retry={item.retry} copy={copy} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    {item.href ? (
-                      <Link
-                        href={item.href}
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-xs font-semibold text-ink transition hover:border-ink/25 hover:bg-paper"
-                      >
-                        <ExternalLink size={14} />
-                        {copy.open}
-                      </Link>
-                    ) : null}
-                    <AutomationRetryForm retry={item.retry} copy={copy} />
-                  </div>
-                </div>
+                </details>
               );
             })}
           </div>
