@@ -5,6 +5,7 @@ import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGaller
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { retrieveConnectedCheckoutSession, type StripeCheckoutSession } from "@/lib/stripe-connect";
 import { publicGalleryUrl, sendPaidGalleryPhotoPurchaseEmail } from "@/lib/email";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 
 export const GALLERY_PURCHASE_PENDING = "pending";
 export const GALLERY_PURCHASE_PAID = "paid";
@@ -63,6 +64,11 @@ async function sendPaidGalleryPhotoPurchaseReceipt(purchaseId: string, sessionId
         select: {
           title: true,
           slug: true,
+          customer: {
+            select: {
+              preferredLanguage: true
+            }
+          },
           admin: {
             select: {
               siteSettings: {
@@ -98,7 +104,8 @@ async function sendPaidGalleryPhotoPurchaseReceipt(purchaseId: string, sessionId
       galleryTitle: purchase.gallery.title,
       galleryUrl: galleryUrl.toString(),
       photoCount: purchase.itemCount,
-      amountLabel: formatGallerySalePrice(purchase.amountTotal, purchase.currency, "de-AT")
+      amountLabel: formatGallerySalePrice(purchase.amountTotal, purchase.currency, "de-AT"),
+      language: normalizeCustomerLanguage(purchase.gallery.customer?.preferredLanguage)
     });
 
     await prisma.galleryPurchase.update({

@@ -46,13 +46,13 @@ function hasAlbumWorkflowParams(params: Pick<URLSearchParams, "has">) {
 
 const modeCopy: Record<AlbumMode, { title: string; description: string; icon: typeof LayoutTemplate }> = {
   editor: {
-    title: "Online album létrehozása",
-    description: "Spetly albumterv készítése template-ekkel, meglévő galériából, favorite listából vagy saját feltöltésből.",
+    title: "Online album",
+    description: "Albumterv készítése és szerkesztése Spetlyben.",
     icon: LayoutTemplate
   },
   upload: {
-    title: "Kész albumterv feltöltése",
-    description: "SmartAlbumsból vagy más programból exportált oldalpárok ellenőrzője, ügyfél linkkel és kommentelési lehetőséggel.",
+    title: "Feltöltött ellenőrző",
+    description: "Külső programból exportált oldalpárok ügyfél-ellenőrzése.",
     icon: Upload
   }
 };
@@ -91,21 +91,21 @@ export function AlbumWorkflowTabs({
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+      <section className="rounded-lg border border-ink/10 bg-paper px-4 py-3 shadow-soft">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-ink text-white">
-              <ActiveIcon size={19} />
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-white text-ink shadow-sm">
+              <ActiveIcon size={17} />
             </span>
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-brass">Album munkafolyamat</p>
-              <h2 className="mt-1 text-xl font-semibold text-ink">{activeCopy.title}</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">{activeCopy.description}</p>
+              <h2 className="text-base font-semibold text-ink">{activeCopy.title}</h2>
+              <p className="text-sm text-graphite/65">{activeCopy.description}</p>
             </div>
           </div>
           <Link
             href={backHref}
-            className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
+            className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
           >
             <ArrowLeft size={15} />
             Vissza az albumokhoz

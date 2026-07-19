@@ -81,7 +81,7 @@ export function AlbumReviewManager({
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-      <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 md:flex-row md:items-start">
+      <div className="border-b border-ink/10 pb-5">
         <div>
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <ImagePlus size={15} />
@@ -89,32 +89,43 @@ export function AlbumReviewManager({
           </div>
           <h2 className="mt-2 text-xl font-semibold text-ink">Külső albumtervek kezelése</h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            Hozz létre ellenőrzőt SmartAlbumsból vagy más programból exportált JPG oldalpárokhoz. A meglévő ellenőrzők felül, az album áttekintőben is elérhetők.
+            Ha az albumot más programban tervezted meg, itt töltheted fel a kész JPG oldalpárokat, majd innen küldöd ki az ügyfél ellenőrző linket.
           </p>
         </div>
-        <form action={createAlbumReviewAction.bind(null, customerId)} className="grid min-w-72 gap-2 rounded-md border border-ink/10 bg-paper p-3">
-          <input
-            name="title"
-            placeholder="pl. Album v1"
-            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-          />
-          <select
-            name="projectId"
-            className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            defaultValue=""
-          >
-            <option value="">Nincs projekthez kapcsolva</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
-          <FormSubmitButton>
-            <Plus size={16} />
-            Új ellenőrző
-          </FormSubmitButton>
-        </form>
+      </div>
+
+      <div className="mt-5 rounded-lg border border-ink/10 bg-paper p-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
+          <div>
+            <p className="text-sm font-semibold text-ink">Új külső ellenőrző</p>
+            <p className="mt-1 max-w-xl text-sm leading-6 text-graphite/70">
+              Adj neki egy egyértelmű nevet, kapcsold album projekthez, majd a következő lépésben töltsd fel az oldalpár JPG-ket.
+            </p>
+          </div>
+          <form action={createAlbumReviewAction.bind(null, customerId)} className="grid gap-2">
+            <input
+              name="title"
+              placeholder="pl. Album v1"
+              className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+            />
+            <select
+              name="projectId"
+              className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+              defaultValue=""
+            >
+              <option value="">Nincs projekthez kapcsolva</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.title}
+                </option>
+              ))}
+            </select>
+            <FormSubmitButton>
+              <Plus size={16} />
+              Ellenőrző létrehozása
+            </FormSubmitButton>
+          </form>
+        </div>
       </div>
 
       {reviews.length === 0 ? (

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { FolderKanban, Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
+import { ArrowLeft, FolderKanban, Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -280,6 +280,7 @@ export function AlbumDesignManager({
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const standaloneMode = !customerId;
   const activeWorkspaceView = workspaceView === "new" ? "new" : "projects";
+  const isCreationView = activeWorkspaceView === "new";
   const selectedDesign = activeDesignId ? (designs.find((design) => design.id === activeDesignId) ?? null) : null;
   const workspaceBaseHref = standaloneMode ? "/admin/albums" : `/admin/clients/${customerId}?tab=album&albumMode=editor`;
   const workspaceHref = (view: "projects" | "new", designId?: string) => {
@@ -292,44 +293,72 @@ export function AlbumDesignManager({
 
     return `${workspaceBaseHref}${separator}${params.join("&")}`;
   };
+  const managerTitle = standaloneMode ? "Album projektek" : isCreationView ? "Új online album" : "Online albumok";
+  const managerDescription = standaloneMode
+    ? "Indíts új albumot egyszerűen, a korábbi albumprojektek pedig lent külön kártyákban maradnak elérhetők."
+    : isCreationView
+      ? "Adj nevet, válassz képforrást, majd mentsd el. Utána a szerkesztőben már csak az adott albumon dolgozol."
+      : "Itt látod az ügyfél Spetlyben készített albumterveit. Nyisd meg a megfelelőt szerkesztéshez vagy ellenőrző készítéséhez.";
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
       <div className="border-b border-ink/10 pb-5">
-        <div>
-          <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
-            <LayoutTemplate size={15} />
-            Albumtervező
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+          <div>
+            <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
+              <LayoutTemplate size={15} />
+              Albumtervező
+            </div>
+            <h2 className="mt-2 text-xl font-semibold text-ink">{managerTitle}</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">{managerDescription}</p>
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">{standaloneMode ? "Album projektek" : "Template alapú oldalpár tervezés"}</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-            {standaloneMode
-              ? "Indíts új albumot egyszerűen, a korábbi albumprojektek pedig lent külön kártyákban maradnak elérhetők."
-              : "Dolgozz favorite listából, meglévő teljes galériából vagy saját album képfeltöltésből. A rendszer 60x30 arányú oldalpár template-ekbe rendezi a képeket."}
-          </p>
+          {!standaloneMode ? (
+            <Link
+              href={isCreationView ? workspaceHref("projects", selectedDesign?.id) : workspaceHref("new")}
+              className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+            >
+              {isCreationView ? (
+                <>
+                  <ArrowLeft size={15} />
+                  Meglévő online albumok
+                </>
+              ) : (
+                <>
+                  <Plus size={15} />
+                  Új online album
+                </>
+              )}
+            </Link>
+          ) : null}
         </div>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          <Link
-            href={workspaceHref("projects", selectedDesign?.id)}
-            className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
-              activeWorkspaceView === "projects" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-            }`}
-          >
-            Album projektek
-            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${activeWorkspaceView === "projects" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"}`}>
-              {designs.length}
-            </span>
-          </Link>
-          <Link
-            href={workspaceHref("new")}
-            className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
-              activeWorkspaceView === "new" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-            }`}
-          >
-            Új album indítása
-          </Link>
-        </div>
+        {standaloneMode ? (
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <Link
+              href={workspaceHref("projects", selectedDesign?.id)}
+              className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
+                activeWorkspaceView === "projects" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+              }`}
+            >
+              Album projektek
+              <span
+                className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                  activeWorkspaceView === "projects" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"
+                }`}
+              >
+                {designs.length}
+              </span>
+            </Link>
+            <Link
+              href={workspaceHref("new")}
+              className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
+                activeWorkspaceView === "new" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
+              }`}
+            >
+              Új album indítása
+            </Link>
+          </div>
+        ) : null}
 
         {activeWorkspaceView === "new" ? (
         <form
@@ -416,7 +445,11 @@ export function AlbumDesignManager({
       {activeWorkspaceView === "projects" ? designs.length === 0 ? (
         <div className="mt-5 rounded-md bg-paper px-4 py-4">
           <p className="text-sm font-medium text-ink">{standaloneMode ? "Még nincs önálló albumterv" : "Még nincs albumterv ehhez az ügyfélhez"}</p>
-          <p className="mt-1 text-sm text-graphite/70">Válaszd fent az Új album indítása fület, és hozz létre albumtervet saját képekből, meglévő galériából vagy favorite listából.</p>
+          <p className="mt-1 text-sm text-graphite/70">
+            {standaloneMode
+              ? "Válaszd fent az Új album indítása fület, és hozz létre albumtervet saját képekből, meglévő galériából vagy favorite listából."
+              : "Indíts új online albumot, és hozz létre albumtervet saját képekből, meglévő galériából vagy favorite listából."}
+          </p>
         </div>
       ) : (
         <div className="mt-6">

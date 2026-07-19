@@ -116,6 +116,9 @@ const GALLERY_COPY = {
     paidDownloadButton: "Galerie herunterladen",
     paidDownloadPartButton: (part: number, total: number) => `Teil ${part}/${total} herunterladen`,
     paidPhotosUnlocked: "Die gekauften Fotos sind freigeschaltet. Du kannst sie direkt in der Galerie herunterladen.",
+    paidPhotosUnlockedHint: "Die gekauften Fotos sind unten direkt als Download verfügbar.",
+    paidPhotoDownloadButton: "Foto herunterladen",
+    paidPhotoDownloadMore: (count: number) => `+ ${count} weitere Fotos direkt in der Galerie`,
     wholeGalleryTitle: "Komplette Galerie",
     buyWholeGallery: "Komplette Galerie kaufen",
     photoCartTitle: "Einzelne Fotos kaufen",
@@ -129,7 +132,10 @@ const GALLERY_COPY = {
     cartTotal: "Summe",
     cartCheckout: "Warenkorb kaufen",
     priceTiers: "Mengenpreise",
-    baseUnitPrice: "Einzelpreis"
+    baseUnitPrice: "Einzelpreis",
+    buyerDetails: "Käuferdaten",
+    selectedCheckoutHint: "Ausgewählte Fotos kaufen",
+    wholeGalleryCheckoutHint: "Alle Fotos kaufen"
   },
   hu: {
     selection: "Képválogatás",
@@ -221,6 +227,9 @@ const GALLERY_COPY = {
     paidDownloadButton: "Galéria letöltése",
     paidDownloadPartButton: (part: number, total: number) => `${part}/${total}. rész letöltése`,
     paidPhotosUnlocked: "A megvásárolt képek feloldva. Közvetlenül a galériából le tudod tölteni őket.",
+    paidPhotosUnlockedHint: "A megvásárolt képek itt is közvetlenül letölthetők.",
+    paidPhotoDownloadButton: "Kép letöltése",
+    paidPhotoDownloadMore: (count: number) => `+ ${count} további kép közvetlenül a galériában`,
     wholeGalleryTitle: "Teljes galéria",
     buyWholeGallery: "Teljes galéria megvásárlása",
     photoCartTitle: "Képek vásárlása darabonként",
@@ -234,7 +243,10 @@ const GALLERY_COPY = {
     cartTotal: "Összesen",
     cartCheckout: "Kosár megvásárlása",
     priceTiers: "Darabszám szerinti árak",
-    baseUnitPrice: "Darabár"
+    baseUnitPrice: "Darabár",
+    buyerDetails: "Vásárlói adatok",
+    selectedCheckoutHint: "Kiválasztott képek megvásárlása",
+    wholeGalleryCheckoutHint: "Teljes galéria megvásárlása"
   }
 } as const;
 
@@ -577,6 +589,10 @@ export function PublicGallery({
   const selectedFavoritePhotos = useMemo(
     () => photos.filter((photo) => favoriteIds.has(photo.id)),
     [favoriteIds, photos]
+  );
+  const purchasedPhotoDownloadItems = useMemo(
+    () => photos.filter((photo) => unlockedPaidPhotoIds.has(photo.id) && !isVideo(photo)),
+    [photos, unlockedPaidPhotoIds]
   );
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
@@ -1183,9 +1199,37 @@ export function PublicGallery({
     const state = paidDownloadState;
 
     if (state?.paid && state.purchaseKind === "photos") {
+      const visiblePurchasedDownloads = purchasedPhotoDownloadItems.slice(0, 8);
+      const remainingPurchasedDownloads = Math.max(0, purchasedPhotoDownloadItems.length - visiblePurchasedDownloads.length);
+
       return (
         <div className="mt-4 rounded-md border border-sage/20 bg-sage/10 px-3 py-3 text-sm text-sage">
           <p className="font-medium">{copy.paidPhotosUnlocked}</p>
+          {visiblePurchasedDownloads.length > 0 ? (
+            <>
+              <p className="mt-1 text-xs text-sage/80">{copy.paidPhotosUnlockedHint}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {visiblePurchasedDownloads.map((photo) => (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    onClick={() => void downloadSinglePhoto(photo)}
+                    disabled={downloadingPhotoId === photo.id}
+                    className="inline-flex min-h-10 items-center justify-between gap-3 rounded-md border border-sage/20 bg-white px-3 text-left text-xs font-semibold text-ink transition hover:border-sage/40 hover:bg-paper disabled:opacity-60"
+                  >
+                    <span className="truncate">{photo.filename}</span>
+                    <span className="inline-flex shrink-0 items-center gap-1">
+                      <Download size={14} />
+                      {downloadingPhotoId === photo.id ? copy.loading : copy.paidPhotoDownloadButton}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {remainingPurchasedDownloads > 0 ? (
+                <p className="mt-2 text-xs text-sage/80">{copy.paidPhotoDownloadMore(remainingPurchasedDownloads)}</p>
+              ) : null}
+            </>
+          ) : null}
         </div>
       );
     }
@@ -1373,10 +1417,10 @@ export function PublicGallery({
                   event.stopPropagation();
                   toggleCartPhoto(photo.id);
                 }}
-                className={`absolute inset-x-2 bottom-2 z-10 inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold shadow-[0_12px_30px_rgba(0,0,0,0.28)] ring-1 transition active:scale-[0.98] ${
+                className={`absolute inset-x-3 bottom-3 z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold shadow-[0_18px_36px_rgba(0,0,0,0.35)] ring-2 transition duration-200 ease-out hover:-translate-y-0.5 active:scale-[0.98] ${
                   isInCart
-                    ? "bg-brass text-white ring-white/35 hover:bg-brass/90"
-                    : "bg-ink text-white ring-white/20 hover:bg-graphite"
+                    ? "bg-brass text-white ring-white/75 hover:bg-brass/90"
+                    : "bg-white text-ink ring-white/80 hover:bg-ink hover:text-white"
                 }`}
               >
                 <ShoppingCart size={15} />
@@ -1510,37 +1554,46 @@ export function PublicGallery({
             ) : null}
             {renderPaidDownloadStatus()}
 
-            <form action={createPaidGalleryCheckoutAction} className="mt-5 grid gap-4 xl:grid-cols-[1fr_420px] xl:items-start">
+            <form action={createPaidGalleryCheckoutAction} className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
               <input type="hidden" name="galleryId" value={galleryId} />
               <input type="hidden" name="gallerySlug" value={gallerySlug} />
               <input type="hidden" name="photoIds" value={cartPhotoIds.join(",")} />
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-4">
                 {!fullGalleryPurchased ? (
-                  <div className="rounded-md border border-ink/10 bg-paper p-4">
-                    <div className="flex items-start justify-between gap-3">
+                  <div
+                    className={`rounded-lg border p-4 transition ${
+                      cartPhotoIds.length > 0
+                        ? "border-brass/35 bg-brass/[0.06] shadow-soft"
+                        : "border-ink/10 bg-paper"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="font-semibold text-ink">{copy.photoCartTitle}</p>
+                        <div className="inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-brass shadow-sm">
+                          <ShoppingCart size={14} />
+                          {copy.photoCartTitle}
+                        </div>
                         <p className="mt-1 text-xs leading-5 text-graphite/65">{copy.photoCartIntro}</p>
                       </div>
-                      <ShoppingCart size={20} className="mt-0.5 shrink-0 text-brass" />
+                      <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-graphite shadow-sm">
+                        {cartPhotoIds.length > 0 ? copy.selectedPhotos(cartPhotoIds.length) : copy.cartEmpty}
+                      </p>
                     </div>
-                    <div className="mt-4 flex items-end justify-between gap-3 rounded-md bg-white px-3 py-3">
+                    <div className="mt-4 flex items-end justify-between gap-3 rounded-md bg-white px-4 py-4">
                       <div>
-                        <p className="text-sm font-semibold text-ink">
-                          {cartPhotoIds.length > 0 ? copy.selectedPhotos(cartPhotoIds.length) : copy.cartEmpty}
-                        </p>
+                        <p className="text-sm font-semibold text-ink">{copy.selectedCheckoutHint}</p>
                         <p className="mt-1 text-xs uppercase tracking-[0.14em] text-graphite/50">{copy.cartTotal}</p>
                       </div>
-                      <p className="text-2xl font-semibold text-ink">{cartTotalLabel}</p>
+                      <p className="text-3xl font-semibold text-ink">{cartTotalLabel}</p>
                     </div>
                   </div>
                 ) : null}
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-lg border border-ink/10 bg-paper p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold text-ink">{copy.wholeGalleryTitle}</p>
+                      <p className="font-semibold text-ink">{copy.wholeGalleryCheckoutHint}</p>
                       <p className="mt-2 text-3xl font-semibold text-ink">{sale.priceLabel}</p>
                     </div>
                     <ShieldCheck size={20} className="mt-1 shrink-0 text-brass" />
@@ -1548,7 +1601,7 @@ export function PublicGallery({
                 </div>
 
                 {showBaseUnitPrice || sale.pricingTiers.length > 0 ? (
-                  <div className="rounded-md border border-ink/10 bg-paper p-4 md:col-span-2">
+                  <div className="rounded-lg border border-ink/10 bg-white p-4">
                     <div className="grid gap-3 md:grid-cols-[220px_1fr]">
                       {showBaseUnitPrice ? (
                         <div>
@@ -1572,10 +1625,14 @@ export function PublicGallery({
                   </div>
                 ) : null}
 
-                <p className="text-xs leading-5 text-graphite/60 md:col-span-2">{copy.paidSecure}</p>
+                <p className="text-xs leading-5 text-graphite/60">{copy.paidSecure}</p>
               </div>
 
-              <div className="rounded-md border border-ink/10 bg-white p-4">
+              <div className="rounded-lg border border-ink/10 bg-paper p-4 lg:sticky lg:top-24">
+                <div className="mb-4 flex items-center justify-between gap-3 border-b border-ink/10 pb-3">
+                  <p className="font-semibold text-ink">{copy.buyerDetails}</p>
+                  <CreditCard size={18} className="text-brass" />
+                </div>
                 <div className="space-y-3">
                   <label className="block space-y-2">
                     <span className="text-sm font-medium text-graphite">{copy.paidName}</span>
@@ -1595,22 +1652,36 @@ export function PublicGallery({
                       className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm outline-none transition focus:border-ink/50"
                     />
                   </label>
-                  {!fullGalleryPurchased ? (
-                    <FormSubmitButton
-                      name="purchaseKind"
-                      value="photos"
-                      pendingLabel={copy.sending}
-                      disabled={cartPhotoIds.length === 0}
-                      className="w-full"
-                    >
-                      <ShoppingCart size={16} />
-                      {cartTotalCents <= 0 ? copy.paidNoCostButton : copy.cartCheckout}
-                    </FormSubmitButton>
-                  ) : null}
-                  <FormSubmitButton name="purchaseKind" value="gallery" pendingLabel={copy.sending} variant="secondary" className="w-full">
-                    <CreditCard size={16} />
-                    {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.buyWholeGallery}
-                  </FormSubmitButton>
+                  <div className="space-y-3 pt-2">
+                    {!fullGalleryPurchased ? (
+                      <div className="rounded-md border border-ink/10 bg-white p-3">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-ink">{copy.photoCartTitle}</p>
+                          <p className="text-sm font-semibold text-brass">{cartTotalLabel}</p>
+                        </div>
+                        <FormSubmitButton
+                          name="purchaseKind"
+                          value="photos"
+                          pendingLabel={copy.sending}
+                          disabled={cartPhotoIds.length === 0}
+                          className="h-12 w-full"
+                        >
+                          <ShoppingCart size={16} />
+                          {cartTotalCents <= 0 ? copy.paidNoCostButton : copy.cartCheckout}
+                        </FormSubmitButton>
+                      </div>
+                    ) : null}
+                    <div className="rounded-md border border-ink/10 bg-white p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-ink">{copy.wholeGalleryTitle}</p>
+                        <p className="text-sm font-semibold text-brass">{sale.priceLabel}</p>
+                      </div>
+                      <FormSubmitButton name="purchaseKind" value="gallery" pendingLabel={copy.sending} variant="secondary" className="h-12 w-full bg-ink text-white hover:bg-graphite">
+                        <CreditCard size={16} />
+                        {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.buyWholeGallery}
+                      </FormSubmitButton>
+                    </div>
+                  </div>
                 </div>
               </div>
             </form>
