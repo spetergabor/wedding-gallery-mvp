@@ -30,6 +30,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { AdminSecuritySettings } from "@/components/admin-security-settings";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MonetizationSettings } from "@/components/monetization-settings";
 import { PhotographerProfileSettings } from "@/components/photographer-profile-settings";
 import { SiteSettingsForm } from "@/components/site-settings-form";
 import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
@@ -46,6 +47,7 @@ import {
 import { retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
+import { getAdminStorageUsageForAdmin, getAdminStorageUsageRows } from "@/lib/storage-usage";
 import {
   disconnectGoogleCalendarAction,
   retryAutomationGoogleCalendarAction,
@@ -59,7 +61,7 @@ import {
 } from "@/lib/mini-session-actions";
 import { isStripeConnectConfigured, isStripeWebhookConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
-type SettingsTab = "brand" | "profile" | "integrations" | "providers" | "security" | "health" | "logs";
+type SettingsTab = "brand" | "profile" | "integrations" | "monetization" | "providers" | "security" | "health" | "logs";
 
 const providerLinks = [
   {
@@ -424,6 +426,7 @@ const SETTINGS_COPY = {
       security: "Biztonság",
       integrations: "Integrációk",
       health: "Rendszerállapot",
+      monetization: "Csomagok",
       providers: "Szolgáltatók",
       logs: "Napló"
     },
@@ -457,7 +460,11 @@ const SETTINGS_COPY = {
       googleErrorBody: "Próbáld újra pár perc múlva.",
       automationRetryOk: "Az automata folyamat újrapróbálása elindult.",
       automationRetryFailed: "Az újrapróbálás nem sikerült.",
-      automationRetryUnavailable: "Ehhez a folyamathoz nincs közvetlen újrapróbálási útvonal."
+      automationRetryUnavailable: "Ehhez a folyamathoz nincs közvetlen újrapróbálási útvonal.",
+      planRequiredTitle: "A csomag mentése nem sikerült.",
+      planRequiredBody: "A csomag neve kötelező.",
+      planSaveTitle: "A csomag mentése nem sikerült.",
+      planSaveBody: "Ellenőrizd, hogy a slug egyedi legyen."
     },
     google: {
       eyebrow: "Google naptár",
@@ -526,6 +533,7 @@ const SETTINGS_COPY = {
       security: "Sicherheit",
       integrations: "Integrationen",
       health: "Systemstatus",
+      monetization: "Pakete",
       providers: "Dienste",
       logs: "Protokoll"
     },
@@ -559,7 +567,11 @@ const SETTINGS_COPY = {
       googleErrorBody: "Bitte versuche es in ein paar Minuten erneut.",
       automationRetryOk: "Der Automations-Retry wurde gestartet.",
       automationRetryFailed: "Der Retry konnte nicht gestartet werden.",
-      automationRetryUnavailable: "Für diesen Prozess gibt es keinen direkten Retry."
+      automationRetryUnavailable: "Für diesen Prozess gibt es keinen direkten Retry.",
+      planRequiredTitle: "Das Paket konnte nicht gespeichert werden.",
+      planRequiredBody: "Der Paketname ist erforderlich.",
+      planSaveTitle: "Das Paket konnte nicht gespeichert werden.",
+      planSaveBody: "Prüfe, ob der Slug eindeutig ist."
     },
     google: {
       eyebrow: "Google Kalender",
@@ -628,6 +640,7 @@ const SETTINGS_COPY = {
       security: "Security",
       integrations: "Integrations",
       health: "System health",
+      monetization: "Plans",
       providers: "Providers",
       logs: "Logs"
     },
@@ -661,7 +674,11 @@ const SETTINGS_COPY = {
       googleErrorBody: "Try again in a few minutes.",
       automationRetryOk: "Automation retry started.",
       automationRetryFailed: "The retry could not be started.",
-      automationRetryUnavailable: "This process does not have a direct retry path."
+      automationRetryUnavailable: "This process does not have a direct retry path.",
+      planRequiredTitle: "The plan could not be saved.",
+      planRequiredBody: "Plan name is required.",
+      planSaveTitle: "The plan could not be saved.",
+      planSaveBody: "Check that the slug is unique."
     },
     google: {
       eyebrow: "Google Calendar",
@@ -2330,21 +2347,18 @@ function WorkspaceStatsPanel({ stats, language }: { stats: WorkspaceGalleryStats
 }
 
 async function getWorkspaceGalleryStats(adminId: string): Promise<WorkspaceGalleryStats> {
-  const [galleryCount, activeGalleryCount, mediaCount, photoStorage] = await Promise.all([
+  const [galleryCount, activeGalleryCount, mediaCount, storageUsage] = await Promise.all([
     prisma.gallery.count({ where: { adminId, galleryMode: { not: GALLERY_MODE_ALBUM_SOURCE } } }),
     prisma.gallery.count({ where: { adminId, galleryMode: { not: GALLERY_MODE_ALBUM_SOURCE }, isActive: true } }),
     prisma.photo.count({ where: { gallery: { adminId } } }),
-    prisma.photo.aggregate({
-      where: { gallery: { adminId } },
-      _sum: { fileSize: true }
-    })
+    getAdminStorageUsageForAdmin(adminId)
   ]);
 
   return {
     galleryCount,
     activeGalleryCount,
     mediaCount,
-    storageBytes: toBigInt(photoStorage._sum.fileSize)
+    storageBytes: storageUsage.storageBytes
   };
 }
 
@@ -2501,12 +2515,7 @@ async function getServiceUsageSummary(): Promise<ServiceUsageSummary> {
     totalDownloadPackages,
     totalViews,
     totalNotifications,
-    photoStorage,
-    albumSpreadStorage,
-    contractStorage,
-    invoiceStorage,
-    downloadPackageStorage,
-    uploadItemStorage,
+    adminStorageRows,
     monthlyPhotos,
     monthlyAlbumSpreads,
     monthlyContracts,
@@ -2541,12 +2550,7 @@ async function getServiceUsageSummary(): Promise<ServiceUsageSummary> {
     prisma.galleryDownloadPackage.count(),
     prisma.galleryView.count(),
     prisma.adminNotification.count(),
-    prisma.photo.aggregate({ _sum: { fileSize: true } }),
-    prisma.albumReviewSpread.aggregate({ _sum: { fileSize: true } }),
-    prisma.contract.aggregate({ _sum: { fileSize: true } }),
-    prisma.customerInvoice.aggregate({ _sum: { fileSize: true } }),
-    prisma.galleryDownloadPackage.aggregate({ _sum: { fileSize: true } }),
-    prisma.galleryUploadItem.aggregate({ _sum: { fileSize: true } }),
+    getAdminStorageUsageRows(),
     prisma.photo.count({ where: { createdAt: monthRange } }),
     prisma.albumReviewSpread.count({ where: { createdAt: monthRange } }),
     prisma.contract.count({ where: { createdAt: monthRange } }),
@@ -2577,13 +2581,7 @@ async function getServiceUsageSummary(): Promise<ServiceUsageSummary> {
     prisma.backgroundJob.count({ where: { createdAt: monthRange, status: "failed" } })
   ]);
 
-  const storageBytes =
-    toBigInt(photoStorage._sum.fileSize) +
-    toBigInt(albumSpreadStorage._sum.fileSize) +
-    toBigInt(contractStorage._sum.fileSize) +
-    toBigInt(invoiceStorage._sum.fileSize) +
-    toBigInt(downloadPackageStorage._sum.fileSize) +
-    toBigInt(uploadItemStorage._sum.fileSize);
+  const storageBytes = adminStorageRows.reduce((sum, row) => sum + row.storageBytes, BigInt(0));
   const monthlyZipBytes = toBigInt(monthlyDownloadPackageBytes._sum.fileSize);
   const monthlyStorageWrites =
     monthlyPhotos * 3 + monthlyAlbumSpreads + monthlyContracts + monthlyInvoices + monthlyDownloadPackages + monthlyUploadItems;
@@ -2731,6 +2729,8 @@ export default async function AdminSettingsPage({
         ? "health"
       : params.tab === "integrations" && !isTeamWorkspace
         ? "integrations"
+      : params.tab === "monetization" && admin.role === "super_admin"
+        ? "monetization"
       : params.tab === "providers" && admin.role === "super_admin"
         ? "providers"
         : params.tab === "brand" && !isTeamWorkspace
@@ -2748,6 +2748,7 @@ export default async function AdminSettingsPage({
     deliveryLogs,
     zipPackages,
     stripePurchases,
+    subscriptionPlans,
     workspaceStats
   ] = await Promise.all([
     prisma.siteSettings.findFirst({
@@ -2955,6 +2956,18 @@ export default async function AdminSettingsPage({
           }
         })
       : Promise.resolve([]),
+    admin.role === "super_admin"
+      ? prisma.subscriptionPlan.findMany({
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          include: {
+            _count: {
+              select: {
+                adminOverrides: true
+              }
+            }
+          }
+        })
+      : Promise.resolve([]),
     getWorkspaceGalleryStats(workspaceAdminId)
   ]);
   let googleIntegration = loadedGoogleIntegration;
@@ -3015,7 +3028,7 @@ export default async function AdminSettingsPage({
       })
     : null;
   const automationItems = !isTeamWorkspace ? buildAutomationItems(deliveryLogs, zipPackages, stripePurchases, language) : [];
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-7" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5";
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-8" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5";
   const copy = SETTINGS_COPY[language];
 
   return (
@@ -3083,6 +3096,17 @@ export default async function AdminSettingsPage({
           ) : null}
           {admin.role === "super_admin" ? (
             <Link
+              href="/admin/settings?tab=monetization"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                activeTab === "monetization" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <PackageCheck size={16} />
+              {copy.tabs.monetization}
+            </Link>
+          ) : null}
+          {admin.role === "super_admin" ? (
+            <Link
               href="/admin/settings?tab=providers"
               className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
                 activeTab === "providers" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
@@ -3141,6 +3165,16 @@ export default async function AdminSettingsPage({
         {params.error === "public_subdomain_taken" ? (
           <Alert title={copy.alerts.publicSubdomainTakenTitle} variant="error">
             {copy.alerts.publicSubdomainTakenBody}
+          </Alert>
+        ) : null}
+        {params.error === "plan_required" ? (
+          <Alert title={copy.alerts.planRequiredTitle} variant="error">
+            {copy.alerts.planRequiredBody}
+          </Alert>
+        ) : null}
+        {params.error === "plan_save" ? (
+          <Alert title={copy.alerts.planSaveTitle} variant="error">
+            {copy.alerts.planSaveBody}
           </Alert>
         ) : null}
         {params.google === "connected" ? <Alert title={copy.alerts.googleConnected} variant="success" /> : null}
@@ -3210,6 +3244,8 @@ export default async function AdminSettingsPage({
           <AutomationStatusPanel language={language} items={automationItems} />
         </div>
       ) : null}
+
+      {activeTab === "monetization" && admin.role === "super_admin" ? <MonetizationSettings plans={subscriptionPlans} /> : null}
 
       {activeTab === "providers" ? (
         <div className="space-y-6">

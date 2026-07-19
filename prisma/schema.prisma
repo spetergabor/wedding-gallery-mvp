@@ -50,6 +50,51 @@ model Admin {
   stripeConnectIntegration StripeConnectIntegration?
   galleryPurchases GalleryPurchase[]
   albumDesigns AlbumDesign[]
+  planOverride AdminPlanOverride?
+}
+
+model SubscriptionPlan {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  description        String?
+  monthlyPriceCents  Int      @default(0)
+  currency           String   @default("EUR")
+  storageLimitGb     Int?
+  featureGallery     Boolean  @default(true)
+  featureAlbum       Boolean  @default(false)
+  featureContracts   Boolean  @default(false)
+  featureBooking     Boolean  @default(false)
+  featureStripe      Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  adminOverrides     AdminPlanOverride[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+model AdminPlanOverride {
+  id                       String   @id @default(cuid())
+  adminId                  String   @unique
+  planId                   String?
+  freeAccess               Boolean  @default(false)
+  storageLimitGbOverride   Int?
+  featureGalleryOverride   Boolean?
+  featureAlbumOverride     Boolean?
+  featureContractsOverride Boolean?
+  featureBookingOverride   Boolean?
+  featureStripeOverride    Boolean?
+  notes                    String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  admin                    Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  plan                     SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@index([freeAccess])
 }
 
 model AdminPasswordResetToken {
