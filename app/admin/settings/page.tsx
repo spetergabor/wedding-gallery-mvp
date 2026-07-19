@@ -511,6 +511,7 @@ const SETTINGS_COPY = {
       type: "Típus",
       metadata: "Részletek",
       open: "Megnyitás",
+      expand: "Részletek",
       noActor: "Publikus / rendszer",
       noTarget: "Nincs megadva"
     }
@@ -612,6 +613,7 @@ const SETTINGS_COPY = {
       type: "Typ",
       metadata: "Details",
       open: "Öffnen",
+      expand: "Details",
       noActor: "Öffentlich / System",
       noTarget: "Nicht angegeben"
     }
@@ -713,6 +715,7 @@ const SETTINGS_COPY = {
       type: "Type",
       metadata: "Details",
       open: "Open",
+      expand: "Details",
       noActor: "Public / system",
       noTarget: "Not specified"
     }
@@ -851,6 +854,7 @@ const AUTOMATION_PANEL_COPY = {
     nextRetry: "Következő retry",
     error: "Hiba",
     open: "Megnyitás",
+    expand: "Részletek",
     retry: "Újrapróbálás",
     noRetry: "Nincs automata retry ehhez",
     kinds: {
@@ -880,6 +884,7 @@ const AUTOMATION_PANEL_COPY = {
     nextRetry: "Nächster Retry",
     error: "Fehler",
     open: "Öffnen",
+    expand: "Details",
     retry: "Erneut versuchen",
     noRetry: "Kein direkter Retry verfügbar",
     kinds: {
@@ -909,6 +914,7 @@ const AUTOMATION_PANEL_COPY = {
     nextRetry: "Next retry",
     error: "Error",
     open: "Open",
+    expand: "Details",
     retry: "Retry",
     noRetry: "No direct retry available",
     kinds: {
@@ -1411,15 +1417,15 @@ function SystemEventLog({ events, language }: { events: SettingsSystemEvent[]; l
   const copy = SETTINGS_COPY[language].logs;
 
   return (
-    <section className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+    <section className="rounded-md border border-ink/10 bg-white p-4 shadow-soft sm:p-5">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-brass">
             <ClipboardList size={15} />
             {copy.eyebrow}
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
+          <h2 className="mt-2 text-lg font-semibold text-ink">{copy.title}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/65">{copy.description}</p>
         </div>
         <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
           {copy.latest}
@@ -1432,63 +1438,100 @@ function SystemEventLog({ events, language }: { events: SettingsSystemEvent[]; l
           <p className="mt-2 text-sm text-graphite/65">{copy.emptyBody}</p>
         </div>
       ) : (
-        <div className="mt-6 space-y-3">
+        <div className="mt-5 overflow-hidden rounded-md border border-ink/10 bg-white">
+          <div className="divide-y divide-ink/10">
           {events.map((event) => {
             const details = metadataText(event.metadata);
 
             return (
-              <article key={event.id} className="rounded-md border border-ink/10 bg-paper p-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <details key={event.id} className="group bg-white">
+                <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-paper/70 md:min-h-14 md:grid-cols-[minmax(0,1fr)_185px_155px_24px] md:items-center [&::-webkit-details-marker]:hidden">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${systemEventBadgeClass(event)}`}>
-                        {systemEventStatusLabel(event.status, language)}
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className={`inline-flex size-9 shrink-0 items-center justify-center rounded-md border ${systemEventBadgeClass(event)}`}>
+                        <ClipboardList size={15} />
                       </span>
-                      {event.source ? (
-                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-graphite ring-1 ring-ink/10">
-                          {event.source}
-                        </span>
-                      ) : null}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink">{event.title}</p>
+                        {event.message ? <p className="mt-0.5 truncate text-xs text-graphite/55 md:hidden">{event.message}</p> : null}
+                      </div>
                     </div>
-                    <h3 className="mt-3 text-base font-semibold text-ink">{event.title}</h3>
-                    {event.message ? <p className="mt-1 text-sm leading-6 text-graphite/70">{event.message}</p> : null}
                   </div>
-                  <time className="shrink-0 text-sm text-graphite/60" dateTime={event.createdAt.toISOString()}>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${systemEventBadgeClass(event)}`}>
+                      {systemEventStatusLabel(event.status, language)}
+                    </span>
+                    {event.source ? (
+                      <span className="truncate rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                        {event.source}
+                      </span>
+                    ) : null}
+                  </div>
+                  <time className="hidden shrink-0 text-sm text-graphite/60 md:block" dateTime={event.createdAt.toISOString()}>
                     {formatSettingsDateTime(event.createdAt, language, "-")}
                   </time>
-                </div>
+                  <span className="sr-only">{copy.expand}</span>
+                  <ChevronDown className="justify-self-end self-center text-graphite/45 transition group-open:rotate-180 group-hover:text-ink" size={18} />
+                </summary>
 
-                <div className="mt-4 grid gap-3 text-xs text-graphite/65 md:grid-cols-3">
-                  <div className="rounded-md bg-white px-3 py-2">
-                    <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.actor}</span>
-                    <span className="mt-1 block truncate font-medium text-graphite">{adminIdentity(event.actorAdmin, copy.noActor)}</span>
-                  </div>
-                  <div className="rounded-md bg-white px-3 py-2">
-                    <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.target}</span>
-                    <span className="mt-1 block truncate font-medium text-graphite">{adminIdentity(event.targetAdmin, copy.noTarget)}</span>
-                  </div>
-                  <div className="rounded-md bg-white px-3 py-2">
-                    <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.type}</span>
-                    <span className="mt-1 block truncate font-medium text-graphite">{event.type}</span>
-                  </div>
-                </div>
+                <div className="border-t border-ink/10 bg-paper/55 px-4 py-4">
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-medium ${systemEventBadgeClass(event)}`}>
+                          {systemEventStatusLabel(event.status, language)}
+                        </span>
+                        {event.source ? (
+                          <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-graphite">
+                            {event.source}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-ink">{event.title}</p>
+                      {event.message ? <p className="mt-1 text-sm leading-6 text-graphite/70">{event.message}</p> : null}
+                    </div>
 
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  {event.href ? (
-                    <Link href={event.href} className="inline-flex h-9 items-center justify-center rounded-md border border-ink/10 bg-white px-3 text-xs font-medium text-ink transition hover:bg-ink/5">
-                      {copy.open}
-                    </Link>
-                  ) : null}
+                    <div className="text-sm text-graphite/70">
+                      <span className="block text-xs font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.open}</span>
+                      <div className="mt-2">
+                        {event.href ? (
+                          <Link href={event.href} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-xs font-medium text-ink transition hover:bg-ink/5">
+                            <ExternalLink size={14} />
+                            {copy.open}
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-graphite/45">-</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 text-xs text-graphite/65 md:grid-cols-3">
+                    <div className="rounded-md bg-white px-3 py-2">
+                      <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.actor}</span>
+                      <span className="mt-1 block truncate font-medium text-graphite">{adminIdentity(event.actorAdmin, copy.noActor)}</span>
+                    </div>
+                    <div className="rounded-md bg-white px-3 py-2">
+                      <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.target}</span>
+                      <span className="mt-1 block truncate font-medium text-graphite">{adminIdentity(event.targetAdmin, copy.noTarget)}</span>
+                    </div>
+                    <div className="rounded-md bg-white px-3 py-2">
+                      <span className="block uppercase tracking-[0.12em] text-graphite/45">{copy.type}</span>
+                      <span className="mt-1 block truncate font-medium text-graphite">{event.type}</span>
+                    </div>
+                  </div>
+
                   {details ? (
-                    <details className="min-w-0 flex-1">
-                      <summary className="cursor-pointer text-xs font-medium text-graphite hover:text-ink">{copy.metadata}</summary>
+                    <div className="mt-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.metadata}</p>
                       <pre className="mt-2 max-h-64 overflow-auto rounded-md bg-white p-3 text-xs leading-5 text-graphite/75">{details}</pre>
-                    </details>
+                    </div>
                   ) : null}
                 </div>
-              </article>
+              </details>
             );
           })}
+          </div>
         </div>
       )}
     </section>
@@ -1904,15 +1947,15 @@ function AutomationStatusPanel({
   const copy = AUTOMATION_PANEL_COPY[language];
 
   return (
-    <section id="automation-runs" className="rounded-md border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+    <section id="automation-runs" className="rounded-md border border-ink/10 bg-white p-4 shadow-soft sm:p-5">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/60">
             <Activity size={15} />
             {copy.eyebrow}
           </div>
-          <h2 className="mt-2 text-xl font-semibold text-ink">{copy.title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.description}</p>
+          <h2 className="mt-2 text-lg font-semibold text-ink">{copy.title}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/65">{copy.description}</p>
         </div>
         <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
           {items.length}
@@ -1929,33 +1972,49 @@ function AutomationStatusPanel({
           <div className="divide-y divide-ink/10">
             {items.map((item) => {
               const KindIcon = automationKindIcon(item.kind);
+              const showRetryUnavailable = item.status === "failed" && !item.retry;
 
               return (
                 <details key={item.id} className="group bg-white">
-                  <summary className="grid min-h-16 cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-paper/70 md:grid-cols-[170px_minmax(0,1fr)_minmax(150px,220px)_180px_28px] md:items-center [&::-webkit-details-marker]:hidden">
+                  <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-paper/70 md:min-h-14 md:grid-cols-[minmax(0,1fr)_175px_minmax(130px,230px)_150px_24px] md:items-center [&::-webkit-details-marker]:hidden">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className={`inline-flex size-9 shrink-0 items-center justify-center rounded-md ring-1 ${automationStatusClass(item.status)}`}>
+                        <KindIcon size={16} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+                        <p className="mt-0.5 truncate text-xs text-graphite/55 md:hidden">
+                          {item.target || formatSettingsDateTime(item.updatedAt ?? item.createdAt, language, "-")}
+                        </p>
+                      </div>
+                    </div>
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${automationStatusClass(item.status)}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${automationStatusClass(item.status)}`}>
                         {automationStatusLabel(item.status, language)}
                       </span>
-                      <span className="rounded-full bg-ink/5 px-2 py-1 text-[11px] font-medium text-graphite">
+                      <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
                         {copy.kinds[item.kind]}
                       </span>
                     </div>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <KindIcon className="shrink-0 text-brass" size={16} />
-                      <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
-                    </div>
-                    <p className="truncate text-sm text-graphite">{item.target || "-"}</p>
-                    <p className="truncate text-sm text-graphite">
+                    <p className="hidden truncate text-sm text-graphite md:block">{item.target || "-"}</p>
+                    <p className="hidden truncate text-sm text-graphite md:block">
                       {formatSettingsDateTime(item.updatedAt ?? item.createdAt, language, "-")}
                     </p>
-                    <ChevronDown className="justify-self-end text-graphite/50 transition group-open:rotate-180 group-hover:text-ink" size={18} />
+                    <span className="sr-only">{copy.expand}</span>
+                    <ChevronDown className="justify-self-end self-center text-graphite/45 transition group-open:rotate-180 group-hover:text-ink" size={18} />
                   </summary>
                   <div className="border-t border-ink/10 bg-paper/55 px-4 py-4">
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px_220px] xl:items-start">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px_230px] xl:items-start">
                       <div className="min-w-0">
-                        <p className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/45">{copy.kinds[item.kind]}</p>
-                        <p className="mt-1 text-sm font-semibold text-ink">{item.title}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${automationStatusClass(item.status)}`}>
+                            {automationStatusLabel(item.status, language)}
+                          </span>
+                          <span className="rounded-full bg-white px-2 py-1 text-[11px] font-medium text-graphite">
+                            {copy.kinds[item.kind]}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-ink">{item.title}</p>
                         <p className="mt-1 text-sm leading-6 text-graphite/70">{item.detail}</p>
                         {item.error ? (
                           <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm leading-6 text-red-700">
@@ -1997,7 +2056,7 @@ function AutomationStatusPanel({
                               {copy.open}
                             </Link>
                           ) : null}
-                          <AutomationRetryForm retry={item.retry} copy={copy} />
+                          {item.retry || showRetryUnavailable ? <AutomationRetryForm retry={item.retry} copy={copy} /> : null}
                         </div>
                       </div>
                     </div>
