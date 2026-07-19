@@ -194,7 +194,7 @@ export default async function PublicGalleryPage({
       : galleryPurchasePhotoIds(paidAccessPurchase?.purchasedPhotoIds);
   const purchasedPhotoIdSet = new Set(purchasedPhotoIds);
   const fullGalleryPurchased = paidGallery && Boolean(paidPurchaseKind && paidPurchaseKind !== GALLERY_PURCHASE_KIND_PHOTOS);
-  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}?v=5`;
+  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}?v=6`;
   const canAccessOriginalPhoto = (photo: (typeof publicPhotos)[number]) => {
     return !paidGallery || fullGalleryPurchased || purchasedPhotoIdSet.has(photo.id);
   };

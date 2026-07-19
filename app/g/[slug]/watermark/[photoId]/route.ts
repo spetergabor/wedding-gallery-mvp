@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { GALLERY_DELIVERY_PAID, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
-import { createWatermarkedGalleryPreview } from "@/lib/gallery-watermark";
+import { createProtectedGalleryPreviewPlaceholder, createWatermarkedGalleryPreview } from "@/lib/gallery-watermark";
 import { prisma } from "@/lib/prisma";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -13,6 +13,17 @@ import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+type ProtectedPreviewPhoto = {
+  id: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  previewUrl: string;
+  gallery: {
+    id: string;
+    slug: string;
+  };
+};
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;
@@ -36,6 +47,92 @@ function plainTextResponse(message: string, status: number) {
   });
 }
 
+function jpegResponse(buffer: Buffer, cacheControl: string, extraHeaders: Record<string, string> = {}) {
+  const responseBody = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(responseBody).set(buffer);
+
+  return new NextResponse(responseBody, {
+    headers: {
+      "Cache-Control": cacheControl,
+      "Content-Disposition": "inline",
+      "Content-Type": "image/jpeg",
+      "X-Content-Type-Options": "nosniff",
+      ...extraHeaders
+    }
+  });
+}
+
+function normalizeStoredPath(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  const withoutQuery = value.split("?")[0]?.split("#")[0] ?? value;
+
+  try {
+    const url = new URL(withoutQuery);
+    return decodeURIComponent(url.pathname).replace(/^\/+/, "").replace(/^uploads\//, "");
+  } catch {
+    return withoutQuery.replace(/^\/+/, "").replace(/^uploads\//, "");
+  }
+}
+
+function isProtectedPreviewPath(value: string | null | undefined) {
+  const normalized = normalizeStoredPath(value);
+  return normalized.startsWith("galleries/") && (normalized.includes("/previews/") || normalized.includes("/thumbs/"));
+}
+
+function sameStoredPath(left: string | null | undefined, right: string | null | undefined) {
+  return normalizeStoredPath(left) === normalizeStoredPath(right);
+}
+
+function extractProtectedVariantR2Key(publicUrl: string | null | undefined) {
+  const directKey = getR2KeyFromPublicUrl(publicUrl);
+
+  if (isProtectedPreviewPath(directKey)) {
+    return directKey;
+  }
+
+  const normalizedPath = normalizeStoredPath(publicUrl);
+
+  if (isProtectedPreviewPath(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  return null;
+}
+
+function resolveProtectedPreviewSource(photo: ProtectedPreviewPhoto) {
+  const candidates = [photo.previewUrl, photo.thumbnailUrl];
+
+  for (const sourceUrl of candidates) {
+    if (!sourceUrl || sameStoredPath(sourceUrl, photo.imageUrl) || !isProtectedPreviewPath(sourceUrl)) {
+      continue;
+    }
+
+    return {
+      sourceR2Key: extractProtectedVariantR2Key(sourceUrl),
+      sourceUrl
+    };
+  }
+
+  return null;
+}
+
+async function protectedPreviewPlaceholderResponse(photo: ProtectedPreviewPhoto, reason: string) {
+  console.warn("Paid gallery preview fallback rendered without original image", {
+    galleryId: photo.gallery.id,
+    photoId: photo.id,
+    reason
+  });
+
+  const placeholderBuffer = await createProtectedGalleryPreviewPlaceholder();
+
+  return jpegResponse(placeholderBuffer, "no-store", {
+    "X-Spetly-Protected-Preview": reason
+  });
+}
+
 export async function GET(
   _request: Request,
   {
@@ -54,7 +151,6 @@ export async function GET(
     where: { id: photoId },
     select: {
       id: true,
-      r2Key: true,
       imageUrl: true,
       thumbnailUrl: true,
       previewUrl: true,
@@ -99,17 +195,16 @@ export async function GET(
     return plainTextResponse("Image not found.", 404);
   }
 
-  const sourceUrl = photo.previewUrl || photo.thumbnailUrl || photo.imageUrl;
-  const sourceR2Key =
-    getR2KeyFromPublicUrl(photo.previewUrl) ??
-    getR2KeyFromPublicUrl(photo.thumbnailUrl) ??
-    (photo.r2Key || null) ??
-    getR2KeyFromPublicUrl(photo.imageUrl);
+  const protectedSource = resolveProtectedPreviewSource(photo);
+
+  if (!protectedSource) {
+    return protectedPreviewPlaceholderResponse(photo, "missing_preview_variant");
+  }
 
   try {
     const sourceBuffer = await loadPhotoObjectBuffer({
-      r2Key: sourceR2Key,
-      publicUrl: sourceUrl
+      r2Key: protectedSource.sourceR2Key,
+      publicUrl: protectedSource.sourceUrl
     });
     const watermarkedBuffer = await createWatermarkedGalleryPreview(sourceBuffer, {
       text: "PREVIEW",
@@ -117,17 +212,7 @@ export async function GET(
       opacity: 34
     });
 
-    const responseBody = new ArrayBuffer(watermarkedBuffer.byteLength);
-    new Uint8Array(responseBody).set(watermarkedBuffer);
-
-    return new NextResponse(responseBody, {
-      headers: {
-        "Cache-Control": "public, max-age=300, s-maxage=3600",
-        "Content-Disposition": "inline",
-        "Content-Type": "image/jpeg",
-        "X-Content-Type-Options": "nosniff"
-      }
-    });
+    return jpegResponse(watermarkedBuffer, "public, max-age=300, s-maxage=3600");
   } catch (error) {
     console.error("Failed to render paid gallery watermark", {
       photoId: photo.id,
@@ -135,6 +220,6 @@ export async function GET(
       error
     });
 
-    return plainTextResponse("Image could not be rendered.", 500);
+    return protectedPreviewPlaceholderResponse(photo, "preview_render_failed");
   }
 }

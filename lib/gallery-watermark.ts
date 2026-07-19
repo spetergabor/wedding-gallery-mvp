@@ -216,3 +216,30 @@ export async function createWatermarkedGalleryPreview(
     .jpeg({ quality: 58, mozjpeg: true })
     .toBuffer();
 }
+
+export async function createProtectedGalleryPreviewPlaceholder() {
+  const width = 900;
+  const height = 600;
+  const basePreview = await sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: "#f3f1ec"
+    }
+  })
+    .jpeg({ quality: 72, mozjpeg: true })
+    .toBuffer();
+  const watermarkSvg = createWatermarkSvg({
+    width,
+    height,
+    text: "PREVIEW",
+    position: "tile",
+    opacity: 42
+  });
+
+  return sharp(basePreview)
+    .composite([{ input: Buffer.from(watermarkSvg), left: 0, top: 0 }])
+    .jpeg({ quality: 72, mozjpeg: true })
+    .toBuffer();
+}
