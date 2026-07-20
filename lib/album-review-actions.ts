@@ -92,23 +92,29 @@ async function requireAlbumReviewAccess(customerId: string, reviewId: string) {
   return { admin, review };
 }
 
-export async function createAlbumReviewAction(customerId: string, formData: FormData) {
+export async function createAlbumReviewAction(customerId: string | null, formData: FormData) {
   const admin = await requireAdmin();
   const title = formString(formData, "title") || "Album ellenőrző";
   const requestedProjectId = formString(formData, "projectId");
+  const targetCustomerId = customerId || formString(formData, "customerId");
+
+  if (!targetCustomerId) {
+    redirect("/admin/albums?albumMode=upload&albumError=customer");
+  }
+
   const customer = await prisma.customer.findFirst({
-    where: customerAccessWhere(admin, customerId),
+    where: customerAccessWhere(admin, targetCustomerId),
     select: { id: true, primaryEmail: true }
   });
 
   if (!customer) {
-    redirect("/admin/clients");
+    redirect(customerId ? "/admin/clients" : "/admin/albums?albumMode=upload&albumError=customer");
   }
 
   const projectId = await albumProjectIdForCustomer(admin, customer.id, requestedProjectId);
 
   if (requestedProjectId && !projectId) {
-    redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumError=project`);
+    redirect(customerId ? `/admin/clients/${customerId}?tab=album&albumMode=upload&albumError=project` : "/admin/albums?albumMode=upload&albumError=project");
   }
 
   await prisma.albumReview.create({
@@ -121,9 +127,10 @@ export async function createAlbumReviewAction(customerId: string, formData: Form
     }
   });
 
-  revalidatePath(`/admin/clients/${customerId}`);
+  revalidatePath(`/admin/clients/${customer.id}`);
   revalidatePath("/admin/clients");
-  redirect(`/admin/clients/${customerId}?tab=album&albumMode=upload&albumCreated=1`);
+  revalidatePath("/admin/albums");
+  redirect(customerId ? `/admin/clients/${customerId}?tab=album&albumMode=upload&albumCreated=1` : "/admin/albums?albumMode=upload&albumCreated=1");
 }
 
 export async function updateAlbumReviewProjectAction(customerId: string, reviewId: string, formData: FormData) {

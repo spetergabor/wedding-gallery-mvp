@@ -486,10 +486,6 @@ export function AlbumDesignWorkbench({
     })();
   }, [customerId, designId, isCreatingSpread]);
 
-  if (orderedSpreads.length === 0) {
-    return null;
-  }
-
   return (
     <div className="mt-5">
       <div className="rounded-lg border border-ink/10 bg-white p-4">
@@ -498,21 +494,10 @@ export function AlbumDesignWorkbench({
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Album szerkesztő</p>
             <h4 className="mt-1 text-lg font-semibold text-ink">Teljes szélességű szerkesztő</h4>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-              {orderedSpreads.length} oldalpár · {sourcePhotos.length} forráskép. A szerkesztő külön ablakban nyílik, az aktív oldalpárhoz tartozó képcsere pedig egy közös alsó sávból történik.
+              {orderedSpreads.length} oldalpár · {sourcePhotos.length} forráskép. Oldalpárt hozzáadni, layoutot cserélni, képet mozgatni és menteni csak a teljes munkanézetben lehet.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            {changedSpreadIds.length > 0 ? (
-              <form action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
-                {changedSpreadIds.map((spreadId) => (
-                  <SpreadDraftInputs key={spreadId} spreadId={spreadId} items={draftItemsBySpread[spreadId] ?? []} />
-                ))}
-                <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
-                  <Save size={15} />
-                  Összes mentése
-                </FormSubmitButton>
-              </form>
-            ) : null}
             <button
               type="button"
               onClick={() => setIsEditorOpen(true)}
@@ -526,7 +511,7 @@ export function AlbumDesignWorkbench({
 
         {changedSpreadIds.length > 0 ? (
           <div className="mt-3 rounded-md border border-brass/30 bg-brass/10 px-3 py-2 text-sm text-ink">
-            {changedSpreadIds.length} oldalpáron van nem mentett módosítás.
+            {changedSpreadIds.length} oldalpáron van nem mentett módosítás. Nyisd meg a teljes szerkesztőt a mentéshez.
           </div>
         ) : null}
       </div>
@@ -657,6 +642,25 @@ export function AlbumDesignWorkbench({
                   className="mx-auto max-w-[1500px] origin-top space-y-4 pb-6 transition-[filter]"
                   style={{ zoom: workbenchZoom } as CSSProperties}
                 >
+                  {orderedSpreads.length === 0 ? (
+                    <section className="rounded-lg border border-dashed border-ink/15 bg-white p-8 text-center shadow-sm">
+                      <p className="text-lg font-semibold text-ink">Még nincs oldalpár</p>
+                      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-graphite/65">
+                        Hozz létre egy üres oldalpárt, majd válassz layoutot és képeket ebben a teljes munkanézetben.
+                      </p>
+                      <div className="mx-auto mt-4 max-w-sm lg:hidden">
+                        <SidebarSpreadCreateForm
+                          isCreating={isCreatingSpread}
+                          errorMessage={createSpreadError}
+                          onCreateSpread={createInlineSpread}
+                        />
+                      </div>
+                      <p className="mt-4 hidden text-sm text-graphite/60 lg:block">
+                        Bal oldalt az Oldalpár hozzáadása gombbal kezdheted.
+                      </p>
+                    </section>
+                  ) : null}
+
                   {orderedSpreads.map((spread) => {
                     const template = getTemplate(spread.layoutKey);
                     const draftItems = draftItemsBySpread[spread.id] ?? getOrderedItems(spread);

@@ -38,9 +38,9 @@ const reviewStatusLabels: Record<string, string> = {
   archived: "Archivált"
 };
 
-function clientAlbumHref(customerId: string, params: Record<string, string>) {
-  const searchParams = new URLSearchParams({ tab: "album", ...params });
-  return `/admin/clients/${customerId}?${searchParams.toString()}`;
+function albumWorkflowHref(customerId: string | null | undefined, params: Record<string, string>) {
+  const searchParams = new URLSearchParams(customerId ? { tab: "album", ...params } : params);
+  return customerId ? `/admin/clients/${customerId}?${searchParams.toString()}` : `/admin/albums?${searchParams.toString()}`;
 }
 
 export function AlbumOverviewDashboard({
@@ -48,7 +48,7 @@ export function AlbumOverviewDashboard({
   designs,
   reviews
 }: {
-  customerId: string;
+  customerId?: string | null;
   designs: AlbumDashboardDesign[];
   reviews: AlbumDashboardReview[];
 }) {
@@ -78,7 +78,7 @@ export function AlbumOverviewDashboard({
 
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
         <Link
-          href={clientAlbumHref(customerId, { albumMode: "editor", albumWorkspace: "new" })}
+          href={albumWorkflowHref(customerId, { albumMode: "editor", albumWorkspace: "new" })}
           className="group rounded-lg border border-ink/10 bg-ink p-5 text-white transition hover:bg-ink/90"
         >
           <div className="flex items-start gap-3">
@@ -100,7 +100,7 @@ export function AlbumOverviewDashboard({
         </Link>
 
         <Link
-          href={clientAlbumHref(customerId, { albumMode: "upload" })}
+          href={albumWorkflowHref(customerId, { albumMode: "upload" })}
           className="group rounded-lg border border-ink/10 bg-paper p-5 transition hover:border-ink/25 hover:bg-white"
         >
           <div className="flex items-start gap-3">
@@ -139,7 +139,7 @@ export function AlbumOverviewDashboard({
 
       {!hasAlbums ? (
         <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5">
-          <p className="text-sm font-medium text-ink">Még nincs album ehhez az ügyfélhez.</p>
+          <p className="text-sm font-medium text-ink">{customerId ? "Még nincs album ehhez az ügyfélhez." : "Még nincs album munka."}</p>
           <p className="mt-1 text-sm text-graphite/70">Válaszd ki felül, hogy online tervezel albumot, vagy kész oldalpárokat töltesz fel ellenőrzésre.</p>
         </div>
       ) : (
@@ -158,7 +158,7 @@ export function AlbumOverviewDashboard({
               return (
                 <Link
                   key={design.id}
-                  href={clientAlbumHref(customerId, {
+                  href={albumWorkflowHref(customerId, {
                     albumMode: "editor",
                     albumWorkspace: "projects",
                     albumDesignId: design.id,
@@ -217,7 +217,7 @@ export function AlbumOverviewDashboard({
                         Ügyfél link
                       </a>
                       <Link
-                        href={`${clientAlbumHref(customerId, { albumMode: "upload" })}#album-review-${review.id}`}
+                        href={`${albumWorkflowHref(customerId, { albumMode: "upload" })}#album-review-${review.id}`}
                         className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
                       >
                         Kezelés

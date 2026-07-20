@@ -1,15 +1,79 @@
 import { AlbumDesignManager } from "@/components/album-design-manager";
+import { AlbumOverviewDashboard } from "@/components/album-overview-dashboard";
+import { AlbumReviewManager } from "@/components/album-review-manager";
+import { AlbumWorkflowTabs } from "@/components/album-workflow-tabs";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
+import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, albumDesignOwnedWhere } from "@/lib/admin-scope";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_FULL } from "@/lib/proofing";
 
+type AlbumMode = "editor" | "upload";
+
+function getAlbumMode(flags: { albumMode?: string }): AlbumMode {
+  return flags.albumMode === "upload" ? "upload" : "editor";
+}
+
+function getAlbumWorkflowOpen(flags: {
+  albumCreated?: string;
+  albumDeleted?: string;
+  albumUpdated?: string;
+  albumUploaded?: string;
+  albumError?: string;
+  albumMode?: string;
+  albumDesignCreated?: string;
+  albumDesignDeleted?: string;
+  albumDesignUpdated?: string;
+  albumDesignExported?: string;
+  albumSpreadAutoCreated?: string;
+  albumSpreadCreated?: string;
+  albumSpreadRegenerated?: string;
+  albumSpreadUpdated?: string;
+  albumSpreadSlotUpdated?: string;
+  albumSpreadDeleted?: string;
+  albumDesignError?: string;
+  albumWorkspace?: string;
+  albumDesignId?: string;
+  albumEditor?: string;
+  albumActiveSpread?: string;
+}) {
+  return Boolean(
+    flags.albumCreated ||
+      flags.albumDeleted ||
+      flags.albumUpdated ||
+      flags.albumUploaded ||
+      flags.albumError ||
+      flags.albumMode ||
+      flags.albumDesignCreated ||
+      flags.albumDesignDeleted ||
+      flags.albumDesignUpdated ||
+      flags.albumDesignExported ||
+      flags.albumSpreadAutoCreated ||
+      flags.albumSpreadCreated ||
+      flags.albumSpreadRegenerated ||
+      flags.albumSpreadUpdated ||
+      flags.albumSpreadSlotUpdated ||
+      flags.albumSpreadDeleted ||
+      flags.albumDesignError ||
+      flags.albumWorkspace ||
+      flags.albumDesignId ||
+      flags.albumEditor ||
+      flags.albumActiveSpread
+  );
+}
+
 export default async function AdminAlbumsPage({
   searchParams
 }: {
   searchParams: Promise<{
+    albumCreated?: string;
+    albumDeleted?: string;
+    albumUpdated?: string;
+    albumUploaded?: string;
+    albumError?: string;
+    albumMode?: string;
     albumDesignCreated?: string;
     albumDesignDeleted?: string;
     albumDesignUpdated?: string;
@@ -29,8 +93,12 @@ export default async function AdminAlbumsPage({
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
+  const albumMode = getAlbumMode(flags);
+  const albumWorkflowOpen = getAlbumWorkflowOpen(flags);
 
-  const [favoriteLists, sourceGalleries, albumDesigns, customers, albumProjects] = await Promise.all([
+  await ensureAlbumReviewApprovalSchema();
+
+  const [favoriteLists, sourceGalleries, albumDesigns, customers, albumProjects, albumReviews] = await Promise.all([
     prisma.galleryFavoriteList.findMany({
       where: {
         gallery: adminOwnedWhere(admin)
@@ -183,20 +251,63 @@ export default async function AdminAlbumsPage({
           }
         }
       }
+    }),
+    prisma.albumReview.findMany({
+      where: {
+        customer: adminOwnedWhere(admin)
+      },
+      orderBy: { createdAt: "desc" },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            coupleName: true
+          }
+        },
+        spreads: {
+          orderBy: [{ filename: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+          include: {
+            comments: {
+              orderBy: { createdAt: "asc" }
+            }
+          }
+        }
+      }
     })
   ]);
+
+  const albumProjectOptions = albumProjects.map((project) => ({
+    id: project.id,
+    customerId: project.customerId,
+    customerName: project.customer.coupleName,
+    title: project.title
+  }));
+  const favoriteListOptions = favoriteLists.filter((list) => list._count.items > 0);
+  const sourceGalleryOptions = sourceGalleries.map((gallery) => ({
+    id: gallery.id,
+    title: gallery.title,
+    customerName: gallery.customer?.coupleName ?? null,
+    photoCount: gallery._count.photos
+  }));
 
   return (
     <AdminShell>
       <div className="mb-8">
         <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Album szerkesztő</p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink">Beépített album szerkesztő</h1>
+        <h1 className="mt-2 text-3xl font-semibold text-ink">Album központ</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-graphite/70">
-          Hozz létre albumtervet ügyfél nélkül is, dolgozz saját feltöltésből, meglévő galériából vagy favorite listából, majd amikor kész vagy, rendeld hozzá a megfelelő ügyfélhez vagy album projekthez.
+          Indíts online albumtervet vagy külső album ellenőrzőt ugyanabból az egyszerű folyamatból, majd rendeld hozzá a megfelelő ügyfélhez vagy album projekthez.
         </p>
       </div>
 
       <div className="mb-5 space-y-3">
+        {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
+        {flags.albumDeleted ? <Alert title="Album ellenőrző törölve." variant="success" /> : null}
+        {flags.albumUpdated ? <Alert title="Album ellenőrző kapcsolata mentve." variant="success" /> : null}
+        {flags.albumUploaded ? <Alert title="Album oldalpárok feltöltve." variant="success" /> : null}
+        {flags.albumError === "customer" ? <Alert title="Válassz ügyfelet az album ellenőrzőhöz." variant="error" /> : null}
+        {flags.albumError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
+        {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
         {flags.albumDesignDeleted ? <Alert title="Albumterv törölve." variant="success" /> : null}
         {flags.albumDesignUpdated ? <Alert title="Albumterv kapcsolata mentve." variant="success" /> : null}
@@ -220,27 +331,27 @@ export default async function AdminAlbumsPage({
         {flags.albumDesignError === "missing" ? <Alert title="Az albumterv nem található." variant="error" /> : null}
       </div>
 
-      <AlbumDesignManager
-        customerId={null}
-        favoriteLists={favoriteLists.filter((list) => list._count.items > 0)}
-        sourceGalleries={sourceGalleries.map((gallery) => ({
-          id: gallery.id,
-          title: gallery.title,
-          customerName: gallery.customer?.coupleName ?? null,
-          photoCount: gallery._count.photos
-        }))}
-        designs={albumDesigns}
-        projects={albumProjects.map((project) => ({
-          id: project.id,
-          customerId: project.customerId,
-          customerName: project.customer.coupleName,
-          title: project.title
-        }))}
-        customers={customers}
-        workspaceView={flags.albumWorkspace === "new" ? "new" : "projects"}
-        activeDesignId={flags.albumDesignId ?? null}
-        initialEditorOpen={flags.albumEditor === "1"}
-        activeSpreadId={flags.albumActiveSpread ?? null}
+      <AlbumWorkflowTabs
+        initialMode={albumMode}
+        initialOpen={albumWorkflowOpen}
+        requireAlbumTab={false}
+        backHref="/admin/albums"
+        dashboardContent={<AlbumOverviewDashboard customerId={null} designs={albumDesigns} reviews={albumReviews} />}
+        editorContent={
+          <AlbumDesignManager
+            customerId={null}
+            favoriteLists={favoriteListOptions}
+            sourceGalleries={sourceGalleryOptions}
+            designs={albumDesigns}
+            projects={albumProjectOptions}
+            customers={customers}
+            workspaceView={flags.albumWorkspace === "new" ? "new" : "projects"}
+            activeDesignId={flags.albumDesignId ?? null}
+            initialEditorOpen={flags.albumEditor === "1"}
+            activeSpreadId={flags.albumActiveSpread ?? null}
+          />
+        }
+        uploadContent={<AlbumReviewManager customerId={null} reviews={albumReviews} projects={albumProjectOptions} customers={customers} />}
       />
     </AdminShell>
   );

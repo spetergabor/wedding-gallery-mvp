@@ -1,23 +1,17 @@
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, FolderKanban, Grid3X3, LayoutTemplate, Plus, Send, Shuffle, Trash2 } from "lucide-react";
+import { ArrowLeft, FolderKanban, LayoutTemplate, Plus, Send, Trash2 } from "lucide-react";
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
 import {
   createAlbumDesignAction,
-  createAutoAlbumDesignSpreadAction,
-  createAlbumDesignSpreadAction,
   deleteAlbumDesignAction,
   exportAlbumDesignToReviewAction,
   updateAlbumDesignAssignmentAction
 } from "@/lib/album-design-actions";
-import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { GALLERY_MODE_ALBUM_SOURCE, PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
-
-const maxAlbumLayoutPhotoCount = Math.max(...ALBUM_LAYOUT_TEMPLATES.map((template) => template.photoCount));
 
 type FavoritePhoto = {
   id: string;
@@ -137,123 +131,6 @@ function statusLabel(status: string) {
   return status;
 }
 
-function getTemplate(layoutKey: string) {
-  return ALBUM_LAYOUT_TEMPLATES.find((item) => item.key === layoutKey) ?? ALBUM_LAYOUT_TEMPLATES[0];
-}
-
-function TemplatePreview({ layoutKey }: { layoutKey: string }) {
-  const template = getTemplate(layoutKey);
-  const inset = getAlbumLayoutPreviewSlotInsetPx(template.key);
-
-  return (
-    <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10" style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}>
-      {template.slots.map((slot, index) => (
-        <div
-          key={`${template.key}-${index}`}
-          className="absolute border border-brass/50 bg-brass/15"
-          style={{
-            left: `calc(${slot.x}% + ${inset}px)`,
-            top: `calc(${slot.y}% + ${inset}px)`,
-            width: `calc(${slot.width}% - ${inset * 2}px)`,
-            height: `calc(${slot.height}% - ${inset * 2}px)`
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function AlbumLayoutRadioGrid({ defaultLayoutKey }: { defaultLayoutKey?: string }) {
-  const fallbackLayoutKey = defaultLayoutKey ?? ALBUM_LAYOUT_TEMPLATES[1]?.key ?? ALBUM_LAYOUT_TEMPLATES[0].key;
-
-  return (
-    <div className="grid max-h-72 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-      {ALBUM_LAYOUT_TEMPLATES.map((template) => (
-        <label key={template.key} className="group cursor-pointer rounded-md border border-ink/10 bg-white p-2 transition hover:border-brass">
-          <input name="layoutKey" value={template.key} type="radio" defaultChecked={template.key === fallbackLayoutKey} className="peer sr-only" />
-          <div className="rounded-md border-2 border-transparent transition peer-checked:border-ink">
-            <TemplatePreview layoutKey={template.key} />
-          </div>
-          <span className="mt-2 flex items-start justify-between gap-2 text-xs">
-            <span className="font-medium text-ink">{template.name}</span>
-            <span className="shrink-0 rounded-full bg-ink/5 px-2 py-0.5 text-graphite">{template.photoCount} kép</span>
-          </span>
-        </label>
-      ))}
-    </div>
-  );
-}
-
-function AlbumSpreadCreateForm({
-  customerId,
-  designId,
-  sourcePhotos,
-  title = "Új oldalpár"
-}: {
-  customerId: string | null;
-  designId: string;
-  sourcePhotos: FavoritePhoto[];
-  title?: string;
-}) {
-  return (
-    <form action={createAlbumDesignSpreadAction.bind(null, customerId, designId)} className="rounded-md border border-ink/10 bg-white p-4">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-medium text-ink">{title}</p>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-graphite/60">
-              Jelölj ki 1-{maxAlbumLayoutPhotoCount} képet, majd generálj belőlük automatikus oldalpárt. Ha a kompozíció nem jó, az oldalpárnál az Újragenerálás gombbal másik verziót kapsz.
-            </p>
-          </div>
-          <FormSubmitButton
-            formAction={createAutoAlbumDesignSpreadAction.bind(null, customerId, designId)}
-            className="shrink-0"
-            pendingLabel="Készítés..."
-          >
-            <Shuffle size={16} />
-            Automatikus oldalpár
-          </FormSubmitButton>
-        </div>
-
-        <div className="grid max-h-[520px] gap-2 overflow-auto pr-1 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
-          {sourcePhotos.map((photo) => (
-            <label key={photo.id} className="group relative block cursor-pointer overflow-hidden rounded-md border border-ink/10 bg-mist">
-              <input name="photoIds" value={photo.id} type="checkbox" className="peer absolute left-2 top-2 z-10 size-4 accent-ink" />
-              <span className="relative block aspect-[4/3]">
-                <Image
-                  src={photo.thumbnailUrl || photo.imageUrl}
-                  alt={photo.filename}
-                  fill
-                  unoptimized
-                  sizes="160px"
-                  className="object-cover transition group-hover:scale-[1.02]"
-                />
-              </span>
-              <span className="block truncate bg-white px-2 py-1.5 text-xs text-graphite peer-checked:bg-ink peer-checked:text-white">
-                {photo.filename}
-              </span>
-            </label>
-          ))}
-        </div>
-
-        <details className="rounded-md border border-ink/10 bg-paper">
-          <summary className="flex cursor-pointer items-center gap-2 px-3 py-3 text-sm font-medium text-ink">
-            <Grid3X3 size={15} />
-            Kézi layout választása
-          </summary>
-          <div className="border-t border-ink/10 p-3">
-            <AlbumLayoutRadioGrid />
-            <FormSubmitButton variant="secondary" className="mt-3" pendingLabel="Kézi generálás...">
-              <Grid3X3 size={16} />
-              Kézi layout létrehozása
-            </FormSubmitButton>
-          </div>
-        </details>
-      </div>
-    </form>
-  );
-}
-
 export function AlbumDesignManager({
   customerId,
   favoriteLists,
@@ -282,7 +159,7 @@ export function AlbumDesignManager({
   const activeWorkspaceView = workspaceView === "new" ? "new" : "projects";
   const isCreationView = activeWorkspaceView === "new";
   const selectedDesign = activeDesignId ? (designs.find((design) => design.id === activeDesignId) ?? null) : null;
-  const workspaceBaseHref = standaloneMode ? "/admin/albums" : `/admin/clients/${customerId}?tab=album&albumMode=editor`;
+  const workspaceBaseHref = standaloneMode ? "/admin/albums?albumMode=editor" : `/admin/clients/${customerId}?tab=album&albumMode=editor`;
   const workspaceHref = (view: "projects" | "new", designId?: string) => {
     const separator = workspaceBaseHref.includes("?") ? "&" : "?";
     const params = [`albumWorkspace=${view}`];
@@ -293,9 +170,11 @@ export function AlbumDesignManager({
 
     return `${workspaceBaseHref}${separator}${params.join("&")}`;
   };
-  const managerTitle = standaloneMode ? "Album projektek" : isCreationView ? "Új online album" : "Online albumok";
+  const managerTitle = isCreationView ? "Új online album" : "Online albumok";
   const managerDescription = standaloneMode
-    ? "Indíts új albumot egyszerűen, a korábbi albumprojektek pedig lent külön kártyákban maradnak elérhetők."
+    ? isCreationView
+      ? "Adj nevet, válassz képforrást, majd mentsd el. Utána a szerkesztőben csak az adott album munkafelülete marad."
+      : "Itt látod a Spetlyben készített albumterveidet. Nyisd meg a megfelelőt szerkesztéshez vagy ügyfélhez rendeléshez."
     : isCreationView
       ? "Adj nevet, válassz képforrást, majd mentsd el. Utána a szerkesztőben már csak az adott albumon dolgozol."
       : "Itt látod az ügyfél Spetlyben készített albumterveit. Nyisd meg a megfelelőt szerkesztéshez vagy ellenőrző készítéséhez.";
@@ -312,53 +191,23 @@ export function AlbumDesignManager({
             <h2 className="mt-2 text-xl font-semibold text-ink">{managerTitle}</h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">{managerDescription}</p>
           </div>
-          {!standaloneMode ? (
-            <Link
-              href={isCreationView ? workspaceHref("projects", selectedDesign?.id) : workspaceHref("new")}
-              className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-            >
-              {isCreationView ? (
-                <>
-                  <ArrowLeft size={15} />
-                  Meglévő online albumok
-                </>
-              ) : (
-                <>
-                  <Plus size={15} />
-                  Új online album
-                </>
-              )}
-            </Link>
-          ) : null}
+          <Link
+            href={isCreationView ? workspaceHref("projects", selectedDesign?.id) : workspaceHref("new")}
+            className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+          >
+            {isCreationView ? (
+              <>
+                <ArrowLeft size={15} />
+                Meglévő online albumok
+              </>
+            ) : (
+              <>
+                <Plus size={15} />
+                Új online album
+              </>
+            )}
+          </Link>
         </div>
-
-        {standaloneMode ? (
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
-            <Link
-              href={workspaceHref("projects", selectedDesign?.id)}
-              className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
-                activeWorkspaceView === "projects" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-              }`}
-            >
-              Album projektek
-              <span
-                className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
-                  activeWorkspaceView === "projects" ? "bg-white/15 text-white" : "bg-ink/5 text-graphite"
-                }`}
-              >
-                {designs.length}
-              </span>
-            </Link>
-            <Link
-              href={workspaceHref("new")}
-              className={`rounded-md border px-4 py-3 text-sm font-medium transition ${
-                activeWorkspaceView === "new" ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-ink hover:border-ink/25"
-              }`}
-            >
-              Új album indítása
-            </Link>
-          </div>
-        ) : null}
 
         {activeWorkspaceView === "new" ? (
         <form
@@ -447,7 +296,7 @@ export function AlbumDesignManager({
           <p className="text-sm font-medium text-ink">{standaloneMode ? "Még nincs önálló albumterv" : "Még nincs albumterv ehhez az ügyfélhez"}</p>
           <p className="mt-1 text-sm text-graphite/70">
             {standaloneMode
-              ? "Válaszd fent az Új album indítása fület, és hozz létre albumtervet saját képekből, meglévő galériából vagy favorite listából."
+              ? "Indíts új online albumot, és hozz létre albumtervet saját képekből, meglévő galériából vagy favorite listából."
               : "Indíts új online albumot, és hozz létre albumtervet saját képekből, meglévő galériából vagy favorite listából."}
           </p>
         </div>
@@ -537,9 +386,9 @@ export function AlbumDesignManager({
                         {design.favoriteList.email} · {design.favoriteList._count.items} kép · Leadva: {formatDate(design.favoriteList.submittedAt)}
                       </p>
                     ) : null}
-                    {design.spreads.length > 0 ? (
+                    {sourcePhotos.length > 0 || design.spreads.length > 0 ? (
                       <p className="mt-2 text-sm font-medium text-ink/80">
-                        Az album szerkesztése teljes ablakban nyílik, a képcserét pedig közös alsó képsávból tudod kezelni.
+                        Az album szerkesztése csak teljes szélességű munkanézetben érhető el.
                       </p>
                     ) : null}
                     <form
@@ -634,19 +483,13 @@ export function AlbumDesignManager({
                   </details>
                 ) : null}
 
-                {sourcePhotos.length > 0 && design.spreads.length === 0 ? (
-                  <div className="mt-5">
-                    <AlbumSpreadCreateForm customerId={customerId} designId={design.id} sourcePhotos={sourcePhotos} />
-                  </div>
-                ) : null}
-
                 {sourcePhotos.length === 0 && !usesUploadedSource ? (
                   <div className="mt-5 rounded-md bg-white px-4 py-4 text-sm text-graphite/70">
                     Ehhez az albumtervhez nincs elérhető forráskép.
                   </div>
                 ) : null}
 
-                {design.spreads.length > 0 ? (
+                {sourcePhotos.length > 0 || design.spreads.length > 0 ? (
                   <div>
                     <AlbumDesignWorkbench
                       customerId={customerId}

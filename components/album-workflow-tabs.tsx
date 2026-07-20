@@ -11,6 +11,7 @@ type AlbumWorkflowTabsProps = {
   initialMode: AlbumMode;
   initialOpen: boolean;
   backHref: string;
+  requireAlbumTab?: boolean;
   dashboardContent: ReactNode;
   editorContent: ReactNode;
   uploadContent: ReactNode;
@@ -61,6 +62,7 @@ export function AlbumWorkflowTabs({
   initialMode,
   initialOpen,
   backHref,
+  requireAlbumTab = true,
   dashboardContent,
   editorContent,
   uploadContent
@@ -73,14 +75,14 @@ export function AlbumWorkflowTabs({
   const [isOpen, setIsOpen] = useState(initialOpen);
 
   useEffect(() => {
-    if (tabParam !== "album") {
+    if (requireAlbumTab && tabParam !== "album") {
       return;
     }
 
     const nextParams = new URLSearchParams(searchString);
     setMode(albumModeParam === "upload" ? "upload" : "editor");
     setIsOpen(hasAlbumWorkflowParams(nextParams));
-  }, [albumModeParam, searchString, tabParam]);
+  }, [albumModeParam, requireAlbumTab, searchString, tabParam]);
 
   if (!isOpen) {
     return <>{dashboardContent}</>;
