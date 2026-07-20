@@ -27,13 +27,15 @@ export function CoverPositionControl({
   imageUrl,
   imageAlt,
   initialX,
-  initialY
+  initialY,
+  returnTab
 }: {
   galleryId: string;
   imageUrl: string;
   imageAlt: string;
   initialX: number;
   initialY: number;
+  returnTab?: "photos" | "appearance";
 }) {
   const [position, setPosition] = useState<CoverPosition>(() => normalizePosition(initialX, initialY));
 
@@ -58,7 +60,7 @@ export function CoverPositionControl({
   }
 
   return (
-    <section className="mb-8 rounded-md border border-ink/10 bg-white p-4">
+    <section className="rounded-md border border-ink/10 bg-white p-4">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/65">
@@ -83,6 +85,7 @@ export function CoverPositionControl({
       <form action={updateCoverPositionAction.bind(null, galleryId)} className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
         <input type="hidden" name="coverPositionX" value={position.x} />
         <input type="hidden" name="coverPositionY" value={position.y} />
+        {returnTab ? <input type="hidden" name="returnTab" value={returnTab} /> : null}
 
         <button
           type="button"

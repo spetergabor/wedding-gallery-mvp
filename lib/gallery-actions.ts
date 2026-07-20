@@ -3250,6 +3250,8 @@ export async function updateCoverPositionAction(galleryId: string, formData: For
   const { gallery } = await requireGalleryAccess(galleryId);
   const coverPositionX = formPercent(formData, "coverPositionX");
   const coverPositionY = formPercent(formData, "coverPositionY");
+  const returnTab = formData.get("returnTab");
+  const safeReturnTab = returnTab === "appearance" || returnTab === "photos" ? returnTab : null;
 
   await prisma.gallery.update({
     where: { id: galleryId },
@@ -3262,7 +3264,7 @@ export async function updateCoverPositionAction(galleryId: string, formData: For
   revalidatePath("/admin/galleries");
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);
-  redirect(`/admin/galleries/${galleryId}?coverPosition=1`);
+  redirect(`/admin/galleries/${galleryId}?coverPosition=1${safeReturnTab ? `&tab=${safeReturnTab}` : ""}`);
 }
 
 export async function movePhotoAction(galleryId: string, photoId: string, direction: "up" | "down") {
