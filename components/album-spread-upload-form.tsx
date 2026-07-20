@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useId, useMemo, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, ImagePlus, Loader2, UploadCloud } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -92,6 +92,7 @@ export function AlbumSpreadUploadForm({
   const router = useRouter();
   const inputId = useId();
   const [files, setFiles] = useState<SelectedAlbumSpread[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -107,8 +108,8 @@ export function AlbumSpreadUploadForm({
     setFiles((current) => current.map((item) => (item.clientId === clientId ? { ...item, ...patch } : item)));
   }
 
-  function handleFilesChange(event: ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = Array.from(event.target.files ?? []).filter((file) => file.size > 0).sort(compareAlbumSpreadFiles);
+  function selectFiles(fileList: FileList | File[]) {
+    const selectedFiles = Array.from(fileList).filter((file) => file.size > 0 && file.type.startsWith("image/")).sort(compareAlbumSpreadFiles);
 
     setFiles(
       selectedFiles.map((file, index) => ({
@@ -121,6 +122,44 @@ export function AlbumSpreadUploadForm({
     );
     setMessage("");
     setError("");
+  }
+
+  function handleFilesChange(event: ChangeEvent<HTMLInputElement>) {
+    selectFiles(event.target.files ?? []);
+  }
+
+  function handleDragEnter(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isUploading) {
+      setIsDragging(true);
+    }
+  }
+
+  function handleDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsDragging(false);
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+
+    if (isUploading) {
+      return;
+    }
+
+    selectFiles(event.dataTransfer.files);
   }
 
   async function uploadTarget(target: PreparedAlbumSpreadUpload) {
@@ -236,7 +275,7 @@ export function AlbumSpreadUploadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
+    <form onSubmit={handleSubmit} className="flex h-full min-h-[320px] flex-col rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
       <div className="flex items-start gap-3">
         <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-paper text-ink">
           <ImagePlus size={18} />
@@ -249,13 +288,23 @@ export function AlbumSpreadUploadForm({
 
       <label
         htmlFor={inputId}
-        className="mt-4 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-dashed border-ink/20 bg-paper px-3 py-3 text-sm transition hover:border-ink/35 hover:bg-white"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`mt-4 flex min-h-[170px] flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-5 py-6 text-center transition ${
+          isDragging ? "border-ink bg-white shadow-soft" : "border-ink/20 bg-paper hover:border-ink/35 hover:bg-white"
+        } ${isUploading ? "cursor-wait opacity-70" : ""}`}
       >
-        <span className="inline-flex min-w-0 items-center gap-2 font-medium text-ink">
-          <UploadCloud size={16} />
-          <span className="truncate">{selectedCount > 0 ? `${selectedCount} fájl kiválasztva` : "Fájlok kiválasztása"}</span>
+        <span className="inline-flex h-14 w-14 items-center justify-center rounded-md bg-white text-ink shadow-sm">
+          <UploadCloud size={22} />
         </span>
-        <span className="shrink-0 text-xs text-graphite/60">{selectedCount > 0 ? formatBytes(totalBytes) : "JPG oldalpárok"}</span>
+        <span className="text-base font-semibold text-ink">
+          {selectedCount > 0 ? `${selectedCount} fájl kiválasztva` : "Húzd ide az oldalpár képeket"}
+        </span>
+        <span className="max-w-sm text-sm leading-6 text-graphite/70">
+          {selectedCount > 0 ? `${formatBytes(totalBytes)} előkészítve feltöltésre` : "Vagy kattints ide JPG fájlok kiválasztásához."}
+        </span>
         <input
           id={inputId}
           type="file"

@@ -214,7 +214,7 @@ export function AlbumReviewManager({
                   </span>
                 </summary>
                 <div className="border-t border-ink/10 p-4">
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-stretch">
                     <div className="space-y-3">
                       <div className="rounded-lg border border-ink/10 bg-white p-4">
                         <div className="flex items-start gap-3">
