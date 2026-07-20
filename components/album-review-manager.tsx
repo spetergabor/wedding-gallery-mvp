@@ -214,53 +214,82 @@ export function AlbumReviewManager({
                   </span>
                 </summary>
                 <div className="border-t border-ink/10 p-4">
-                  <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">Ellenőrző kezelése</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-ink/10 bg-white p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-paper text-ink">
+                            <ExternalLink size={17} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-ink">Ügyfél ellenőrző link</p>
+                            <p className="mt-1 text-xs leading-5 text-graphite/70">Ezt a linket látja az ügyfél, itt tud címkézni és jóváhagyni.</p>
+                          </div>
+                        </div>
                         <a
                           href={albumLink(review.accessToken)}
                           target="_blank"
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                          className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
                         >
                           <ExternalLink size={15} />
-                          Ügyfél album link megnyitása
+                          Link megnyitása
                         </a>
-                        <form action={deleteAlbumReviewAction.bind(null, reviewCustomerId, review.id)}>
-                          <ConfirmSubmitButton
-                            title="Album ellenőrző törlése"
-                            message="Biztosan törlöd ezt az album ellenőrzőt? Az összes oldalpár és ügyfél címke is törlődik."
-                            variant="danger"
-                            className="h-10 px-3"
-                          >
-                            <Trash2 size={15} />
-                            Ellenőrző törlése
-                          </ConfirmSubmitButton>
-                        </form>
                       </div>
-                      <form action={updateAlbumReviewProjectAction.bind(null, reviewCustomerId, review.id)} className="mt-3 flex max-w-xl flex-col gap-2 sm:flex-row">
-                        <select
-                          name="projectId"
-                          defaultValue={review.projectId ?? ""}
-                          className="h-10 min-w-0 flex-1 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                        >
-                          <option value="">Nincs projekthez kapcsolva</option>
-                          {projects.map((project) => (
-                            <option key={project.id} value={project.id}>
-                              {project.customerName ? `${project.customerName} · ${project.title}` : project.title}
-                            </option>
-                          ))}
-                        </select>
-                        <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
-                          Projekt mentése
-                        </FormSubmitButton>
+
+                      <form action={updateAlbumReviewProjectAction.bind(null, reviewCustomerId, review.id)} className="rounded-lg border border-ink/10 bg-white p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-paper text-ink">
+                            <FolderKanban size={17} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-ink">Projekt kapcsolat</p>
+                            <p className="mt-1 text-xs leading-5 text-graphite/70">Kapcsold a megfelelő album munkához, hogy később is egy helyen maradjon.</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex max-w-xl flex-col gap-2 sm:flex-row">
+                          <select
+                            name="projectId"
+                            defaultValue={review.projectId ?? ""}
+                            className="h-10 min-w-0 flex-1 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                          >
+                            <option value="">Nincs projekthez kapcsolva</option>
+                            {projects.map((project) => (
+                              <option key={project.id} value={project.id}>
+                                {project.customerName ? `${project.customerName} · ${project.title}` : project.title}
+                              </option>
+                            ))}
+                          </select>
+                          <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
+                            Mentés
+                          </FormSubmitButton>
+                        </div>
                       </form>
+
+                      <div className="rounded-lg border border-red-100 bg-red-50/50 p-4">
+                        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                          <div>
+                            <p className="text-sm font-semibold text-red-800">Veszélyzóna</p>
+                            <p className="mt-1 text-xs leading-5 text-red-700/80">Az ellenőrző törlése az oldalpárokat és az ügyfél címkéit is törli.</p>
+                          </div>
+                          <form action={deleteAlbumReviewAction.bind(null, reviewCustomerId, review.id)} className="shrink-0">
+                            <ConfirmSubmitButton
+                              title="Album ellenőrző törlése"
+                              message="Biztosan törlöd ezt az album ellenőrzőt? Az összes oldalpár és ügyfél címke is törlődik."
+                              variant="danger"
+                              className="h-10 px-3"
+                            >
+                              <Trash2 size={15} />
+                              Törlés
+                            </ConfirmSubmitButton>
+                          </form>
+                        </div>
+                      </div>
                     </div>
                     <AlbumSpreadUploadForm customerId={reviewCustomerId} reviewId={review.id} />
                   </div>
 
-                {orderedSpreads.length > 0 ? (
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  {orderedSpreads.length > 0 ? (
+                    <div className="mt-5 grid gap-4 md:grid-cols-2">
                     {orderedSpreads.map((spread, spreadIndex) => (
                       <div key={spread.id} className="overflow-hidden rounded-md border border-ink/10 bg-white">
                         <div className="relative aspect-[3/2] bg-mist">
@@ -323,8 +352,22 @@ export function AlbumReviewManager({
                         </div>
                       </div>
                     ))}
-                  </div>
-                ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-5 rounded-lg border border-dashed border-ink/15 bg-paper p-5">
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-ink">
+                          <ImagePlus size={17} />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-ink">Még nincs feltöltött oldalpár</p>
+                          <p className="mt-1 text-xs leading-5 text-graphite/70">
+                            Válaszd ki a JPG oldalpárokat a feltöltőben, majd indítsd a feltöltést. Ezután itt jelennek meg az ellenőrizhető oldalak.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </details>
             );

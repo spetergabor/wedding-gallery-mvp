@@ -1,8 +1,8 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, ImagePlus, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ImagePlus, Loader2, UploadCloud } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   completeAlbumReviewSpreadUploadsAction,
@@ -90,6 +90,7 @@ export function AlbumSpreadUploadForm({
   reviewId: string;
 }) {
   const router = useRouter();
+  const inputId = useId();
   const [files, setFiles] = useState<SelectedAlbumSpread[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState("");
@@ -235,16 +236,34 @@ export function AlbumSpreadUploadForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-md border border-ink/10 bg-white p-3">
-      <label className="block space-y-2">
-        <span className="text-sm font-medium text-graphite">Oldalpár képek feltöltése</span>
+    <form onSubmit={handleSubmit} className="rounded-lg border border-ink/10 bg-white p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-paper text-ink">
+          <ImagePlus size={18} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink">Oldalpár JPG-k feltöltése</p>
+          <p className="mt-1 text-xs leading-5 text-graphite/70">Több oldalpárt is kijelölhetsz egyszerre. A fájlnevek szerint rendezve kerülnek be.</p>
+        </div>
+      </div>
+
+      <label
+        htmlFor={inputId}
+        className="mt-4 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-dashed border-ink/20 bg-paper px-3 py-3 text-sm transition hover:border-ink/35 hover:bg-white"
+      >
+        <span className="inline-flex min-w-0 items-center gap-2 font-medium text-ink">
+          <UploadCloud size={16} />
+          <span className="truncate">{selectedCount > 0 ? `${selectedCount} fájl kiválasztva` : "Fájlok kiválasztása"}</span>
+        </span>
+        <span className="shrink-0 text-xs text-graphite/60">{selectedCount > 0 ? formatBytes(totalBytes) : "JPG oldalpárok"}</span>
         <input
+          id={inputId}
           type="file"
           accept="image/*"
           multiple
           disabled={isUploading}
           onChange={handleFilesChange}
-          className="block w-full rounded-md border border-ink/15 bg-paper px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+          className="sr-only"
         />
       </label>
 
