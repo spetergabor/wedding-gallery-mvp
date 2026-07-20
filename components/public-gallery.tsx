@@ -1475,8 +1475,9 @@ export function PublicGallery({
         onContextMenu={paidGallery ? (event) => event.preventDefault() : undefined}
       >
         {stickyToolbar ? (
-          <div className="sticky top-0 z-30 w-screen border-b border-ink/10 bg-paper/95 px-5 py-2.5 shadow-[0_14px_30px_rgba(17,17,17,0.06)] backdrop-blur [margin-left:calc(50%_-_50vw)] lg:px-8">
-            <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
+          <div className="sticky top-0 z-30 isolate py-2.5">
+            <div className="pointer-events-none absolute left-1/2 top-0 z-0 h-full w-screen -translate-x-1/2 border-b border-ink/10 bg-paper/95 shadow-[0_14px_30px_rgba(17,17,17,0.06)] backdrop-blur" />
+            <div className="relative z-10 flex w-full items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink sm:text-base">{stickyToolbar.title}</p>
                 {stickyToolbar.subtitle ? (
