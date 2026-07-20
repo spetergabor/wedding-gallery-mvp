@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Plus, UserRound } from "lucide-react";
+import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Palette, Plus, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -46,17 +46,18 @@ import {
 } from "@/lib/proofing";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
-type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
+type GalleryTab = "photos" | "client" | "views" | "downloads" | "appearance" | "settings";
 
 const galleryTabs: Array<{
   key: GalleryTab;
   label: string;
-  icon: "Camera" | "Heart" | "MapPin" | "Download" | "Settings";
+  icon: "Camera" | "Heart" | "MapPin" | "Download" | "Palette" | "Settings";
 }> = [
   { key: "photos", label: "Fotók", icon: "Camera" },
   { key: "client", label: "Kedvenc listák", icon: "Heart" },
   { key: "views", label: "Megtekintések", icon: "MapPin" },
   { key: "downloads", label: "Letöltések", icon: "Download" },
+  { key: "appearance", label: "Megjelenés", icon: "Palette" },
   { key: "settings", label: "Beállítások", icon: "Settings" }
 ];
 
@@ -883,6 +884,65 @@ export default async function GalleryDetailPage({
             <ZipPreparationStatus galleryId={gallery.id} packages={publicDownloadPackages} photoCount={gallery.photos.length} canPrepareZip={canPrepareZip} />
             <DownloadLog galleryId={gallery.id} downloads={publicDownloadEntries} packages={publicDownloadPackages.slice(0, 8)} />
           </div>
+        </div>
+
+        <div data-gallery-tab-panel="appearance" hidden={activeTab !== "appearance"}>
+          <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+            <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+              <div>
+                <p className={sectionMetaClass}>Megjelenés</p>
+                <h2 className="mt-2 text-xl font-semibold text-ink">Galéria dizájn</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
+                  Itt készítjük elő, hogy a publikus galériák később többféle stílusban jelenhessenek meg. Jelenleg a mostani Spetly galéria stílus az aktív alapértelmezett dizájn.
+                </p>
+              </div>
+              <span className="inline-flex w-fit rounded-full bg-sage/15 px-3 py-1 text-xs font-medium text-sage">Aktív stílus</span>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.65fr)]">
+              <div className="rounded-lg border-2 border-ink bg-paper p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-ink text-white">
+                    <Palette size={20} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold text-ink">Spetly Classic</h3>
+                      <span className="rounded-full bg-ink px-2.5 py-1 text-xs font-medium text-white">Kiválasztva</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-graphite/70">
+                      A jelenlegi publikus galéria nézet: nagy borítókép, anchor blokkok, videók elöl, sticky navigáció és letöltési sáv. Ez marad minden meglévő galéria alap stílusa.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr]">
+                  <div className="h-24 rounded-md bg-white shadow-sm">
+                    <div className="h-9 rounded-t-md bg-ink/10" />
+                    <div className="space-y-2 p-3">
+                      <div className="h-2.5 w-2/3 rounded-full bg-ink/20" />
+                      <div className="h-2 w-1/2 rounded-full bg-ink/10" />
+                    </div>
+                  </div>
+                  <div className="h-24 rounded-md bg-white p-2 shadow-sm">
+                    <div className="grid h-full grid-cols-2 gap-2">
+                      <div className="rounded bg-ink/10" />
+                      <div className="rounded bg-ink/5" />
+                    </div>
+                  </div>
+                  <div className="h-24 rounded-md bg-white p-2 shadow-sm">
+                    <div className="h-full rounded bg-brass/15" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-dashed border-ink/15 bg-white p-5">
+                <p className="text-sm font-semibold text-ink">Későbbi stílusok helye</p>
+                <p className="mt-2 text-sm leading-6 text-graphite/70">
+                  Új dizájnok ide kerülnek majd, ugyanebben a választó felületben. Most még csak a jelenlegi stílus választható, így a publikus linkek és a meglévő galériák működése nem változik.
+                </p>
+              </div>
+            </div>
+          </section>
         </div>
 
         <div data-gallery-tab-panel="settings" hidden={activeTab !== "settings"}>

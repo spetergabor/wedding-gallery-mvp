@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Camera, Download, Heart, MapPin, Settings } from "lucide-react";
+import { Camera, Download, Heart, MapPin, Palette, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type GalleryTab = "photos" | "client" | "views" | "downloads" | "settings";
+type GalleryTab = "photos" | "client" | "views" | "downloads" | "appearance" | "settings";
 
 type GalleryTabItem = {
   key: GalleryTab;
@@ -17,6 +17,7 @@ const icons = {
   Heart,
   MapPin,
   Download,
+  Palette,
   Settings
 } satisfies Record<string, LucideIcon>;
 
@@ -86,7 +87,7 @@ export function GalleryTabController({
 
   return (
     <div className="overflow-hidden rounded-md border border-ink/12 bg-white">
-      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white md:grid-cols-5" aria-label="Galéria részletek">
+      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white md:grid-cols-6" aria-label="Galéria részletek">
         {tabs.map((tab) => {
           const Icon = icons[tab.icon];
           const isActive = activeTab === tab.key;
