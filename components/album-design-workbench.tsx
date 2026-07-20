@@ -544,21 +544,21 @@ export function AlbumDesignWorkbench({
                     </>
                   ) : null}
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <div className="inline-flex h-10 items-center rounded-md border border-white/15 bg-white/10 p-1 text-sm font-medium text-white">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <div className="inline-flex h-9 items-center rounded-md border border-white/15 bg-white/10 p-0.5 text-sm font-medium text-white">
                     <button
                       type="button"
                       onClick={() => adjustWorkbenchZoom(-WORKBENCH_ZOOM_STEP)}
                       disabled={workbenchZoom <= MIN_WORKBENCH_ZOOM}
-                      className="inline-flex size-8 items-center justify-center rounded-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+                      className="inline-flex size-8 items-center justify-center rounded transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="Kicsinyítés"
                     >
-                      <ZoomOut size={16} />
+                      <ZoomOut size={15} />
                     </button>
                     <button
                       type="button"
                       onClick={resetWorkbenchZoom}
-                      className="inline-flex h-8 min-w-14 items-center justify-center rounded-md px-2 text-xs tabular-nums text-white/85 transition hover:bg-white/15"
+                      className="inline-flex h-8 min-w-12 items-center justify-center rounded px-2 text-xs tabular-nums text-white/85 transition hover:bg-white/15"
                       aria-label="Zoom visszaállítása"
                     >
                       {formatWorkbenchZoom(workbenchZoom)}
@@ -567,10 +567,10 @@ export function AlbumDesignWorkbench({
                       type="button"
                       onClick={() => adjustWorkbenchZoom(WORKBENCH_ZOOM_STEP)}
                       disabled={workbenchZoom >= MAX_WORKBENCH_ZOOM}
-                      className="inline-flex size-8 items-center justify-center rounded-md transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+                      className="inline-flex size-8 items-center justify-center rounded transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
                       aria-label="Nagyítás"
                     >
-                      <ZoomIn size={16} />
+                      <ZoomIn size={15} />
                     </button>
                   </div>
                   {changedSpreadIds.length > 0 ? (
@@ -580,30 +580,30 @@ export function AlbumDesignWorkbench({
                       ))}
                       <FormSubmitButton
                         variant="secondary"
-                        className="h-10 border-white/20 bg-white px-3 text-ink shadow-none hover:bg-white/90"
+                        className="!h-9 !px-3 border-white/20 bg-white text-sm text-ink shadow-none hover:bg-white/90"
                         pendingLabel="Mentés..."
                       >
-                        <Save size={15} />
+                        <Save size={14} />
                         Összes mentése
                       </FormSubmitButton>
                     </form>
                   ) : null}
                   <a
                     href={`/admin/album-designs/${designId}/export`}
-                    className="inline-flex size-10 items-center justify-center rounded-md border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
+                    className="inline-flex size-9 items-center justify-center rounded-md border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
                     aria-label="Összes oldalpár exportálása"
                     title="Összes export"
                   >
-                    <Download size={19} />
+                    <Download size={18} />
                   </a>
                   <button
                     type="button"
                     onClick={() => setIsEditorOpen(false)}
-                    className="inline-flex size-10 items-center justify-center rounded-md border border-red-300/25 bg-red-500/10 text-red-200 transition hover:border-red-200/50 hover:bg-red-500/20 hover:text-red-100"
+                    className="inline-flex size-9 items-center justify-center rounded-md border border-red-300/25 bg-red-500/10 text-red-200 transition hover:border-red-200/50 hover:bg-red-500/20 hover:text-red-100"
                     aria-label="Szerkesztő bezárása"
                     title="Bezárás"
                   >
-                    <X size={21} />
+                    <X size={19} />
                   </button>
                 </div>
               </div>
