@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { PhotoUploadForm } from "@/components/photo-upload-form";
 import {
   createEmptyAlbumDesignSpreadInlineAction,
   deleteAlbumDesignSpreadAction,
@@ -14,6 +15,7 @@ import {
   updateAlbumDesignSpreadLayoutOnlyAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
+import { GALLERY_MODE_ALBUM_SOURCE, PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
 
 type FavoritePhoto = {
   id: string;
@@ -171,6 +173,8 @@ export function AlbumDesignWorkbench({
   designId,
   spreads,
   sourcePhotos,
+  sourceGalleryId = null,
+  canUploadSourceImages = false,
   initialEditorOpen = false,
   initialActiveSpreadId = null
 }: {
@@ -178,6 +182,8 @@ export function AlbumDesignWorkbench({
   designId: string;
   spreads: AlbumSpread[];
   sourcePhotos: FavoritePhoto[];
+  sourceGalleryId?: string | null;
+  canUploadSourceImages?: boolean;
   initialEditorOpen?: boolean;
   initialActiveSpreadId?: string | null;
 }) {
@@ -239,6 +245,8 @@ export function AlbumDesignWorkbench({
 
     return searchedPhotos.filter((photo) => !usedPhotoIdSet.has(photo.id) || photo.id === activeSlotItem?.photo.id);
   }, [activeSlotItem?.photo.id, photoQuery, showUnusedOnly, sourcePhotos, usedPhotoIdSet]);
+  const sourceUploadGalleryId = canUploadSourceImages ? sourceGalleryId : null;
+  const sourcePhotoLabel = canUploadSourceImages ? "albumkép" : "forráskép";
 
   useEffect(() => {
     setLocalSpreads(spreads);
@@ -494,7 +502,7 @@ export function AlbumDesignWorkbench({
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Album szerkesztő</p>
             <h4 className="mt-1 text-lg font-semibold text-ink">Teljes szélességű szerkesztő</h4>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
-              {orderedSpreads.length} oldalpár · {sourcePhotos.length} forráskép. Oldalpárt hozzáadni, layoutot cserélni, képet mozgatni és menteni csak a teljes munkanézetben lehet.
+              {orderedSpreads.length} oldalpár · {sourcePhotos.length} {sourcePhotoLabel}. Oldalpárt hozzáadni, layoutot cserélni, képet mozgatni és menteni csak a teljes munkanézetben lehet.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -642,11 +650,51 @@ export function AlbumDesignWorkbench({
                   className="mx-auto max-w-[1500px] origin-top space-y-4 pb-6 transition-[filter]"
                   style={{ zoom: workbenchZoom } as CSSProperties}
                 >
+                  {sourceUploadGalleryId ? (
+                    <section
+                      className={`rounded-lg border bg-white p-4 shadow-sm ${
+                        sourcePhotos.length === 0 ? "border-brass/35" : "border-ink/10"
+                      }`}
+                    >
+                      <details open={sourcePhotos.length === 0}>
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-md px-1 py-1 [&::-webkit-details-marker]:hidden">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-ink">
+                              <UploadCloud size={17} />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block text-base font-semibold text-ink">Album képkészlet</span>
+                              <span className="mt-1 block text-sm leading-5 text-graphite/65">
+                                Tölts fel képeket közvetlenül ehhez az albumtervhez. Nem jön létre külön publikus galéria.
+                              </span>
+                            </span>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                            {sourcePhotos.length} kép
+                          </span>
+                        </summary>
+                        <div className="mt-4 border-t border-ink/10 pt-4">
+                          <PhotoUploadForm
+                            galleryId={sourceUploadGalleryId}
+                            galleryMode={GALLERY_MODE_ALBUM_SOURCE}
+                            defaultDeliveryStage={PHOTO_DELIVERY_STAGE_FINAL}
+                            deliveryStageMode="fixed"
+                            framed={false}
+                            title="Képek feltöltése az albumhoz"
+                            description="Ezek a képek csak ennek az albumtervnek a képkészletében jelennek meg. Feltöltés után alul, a képsávban választhatók."
+                          />
+                        </div>
+                      </details>
+                    </section>
+                  ) : null}
+
                   {orderedSpreads.length === 0 ? (
                     <section className="rounded-lg border border-dashed border-ink/15 bg-white p-8 text-center shadow-sm">
                       <p className="text-lg font-semibold text-ink">Még nincs oldalpár</p>
                       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-graphite/65">
-                        Hozz létre egy üres oldalpárt, majd válassz layoutot és képeket ebben a teljes munkanézetben.
+                        {canUploadSourceImages && sourcePhotos.length === 0
+                          ? "Tölts fel képeket az Album képkészlet blokkban, vagy kezdj egy üres oldalpárral és később tölts fel fotókat."
+                          : "Hozz létre egy üres oldalpárt, majd válassz layoutot és képeket ebben a teljes munkanézetben."}
                       </p>
                       <div className="mx-auto mt-4 max-w-sm lg:hidden">
                         <SidebarSpreadCreateForm
@@ -895,7 +943,9 @@ export function AlbumDesignWorkbench({
 
               {sourcePhotos.length === 0 ? (
                 <div className="mt-3 rounded-md border border-white/10 bg-white/10 px-3 py-3 text-sm text-white/70">
-                  Nincs elérhető forráskép ehhez az albumtervhez.
+                  {canUploadSourceImages
+                    ? "Tölts fel képeket fent az Album képkészlet blokkban. Feltöltés után itt jelennek meg az aktív slothoz választható fotók."
+                    : "Nincs elérhető forráskép ehhez az albumtervhez."}
                 </div>
               ) : null}
 

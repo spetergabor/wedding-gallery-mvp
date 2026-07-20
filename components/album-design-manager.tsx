@@ -3,7 +3,6 @@ import { ArrowLeft, FolderKanban, LayoutTemplate, Plus, Send, Trash2 } from "luc
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
-import { PhotoUploadForm } from "@/components/photo-upload-form";
 import {
   createAlbumDesignAction,
   deleteAlbumDesignAction,
@@ -11,7 +10,7 @@ import {
   updateAlbumDesignAssignmentAction
 } from "@/lib/album-design-actions";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { GALLERY_MODE_ALBUM_SOURCE, PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
+import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
 
 type FavoritePhoto = {
   id: string;
@@ -386,9 +385,9 @@ export function AlbumDesignManager({
                         {design.favoriteList.email} · {design.favoriteList._count.items} kép · Leadva: {formatDate(design.favoriteList.submittedAt)}
                       </p>
                     ) : null}
-                    {sourcePhotos.length > 0 || design.spreads.length > 0 ? (
+                    {sourcePhotos.length > 0 || design.spreads.length > 0 || usesUploadedSource ? (
                       <p className="mt-2 text-sm font-medium text-ink/80">
-                        Az album szerkesztése csak teljes szélességű munkanézetben érhető el.
+                        A feltöltés és az album szerkesztése a teljes szélességű munkanézetben történik.
                       </p>
                     ) : null}
                     <form
@@ -460,42 +459,21 @@ export function AlbumDesignManager({
                   </div>
                 </div>
 
-                {usesUploadedSource && design.sourceGallery ? (
-                  <details
-                    open={sourcePhotos.length === 0 && design.spreads.length === 0}
-                    className="mt-5 rounded-lg border border-dashed border-ink/20 bg-white"
-                  >
-                    <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-4 text-sm font-medium text-ink transition hover:bg-paper">
-                      <span>Forrásképek feltöltése</span>
-                      <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs text-graphite">{sourcePhotos.length} kép</span>
-                    </summary>
-                    <div className="border-t border-ink/10 p-4">
-                      <PhotoUploadForm
-                        galleryId={design.sourceGallery.id}
-                        galleryMode={GALLERY_MODE_ALBUM_SOURCE}
-                        defaultDeliveryStage={PHOTO_DELIVERY_STAGE_FINAL}
-                        deliveryStageMode="fixed"
-                        framed={false}
-                        title="Album forrásképek feltöltése"
-                        description="Töltsd fel azokat a fotókat, amikből az album oldalpárjait szeretnéd megtervezni. Feltöltés után az oldal frissül, és a képek választhatók lesznek az oldalpárokhoz."
-                      />
-                    </div>
-                  </details>
-                ) : null}
-
                 {sourcePhotos.length === 0 && !usesUploadedSource ? (
                   <div className="mt-5 rounded-md bg-white px-4 py-4 text-sm text-graphite/70">
                     Ehhez az albumtervhez nincs elérhető forráskép.
                   </div>
                 ) : null}
 
-                {sourcePhotos.length > 0 || design.spreads.length > 0 ? (
+                {sourcePhotos.length > 0 || design.spreads.length > 0 || usesUploadedSource ? (
                   <div>
                     <AlbumDesignWorkbench
                       customerId={customerId}
                       designId={design.id}
                       spreads={design.spreads}
                       sourcePhotos={sourcePhotos}
+                      sourceGalleryId={usesUploadedSource ? design.sourceGallery?.id ?? null : null}
+                      canUploadSourceImages={usesUploadedSource}
                       initialEditorOpen={initialEditorOpen && design.id === selectedDesign?.id}
                       initialActiveSpreadId={design.id === selectedDesign?.id ? activeSpreadId : null}
                     />

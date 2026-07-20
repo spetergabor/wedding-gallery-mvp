@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Plus, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
@@ -23,7 +23,7 @@ import { ViewLocationMap } from "@/components/view-location-map";
 import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
-import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
+import { adminOwnedWhere, albumDesignOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { publicGalleryUrl } from "@/lib/email";
@@ -38,6 +38,7 @@ import { prisma } from "@/lib/prisma";
 import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import {
+  GALLERY_MODE_ALBUM_SOURCE,
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
   defaultPhotoDeliveryStageForGalleryMode,
@@ -356,6 +357,32 @@ export default async function GalleryDetailPage({
 
   if (!gallery) {
     notFound();
+  }
+
+  if (gallery.galleryMode === GALLERY_MODE_ALBUM_SOURCE) {
+    const sourceDesign = await prisma.albumDesign.findFirst({
+      where: {
+        sourceGalleryId: gallery.id,
+        ...albumDesignOwnedWhere(admin)
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        customerId: true
+      }
+    });
+
+    if (sourceDesign?.customerId) {
+      redirect(
+        `/admin/clients/${sourceDesign.customerId}?tab=album&albumMode=editor&albumWorkspace=projects&albumDesignId=${sourceDesign.id}&albumEditor=1`
+      );
+    }
+
+    if (sourceDesign) {
+      redirect(`/admin/albums?albumMode=editor&albumWorkspace=projects&albumDesignId=${sourceDesign.id}&albumEditor=1`);
+    }
+
+    redirect("/admin/albums");
   }
 
   const stripeIntegration = await prisma.stripeConnectIntegration.findUnique({
