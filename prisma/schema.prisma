@@ -806,6 +806,7 @@ model Gallery {
   eventDate    DateTime?
   isActive     Boolean  @default(false)
   galleryMode  String   @default("full")
+  galleryDesign String  @default("classic")
   deliveryMode String   @default("free_download")
   salePriceCents Int    @default(0)
   saleUnitPriceCents Int @default(0)
@@ -846,6 +847,7 @@ model Gallery {
   @@index([customerId])
   @@index([projectId])
   @@index([galleryMode])
+  @@index([galleryDesign])
   @@index([deliveryMode])
   @@index([proofingStatus])
 }

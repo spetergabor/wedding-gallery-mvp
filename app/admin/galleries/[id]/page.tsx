@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { Camera, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Palette, Plus, UserRound } from "lucide-react";
+import { Camera, Check, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Palette, Plus, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -32,9 +32,11 @@ import {
   createGallerySectionAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
+  updateGalleryDesignAction,
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
+import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
 import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import {
@@ -166,6 +168,8 @@ function getZipHandoffState(
 function getActiveTab(flags: {
   activated?: string;
   archived?: string;
+  coverPosition?: string;
+  design?: string;
   deliveryEmail?: string;
   zip?: string;
   error?: string;
@@ -176,6 +180,10 @@ function getActiveTab(flags: {
 }): GalleryTab {
   if (galleryTabs.some((tab) => tab.key === flags.tab)) {
     return flags.tab as GalleryTab;
+  }
+
+  if (flags.coverPosition || flags.design) {
+    return "appearance";
   }
 
   if (flags.proofingInvite || flags.deliveryEmail) {
@@ -199,6 +207,7 @@ export default async function GalleryDetailPage({
     archived?: string;
     coverPosition?: string;
     coverSet?: string;
+    design?: string;
     deliveryEmail?: string;
     downloadEmail?: string;
     zip?: string;
@@ -436,6 +445,9 @@ export default async function GalleryDetailPage({
   );
   const submittedListCount = gallery.favoriteLists.filter((list) => list.submittedAt).length;
   const paidGallery = galleryDeliveryUsesPayment(gallery.deliveryMode);
+  const selectedGalleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
+  const selectedGalleryDesignLabel =
+    GALLERY_DESIGNS.find((design) => design.key === selectedGalleryDesign)?.label ?? "Spetly Classic";
   const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
   const canPrepareZip =
     (paidGallery || (gallery.downloadsEnabled && galleryDeliveryAllowsDownloads(gallery.deliveryMode))) &&
@@ -575,6 +587,7 @@ export default async function GalleryDetailPage({
         {flags.zip === "proofing-pending" ? <Alert title="A galéria még nem került átadásra." variant="error" /> : null}
         {flags.coverSet ? <Alert title="Borítókép beállítva." variant="success" /> : null}
         {flags.coverPosition ? <Alert title="Borítókép pozíciója mentve." variant="success" /> : null}
+        {flags.design ? <Alert title="Galéria stílus mentve." variant="success" /> : null}
         {flags.proofingInvite === "sent" ? <Alert title="Válogató link elküldve emailben." variant="success" /> : null}
         {flags.proofingInvite === "missing-email" ? (
           <Alert title="Hiányzik az ügyfél email címe." variant="error">
@@ -891,62 +904,102 @@ export default async function GalleryDetailPage({
         <div data-gallery-tab-panel="appearance" hidden={activeTab !== "appearance"}>
           <div className="space-y-6">
             {coverPositionControlProps ? <CoverPositionControl {...coverPositionControlProps} returnTab="appearance" /> : null}
-            <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+            <form action={updateGalleryDesignAction.bind(null, gallery.id)} className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
               <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
                 <div>
                   <p className={sectionMetaClass}>Megjelenés</p>
                   <h2 className="mt-2 text-xl font-semibold text-ink">Galéria dizájn</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
-                    Itt készítjük elő, hogy a publikus galériák később többféle stílusban jelenhessenek meg. Jelenleg a mostani Spetly galéria stílus az aktív alapértelmezett dizájn.
+                    Válaszd ki, milyen felépítéssel jelenjen meg a publikus galéria. Most csak a választást készítjük elő, a publikus megjelenítés külön lépésben kapja meg az új stílust.
                   </p>
                 </div>
-                <span className="inline-flex w-fit rounded-full bg-sage/15 px-3 py-1 text-xs font-medium text-sage">Aktív stílus</span>
+                <span className="inline-flex w-fit rounded-full bg-sage/15 px-3 py-1 text-xs font-medium text-sage">
+                  {selectedGalleryDesignLabel}
+                </span>
               </div>
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.65fr)]">
-                <div className="rounded-lg border-2 border-ink bg-paper p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                    <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-ink text-white">
-                      <Palette size={20} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-ink">Spetly Classic</h3>
-                        <span className="rounded-full bg-ink px-2.5 py-1 text-xs font-medium text-white">Kiválasztva</span>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-graphite/70">
-                        A jelenlegi publikus galéria nézet: nagy borítókép, anchor blokkok, videók elöl, sticky navigáció és letöltési sáv. Ez marad minden meglévő galéria alap stílusa.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-[1.2fr_0.8fr_0.8fr]">
-                    <div className="h-24 rounded-md bg-white shadow-sm">
-                      <div className="h-9 rounded-t-md bg-ink/10" />
-                      <div className="space-y-2 p-3">
-                        <div className="h-2.5 w-2/3 rounded-full bg-ink/20" />
-                        <div className="h-2 w-1/2 rounded-full bg-ink/10" />
-                      </div>
-                    </div>
-                    <div className="h-24 rounded-md bg-white p-2 shadow-sm">
-                      <div className="grid h-full grid-cols-2 gap-2">
-                        <div className="rounded bg-ink/10" />
-                        <div className="rounded bg-ink/5" />
-                      </div>
-                    </div>
-                    <div className="h-24 rounded-md bg-white p-2 shadow-sm">
-                      <div className="h-full rounded bg-brass/15" />
-                    </div>
-                  </div>
-                </div>
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                {GALLERY_DESIGNS.map((design) => {
+                  const selected = selectedGalleryDesign === design.key;
+                  const coverSticky = design.key === GALLERY_DESIGN_COVER_STICKY;
 
-                <div className="rounded-lg border border-dashed border-ink/15 bg-white p-5">
-                  <p className="text-sm font-semibold text-ink">Későbbi stílusok helye</p>
-                  <p className="mt-2 text-sm leading-6 text-graphite/70">
-                    Új dizájnok ide kerülnek majd, ugyanebben a választó felületben. Most még csak a jelenlegi stílus választható, így a publikus linkek és a meglévő galériák működése nem változik.
-                  </p>
-                </div>
+                  return (
+                    <label key={design.key} className="block cursor-pointer">
+                      <input
+                        type="radio"
+                        name="galleryDesign"
+                        value={design.key}
+                        defaultChecked={selected}
+                        className="peer sr-only"
+                      />
+                      <div className="rounded-lg border border-ink/10 bg-white p-4 transition peer-checked:border-ink peer-checked:bg-paper peer-checked:shadow-soft">
+                        <div className="flex items-start gap-3">
+                          <span
+                            className={`flex size-11 shrink-0 items-center justify-center rounded-md ${
+                              selected ? "bg-ink text-white" : "bg-paper text-graphite"
+                            }`}
+                          >
+                            <Palette size={20} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className={sectionMetaClass}>{design.eyebrow}</p>
+                            <h3 className="mt-1 text-lg font-semibold text-ink">{design.label}</h3>
+                            <p className="mt-2 text-sm leading-6 text-graphite/70">{design.description}</p>
+                          </div>
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                              selected ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"
+                            }`}
+                          >
+                            {selected ? <Check size={13} /> : null}
+                            {selected ? "Kiválasztva" : "Választható"}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white">
+                          {coverSticky ? (
+                            <div className="space-y-2 p-3">
+                              <div className="h-24 rounded bg-ink/15" />
+                              <div className="flex items-center justify-between rounded border border-ink/10 bg-white px-3 py-2">
+                                <div className="h-3 w-28 rounded bg-ink/70" />
+                                <div className="flex gap-1.5">
+                                  <div className="size-7 rounded border border-ink/10" />
+                                  <div className="size-7 rounded border border-ink/10" />
+                                  <div className="size-7 rounded border border-ink/10" />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="h-16 rounded bg-paper" />
+                                <div className="h-20 rounded bg-paper" />
+                                <div className="h-14 rounded bg-paper" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 p-3">
+                              <div className="h-20 rounded bg-ink/10" />
+                              <div className="mx-auto h-4 w-32 rounded bg-ink/70" />
+                              <div className="mx-auto flex w-fit gap-1.5">
+                                <div className="h-7 w-16 rounded border border-ink/10" />
+                                <div className="h-7 w-16 rounded border border-ink/10" />
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="h-16 rounded bg-paper" />
+                                <div className="h-20 rounded bg-paper" />
+                                <div className="h-14 rounded bg-paper" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
-            </section>
+
+              <div className="mt-6 flex justify-end border-t border-ink/10 pt-5">
+                <FormSubmitButton pendingLabel="Mentés...">Stílus mentése</FormSubmitButton>
+              </div>
+            </form>
           </div>
         </div>
 

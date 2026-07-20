@@ -42,6 +42,7 @@ import {
   galleryDeliveryUsesPayment,
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
+import { normalizeGalleryDesign } from "@/lib/gallery-design";
 import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery-sales";
 import { parseGallerySalePricingTiersFromForm, parsePriceCents } from "@/lib/gallery-sale-pricing";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
@@ -3265,6 +3266,21 @@ export async function updateCoverPositionAction(galleryId: string, formData: For
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);
   redirect(`/admin/galleries/${galleryId}?coverPosition=1${safeReturnTab ? `&tab=${safeReturnTab}` : ""}`);
+}
+
+export async function updateGalleryDesignAction(galleryId: string, formData: FormData) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+  const galleryDesign = normalizeGalleryDesign(formData.get("galleryDesign"));
+
+  await prisma.gallery.update({
+    where: { id: galleryId },
+    data: { galleryDesign }
+  });
+
+  revalidatePath("/admin/galleries");
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=appearance&design=1`);
 }
 
 export async function movePhotoAction(galleryId: string, photoId: string, direction: "up" | "down") {
