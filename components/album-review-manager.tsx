@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { CheckCircle2, ExternalLink, FolderKanban, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ExternalLink, FolderKanban, ImagePlus, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { AlbumSpreadUploadForm } from "@/components/album-spread-upload-form";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -172,9 +172,9 @@ export function AlbumReviewManager({
             const reviewCustomerId = review.customerId;
 
             return (
-              <article id={`album-review-${review.id}`} key={review.id} className="scroll-mt-28 rounded-lg border border-ink/10 bg-paper p-4">
-                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-                  <div>
+              <details id={`album-review-${review.id}`} key={review.id} className="group scroll-mt-28 rounded-lg border border-ink/10 bg-paper shadow-sm">
+                <summary className="flex cursor-pointer list-none flex-col justify-between gap-3 p-4 transition hover:bg-white/70 lg:flex-row lg:items-center [&::-webkit-details-marker]:hidden">
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-semibold text-ink">{review.title}</h3>
                       <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
@@ -206,47 +206,58 @@ export function AlbumReviewManager({
                       ) : null}
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">Létrehozva: {formatDate(review.createdAt)}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <a
-                        href={albumLink(review.accessToken)}
-                        target="_blank"
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-                      >
-                        <ExternalLink size={15} />
-                        Ügyfél album link megnyitása
-                      </a>
-                      <form action={deleteAlbumReviewAction.bind(null, reviewCustomerId, review.id)}>
-                        <ConfirmSubmitButton
-                          title="Album ellenőrző törlése"
-                          message="Biztosan törlöd ezt az album ellenőrzőt? Az összes oldalpár és ügyfél címke is törlődik."
-                          variant="danger"
-                          className="h-10 px-3"
+                  </div>
+                  <span className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition group-open:border-ink/25">
+                    <span className="group-open:hidden">Megnyitás</span>
+                    <span className="hidden group-open:inline">Bezárás</span>
+                    <ChevronDown size={15} className="transition group-open:rotate-180" />
+                  </span>
+                </summary>
+                <div className="border-t border-ink/10 p-4">
+                  <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink">Ellenőrző kezelése</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <a
+                          href={albumLink(review.accessToken)}
+                          target="_blank"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
                         >
-                          <Trash2 size={15} />
-                          Ellenőrző törlése
-                        </ConfirmSubmitButton>
+                          <ExternalLink size={15} />
+                          Ügyfél album link megnyitása
+                        </a>
+                        <form action={deleteAlbumReviewAction.bind(null, reviewCustomerId, review.id)}>
+                          <ConfirmSubmitButton
+                            title="Album ellenőrző törlése"
+                            message="Biztosan törlöd ezt az album ellenőrzőt? Az összes oldalpár és ügyfél címke is törlődik."
+                            variant="danger"
+                            className="h-10 px-3"
+                          >
+                            <Trash2 size={15} />
+                            Ellenőrző törlése
+                          </ConfirmSubmitButton>
+                        </form>
+                      </div>
+                      <form action={updateAlbumReviewProjectAction.bind(null, reviewCustomerId, review.id)} className="mt-3 flex max-w-xl flex-col gap-2 sm:flex-row">
+                        <select
+                          name="projectId"
+                          defaultValue={review.projectId ?? ""}
+                          className="h-10 min-w-0 flex-1 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                        >
+                          <option value="">Nincs projekthez kapcsolva</option>
+                          {projects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.customerName ? `${project.customerName} · ${project.title}` : project.title}
+                            </option>
+                          ))}
+                        </select>
+                        <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
+                          Projekt mentése
+                        </FormSubmitButton>
                       </form>
                     </div>
-                    <form action={updateAlbumReviewProjectAction.bind(null, reviewCustomerId, review.id)} className="mt-3 flex max-w-xl flex-col gap-2 sm:flex-row">
-                      <select
-                        name="projectId"
-                        defaultValue={review.projectId ?? ""}
-                        className="h-10 min-w-0 flex-1 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                      >
-                        <option value="">Nincs projekthez kapcsolva</option>
-                        {projects.map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.customerName ? `${project.customerName} · ${project.title}` : project.title}
-                          </option>
-                        ))}
-                      </select>
-                      <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
-                        Projekt mentése
-                      </FormSubmitButton>
-                    </form>
+                    <AlbumSpreadUploadForm customerId={reviewCustomerId} reviewId={review.id} />
                   </div>
-                  <AlbumSpreadUploadForm customerId={reviewCustomerId} reviewId={review.id} />
-                </div>
 
                 {orderedSpreads.length > 0 ? (
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -314,7 +325,8 @@ export function AlbumReviewManager({
                     ))}
                   </div>
                 ) : null}
-              </article>
+                </div>
+              </details>
             );
           })}
         </div>
