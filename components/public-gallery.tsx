@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
-import { Check, ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, ShieldCheck, ShoppingCart, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, Share2, ShieldCheck, ShoppingCart, X } from "lucide-react";
 import { Button } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -310,6 +310,12 @@ type GallerySaleSettings = {
   fullGalleryPurchased?: boolean;
 };
 
+type StickyToolbarSettings = {
+  title: string;
+  subtitle?: string | null;
+  sharePath: string;
+};
+
 type FavoriteListState = {
   id: string;
   name: string;
@@ -476,7 +482,8 @@ export function PublicGallery({
   favoritesEnabled = true,
   favoriteMode = "favorites",
   language = "de",
-  mobileColumns = 1
+  mobileColumns = 1,
+  stickyToolbar = null
 }: {
   galleryId: string;
   gallerySlug: string;
@@ -490,6 +497,7 @@ export function PublicGallery({
   favoriteMode?: "favorites" | "proofing";
   language?: CustomerLanguage;
   mobileColumns?: number;
+  stickyToolbar?: StickyToolbarSettings | null;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -519,6 +527,7 @@ export function PublicGallery({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [cartPhotoIds, setCartPhotoIds] = useState<string[]>([]);
   const [isSelectionSummaryOpen, setIsSelectionSummaryOpen] = useState(false);
+  const [shareState, setShareState] = useState<"idle" | "copied" | "failed">("idle");
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
   const copy = GALLERY_COPY[language];
   const paidGallery = normalizeGalleryDeliveryMode(deliveryMode) === GALLERY_DELIVERY_PAID;
@@ -1191,6 +1200,32 @@ export function PublicGallery({
     });
   }
 
+  async function shareGallery() {
+    if (!stickyToolbar) {
+      return;
+    }
+
+    const shareUrl = new URL(stickyToolbar.sharePath, window.location.origin).toString();
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: stickyToolbar.title,
+          text: stickyToolbar.subtitle ?? undefined,
+          url: shareUrl
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(shareUrl);
+      setShareState("copied");
+      window.setTimeout(() => setShareState("idle"), 1600);
+    } catch {
+      setShareState("failed");
+      window.setTimeout(() => setShareState("idle"), 1600);
+    }
+  }
+
   function renderPaidDownloadStatus() {
     if (!sale?.purchaseSessionId || sale.purchaseStatus !== "success") {
       return null;
@@ -1439,6 +1474,86 @@ export function PublicGallery({
         className="space-y-10"
         onContextMenu={paidGallery ? (event) => event.preventDefault() : undefined}
       >
+        {stickyToolbar ? (
+          <div className="sticky top-0 z-30 -mx-5 border-b border-ink/10 bg-paper/95 px-5 py-2.5 shadow-[0_14px_30px_rgba(17,17,17,0.06)] backdrop-blur lg:-mx-8 lg:px-8">
+            <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ink sm:text-base">{stickyToolbar.title}</p>
+                {stickyToolbar.subtitle ? (
+                  <p className="mt-0.5 truncate text-xs text-graphite/65">{stickyToolbar.subtitle}</p>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {hasPaidCartBar ? (
+                  <a
+                    href="#paid-gallery-checkout"
+                    title={copy.photoCartTitle}
+                    aria-label={copy.photoCartTitle}
+                    className={`relative inline-flex size-10 items-center justify-center rounded-md border text-sm transition ${
+                      cartPhotoIds.length > 0
+                        ? "border-ink bg-ink text-white hover:bg-graphite"
+                        : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
+                    }`}
+                  >
+                    <ShoppingCart size={17} />
+                    {cartPhotoIds.length > 0 ? (
+                      <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-brass px-1 text-[10px] font-semibold leading-5 text-white">
+                        {cartPhotoIds.length}
+                      </span>
+                    ) : null}
+                  </a>
+                ) : null}
+                {favoritesEnabled ? (
+                  <button
+                    type="button"
+                    title={proofingSelection ? copy.selection : copy.favorites}
+                    aria-label={proofingSelection ? copy.selection : copy.favorites}
+                    onClick={toggleFavoritesFilter}
+                    disabled={favoriteCount === 0}
+                    className={`relative inline-flex size-10 items-center justify-center rounded-md transition ${
+                      showFavoritesOnly ? "bg-ink text-white" : "bg-white text-graphite hover:bg-ink/5 hover:text-ink"
+                    } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
+                  >
+                    <Heart size={17} fill={showFavoritesOnly ? "currentColor" : "none"} />
+                    {favoriteCount > 0 ? (
+                      <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-brass px-1 text-[10px] font-semibold leading-5 text-white">
+                        {favoriteCount}
+                      </span>
+                    ) : null}
+                  </button>
+                ) : null}
+                {canDownload ? (
+                  <button
+                    type="button"
+                    title={copy.download}
+                    aria-label={copy.download}
+                    onClick={() => setIsEmailOpen(true)}
+                    disabled={isZipping || photos.length === 0}
+                    className="inline-flex size-10 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Download size={17} />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  title={shareState === "copied" ? "Link copied" : shareState === "failed" ? "Share failed" : "Share"}
+                  aria-label={shareState === "copied" ? "Link copied" : "Share gallery"}
+                  onClick={() => void shareGallery()}
+                  className={`inline-flex size-10 items-center justify-center rounded-md border transition ${
+                    shareState === "copied"
+                      ? "border-sage/25 bg-sage/10 text-sage"
+                      : shareState === "failed"
+                        ? "border-red-200 bg-red-50 text-red-700"
+                        : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
+                  }`}
+                >
+                  <Share2 size={17} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {favoritesEnabled && favoriteEmail ? (
           <div className="col-span-full mb-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
             <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -1739,7 +1854,7 @@ export function PublicGallery({
         ) : null}
       </section>
 
-      {favoritesEnabled || canDownload || hasPaidCartBar ? (
+      {!stickyToolbar && (favoritesEnabled || canDownload || hasPaidCartBar) ? (
         <div className="fixed bottom-3 left-1/2 z-20 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-lg border border-ink/10 bg-white/90 px-3 py-2 shadow-soft backdrop-blur sm:bottom-5 sm:flex-nowrap sm:gap-3 sm:py-3">
           <span className="hidden items-center gap-2 px-2 text-sm text-graphite sm:flex">
             <Images size={16} />

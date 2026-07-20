@@ -22,6 +22,7 @@ import {
   galleryPurchasePhotoIds
 } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
+import { GALLERY_DESIGN_COVER_STICKY, normalizeGalleryDesign } from "@/lib/gallery-design";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -155,6 +156,7 @@ export default async function PublicGalleryPage({
   const logoHeight = Math.min(140, Math.max(32, settings?.logoHeight ?? 80));
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
+  const galleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
   const contactText = language === "hu" ? "Kérdésed van a galériával kapcsolatban?" : "Fragen zur Galerie?";
   const contactLinks: ContactQuickLink[] = [
@@ -258,6 +260,103 @@ export default async function PublicGalleryPage({
               {language === "hu" ? "Galéria megnyitása" : "Galerie öffnen"}
             </FormSubmitButton>
           </form>
+        </section>
+      </main>
+    );
+  }
+
+  const saleSettings = paidGallery
+    ? {
+        priceCents: gallery.salePriceCents,
+        unitPriceCents: gallery.saleUnitPriceCents,
+        pricingTiers: normalizeGallerySalePricingTiers(gallery.salePricingTiers),
+        currency: gallery.saleCurrency,
+        priceLabel: formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency, dateLocaleForCustomer(language)),
+        purchaseStatus: flags.purchase ?? null,
+        purchaseSessionId: flags.session_id ?? null,
+        purchaseDownload: paidPurchaseDownloadState?.paid ? paidPurchaseDownloadState : null,
+        purchasedPhotoIds,
+        fullGalleryPurchased
+      }
+    : null;
+
+  const galleryContent =
+    visiblePhotos.length > 0 ? (
+      <PublicGallery
+        galleryId={gallery.id}
+        gallerySlug={gallery.slug}
+        title={gallery.title}
+        photos={publicGalleryPhotos}
+        sections={visibleSections}
+        downloadsEnabled={downloadsEnabled}
+        deliveryMode={deliveryMode}
+        sale={saleSettings}
+        favoritesEnabled={favoritesEnabled}
+        favoriteMode={proofingSelection ? "proofing" : "favorites"}
+        language={language}
+        mobileColumns={gallery.publicColumnCount}
+        stickyToolbar={
+          galleryDesign === GALLERY_DESIGN_COVER_STICKY
+            ? {
+                title: gallery.title,
+                subtitle: settings?.businessName || heroMeta,
+                sharePath: publicGalleryPath
+              }
+            : null
+        }
+      />
+    ) : (
+      <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
+        {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
+      </div>
+    );
+
+  if (galleryDesign === GALLERY_DESIGN_COVER_STICKY) {
+    return (
+      <main className="min-h-screen bg-paper">
+        <GalleryViewTracker galleryId={gallery.id} />
+        <header className="relative min-h-[58vh] overflow-hidden bg-ink text-white sm:min-h-[66vh]">
+          {coverPhoto ? (
+            <Image
+              src={coverPhotoSrc}
+              alt={gallery.title}
+              fill
+              priority
+              quality={100}
+              unoptimized
+              className="object-cover"
+              sizes="100vw"
+              style={{ objectPosition: coverPosition }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-graphite" />
+          )}
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.12),rgba(17,17,17,0.08)_45%,rgba(17,17,17,0.36))]" />
+          <div className="relative mx-auto flex min-h-[58vh] w-full max-w-7xl items-end px-5 pb-8 sm:min-h-[66vh] lg:px-8">
+            <div className="max-w-3xl">
+              {settings?.logoUrl ? (
+                <Image
+                  src={settings.logoUrl}
+                  alt={settings.businessName || "Logo"}
+                  width={180}
+                  height={84}
+                  unoptimized
+                  className="mb-5 w-auto object-contain drop-shadow"
+                  style={{ height: `${Math.min(96, logoHeight)}px`, maxWidth: "min(62vw, 260px)" }}
+                />
+              ) : settings?.businessName ? (
+                <p className="mb-3 text-sm font-semibold uppercase tracking-[0.24em] text-white/80">{settings.businessName}</p>
+              ) : null}
+              <p className="text-sm font-medium uppercase tracking-[0.22em] text-white/75">{heroMeta}</p>
+              <h1 className="font-playfair mt-2 text-4xl font-semibold leading-tight text-white shadow-ink/20 drop-shadow sm:text-5xl md:text-6xl">
+                {gallery.title}
+              </h1>
+            </div>
+          </div>
+        </header>
+
+        <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
+          {galleryContent}
         </section>
       </main>
     );
@@ -384,41 +483,7 @@ export default async function PublicGalleryPage({
             </div>
           </nav>
         ) : null}
-        {visiblePhotos.length > 0 ? (
-          <PublicGallery
-            galleryId={gallery.id}
-            gallerySlug={gallery.slug}
-            title={gallery.title}
-            photos={publicGalleryPhotos}
-            sections={visibleSections}
-            downloadsEnabled={downloadsEnabled}
-            deliveryMode={deliveryMode}
-            sale={
-              paidGallery
-                ? {
-                    priceCents: gallery.salePriceCents,
-                    unitPriceCents: gallery.saleUnitPriceCents,
-                    pricingTiers: normalizeGallerySalePricingTiers(gallery.salePricingTiers),
-                    currency: gallery.saleCurrency,
-                    priceLabel: formatGallerySalePrice(gallery.salePriceCents, gallery.saleCurrency, dateLocaleForCustomer(language)),
-                    purchaseStatus: flags.purchase ?? null,
-                    purchaseSessionId: flags.session_id ?? null,
-                    purchaseDownload: paidPurchaseDownloadState?.paid ? paidPurchaseDownloadState : null,
-                    purchasedPhotoIds,
-                    fullGalleryPurchased
-                  }
-                : null
-            }
-            favoritesEnabled={favoritesEnabled}
-            favoriteMode={proofingSelection ? "proofing" : "favorites"}
-            language={language}
-            mobileColumns={gallery.publicColumnCount}
-          />
-        ) : (
-          <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
-            {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
-          </div>
-        )}
+        {galleryContent}
       </section>
     </main>
   );
