@@ -1116,11 +1116,36 @@ export default async function GalleryDetailPage({
                             </div>
                           )}
                         </div>
+                        {!coverSticky ? (
+                          <div className="mt-4 rounded-md border border-ink/10 bg-paper p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-ink">Timeless átmenet</p>
+                                <p className="mt-1 text-xs leading-5 text-graphite/65">
+                                  A hero alsó világos átmenetének erőssége ennél a stílusnál.
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-sm font-semibold text-ink">{selectedClassicGradientIntensity}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              name="classicGradientIntensity"
+                              min={0}
+                              max={100}
+                              step={1}
+                              defaultValue={selectedClassicGradientIntensity}
+                              className="mt-3 w-full accent-ink"
+                            />
+                          </div>
+                        ) : null}
                       </div>
                     </label>
                   );
                 })}
               </div>
+              {selectedGalleryDesign === GALLERY_DESIGN_COVER_STICKY ? (
+                <input type="hidden" name="classicGradientIntensity" value={selectedClassicGradientIntensity} />
+              ) : null}
 
               <div className="mt-6 grid gap-4 lg:grid-cols-2">
                 <div className="rounded-md border border-ink/10 bg-paper p-4">
@@ -1179,35 +1204,6 @@ export default async function GalleryDetailPage({
                         />
                         <span className="text-sm font-medium text-graphite">px</span>
                       </div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
-                    <div>
-                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                        <Palette size={16} />
-                        Timeless átmenet
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-graphite/70">
-                        A Timeless hero alsó világos átmenetének erőssége. 0-nál alig látszik, 100-nál erős, puha kifutást ad.
-                      </p>
-                    </div>
-                    <label className="block space-y-2">
-                      <span className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">
-                        Átmenet
-                        <span>{selectedClassicGradientIntensity}%</span>
-                      </span>
-                      <input
-                        type="range"
-                        name="classicGradientIntensity"
-                        min={0}
-                        max={100}
-                        step={1}
-                        defaultValue={selectedClassicGradientIntensity}
-                        className="w-full accent-ink"
-                      />
                     </label>
                   </div>
                 </div>
