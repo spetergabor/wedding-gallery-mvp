@@ -22,7 +22,7 @@ import {
   galleryPurchasePhotoIds
 } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
-import { GALLERY_DESIGN_COVER_STICKY, normalizeGalleryDesign } from "@/lib/gallery-design";
+import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGN_MUSE, normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   galleryHeroTitleSizeClamp,
   galleryTextColorOrDefault,
@@ -175,6 +175,10 @@ export default async function PublicGalleryPage({
   const heroTitleStyle = {
     fontFamily: heroTitleFont.family,
     fontSize: galleryHeroTitleSizeClamp(heroTitleSize)
+  };
+  const museTitleStyle = {
+    fontFamily: heroTitleFont.family,
+    fontSize: galleryHeroTitleSizeClamp(Math.min(heroTitleSize, 78))
   };
   const classicGradientIntensity = normalizeClassicGradientIntensity(gallery.classicGradientIntensity);
   const classicGradientStyle = { opacity: classicGradientIntensity / 100 };
@@ -385,6 +389,101 @@ export default async function PublicGalleryPage({
 
         <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
           {galleryContent}
+        </section>
+      </main>
+    );
+  }
+
+  if (galleryDesign === GALLERY_DESIGN_MUSE) {
+    return (
+      <main className="min-h-screen bg-[#f7f5f1] text-ink">
+        <GalleryViewTracker galleryId={gallery.id} />
+        <section className="mx-auto grid w-full max-w-[1600px] gap-8 px-5 py-6 pb-28 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8 lg:py-8">
+          <aside className="lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)]">
+            <div className="flex h-full flex-col justify-between border-b border-ink/10 pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8">
+              <div>
+                {coverPhoto ? (
+                  <div className="relative mb-6 aspect-[4/5] overflow-hidden rounded-md bg-ink/10 lg:aspect-[3/4]">
+                    <Image
+                      src={coverPhotoSrc}
+                      alt={gallery.title}
+                      fill
+                      priority
+                      quality={92}
+                      unoptimized
+                      className="object-cover"
+                      sizes="(min-width: 1024px) 320px, 92vw"
+                      style={{ objectPosition: coverPosition }}
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.04),rgba(17,17,17,0.34))]" />
+                  </div>
+                ) : null}
+
+                {settings?.logoUrl ? (
+                  <Image
+                    src={settings.logoUrl}
+                    alt={settings.businessName || "Logo"}
+                    width={170}
+                    height={80}
+                    unoptimized
+                    className="mb-5 h-auto w-auto max-w-[190px] object-contain"
+                    style={{ maxHeight: `${Math.min(78, logoHeight)}px` }}
+                  />
+                ) : settings?.businessName ? (
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-graphite/65">{settings.businessName}</p>
+                ) : null}
+
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-graphite/55">Muse</p>
+                <h1 className="mt-3 font-semibold leading-[0.95] text-ink" style={museTitleStyle}>
+                  {gallery.title}
+                </h1>
+                <p className="mt-4 text-sm font-medium text-graphite/70">{heroMeta}</p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-graphite/50">
+                  {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
+                </p>
+
+                {proofingSelection ? (
+                  <p className="mt-5 text-sm leading-6 text-graphite/70">
+                    {language === "hu"
+                      ? "Válasszátok ki azokat a fotókat, amelyeket végleges kidolgozásra szeretnétek."
+                      : "Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet."}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-7 space-y-5">
+                <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
+                {gallery.showContactBox && contactLinks.length > 0 ? (
+                  <div className="rounded-md border border-ink/10 bg-white/75 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-graphite/55">{contactTitle}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {contactLinks.map((link) => {
+                        const Icon = link.icon;
+
+                        return (
+                          <a
+                            key={`${link.label}-${link.href}`}
+                            href={link.href}
+                            target={link.external ? "_blank" : undefined}
+                            rel={link.external ? "noreferrer" : undefined}
+                            className="inline-flex size-9 items-center justify-center rounded-md border border-ink/10 bg-white text-graphite transition hover:border-ink/25 hover:text-ink"
+                            title={link.label}
+                            aria-label={link.label}
+                          >
+                            <Icon size={15} />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </aside>
+
+          <section className="min-w-0">
+            {galleryContent}
+          </section>
         </section>
       </main>
     );

@@ -38,7 +38,7 @@ import {
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
-import { GALLERY_DESIGN_CLASSIC, GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
+import { GALLERY_DESIGN_CLASSIC, GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGN_MUSE, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   GALLERY_TITLE_FONTS,
   galleryTextColorOrDefault,
@@ -951,10 +951,11 @@ export default async function GalleryDetailPage({
                 </span>
               </div>
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-3">
                 {GALLERY_DESIGNS.map((design) => {
                   const selected = selectedGalleryDesign === design.key;
                   const coverSticky = design.key === GALLERY_DESIGN_COVER_STICKY;
+                  const muse = design.key === GALLERY_DESIGN_MUSE;
 
                   return (
                     <label key={design.key} className="block h-full cursor-pointer">
@@ -1058,6 +1059,49 @@ export default async function GalleryDetailPage({
                                           unoptimized
                                           className="object-cover"
                                           sizes="140px"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : muse ? (
+                            <div className="grid min-h-[270px] grid-cols-[96px_1fr] bg-white">
+                              <div className="border-r border-ink/10 bg-paper p-3">
+                                <div className="h-3 w-14 rounded bg-ink/80" />
+                                <div className="mt-2 h-2 w-10 rounded bg-graphite/30" />
+                                <div className="mt-7 h-8 w-16 rounded bg-ink/10" />
+                                <div className="mt-2 h-2 w-12 rounded bg-graphite/25" />
+                                <div className="mt-12 flex gap-1">
+                                  <span className="size-5 rounded border border-ink/10 bg-white" />
+                                  <span className="size-5 rounded bg-ink" />
+                                </div>
+                              </div>
+                              <div
+                                className="grid grid-cols-2 p-3"
+                                style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
+                              >
+                                {[104, 72, 86, 118].map((height, index) => {
+                                  const previewPhoto = designPreviewGridPhotos[index] ?? designPreviewCoverPhoto;
+
+                                  return (
+                                    <div
+                                      key={`${design.key}-preview-${index}`}
+                                      className="relative overflow-hidden bg-paper shadow-sm"
+                                      style={{
+                                        height: `${height}px`,
+                                        borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px`
+                                      }}
+                                    >
+                                      {previewPhoto ? (
+                                        <Image
+                                          src={previewPhoto.previewUrl || previewPhoto.imageUrl}
+                                          alt={previewPhoto.filename}
+                                          fill
+                                          unoptimized
+                                          className="object-cover"
+                                          sizes="120px"
                                         />
                                       ) : null}
                                     </div>
