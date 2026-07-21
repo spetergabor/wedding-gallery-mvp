@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ExternalLink, ImagePlus, LayoutTemplate, Upload, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, ExternalLink, ImagePlus, Images, LayoutTemplate, MessageSquare, Upload, X } from "lucide-react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { deleteAlbumDesignAction } from "@/lib/album-design-actions";
 import { deleteAlbumReviewAction } from "@/lib/album-review-actions";
@@ -40,6 +40,21 @@ const reviewStatusLabels: Record<string, string> = {
   in_review: "Ügyfél ellenőrzi",
   approved: "Jóváhagyva",
   archived: "Archivált"
+};
+
+const designStatusClasses: Record<string, string> = {
+  draft: "bg-brass/10 text-brass",
+  ready: "bg-sage/12 text-sage",
+  exported: "bg-ink/8 text-ink",
+  archived: "bg-ink/5 text-graphite"
+};
+
+const reviewStatusClasses: Record<string, string> = {
+  draft: "bg-ink/5 text-graphite",
+  ready: "bg-brass/10 text-brass",
+  in_review: "bg-ink text-white",
+  approved: "bg-sage/12 text-sage",
+  archived: "bg-ink/5 text-graphite"
 };
 
 function albumWorkflowHref(customerId: string | null | undefined, params: Record<string, string>) {
@@ -162,13 +177,13 @@ export function AlbumOverviewDashboard({
               return (
                 <div
                   key={design.id}
-                  className="rounded-lg border border-ink/10 bg-paper p-4 transition hover:border-ink/25 hover:bg-white"
+                  className="rounded-lg border border-ink/10 bg-white p-4 shadow-[0_1px_0_rgba(17,17,17,0.03)] transition hover:border-ink/25"
                 >
                   <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">Online album</span>
-                        <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${designStatusClasses[design.status] ?? "bg-ink/5 text-graphite"}`}>
                           {designStatusLabels[design.status] ?? design.status}
                         </span>
                       </div>
@@ -176,6 +191,22 @@ export function AlbumOverviewDashboard({
                       <p className="mt-1 text-sm text-graphite/70">
                         {design.spreads.length} oldalpár · {usedImages} kép használva
                       </p>
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-md bg-paper px-3 py-2">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">
+                            <Images size={13} />
+                            Oldalpár
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{design.spreads.length}</p>
+                        </div>
+                        <div className="rounded-md bg-paper px-3 py-2">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">
+                            <ImagePlus size={13} />
+                            Kép
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{usedImages}</p>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 sm:justify-end">
                       <Link
@@ -210,14 +241,15 @@ export function AlbumOverviewDashboard({
             {reviews.map((review) => {
               const approvedCount = review.spreads.filter((spread) => spread.approvedAt).length;
               const commentCount = review.spreads.reduce((total, spread) => total + spread.comments.length, 0);
+              const approvedPercent = review.spreads.length > 0 ? Math.round((approvedCount / review.spreads.length) * 100) : 0;
 
               return (
-                <div key={review.id} className="rounded-lg border border-ink/10 bg-paper p-4">
+                <div key={review.id} className="rounded-lg border border-ink/10 bg-white p-4 shadow-[0_1px_0_rgba(17,17,17,0.03)]">
                   <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-ink px-2.5 py-1 text-xs font-medium text-white">Feltöltött ellenőrző</span>
-                        <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${reviewStatusClasses[review.status] ?? "bg-ink/5 text-graphite"}`}>
                           {reviewStatusLabels[review.status] ?? review.status}
                         </span>
                       </div>
@@ -225,6 +257,38 @@ export function AlbumOverviewDashboard({
                       <p className="mt-1 text-sm text-graphite/70">
                         {review.spreads.length} oldalpár · {approvedCount}/{review.spreads.length} rendben · {commentCount} címke
                       </p>
+                      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                        <div className="rounded-md bg-paper px-3 py-2">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">
+                            <Images size={13} />
+                            Oldalpár
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{review.spreads.length}</p>
+                        </div>
+                        <div className="rounded-md bg-paper px-3 py-2">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">
+                            <CheckCircle2 size={13} />
+                            Rendben
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{approvedCount}/{review.spreads.length}</p>
+                        </div>
+                        <div className="rounded-md bg-paper px-3 py-2">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-graphite/55">
+                            <MessageSquare size={13} />
+                            Címke
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{commentCount}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between gap-3 text-xs font-medium text-graphite/65">
+                          <span>Jóváhagyás</span>
+                          <span>{approvedPercent}%</span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-paper">
+                          <div className="h-full rounded-full bg-sage transition-all" style={{ width: `${approvedPercent}%` }} />
+                        </div>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       <a

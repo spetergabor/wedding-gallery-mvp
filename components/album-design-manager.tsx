@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, FolderKanban, LayoutTemplate, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, FolderKanban, LayoutTemplate, Plus, Send, Trash2 } from "lucide-react";
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -332,7 +332,7 @@ export function AlbumDesignManager({
             const openByDefault = design.id === selectedDesign?.id;
 
             return (
-              <details key={design.id} name="album-design-projects" open={openByDefault} className="rounded-lg border border-ink/10 bg-paper shadow-sm">
+              <details key={design.id} name="album-design-projects" open={openByDefault} className="group rounded-lg border border-ink/10 bg-paper shadow-sm">
                 <summary className="flex cursor-pointer list-none flex-col justify-between gap-3 px-4 py-4 transition hover:bg-white/70 lg:flex-row lg:items-start [&::-webkit-details-marker]:hidden">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -360,8 +360,10 @@ export function AlbumDesignManager({
                     </div>
                     <p className="mt-1 text-sm text-graphite/70">Forrás: {sourceLabel}</p>
                   </div>
-                  <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink">
-                    Megnyitás
+                  <span className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition group-open:border-ink/25">
+                    <span className="group-open:hidden">Megnyitás</span>
+                    <span className="hidden group-open:inline">Bezárás</span>
+                    <ChevronDown size={15} className="transition group-open:rotate-180" />
                   </span>
                 </summary>
                 <div className="border-t border-ink/10 p-4">
