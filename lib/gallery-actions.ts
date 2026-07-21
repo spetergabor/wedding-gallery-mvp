@@ -43,7 +43,7 @@ import {
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
 import { normalizeGalleryDesign } from "@/lib/gallery-design";
-import { normalizeGalleryTextColor } from "@/lib/gallery-appearance";
+import { normalizeGalleryGridGap, normalizeGalleryImageRadius, normalizeGalleryTextColor } from "@/lib/gallery-appearance";
 import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery-sales";
 import { parseGallerySalePricingTiersFromForm, parsePriceCents } from "@/lib/gallery-sale-pricing";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
@@ -3274,10 +3274,12 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
   const galleryDesign = normalizeGalleryDesign(formData.get("galleryDesign"));
   const publicColumnCount = mobileColumnCountFromForm(formData);
   const galleryTextColor = normalizeGalleryTextColor(formString(formData, "galleryTextColor"));
+  const publicGridGap = normalizeGalleryGridGap(formString(formData, "publicGridGap"));
+  const publicImageRadius = normalizeGalleryImageRadius(formString(formData, "publicImageRadius"));
 
   await prisma.gallery.update({
     where: { id: galleryId },
-    data: { galleryDesign, publicColumnCount, galleryTextColor }
+    data: { galleryDesign, publicColumnCount, galleryTextColor, publicGridGap, publicImageRadius }
   });
 
   revalidatePath("/admin/galleries");

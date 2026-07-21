@@ -820,6 +820,8 @@ model Gallery {
   coverPositionX Int      @default(50)
   coverPositionY Int      @default(50)
   publicColumnCount Int    @default(1)
+  publicGridGap Int        @default(8)
+  publicImageRadius Int    @default(8)
   clientEmail  String?
   clientAccessToken String? @unique
   proofingInviteSentAt DateTime?

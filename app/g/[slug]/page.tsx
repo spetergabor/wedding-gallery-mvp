@@ -23,7 +23,7 @@ import {
 } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
 import { GALLERY_DESIGN_COVER_STICKY, normalizeGalleryDesign } from "@/lib/gallery-design";
-import { galleryTextColorOrDefault } from "@/lib/gallery-appearance";
+import { galleryTextColorOrDefault, normalizeGalleryGridGap, normalizeGalleryImageRadius } from "@/lib/gallery-appearance";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -162,6 +162,8 @@ export default async function PublicGalleryPage({
     gallery.galleryTextColor,
     galleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
   );
+  const publicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
+  const publicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
   const contactText = language === "hu" ? "Kérdésed van a galériával kapcsolatban?" : "Fragen zur Galerie?";
   const contactLinks: ContactQuickLink[] = [
@@ -300,6 +302,8 @@ export default async function PublicGalleryPage({
         favoriteMode={proofingSelection ? "proofing" : "favorites"}
         language={language}
         mobileColumns={gallery.publicColumnCount}
+        gridGap={publicGridGap}
+        imageRadius={publicImageRadius}
         stickyToolbar={
           galleryDesign === GALLERY_DESIGN_COVER_STICKY
             ? {

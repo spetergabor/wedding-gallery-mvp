@@ -38,7 +38,7 @@ import {
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
-import { galleryTextColorOrDefault } from "@/lib/gallery-appearance";
+import { galleryTextColorOrDefault, normalizeGalleryGridGap, normalizeGalleryImageRadius } from "@/lib/gallery-appearance";
 import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import {
@@ -454,6 +454,8 @@ export default async function GalleryDetailPage({
     gallery.galleryTextColor,
     selectedGalleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
   );
+  const selectedPublicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
+  const selectedPublicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
   const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
   const canPrepareZip =
     (paidGallery || (gallery.downloadsEnabled && galleryDeliveryAllowsDownloads(gallery.deliveryMode))) &&
@@ -1008,10 +1010,13 @@ export default async function GalleryDetailPage({
                                   </span>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-3 gap-2 p-3">
-                                <div className="h-16 rounded bg-white shadow-sm" />
-                                <div className="h-24 rounded bg-white shadow-sm" />
-                                <div className="h-14 rounded bg-white shadow-sm" />
+                              <div
+                                className="grid grid-cols-3 p-3"
+                                style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
+                              >
+                                <div className="h-16 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
+                                <div className="h-24 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
+                                <div className="h-14 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
                               </div>
                             </div>
                           ) : (
@@ -1032,10 +1037,13 @@ export default async function GalleryDetailPage({
                               </div>
                               <div className="mx-auto h-4 w-36 rounded" style={{ backgroundColor: selectedGalleryTextColor }} />
                               <div className="mx-auto h-2 w-24 rounded bg-graphite/30" />
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="h-16 rounded bg-white shadow-sm" />
-                                <div className="h-20 rounded bg-white shadow-sm" />
-                                <div className="h-14 rounded bg-white shadow-sm" />
+                              <div
+                                className="grid grid-cols-3"
+                                style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
+                              >
+                                <div className="h-16 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
+                                <div className="h-20 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
+                                <div className="h-14 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
                               </div>
                             </div>
                           )}
@@ -1075,27 +1083,85 @@ export default async function GalleryDetailPage({
 
                 <div className="rounded-md border border-ink/10 bg-paper p-4">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
-                  <div>
-                    <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                      <Columns3 size={16} />
-                      Mobil fotórács
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-graphite/70">
-                      Állítsd be, hány oszlopban jelenjenek meg a képek telefonon. Asztali nézetben továbbra is automatikus, reszponzív rácsot használunk.
-                    </p>
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Columns3 size={16} />
+                        Mobil fotórács
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        Állítsd be, hány oszlopban jelenjenek meg a képek telefonon. Asztali nézetben továbbra is automatikus, reszponzív rácsot használunk.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Telefonos oszlopok</span>
+                      <select
+                        name="publicColumnCount"
+                        defaultValue={Math.min(3, Math.max(1, gallery.publicColumnCount))}
+                        className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                      >
+                        <option value="1">1 oszlop</option>
+                        <option value="2">2 oszlop</option>
+                        <option value="3">3 oszlop</option>
+                      </select>
+                    </label>
                   </div>
-                  <label className="block space-y-2">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Telefonos oszlopok</span>
-                    <select
-                      name="publicColumnCount"
-                      defaultValue={Math.min(3, Math.max(1, gallery.publicColumnCount))}
-                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                    >
-                      <option value="1">1 oszlop</option>
-                      <option value="2">2 oszlop</option>
-                      <option value="3">3 oszlop</option>
-                    </select>
-                  </label>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Columns3 size={16} />
+                        Képek közti tér
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A publikus fotórács képei közti távolság pixelben. 0 és 32 px között állítható.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Távolság</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          name="publicGridGap"
+                          min={0}
+                          max={32}
+                          step={1}
+                          defaultValue={selectedPublicGridGap}
+                          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                        />
+                        <span className="text-sm font-medium text-graphite">px</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Palette size={16} />
+                        Képek lekerekítése
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A publikus galéria fotóinak saroklekerekítése pixelben. 0 és 32 px között állítható.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Lekerekítés</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          name="publicImageRadius"
+                          min={0}
+                          max={32}
+                          step={1}
+                          defaultValue={selectedPublicImageRadius}
+                          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                        />
+                        <span className="text-sm font-medium text-graphite">px</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
               </div>

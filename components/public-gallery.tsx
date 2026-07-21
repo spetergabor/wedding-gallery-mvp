@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
+import { type CSSProperties, FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { Check, ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, Share2, ShieldCheck, ShoppingCart, X } from "lucide-react";
 import { Button } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -19,6 +19,7 @@ import { createPaidGalleryCheckoutAction } from "@/lib/gallery-sales-actions";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY } from "@/lib/download-quality";
 import { GALLERY_DELIVERY_PAID, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
+import { normalizeGalleryGridGap, normalizeGalleryImageRadius } from "@/lib/gallery-appearance";
 import {
   priceForGalleryPhotoQuantity,
   pricingTierLabel,
@@ -489,6 +490,8 @@ export function PublicGallery({
   favoriteMode = "favorites",
   language = "de",
   mobileColumns = 1,
+  gridGap = 8,
+  imageRadius = 8,
   stickyToolbar = null
 }: {
   galleryId: string;
@@ -503,6 +506,8 @@ export function PublicGallery({
   favoriteMode?: "favorites" | "proofing";
   language?: CustomerLanguage;
   mobileColumns?: number;
+  gridGap?: number;
+  imageRadius?: number;
   stickyToolbar?: StickyToolbarSettings | null;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -566,6 +571,8 @@ export function PublicGallery({
           : null;
   const proofingSelection = favoritesEnabled && favoriteMode === "proofing";
   const safeMobileColumns = Math.min(3, Math.max(1, mobileColumns));
+  const safeGridGap = normalizeGalleryGridGap(gridGap);
+  const safeImageRadius = normalizeGalleryImageRadius(imageRadius);
   const mobileImageSize = safeMobileColumns === 1 ? "100vw" : safeMobileColumns === 2 ? "50vw" : "33vw";
   const imageSizes = `(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, ${mobileImageSize}`;
   const activeFavoriteList = favoriteLists.find((list) => list.id === activeFavoriteListId) ?? favoriteLists[0] ?? null;
@@ -612,8 +619,15 @@ export function PublicGallery({
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
-  const galleryGridStyle = {
+  const galleryGridStyle: CSSProperties = {
+    gap: `${safeGridGap}px`,
     gridTemplateColumns: `repeat(${Math.max(1, columnCount)}, minmax(0, 1fr))`
+  };
+  const galleryColumnStyle: CSSProperties = {
+    gap: `${safeGridGap}px`
+  };
+  const galleryItemStyle: CSSProperties = {
+    borderRadius: `${safeImageRadius}px`
   };
   const photoColumns = useMemo(() => {
     return createPhotoColumns(visibleImageItems, columnCount);
@@ -1338,11 +1352,12 @@ export function PublicGallery({
     return (
       <div
         key={photo.id}
-        className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
+        className={`group block w-full overflow-hidden bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
           favoritesEnabled && favoriteIds.has(photo.id)
             ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
             : "ring-0"
         } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
+        style={galleryItemStyle}
       >
         <span className="relative block w-full">
           <button
@@ -1388,11 +1403,12 @@ export function PublicGallery({
     return (
       <div
         key={photo.id}
-        className={`group block w-full overflow-hidden rounded-lg bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
+        className={`group block w-full overflow-hidden bg-mist text-left transition-[box-shadow,transform,opacity] duration-200 ease-out ${
           favoritesEnabled && favoriteIds.has(photo.id)
             ? "ring-2 ring-brass ring-offset-2 ring-offset-paper"
             : "ring-0"
         } ${isFilteringFavorites ? "opacity-80" : "opacity-100"}`}
+        style={galleryItemStyle}
       >
         <span className="relative block w-full">
           <button
@@ -1827,7 +1843,7 @@ export function PublicGallery({
                 {copy.videoSectionTitle}
               </h2>
             </div>
-            <div className="grid gap-2" style={galleryGridStyle}>
+            <div className="grid" style={galleryGridStyle}>
               {visibleVideoItems.map((item) => renderVideoItem(item))}
             </div>
           </section>
@@ -1846,9 +1862,9 @@ export function PublicGallery({
                   </h2>
                 </div>
                 {block.imageColumns.some((column) => column.length > 0) ? (
-                  <div className="grid gap-2" style={galleryGridStyle}>
+                  <div className="grid" style={galleryGridStyle}>
                     {block.imageColumns.map((column, columnIndex) => (
-                      <div key={columnIndex} className="grid content-start gap-2">
+                      <div key={columnIndex} className="grid content-start" style={galleryColumnStyle}>
                         {column.map((item) => renderImageItem(item))}
                       </div>
                     ))}
@@ -1860,9 +1876,9 @@ export function PublicGallery({
         ) : null}
 
         {sectionBlocks.length === 0 && visibleImageItems.length > 0 ? (
-          <section className="grid gap-2" style={galleryGridStyle}>
+          <section className="grid" style={galleryGridStyle}>
             {photoColumns.map((column, columnIndex) => (
-              <div key={columnIndex} className="grid content-start gap-2">
+              <div key={columnIndex} className="grid content-start" style={galleryColumnStyle}>
                 {column.map((item) => renderImageItem(item))}
               </div>
             ))}
