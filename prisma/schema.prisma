@@ -808,6 +808,7 @@ model Gallery {
   galleryMode  String   @default("full")
   galleryDesign String  @default("classic")
   galleryTextColor String?
+  galleryBodyTextColor String?
   galleryBackgroundColor String?
   galleryTitleFont String @default("playfair")
   galleryTitleSize Int    @default(96)

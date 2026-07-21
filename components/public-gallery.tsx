@@ -500,6 +500,7 @@ export function PublicGallery({
   mobileColumns = 1,
   gridGap = 8,
   imageRadius = 8,
+  textColor = "#111111",
   stickyToolbar = null
 }: {
   galleryId: string;
@@ -516,6 +517,7 @@ export function PublicGallery({
   mobileColumns?: number;
   gridGap?: number;
   imageRadius?: number;
+  textColor?: string;
   stickyToolbar?: StickyToolbarSettings | null;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -637,6 +639,9 @@ export function PublicGallery({
   const galleryItemStyle: CSSProperties = {
     borderRadius: `${safeImageRadius}px`
   };
+  const galleryThemeStyle = {
+    "--gallery-body-text-color": textColor
+  } as CSSProperties & Record<"--gallery-body-text-color", string>;
   const photoColumns = useMemo(() => {
     return createPhotoColumns(visibleImageItems, columnCount);
   }, [columnCount, visibleImageItems]);
@@ -1503,7 +1508,12 @@ export function PublicGallery({
   }
 
   return (
-    <>
+    <div className="public-gallery-text-theme" style={galleryThemeStyle}>
+      <style>{`
+        .public-gallery-text-theme :where(.text-ink, .text-graphite, .text-graphite\\/75, .text-graphite\\/70, .text-graphite\\/65, .text-graphite\\/60, .text-graphite\\/55, .text-graphite\\/50) {
+          color: var(--gallery-body-text-color);
+        }
+      `}</style>
       <section
         className="space-y-10"
         onContextMenu={paidGallery ? (event) => event.preventDefault() : undefined}
@@ -2338,6 +2348,6 @@ export function PublicGallery({
           {visiblePhotos.length > 1 ? <p className="mt-3 text-center text-sm text-white/70">{selectedPosition}/{visiblePhotos.length}</p> : null}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

@@ -26,6 +26,7 @@ import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGN_FULLSCREEN_COVER, normalize
 import {
   galleryHeroTitleSizeClamp,
   galleryBackgroundColorOrDefault,
+  galleryBodyTextColorOrDefault,
   galleryTextColorOrDefault,
   galleryTitleFontDefinition,
   normalizeClassicGradientIntensity,
@@ -191,6 +192,7 @@ export default async function PublicGalleryPage({
     stickyToolbarDesign ? "#ffffff" : "#111111"
   );
   const galleryBackgroundColor = galleryBackgroundColorOrDefault(gallery.galleryBackgroundColor);
+  const galleryBodyTextColor = galleryBodyTextColorOrDefault(gallery.galleryBodyTextColor);
   const heroTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
   const heroTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
   const heroTitleStyle = {
@@ -341,6 +343,7 @@ export default async function PublicGalleryPage({
         mobileColumns={gallery.publicColumnCount}
         gridGap={publicGridGap}
         imageRadius={publicImageRadius}
+        textColor={galleryBodyTextColor}
         stickyToolbar={
           stickyToolbarDesign
             ? {
@@ -352,7 +355,7 @@ export default async function PublicGalleryPage({
         }
       />
     ) : (
-      <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm text-graphite/70">
+      <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm" style={{ color: galleryBodyTextColor }}>
         {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
       </div>
     );
@@ -538,7 +541,7 @@ export default async function PublicGalleryPage({
                 {language === "hu" ? "Válasszátok ki azokat a fotókat, amelyeket végleges kidolgozásra szeretnétek." : "Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet."}
               </p>
             ) : null}
-            <p className="mt-3 text-sm font-medium uppercase tracking-[0.24em] text-graphite/70">
+            <p className="mt-3 text-sm font-medium uppercase tracking-[0.24em]" style={{ color: galleryBodyTextColor }}>
               {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
             </p>
             <div className="mt-7 flex justify-center">
@@ -546,8 +549,8 @@ export default async function PublicGalleryPage({
             </div>
             {gallery.showContactBox && contactLinks.length > 0 ? (
               <div className="mt-5 w-full max-w-2xl rounded-lg border border-ink/10 bg-white/80 px-4 py-4 text-center shadow-soft backdrop-blur">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-graphite/65">{contactTitle}</p>
-                <p className="mt-1 text-sm text-graphite/75">{contactText}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: galleryBodyTextColor }}>{contactTitle}</p>
+                <p className="mt-1 text-sm" style={{ color: galleryBodyTextColor }}>{contactText}</p>
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                   {contactLinks.map((link) => {
                     const Icon = link.icon;
@@ -558,7 +561,8 @@ export default async function PublicGalleryPage({
                         href={link.href}
                         target={link.external ? "_blank" : undefined}
                         rel={link.external ? "noreferrer" : undefined}
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper"
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium transition hover:border-ink/25 hover:bg-paper"
+                        style={{ color: galleryBodyTextColor }}
                       >
                         <Icon size={15} />
                         {link.label}
@@ -577,12 +581,14 @@ export default async function PublicGalleryPage({
           <nav
             className="sticky top-0 z-30 -mx-5 -mt-8 mb-12 border-b border-ink/10 bg-paper/95 px-5 py-2.5 shadow-[0_12px_28px_rgba(17,17,17,0.05)] backdrop-blur lg:-mx-8 lg:px-8"
             aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
+            style={{ color: galleryBodyTextColor }}
           >
             <div className="flex min-w-full gap-2 overflow-x-auto [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden">
               {visibleVideos.length > 0 ? (
                 <a
                   href="#public-gallery-videos"
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite shadow-sm transition hover:border-ink/25 hover:text-ink"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold shadow-sm transition hover:border-ink/25"
+                  style={{ color: galleryBodyTextColor }}
                 >
                   {language === "hu" ? "Videók" : "Videos"}
                   <span className="ml-2 text-xs opacity-70">{visibleVideos.length}</span>
@@ -592,7 +598,8 @@ export default async function PublicGalleryPage({
                 <a
                   key={section.id}
                   href={`#gallery-section-${section.slug}`}
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite shadow-sm transition hover:border-ink/25 hover:text-ink"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold shadow-sm transition hover:border-ink/25"
+                  style={{ color: galleryBodyTextColor }}
                 >
                   {section.title}
                   <span className="ml-2 text-xs opacity-70">{sectionPhotoCounts.get(section.id) ?? 0}</span>
@@ -601,7 +608,8 @@ export default async function PublicGalleryPage({
               {unsectionedPhotoCount > 0 ? (
                 <a
                   href="#gallery-section-rest"
-                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold text-graphite shadow-sm transition hover:border-ink/25 hover:text-ink"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold shadow-sm transition hover:border-ink/25"
+                  style={{ color: galleryBodyTextColor }}
                 >
                   {language === "hu" ? "További képek" : "Weitere Bilder"}
                   <span className="ml-2 text-xs opacity-70">{unsectionedPhotoCount}</span>
