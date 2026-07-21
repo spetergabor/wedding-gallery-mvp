@@ -34,6 +34,7 @@ export const GALLERY_TITLE_FONTS = [
 ] as const;
 
 export type GalleryTitleFontKey = (typeof GALLERY_TITLE_FONTS)[number]["key"];
+export type GalleryBodyFontKey = GalleryTitleFontKey;
 
 export function normalizeGalleryTextColor(value: unknown) {
   if (typeof value !== "string") {
@@ -99,6 +100,20 @@ export function galleryTitleFontDefinition(value: unknown) {
   const key = normalizeGalleryTitleFont(value);
 
   return GALLERY_TITLE_FONTS.find((font) => font.key === key) ?? GALLERY_TITLE_FONTS[0];
+}
+
+export function normalizeGalleryBodyFont(value: unknown): GalleryBodyFontKey {
+  if (typeof value !== "string") {
+    return "inter";
+  }
+
+  return GALLERY_TITLE_FONTS.some((font) => font.key === value) ? (value as GalleryBodyFontKey) : "inter";
+}
+
+export function galleryBodyFontDefinition(value: unknown) {
+  const key = normalizeGalleryBodyFont(value);
+
+  return GALLERY_TITLE_FONTS.find((font) => font.key === key) ?? GALLERY_TITLE_FONTS[3];
 }
 
 export function normalizeGalleryTitleSize(value: unknown, fallback = 96) {

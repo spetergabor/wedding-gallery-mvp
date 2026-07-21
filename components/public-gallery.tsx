@@ -501,6 +501,7 @@ export function PublicGallery({
   gridGap = 8,
   imageRadius = 8,
   textColor = "#111111",
+  fontFamily,
   stickyToolbar = null
 }: {
   galleryId: string;
@@ -518,6 +519,7 @@ export function PublicGallery({
   gridGap?: number;
   imageRadius?: number;
   textColor?: string;
+  fontFamily?: string;
   stickyToolbar?: StickyToolbarSettings | null;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -640,8 +642,9 @@ export function PublicGallery({
     borderRadius: `${safeImageRadius}px`
   };
   const galleryThemeStyle = {
-    "--gallery-body-text-color": textColor
-  } as CSSProperties & Record<"--gallery-body-text-color", string>;
+    "--gallery-body-text-color": textColor,
+    "--gallery-body-font-family": fontFamily ?? "inherit"
+  } as CSSProperties & Record<"--gallery-body-text-color" | "--gallery-body-font-family", string>;
   const photoColumns = useMemo(() => {
     return createPhotoColumns(visibleImageItems, columnCount);
   }, [columnCount, visibleImageItems]);
@@ -1510,6 +1513,12 @@ export function PublicGallery({
   return (
     <div className="public-gallery-text-theme" style={galleryThemeStyle}>
       <style>{`
+        .public-gallery-text-theme {
+          font-family: var(--gallery-body-font-family);
+        }
+        .public-gallery-text-theme :where(.font-playfair) {
+          font-family: var(--gallery-body-font-family);
+        }
         .public-gallery-text-theme :where(.text-ink, .text-graphite, .text-graphite\\/75, .text-graphite\\/70, .text-graphite\\/65, .text-graphite\\/60, .text-graphite\\/55, .text-graphite\\/50) {
           color: var(--gallery-body-text-color);
         }

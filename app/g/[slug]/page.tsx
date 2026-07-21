@@ -26,6 +26,7 @@ import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGN_FULLSCREEN_COVER, normalize
 import {
   galleryHeroTitleSizeClamp,
   galleryBackgroundColorOrDefault,
+  galleryBodyFontDefinition,
   galleryBodyTextColorOrDefault,
   galleryTextColorOrDefault,
   galleryTitleFontDefinition,
@@ -194,7 +195,12 @@ export default async function PublicGalleryPage({
   const galleryBackgroundColor = galleryBackgroundColorOrDefault(gallery.galleryBackgroundColor);
   const galleryBodyTextColor = galleryBodyTextColorOrDefault(gallery.galleryBodyTextColor);
   const heroTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
+  const galleryBodyFont = galleryBodyFontDefinition(gallery.galleryBodyFont);
   const heroTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
+  const galleryBodyStyle = {
+    backgroundColor: galleryBackgroundColor,
+    fontFamily: galleryBodyFont.family
+  };
   const heroTitleStyle = {
     fontFamily: heroTitleFont.family,
     fontSize: galleryHeroTitleSizeClamp(heroTitleSize)
@@ -344,6 +350,7 @@ export default async function PublicGalleryPage({
         gridGap={publicGridGap}
         imageRadius={publicImageRadius}
         textColor={galleryBodyTextColor}
+        fontFamily={galleryBodyFont.family}
         stickyToolbar={
           stickyToolbarDesign
             ? {
@@ -362,7 +369,7 @@ export default async function PublicGalleryPage({
 
   if (galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER) {
     return (
-      <main className="min-h-screen" style={{ backgroundColor: galleryBackgroundColor }}>
+      <main className="min-h-screen" style={galleryBodyStyle}>
         <GalleryViewTracker galleryId={gallery.id} />
         <header className="relative min-h-screen overflow-hidden bg-ink text-white">
           {coverPhoto ? (
@@ -434,7 +441,7 @@ export default async function PublicGalleryPage({
 
   if (galleryDesign === GALLERY_DESIGN_COVER_STICKY) {
     return (
-      <main className="min-h-screen" style={{ backgroundColor: galleryBackgroundColor }}>
+      <main className="min-h-screen" style={galleryBodyStyle}>
         <GalleryViewTracker galleryId={gallery.id} />
         <header className="relative min-h-[56svh] overflow-hidden bg-ink text-white sm:min-h-[64vh] lg:min-h-[70vh]">
           {coverPhoto ? (
@@ -487,7 +494,7 @@ export default async function PublicGalleryPage({
   }
 
   return (
-    <main className="min-h-screen" style={{ backgroundColor: galleryBackgroundColor }}>
+    <main className="min-h-screen" style={galleryBodyStyle}>
       <GalleryViewTracker galleryId={gallery.id} />
       <header className="relative min-h-[92vh] overflow-hidden text-ink" style={{ backgroundColor: galleryBackgroundColor }}>
         <div className="absolute inset-0 overflow-hidden bg-ink">
@@ -525,7 +532,7 @@ export default async function PublicGalleryPage({
                 style={{ height: `${logoHeight}px`, maxWidth: "min(70vw, 320px)" }}
               />
             ) : settings?.businessName ? (
-              <p className="font-playfair mb-5 text-lg tracking-[0.18em] opacity-75">
+              <p className="mb-5 text-lg tracking-[0.18em] opacity-75">
                 {settings.businessName}
               </p>
             ) : null}
@@ -535,7 +542,7 @@ export default async function PublicGalleryPage({
             >
               {gallery.title}
             </h1>
-            <p className="font-playfair mt-4 text-xl opacity-75 md:text-2xl">{heroMeta}</p>
+            <p className="mt-4 text-xl opacity-75 md:text-2xl">{heroMeta}</p>
             {proofingSelection ? (
               <p className="mt-4 max-w-2xl text-sm leading-6 opacity-75 md:text-base">
                 {language === "hu" ? "Válasszátok ki azokat a fotókat, amelyeket végleges kidolgozásra szeretnétek." : "Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet."}

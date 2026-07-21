@@ -811,6 +811,7 @@ model Gallery {
   galleryBodyTextColor String?
   galleryBackgroundColor String?
   galleryTitleFont String @default("playfair")
+  galleryBodyFont String @default("inter")
   galleryTitleSize Int    @default(96)
   classicGradientIntensity Int @default(100)
   showContactBox Boolean @default(true)

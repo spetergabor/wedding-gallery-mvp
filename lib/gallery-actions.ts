@@ -48,6 +48,7 @@ import {
   normalizeGalleryImageRadius,
   normalizeClassicGradientIntensity,
   normalizeGalleryBackgroundColor,
+  normalizeGalleryBodyFont,
   normalizeGalleryBodyTextColor,
   normalizeGalleryTextColor,
   normalizeGalleryTitleFont,
@@ -3288,6 +3289,7 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
   const publicGridGap = normalizeGalleryGridGap(formString(formData, "publicGridGap"));
   const publicImageRadius = normalizeGalleryImageRadius(formString(formData, "publicImageRadius"));
   const galleryTitleFont = normalizeGalleryTitleFont(formString(formData, "galleryTitleFont"));
+  const galleryBodyFont = normalizeGalleryBodyFont(formString(formData, "galleryBodyFont"));
   const galleryTitleSize = normalizeGalleryTitleSize(formString(formData, "galleryTitleSize"));
   const classicGradientIntensity = normalizeClassicGradientIntensity(formString(formData, "classicGradientIntensity"));
   const showContactBox = formData.get("showContactBox") === "on";
@@ -3301,6 +3303,7 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
       galleryBodyTextColor,
       galleryBackgroundColor,
       galleryTitleFont,
+      galleryBodyFont,
       galleryTitleSize,
       classicGradientIntensity,
       showContactBox,
