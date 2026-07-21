@@ -954,8 +954,8 @@ export default async function GalleryDetailPage({
                 <div>
                   <p className={sectionMetaClass}>Megjelenés</p>
                   <h2 className="mt-2 text-xl font-semibold text-ink">Galéria dizájn</h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
-                    Válaszd ki, milyen felépítéssel jelenjen meg a publikus galéria. A stílusok alatt a közös és stílushoz kötött megjelenési beállításokat is finomhangolhatod.
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
+                    Válaszd ki a publikus galéria alapnézetét, majd finomhangold a közös megjelenési beállításokat.
                   </p>
                 </div>
                 <span className="inline-flex w-fit rounded-full bg-sage/15 px-3 py-1 text-xs font-medium text-sage">
@@ -963,7 +963,7 @@ export default async function GalleryDetailPage({
                 </span>
               </div>
 
-              <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-3">
+              <div className="mt-5 grid items-stretch gap-3 lg:grid-cols-3">
                 {GALLERY_DESIGNS.map((design) => {
                   const selected = selectedGalleryDesign === design.key;
                   const coverSticky = design.key === GALLERY_DESIGN_COVER_STICKY;
@@ -978,22 +978,24 @@ export default async function GalleryDetailPage({
                         defaultChecked={selected}
                         className="peer sr-only"
                       />
-                      <div className="flex h-full flex-col rounded-lg border border-ink/10 bg-white p-4 transition peer-checked:border-ink peer-checked:bg-paper peer-checked:shadow-soft">
-                        <div className="flex items-start gap-3">
+                      <div className="flex h-full flex-col rounded-lg border border-ink/10 bg-white p-3 transition peer-checked:border-ink peer-checked:bg-paper peer-checked:shadow-soft">
+                        <div className="flex min-h-28 items-start gap-3">
                           <span
-                            className={`flex size-11 shrink-0 items-center justify-center rounded-md ${
+                            className={`flex size-9 shrink-0 items-center justify-center rounded-md ${
                               selected ? "bg-ink text-white" : "bg-paper text-graphite"
                             }`}
                           >
-                            <Palette size={20} />
+                            <Palette size={18} />
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className={sectionMetaClass}>{design.eyebrow}</p>
                             <h3 className="mt-1 text-lg font-semibold text-ink">{design.label}</h3>
-                            <p className="mt-2 text-sm leading-6 text-graphite/70">{design.description}</p>
+                            <p className="mt-2 min-h-10 overflow-hidden text-sm leading-5 text-graphite/70 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                              {design.description}
+                            </p>
                           </div>
                           <span
-                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${
                               selected ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"
                             }`}
                           >
@@ -1002,10 +1004,10 @@ export default async function GalleryDetailPage({
                           </span>
                         </div>
 
-                        <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:mt-auto">
+                        <div className="mt-3 overflow-hidden rounded-md border border-ink/10 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:mt-auto">
                           {fullscreenCover ? (
                             <div style={{ backgroundColor: selectedGalleryBackgroundColor }}>
-                              <div className="relative h-44 overflow-hidden bg-ink sm:h-52">
+                              <div className="relative h-32 overflow-hidden bg-ink">
                                 {designPreviewCoverPhoto ? (
                                   <Image
                                     src={designPreviewCoverPhoto.previewUrl || designPreviewCoverPhoto.imageUrl}
@@ -1032,7 +1034,7 @@ export default async function GalleryDetailPage({
                                   <div className="min-w-0 text-right">
                                     <p
                                       className="max-w-[8ch] font-semibold leading-[0.92] drop-shadow"
-                                      style={{ fontFamily: selectedGalleryTitleFont.family, fontSize: `${previewTitleSize}px` }}
+                                      style={{ fontFamily: selectedGalleryTitleFont.family, fontSize: `${Math.max(22, previewTitleSize - 6)}px` }}
                                     >
                                       {gallery.title}
                                     </p>
@@ -1040,28 +1042,28 @@ export default async function GalleryDetailPage({
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between border-b border-ink/10 bg-white px-4 py-2">
+                              <div className="flex items-center justify-between border-b border-ink/10 bg-white px-3 py-2">
                                 <div className="min-w-0">
                                   <div className="h-3 w-28 max-w-full rounded" style={{ backgroundColor: selectedGalleryBodyTextColor }} />
                                   <div className="mt-1.5 h-2 w-20 rounded opacity-30" style={{ backgroundColor: selectedGalleryBodyTextColor }} />
                                 </div>
                                 <div className="flex shrink-0 gap-1.5">
-                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                  <span className="grid size-6 place-items-center rounded border border-ink/10 bg-white text-graphite">
                                     <Heart size={13} />
                                   </span>
-                                  <span className="grid size-7 place-items-center rounded bg-ink text-white">
+                                  <span className="grid size-6 place-items-center rounded bg-ink text-white">
                                     <Download size={13} />
                                   </span>
-                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                  <span className="grid size-6 place-items-center rounded border border-ink/10 bg-white text-graphite">
                                     <Share2 size={13} />
                                   </span>
                                 </div>
                               </div>
                               <div
-                                className="grid grid-cols-3 p-3"
+                                className="grid grid-cols-3 p-2"
                                 style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
                               >
-                                {[64, 96, 56].map((height, index) => {
+                                {[42, 58, 42].map((height, index) => {
                                   const previewPhoto = designPreviewGridPhotos[index];
 
                                   return (
@@ -1090,7 +1092,7 @@ export default async function GalleryDetailPage({
                             </div>
                           ) : coverSticky ? (
                             <div style={{ backgroundColor: selectedGalleryBackgroundColor }}>
-                              <div className="relative h-32 overflow-hidden bg-ink sm:h-36">
+                              <div className="relative h-28 overflow-hidden bg-ink">
                                 {designPreviewCoverPhoto ? (
                                   <Image
                                     src={designPreviewCoverPhoto.previewUrl || designPreviewCoverPhoto.imageUrl}
@@ -1109,34 +1111,34 @@ export default async function GalleryDetailPage({
                                   <p className="text-[10px] font-semibold uppercase opacity-75">Editorial</p>
                                   <p
                                     className="mt-1 max-w-[9ch] font-semibold leading-[0.95] drop-shadow"
-                                    style={{ fontFamily: selectedGalleryTitleFont.family, fontSize: `${previewTitleSize}px` }}
+                                    style={{ fontFamily: selectedGalleryTitleFont.family, fontSize: `${Math.max(22, previewTitleSize - 6)}px` }}
                                   >
                                     {gallery.title}
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between border-b border-ink/10 bg-white px-4 py-2">
+                              <div className="flex items-center justify-between border-b border-ink/10 bg-white px-3 py-2">
                                 <div className="min-w-0">
                                   <div className="h-3 w-32 max-w-full rounded" style={{ backgroundColor: selectedGalleryBodyTextColor }} />
                                   <div className="mt-1.5 h-2 w-24 rounded opacity-30" style={{ backgroundColor: selectedGalleryBodyTextColor }} />
                                 </div>
                                 <div className="flex shrink-0 gap-1.5">
-                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                  <span className="grid size-6 place-items-center rounded border border-ink/10 bg-white text-graphite">
                                     <Heart size={13} />
                                   </span>
-                                  <span className="grid size-7 place-items-center rounded bg-ink text-white">
+                                  <span className="grid size-6 place-items-center rounded bg-ink text-white">
                                     <Download size={13} />
                                   </span>
-                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                  <span className="grid size-6 place-items-center rounded border border-ink/10 bg-white text-graphite">
                                     <Share2 size={13} />
                                   </span>
                                 </div>
                               </div>
                               <div
-                                className="grid grid-cols-3 p-3"
+                                className="grid grid-cols-3 p-2"
                                 style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
                               >
-                                {[64, 96, 56].map((height, index) => {
+                                {[42, 58, 42].map((height, index) => {
                                   const previewPhoto = designPreviewGridPhotos[index];
 
                                   return (
@@ -1164,8 +1166,8 @@ export default async function GalleryDetailPage({
                               </div>
                             </div>
                           ) : (
-                            <div className="space-y-3 p-3" style={{ backgroundColor: selectedGalleryBackgroundColor }}>
-                              <div className="relative h-24 overflow-hidden rounded bg-ink/10">
+                            <div className="space-y-2 p-2" style={{ backgroundColor: selectedGalleryBackgroundColor }}>
+                              <div className="relative h-20 overflow-hidden rounded bg-ink/10">
                                 {designPreviewCoverPhoto ? (
                                   <Image
                                     src={designPreviewCoverPhoto.previewUrl || designPreviewCoverPhoto.imageUrl}
@@ -1180,18 +1182,18 @@ export default async function GalleryDetailPage({
                                 <div className="absolute inset-0 bg-white/35" />
                               </div>
                               <div
-                                className="mx-auto h-4 w-36 rounded"
+                                className="mx-auto h-3 w-32 rounded"
                                 style={{
                                   backgroundColor: selectedGalleryTextColor,
                                   fontFamily: selectedGalleryTitleFont.family
                                 }}
                               />
-                              <div className="mx-auto h-2 w-24 rounded bg-graphite/30" />
+                              <div className="mx-auto h-1.5 w-20 rounded bg-graphite/30" />
                               <div
                                 className="grid grid-cols-3"
                                 style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
                               >
-                                {[64, 80, 56].map((height, index) => {
+                                {[42, 58, 42].map((height, index) => {
                                   const previewPhoto = designPreviewGridPhotos[index];
 
                                   return (
@@ -1233,9 +1235,18 @@ export default async function GalleryDetailPage({
                 data-gallery-design-fallback={GALLERY_DESIGN_CLASSIC}
               />
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <details className="mt-5 rounded-lg border border-ink/10 bg-paper">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-2">
+                    <Palette size={16} />
+                    Megjelenési beállítások
+                  </span>
+                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Opciók</span>
+                </summary>
+
+                <div className="grid gap-3 border-t border-ink/10 p-3 lg:grid-cols-2">
                 <div
-                  className="rounded-md border border-ink/10 bg-paper p-4"
+                  className="rounded-md border border-ink/10 bg-white p-3"
                   hidden={selectedGalleryDesign !== GALLERY_DESIGN_CLASSIC}
                   data-gallery-design-option={GALLERY_DESIGN_CLASSIC}
                 >
@@ -1268,7 +1279,7 @@ export default async function GalleryDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-md border border-ink/10 bg-white p-3">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1299,7 +1310,7 @@ export default async function GalleryDetailPage({
                   </p>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4 lg:col-span-2">
+                <div className="rounded-md border border-ink/10 bg-white p-3 lg:col-span-2">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1339,7 +1350,7 @@ export default async function GalleryDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-md border border-ink/10 bg-white p-3">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1368,7 +1379,7 @@ export default async function GalleryDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-md border border-ink/10 bg-white p-3">
                   <label className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1391,7 +1402,7 @@ export default async function GalleryDetailPage({
                   </label>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-md border border-ink/10 bg-white p-3">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1417,7 +1428,7 @@ export default async function GalleryDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-md border border-ink/10 bg-white p-3">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1443,7 +1454,7 @@ export default async function GalleryDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-md border border-ink/10 bg-white p-3">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1472,7 +1483,7 @@ export default async function GalleryDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                <div className="rounded-md border border-ink/10 bg-white p-3">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -1500,7 +1511,8 @@ export default async function GalleryDetailPage({
                     </label>
                   </div>
                 </div>
-              </div>
+                </div>
+              </details>
 
               <div className="mt-6 flex justify-end border-t border-ink/10 pt-5">
                 <FormSubmitButton pendingLabel="Mentés...">Stílus mentése</FormSubmitButton>
