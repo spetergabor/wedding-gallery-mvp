@@ -1,11 +1,9 @@
 export const GALLERY_DESIGN_CLASSIC = "classic";
 export const GALLERY_DESIGN_COVER_STICKY = "cover_sticky";
-export const GALLERY_DESIGN_MUSE = "muse";
 
 export type GalleryDesign =
   | typeof GALLERY_DESIGN_CLASSIC
-  | typeof GALLERY_DESIGN_COVER_STICKY
-  | typeof GALLERY_DESIGN_MUSE;
+  | typeof GALLERY_DESIGN_COVER_STICKY;
 
 export const GALLERY_DESIGNS: Array<{
   key: GalleryDesign;
@@ -26,20 +24,9 @@ export const GALLERY_DESIGNS: Array<{
     eyebrow: "Modern cover",
     description:
       "Magazinos hatású cover nézet letisztult, görgetéskor fent maradó funkciósávval."
-  },
-  {
-    key: GALLERY_DESIGN_MUSE,
-    label: "Muse",
-    eyebrow: "Lookbook",
-    description:
-      "Portfólió hangulatú galéria sticky információs panellel és levegős, képközpontú fotófolyammal."
   }
 ];
 
 export function normalizeGalleryDesign(value: unknown): GalleryDesign {
-  if (value === GALLERY_DESIGN_COVER_STICKY || value === GALLERY_DESIGN_MUSE) {
-    return value;
-  }
-
-  return GALLERY_DESIGN_CLASSIC;
+  return value === GALLERY_DESIGN_COVER_STICKY ? GALLERY_DESIGN_COVER_STICKY : GALLERY_DESIGN_CLASSIC;
 }

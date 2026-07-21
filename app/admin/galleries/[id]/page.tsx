@@ -38,7 +38,7 @@ import {
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
-import { GALLERY_DESIGN_CLASSIC, GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGN_MUSE, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
+import { GALLERY_DESIGN_CLASSIC, GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   GALLERY_TITLE_FONTS,
   galleryTextColorOrDefault,
@@ -951,11 +951,10 @@ export default async function GalleryDetailPage({
                 </span>
               </div>
 
-              <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-3">
+              <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-2">
                 {GALLERY_DESIGNS.map((design) => {
                   const selected = selectedGalleryDesign === design.key;
                   const coverSticky = design.key === GALLERY_DESIGN_COVER_STICKY;
-                  const muse = design.key === GALLERY_DESIGN_MUSE;
 
                   return (
                     <label key={design.key} className="block h-full cursor-pointer">
@@ -1059,55 +1058,6 @@ export default async function GalleryDetailPage({
                                           unoptimized
                                           className="object-cover"
                                           sizes="140px"
-                                        />
-                                      ) : null}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : muse ? (
-                            <div className="grid min-h-[270px] grid-cols-[0.82fr_1.18fr] gap-3 bg-[#f7f5f1] p-3">
-                              <div className="flex flex-col justify-between">
-                                <div>
-                                  <div className="h-2 w-20 rounded bg-graphite/30" />
-                                  <div className="mt-4 h-8 w-24 rounded bg-ink/85" />
-                                  <div className="mt-2 h-8 w-16 rounded bg-ink/85" />
-                                  <div className="mt-4 h-px w-10 bg-ink/20" />
-                                  <div className="mt-3 h-2 w-14 rounded bg-graphite/25" />
-                                </div>
-                                <div className="flex gap-1.5">
-                                  <span className="size-6 rounded-full border border-ink/10 bg-white" />
-                                  <span className="size-6 rounded-full border border-ink/10 bg-white" />
-                                </div>
-                              </div>
-                              <div
-                                className="grid grid-cols-6 grid-rows-6"
-                                style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
-                              >
-                                {[
-                                  "col-span-4 row-span-4",
-                                  "col-span-2 row-span-3",
-                                  "col-span-2 row-span-3",
-                                  "col-span-3 row-span-2",
-                                  "col-span-3 row-span-2"
-                                ].map((tileClass, index) => {
-                                  const previewPhoto = designPreviewGridPhotos[index] ?? designPreviewCoverPhoto;
-
-                                  return (
-                                    <div
-                                      key={`${design.key}-preview-${index}`}
-                                      className={`relative overflow-hidden bg-paper shadow-sm ${tileClass}`}
-                                      style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }}
-                                    >
-                                      {previewPhoto ? (
-                                        <Image
-                                          src={previewPhoto.previewUrl || previewPhoto.imageUrl}
-                                          alt={previewPhoto.filename}
-                                          fill
-                                          unoptimized
-                                          className="object-cover"
-                                          sizes="120px"
                                         />
                                       ) : null}
                                     </div>
