@@ -447,7 +447,7 @@ export default async function GalleryDetailPage({
   const paidGallery = galleryDeliveryUsesPayment(gallery.deliveryMode);
   const selectedGalleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
   const selectedGalleryDesignLabel =
-    GALLERY_DESIGNS.find((design) => design.key === selectedGalleryDesign)?.label ?? "Spetly Classic";
+    GALLERY_DESIGNS.find((design) => design.key === selectedGalleryDesign)?.label ?? "Timeless";
   const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
   const canPrepareZip =
     (paidGallery || (gallery.downloadsEnabled && galleryDeliveryAllowsDownloads(gallery.deliveryMode))) &&

@@ -11,17 +11,17 @@ export const GALLERY_DESIGNS: Array<{
 }> = [
   {
     key: GALLERY_DESIGN_CLASSIC,
-    label: "Spetly Classic",
-    eyebrow: "Alap stílus",
+    label: "Timeless",
+    eyebrow: "Klasszikus",
     description:
-      "A jelenlegi publikus galéria nézet: nagy borítókép, anchor blokkok, videók elöl, sticky navigáció és letöltési sáv."
+      "Elegáns, bevált galéria nézet nagy borítóval, szekciókkal és lebegő funkciósávval."
   },
   {
     key: GALLERY_DESIGN_COVER_STICKY,
-    label: "Cover + sticky sáv",
-    eyebrow: "Minimál cover",
+    label: "Editorial",
+    eyebrow: "Modern cover",
     description:
-      "A borítókép alatt letisztult sáv jelenik meg: bal oldalt név, jobb oldalt megosztás és letöltés. Görgetéskor fent marad."
+      "Magazinos hatású cover nézet letisztult, görgetéskor fent maradó funkciósávval."
   }
 ];
 
