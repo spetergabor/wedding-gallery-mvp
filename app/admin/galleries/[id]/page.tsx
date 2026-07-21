@@ -1299,29 +1299,43 @@ export default async function GalleryDetailPage({
                   </p>
                 </div>
 
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+                <div className="rounded-md border border-ink/10 bg-paper p-4 lg:col-span-2">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-start">
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                         <Palette size={16} />
-                        Galéria szöveg színe
+                        Szöveg színek
                       </p>
                       <p className="mt-1 text-sm leading-6 text-graphite/70">
-                        A borító alatti publikus galéria szövegeinek, szekciócímeinek és információs elemeinek alapszíne.
+                        Külön állítható a borító szövege és a borító alatti galéria szövegeinek alapszíne.
                       </p>
                     </div>
-                    <label className="block space-y-2">
-                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Szöveg</span>
-                      <div className="flex items-center gap-2 rounded-md border border-ink/15 bg-white px-2 py-2">
-                        <input
-                          type="color"
-                          name="galleryBodyTextColor"
-                          defaultValue={selectedGalleryBodyTextColor}
-                          className="size-8 shrink-0 cursor-pointer rounded border border-ink/10 bg-white"
-                        />
-                        <span className="font-mono text-xs uppercase text-graphite">{selectedGalleryBodyTextColor}</span>
-                      </div>
-                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Hero szöveg</span>
+                        <div className="flex items-center gap-2 rounded-md border border-ink/15 bg-white px-2 py-2">
+                          <input
+                            type="color"
+                            name="galleryTextColor"
+                            defaultValue={selectedGalleryTextColor}
+                            className="size-8 shrink-0 cursor-pointer rounded border border-ink/10 bg-white"
+                          />
+                          <span className="font-mono text-xs uppercase text-graphite">{selectedGalleryTextColor}</span>
+                        </div>
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Galéria szöveg</span>
+                        <div className="flex items-center gap-2 rounded-md border border-ink/15 bg-white px-2 py-2">
+                          <input
+                            type="color"
+                            name="galleryBodyTextColor"
+                            defaultValue={selectedGalleryBodyTextColor}
+                            className="size-8 shrink-0 cursor-pointer rounded border border-ink/10 bg-white"
+                          />
+                          <span className="font-mono text-xs uppercase text-graphite">{selectedGalleryBodyTextColor}</span>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1375,32 +1389,6 @@ export default async function GalleryDetailPage({
                       Megjelenik
                     </span>
                   </label>
-                </div>
-
-                <div className="rounded-md border border-ink/10 bg-paper p-4">
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
-                    <div>
-                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                        <Palette size={16} />
-                        Hero szöveg színe
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-graphite/70">
-                        A publikus galéria borító részén megjelenő cím és meta szöveg színe.
-                      </p>
-                    </div>
-                    <label className="block space-y-2">
-                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Szín</span>
-                      <div className="flex items-center gap-2 rounded-md border border-ink/15 bg-white px-2 py-2">
-                        <input
-                          type="color"
-                          name="galleryTextColor"
-                          defaultValue={selectedGalleryTextColor}
-                          className="size-8 shrink-0 cursor-pointer rounded border border-ink/10 bg-white"
-                        />
-                        <span className="font-mono text-xs uppercase text-graphite">{selectedGalleryTextColor}</span>
-                      </div>
-                    </label>
-                  </div>
                 </div>
 
                 <div className="rounded-md border border-ink/10 bg-paper p-4">
