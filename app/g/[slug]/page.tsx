@@ -23,6 +23,7 @@ import {
 } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
 import { GALLERY_DESIGN_COVER_STICKY, normalizeGalleryDesign } from "@/lib/gallery-design";
+import { galleryTextColorOrDefault } from "@/lib/gallery-appearance";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -157,6 +158,10 @@ export default async function PublicGalleryPage({
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
   const galleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
+  const heroTextColor = galleryTextColorOrDefault(
+    gallery.galleryTextColor,
+    galleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
+  );
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
   const contactText = language === "hu" ? "Kérdésed van a galériával kapcsolatban?" : "Fragen zur Galerie?";
   const contactLinks: ContactQuickLink[] = [
@@ -333,7 +338,7 @@ export default async function PublicGalleryPage({
           )}
           <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.10),rgba(17,17,17,0.20)_46%,rgba(17,17,17,0.58))]" />
           <div className="relative mx-auto flex min-h-[52vh] w-full max-w-7xl items-end px-5 pb-8 pt-24 sm:min-h-[62vh] sm:pb-10 lg:min-h-[68vh] lg:px-8 lg:pb-12">
-            <div className="max-w-4xl">
+            <div className="max-w-4xl" style={{ color: heroTextColor }}>
               {settings?.logoUrl ? (
                 <Image
                   src={settings.logoUrl}
@@ -345,10 +350,10 @@ export default async function PublicGalleryPage({
                   style={{ height: `${Math.min(88, logoHeight)}px`, maxWidth: "min(58vw, 240px)" }}
                 />
               ) : settings?.businessName ? (
-                <p className="mb-3 text-xs font-semibold uppercase text-white/80 sm:text-sm">{settings.businessName}</p>
+                <p className="mb-3 text-xs font-semibold uppercase opacity-80 sm:text-sm">{settings.businessName}</p>
               ) : null}
-              <p className="text-xs font-semibold uppercase text-white/75 sm:text-sm">{heroMeta}</p>
-              <h1 className="font-playfair mt-2 max-w-[11ch] text-5xl font-semibold leading-[0.95] text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:max-w-[13ch] sm:text-6xl md:text-7xl lg:text-8xl">
+              <p className="text-xs font-semibold uppercase opacity-75 sm:text-sm">{heroMeta}</p>
+              <h1 className="font-playfair mt-2 max-w-[11ch] text-5xl font-semibold leading-[0.95] drop-shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:max-w-[13ch] sm:text-6xl md:text-7xl lg:text-8xl">
                 {gallery.title}
               </h1>
             </div>
@@ -386,7 +391,7 @@ export default async function PublicGalleryPage({
         </div>
         <div className="absolute inset-x-0 bottom-0 h-[70vh] bg-[linear-gradient(to_bottom,rgba(248,247,244,0)_0%,rgba(248,247,244,0.52)_34%,rgba(248,247,244,0.92)_58%,#f8f7f4_82%,#f8f7f4_100%)]" />
         <div className="relative mx-auto flex min-h-[92vh] w-full max-w-5xl flex-col items-center justify-end px-5 pb-16 pt-32 text-center lg:pb-20">
-          <div className="flex w-full flex-col items-center">
+          <div className="flex w-full flex-col items-center" style={{ color: heroTextColor }}>
             {settings?.logoUrl ? (
               <Image
                 src={settings.logoUrl}
@@ -398,16 +403,16 @@ export default async function PublicGalleryPage({
                 style={{ height: `${logoHeight}px`, maxWidth: "min(70vw, 320px)" }}
               />
             ) : settings?.businessName ? (
-              <p className="font-playfair mb-5 text-lg tracking-[0.18em] text-ink/75">
+              <p className="font-playfair mb-5 text-lg tracking-[0.18em] opacity-75">
                 {settings.businessName}
               </p>
             ) : null}
-            <h1 className="font-playfair text-5xl font-semibold leading-tight text-ink sm:text-6xl md:text-7xl lg:text-8xl">
+            <h1 className="font-playfair text-5xl font-semibold leading-tight sm:text-6xl md:text-7xl lg:text-8xl">
               {gallery.title}
             </h1>
-            <p className="font-playfair mt-4 text-xl text-ink/75 md:text-2xl">{heroMeta}</p>
+            <p className="font-playfair mt-4 text-xl opacity-75 md:text-2xl">{heroMeta}</p>
             {proofingSelection ? (
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-ink/75 md:text-base">
+              <p className="mt-4 max-w-2xl text-sm leading-6 opacity-75 md:text-base">
                 {language === "hu" ? "Válasszátok ki azokat a fotókat, amelyeket végleges kidolgozásra szeretnétek." : "Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet."}
               </p>
             ) : null}

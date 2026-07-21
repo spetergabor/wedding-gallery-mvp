@@ -807,6 +807,7 @@ model Gallery {
   isActive     Boolean  @default(false)
   galleryMode  String   @default("full")
   galleryDesign String  @default("classic")
+  galleryTextColor String?
   deliveryMode String   @default("free_download")
   salePriceCents Int    @default(0)
   saleUnitPriceCents Int @default(0)

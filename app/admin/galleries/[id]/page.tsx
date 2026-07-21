@@ -38,6 +38,7 @@ import {
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
+import { galleryTextColorOrDefault } from "@/lib/gallery-appearance";
 import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import {
@@ -449,6 +450,10 @@ export default async function GalleryDetailPage({
   const selectedGalleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
   const selectedGalleryDesignLabel =
     GALLERY_DESIGNS.find((design) => design.key === selectedGalleryDesign)?.label ?? "Timeless";
+  const selectedGalleryTextColor = galleryTextColorOrDefault(
+    gallery.galleryTextColor,
+    selectedGalleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
+  );
   const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
   const canPrepareZip =
     (paidGallery || (gallery.downloadsEnabled && galleryDeliveryAllowsDownloads(gallery.deliveryMode))) &&
@@ -979,9 +984,9 @@ export default async function GalleryDetailPage({
                                   <div className="absolute inset-0 bg-graphite" />
                                 )}
                                 <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.12),rgba(17,17,17,0.56))]" />
-                                <div className="absolute inset-x-4 bottom-4">
-                                  <p className="text-[10px] font-semibold uppercase text-white/75">Editorial</p>
-                                  <p className="font-playfair mt-1 max-w-[9ch] text-3xl font-semibold leading-[0.95] text-white drop-shadow">
+                                <div className="absolute inset-x-4 bottom-4" style={{ color: selectedGalleryTextColor }}>
+                                  <p className="text-[10px] font-semibold uppercase opacity-75">Editorial</p>
+                                  <p className="font-playfair mt-1 max-w-[9ch] text-3xl font-semibold leading-[0.95] drop-shadow">
                                     {gallery.title}
                                   </p>
                                 </div>
@@ -1025,7 +1030,7 @@ export default async function GalleryDetailPage({
                                 ) : null}
                                 <div className="absolute inset-0 bg-white/35" />
                               </div>
-                              <div className="mx-auto h-4 w-36 rounded bg-ink/70" />
+                              <div className="mx-auto h-4 w-36 rounded" style={{ backgroundColor: selectedGalleryTextColor }} />
                               <div className="mx-auto h-2 w-24 rounded bg-graphite/30" />
                               <div className="grid grid-cols-3 gap-2">
                                 <div className="h-16 rounded bg-white shadow-sm" />
@@ -1041,8 +1046,35 @@ export default async function GalleryDetailPage({
                 })}
               </div>
 
-              <div className="mt-6 rounded-md border border-ink/10 bg-paper p-4">
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-center">
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Palette size={16} />
+                        Hero szöveg színe
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A publikus galéria borító részén megjelenő cím és meta szöveg színe.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Szín</span>
+                      <div className="flex items-center gap-2 rounded-md border border-ink/15 bg-white px-2 py-2">
+                        <input
+                          type="color"
+                          name="galleryTextColor"
+                          defaultValue={selectedGalleryTextColor}
+                          className="size-8 shrink-0 cursor-pointer rounded border border-ink/10 bg-white"
+                        />
+                        <span className="font-mono text-xs uppercase text-graphite">{selectedGalleryTextColor}</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
                   <div>
                     <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                       <Columns3 size={16} />
@@ -1064,6 +1096,7 @@ export default async function GalleryDetailPage({
                       <option value="3">3 oszlop</option>
                     </select>
                   </label>
+                  </div>
                 </div>
               </div>
 
