@@ -33,6 +33,7 @@ export async function GET(
   const downloadPackage = await prisma.galleryDownloadPackage.findUnique({
     where: { accessToken: token },
     select: {
+      id: true,
       status: true,
       scope: true,
       r2Key: true,
@@ -81,6 +82,11 @@ export async function GET(
       downloadPackage.partCount,
       publicDownloadQualityFromScope(downloadPackage.scope)
     )
+  });
+
+  await prisma.galleryDownloadPackage.update({
+    where: { id: downloadPackage.id },
+    data: { lastDownloadedAt: new Date() }
   });
 
   return NextResponse.redirect(signedUrl);

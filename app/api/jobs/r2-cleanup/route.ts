@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runR2MultipartCleanupJob } from "@/lib/r2-maintenance";
+import { runR2CleanupJob } from "@/lib/r2-maintenance";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -26,7 +26,7 @@ async function cleanupR2(request: Request) {
   }
 
   try {
-    const result = await runR2MultipartCleanupJob();
+    const result = await runR2CleanupJob();
 
     return NextResponse.json({
       ok: true,

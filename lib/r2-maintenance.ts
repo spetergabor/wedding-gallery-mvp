@@ -1,5 +1,6 @@
 import {
   AbortMultipartUploadCommand,
+  DeleteObjectCommand,
   GetBucketCorsCommand,
   ListMultipartUploadsCommand,
   ListObjectsV2Command,
@@ -48,6 +49,7 @@ export type R2StorageAudit = {
 
 const R2_MULTIPART_CLEANUP_JOB_TYPE = "r2-multipart-cleanup";
 const DEFAULT_R2_MULTIPART_CLEANUP_MIN_AGE_HOURS = 24;
+const DEFAULT_R2_DOWNLOAD_PACKAGE_CLEANUP_MAX_IDLE_DAYS = 7;
 
 export type R2MultipartCleanupResult = {
   bucket: string;
@@ -58,6 +60,28 @@ export type R2MultipartCleanupResult = {
   skippedRecentUploads: number;
   skippedUnknownAgeUploads: number;
   aborted: Array<{ key: string; uploadId: string; initiated: Date | null }>;
+};
+
+export type R2DownloadPackageCleanupResult = {
+  bucket: string;
+  maxIdleDays: number;
+  cutoff: Date;
+  scannedPackages: number;
+  deletedPackages: number;
+  deletedBytes: number;
+  deleted: Array<{
+    id: string;
+    galleryId: string;
+    r2Key: string;
+    fileSize: number;
+    generatedAt: Date | null;
+    lastDownloadedAt: Date | null;
+  }>;
+};
+
+export type R2FullCleanupResult = {
+  multipart: R2MultipartCleanupResult;
+  downloadPackages: R2DownloadPackageCleanupResult;
 };
 
 export type R2CleanupRunSummary = {
@@ -536,6 +560,108 @@ function cleanupResultToJson(result: R2MultipartCleanupResult) {
   };
 }
 
+function downloadPackageCleanupResultToJson(result: R2DownloadPackageCleanupResult) {
+  return {
+    bucket: result.bucket,
+    maxIdleDays: result.maxIdleDays,
+    cutoff: result.cutoff.toISOString(),
+    scannedPackages: result.scannedPackages,
+    deletedPackages: result.deletedPackages,
+    deletedBytes: result.deletedBytes,
+    deleted: result.deleted.map((downloadPackage) => ({
+      id: downloadPackage.id,
+      galleryId: downloadPackage.galleryId,
+      r2Key: downloadPackage.r2Key,
+      fileSize: downloadPackage.fileSize,
+      generatedAt: downloadPackage.generatedAt?.toISOString() ?? null,
+      lastDownloadedAt: downloadPackage.lastDownloadedAt?.toISOString() ?? null
+    }))
+  };
+}
+
+export async function deleteIdleGalleryDownloadPackages({
+  maxIdleDays
+}: {
+  maxIdleDays?: number;
+} = {}): Promise<R2DownloadPackageCleanupResult> {
+  const config = r2Config();
+
+  if (config.missingConfig.length > 0) {
+    throw new Error(`Missing R2 configuration: ${config.missingConfig.join(", ")}`);
+  }
+
+  const effectiveMaxIdleDays =
+    maxIdleDays ?? readPositiveInteger(process.env.R2_DOWNLOAD_PACKAGE_CLEANUP_MAX_IDLE_DAYS, DEFAULT_R2_DOWNLOAD_PACKAGE_CLEANUP_MAX_IDLE_DAYS, 1);
+  const cutoff = new Date(Date.now() - effectiveMaxIdleDays * 24 * 60 * 60 * 1000);
+  const candidates = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      status: "completed",
+      r2Key: { not: null },
+      generatedAt: { lt: cutoff },
+      OR: [{ lastDownloadedAt: null }, { lastDownloadedAt: { lt: cutoff } }]
+    },
+    orderBy: [{ lastDownloadedAt: "asc" }, { generatedAt: "asc" }],
+    select: {
+      id: true,
+      galleryId: true,
+      r2Key: true,
+      fileSize: true,
+      generatedAt: true,
+      lastDownloadedAt: true
+    }
+  });
+  const client = r2Client(config);
+  const result: R2DownloadPackageCleanupResult = {
+    bucket: config.bucket,
+    maxIdleDays: effectiveMaxIdleDays,
+    cutoff,
+    scannedPackages: candidates.length,
+    deletedPackages: 0,
+    deletedBytes: 0,
+    deleted: []
+  };
+
+  for (const downloadPackage of candidates) {
+    if (!downloadPackage.r2Key) {
+      continue;
+    }
+
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: config.bucket,
+        Key: downloadPackage.r2Key
+      })
+    );
+
+    await prisma.galleryDownloadPackage.update({
+      where: { id: downloadPackage.id },
+      data: {
+        status: "stale",
+        r2Key: null,
+        downloadUrl: null,
+        accessToken: null,
+        accessTokenExpiresAt: null,
+        linkCreatedAt: null,
+        errorMessage: `A ZIP R2 objektum törölve lett, mert ${effectiveMaxIdleDays} napja nem töltötték le.`
+      }
+    });
+
+    const fileSize = Number(downloadPackage.fileSize);
+    result.deletedPackages += 1;
+    result.deletedBytes += Number.isFinite(fileSize) ? fileSize : 0;
+    result.deleted.push({
+      id: downloadPackage.id,
+      galleryId: downloadPackage.galleryId,
+      r2Key: downloadPackage.r2Key,
+      fileSize: Number.isFinite(fileSize) ? fileSize : 0,
+      generatedAt: downloadPackage.generatedAt,
+      lastDownloadedAt: downloadPackage.lastDownloadedAt
+    });
+  }
+
+  return result;
+}
+
 function payloadRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
@@ -597,6 +723,74 @@ export async function runR2MultipartCleanupJob({ minAgeHours }: { minAgeHours?: 
   }
 }
 
+export async function runR2CleanupJob({
+  minAgeHours,
+  maxIdleDays
+}: {
+  minAgeHours?: number;
+  maxIdleDays?: number;
+} = {}): Promise<R2FullCleanupResult> {
+  const effectiveMinAgeHours =
+    minAgeHours ?? readPositiveInteger(process.env.R2_MULTIPART_CLEANUP_MIN_AGE_HOURS, DEFAULT_R2_MULTIPART_CLEANUP_MIN_AGE_HOURS, 1);
+  const effectiveMaxIdleDays =
+    maxIdleDays ?? readPositiveInteger(process.env.R2_DOWNLOAD_PACKAGE_CLEANUP_MAX_IDLE_DAYS, DEFAULT_R2_DOWNLOAD_PACKAGE_CLEANUP_MAX_IDLE_DAYS, 1);
+  const startedAt = new Date();
+  const job = await prisma.backgroundJob.create({
+    data: {
+      type: R2_MULTIPART_CLEANUP_JOB_TYPE,
+      status: "processing",
+      payload: {
+        minAgeHours: effectiveMinAgeHours,
+        maxIdleDays: effectiveMaxIdleDays,
+        startedAt: startedAt.toISOString()
+      },
+      attempts: 1,
+      maxAttempts: 1,
+      lockedAt: startedAt,
+      startedAt
+    }
+  });
+
+  try {
+    const multipart = await abortStaleR2MultipartUploads({ minAgeHours: effectiveMinAgeHours });
+    const downloadPackages = await deleteIdleGalleryDownloadPackages({ maxIdleDays: effectiveMaxIdleDays });
+    const result = { multipart, downloadPackages };
+
+    await prisma.backgroundJob.update({
+      where: { id: job.id },
+      data: {
+        status: "completed",
+        lockedAt: null,
+        completedAt: new Date(),
+        payload: {
+          minAgeHours: effectiveMinAgeHours,
+          maxIdleDays: effectiveMaxIdleDays,
+          result: {
+            multipart: cleanupResultToJson(multipart),
+            downloadPackages: downloadPackageCleanupResultToJson(downloadPackages)
+          }
+        }
+      }
+    });
+
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "R2 cleanup failed.";
+
+    await prisma.backgroundJob.update({
+      where: { id: job.id },
+      data: {
+        status: "failed",
+        lockedAt: null,
+        completedAt: new Date(),
+        errorMessage: message.slice(0, 500)
+      }
+    });
+
+    throw error;
+  }
+}
+
 export async function getLatestR2CleanupRun(): Promise<R2CleanupRunSummary | null> {
   const job = await prisma.backgroundJob.findFirst({
     where: { type: R2_MULTIPART_CLEANUP_JOB_TYPE },
@@ -617,6 +811,8 @@ export async function getLatestR2CleanupRun(): Promise<R2CleanupRunSummary | nul
 
   const payload = payloadRecord(job.payload);
   const result = payloadRecord(payload.result);
+  const multipartResult = payloadRecord(result.multipart);
+  const uploadResult = Object.keys(multipartResult).length > 0 ? multipartResult : result;
 
   return {
     status: job.status,
@@ -625,9 +821,9 @@ export async function getLatestR2CleanupRun(): Promise<R2CleanupRunSummary | nul
     completedAt: job.completedAt,
     errorMessage: job.errorMessage,
     minAgeHours: payloadNumber(payload.minAgeHours),
-    scannedUploads: payloadNumber(result.scannedUploads),
-    abortedUploads: payloadNumber(result.abortedUploads),
-    skippedRecentUploads: payloadNumber(result.skippedRecentUploads),
-    skippedUnknownAgeUploads: payloadNumber(result.skippedUnknownAgeUploads)
+    scannedUploads: payloadNumber(uploadResult.scannedUploads),
+    abortedUploads: payloadNumber(uploadResult.abortedUploads),
+    skippedRecentUploads: payloadNumber(uploadResult.skippedRecentUploads),
+    skippedUnknownAgeUploads: payloadNumber(uploadResult.skippedUnknownAgeUploads)
   };
 }

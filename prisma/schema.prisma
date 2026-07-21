@@ -1004,6 +1004,7 @@ model GalleryDownloadPackage {
   accessToken  String?  @unique
   accessTokenExpiresAt DateTime?
   linkCreatedAt DateTime?
+  lastDownloadedAt DateTime?
   errorMessage String?
   generatedAt  DateTime?
   createdAt    DateTime @default(now())
@@ -1016,6 +1017,7 @@ model GalleryDownloadPackage {
   @@index([groupId])
   @@index([status])
   @@index([generatedAt])
+  @@index([lastDownloadedAt])
 }
 
 model BackgroundJob {
