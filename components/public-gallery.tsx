@@ -138,6 +138,10 @@ const GALLERY_COPY = {
     priceTiers: "Mengenpreise",
     baseUnitPrice: "Einzelpreis",
     buyerDetails: "Käuferdaten",
+    checkoutSummary: "Bestellübersicht",
+    selectedPhotosLabel: "Ausgewählte Fotos",
+    cartActionRequired: "Wähle unten Fotos aus, um den Warenkorb zu kaufen.",
+    wholeGalleryIncluded: "Alle freigeschalteten Fotos als Download.",
     selectedCheckoutHint: "Ausgewählte Fotos kaufen",
     wholeGalleryCheckoutHint: "Alle Fotos kaufen"
   },
@@ -252,6 +256,10 @@ const GALLERY_COPY = {
     priceTiers: "Darabszám szerinti árak",
     baseUnitPrice: "Darabár",
     buyerDetails: "Vásárlói adatok",
+    checkoutSummary: "Rendelés összegzése",
+    selectedPhotosLabel: "Kiválasztott képek",
+    cartActionRequired: "Válassz lent képeket a kosár megvásárlásához.",
+    wholeGalleryIncluded: "Az összes feloldott fotó letölthető.",
     selectedCheckoutHint: "Kiválasztott képek megvásárlása",
     wholeGalleryCheckoutHint: "Teljes galéria megvásárlása"
   }
@@ -1701,7 +1709,7 @@ export function PublicGallery({
             ) : null}
             {renderPaidDownloadStatus()}
 
-            <form action={createPaidGalleryCheckoutAction} className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
+            <form action={createPaidGalleryCheckoutAction} className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start">
               <input type="hidden" name="galleryId" value={galleryId} />
               <input type="hidden" name="gallerySlug" value={gallerySlug} />
               <input type="hidden" name="photoIds" value={cartPhotoIds.join(",")} />
@@ -1709,7 +1717,7 @@ export function PublicGallery({
               <div className="space-y-4">
                 {!fullGalleryPurchased ? (
                   <div
-                    className={`rounded-lg border p-4 transition ${
+                    className={`rounded-lg border p-4 transition md:p-5 ${
                       cartPhotoIds.length > 0
                         ? "border-brass/35 bg-brass/[0.06] shadow-soft"
                         : "border-ink/10 bg-paper"
@@ -1721,29 +1729,35 @@ export function PublicGallery({
                           <ShoppingCart size={14} />
                           {copy.photoCartTitle}
                         </div>
-                        <p className="mt-1 text-xs leading-5 text-graphite/65">{copy.photoCartIntro}</p>
+                        <p className="mt-3 max-w-2xl text-sm leading-6 text-graphite/70">{copy.photoCartIntro}</p>
                       </div>
-                      <p className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-graphite shadow-sm">
+                      <p className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-graphite shadow-sm">
                         {cartPhotoIds.length > 0 ? copy.selectedPhotos(cartPhotoIds.length) : copy.cartEmpty}
                       </p>
                     </div>
-                    <div className="mt-4 flex items-end justify-between gap-3 rounded-md bg-white px-4 py-4">
+                    <div className="mt-5 grid gap-3 rounded-md bg-white p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                       <div>
                         <p className="text-sm font-semibold text-ink">{copy.selectedCheckoutHint}</p>
                         <p className="mt-1 text-xs uppercase tracking-[0.14em] text-graphite/50">{copy.cartTotal}</p>
                       </div>
-                      <p className="text-3xl font-semibold text-ink">{cartTotalLabel}</p>
+                      <p className="text-3xl font-semibold text-ink sm:text-right">{cartTotalLabel}</p>
                     </div>
+                    {cartPhotoIds.length === 0 ? (
+                      <p className="mt-3 text-xs leading-5 text-graphite/60">{copy.cartActionRequired}</p>
+                    ) : null}
                   </div>
                 ) : null}
 
-                <div className="rounded-lg border border-ink/10 bg-paper p-4">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="rounded-lg border border-ink/10 bg-paper p-4 md:p-5">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                     <div>
                       <p className="font-semibold text-ink">{copy.wholeGalleryCheckoutHint}</p>
-                      <p className="mt-2 text-3xl font-semibold text-ink">{sale.priceLabel}</p>
+                      <p className="mt-2 text-sm leading-6 text-graphite/70">{copy.wholeGalleryIncluded}</p>
                     </div>
-                    <ShieldCheck size={20} className="mt-1 shrink-0 text-brass" />
+                    <div className="flex items-center gap-2 sm:justify-end">
+                      <ShieldCheck size={18} className="shrink-0 text-brass" />
+                      <p className="text-3xl font-semibold text-ink">{sale.priceLabel}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -1775,10 +1789,29 @@ export function PublicGallery({
                 <p className="text-xs leading-5 text-graphite/60">{copy.paidSecure}</p>
               </div>
 
-              <div className="rounded-lg border border-ink/10 bg-paper p-4 lg:sticky lg:top-24">
-                <div className="mb-4 flex items-center justify-between gap-3 border-b border-ink/10 pb-3">
+              <div className="rounded-lg border border-ink/10 bg-paper p-4 shadow-soft lg:sticky lg:top-24">
+                <div className="mb-4 space-y-3 border-b border-ink/10 pb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-ink">{copy.checkoutSummary}</p>
+                    <CreditCard size={18} className="text-brass" />
+                  </div>
+                  <div className="grid gap-2 text-sm">
+                    {!fullGalleryPurchased ? (
+                      <div className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
+                        <span className="text-graphite/70">{copy.selectedPhotosLabel}</span>
+                        <span className="font-semibold text-ink">{copy.selectedPhotos(cartPhotoIds.length)}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
+                      <span className="text-graphite/70">{copy.wholeGalleryTitle}</span>
+                      <span className="font-semibold text-ink">{sale.priceLabel}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-4 flex items-center justify-between gap-3">
                   <p className="font-semibold text-ink">{copy.buyerDetails}</p>
-                  <CreditCard size={18} className="text-brass" />
+                  <ShieldCheck size={18} className="text-brass" />
                 </div>
                 <div className="space-y-3">
                   <label className="block space-y-2">
@@ -1811,11 +1844,14 @@ export function PublicGallery({
                           value="photos"
                           pendingLabel={copy.sending}
                           disabled={cartPhotoIds.length === 0}
-                          className="h-12 w-full"
+                          className="h-12 w-full disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           <ShoppingCart size={16} />
                           {cartTotalCents <= 0 ? copy.paidNoCostButton : copy.cartCheckout}
                         </FormSubmitButton>
+                        {cartPhotoIds.length === 0 ? (
+                          <p className="mt-2 text-xs leading-5 text-graphite/60">{copy.cartActionRequired}</p>
+                        ) : null}
                       </div>
                     ) : null}
                     <div className="rounded-md border border-ink/10 bg-white p-3">
