@@ -1067,32 +1067,38 @@ export default async function GalleryDetailPage({
                               </div>
                             </div>
                           ) : muse ? (
-                            <div className="grid min-h-[270px] grid-cols-[96px_1fr] bg-white">
-                              <div className="border-r border-ink/10 bg-paper p-3">
-                                <div className="h-3 w-14 rounded bg-ink/80" />
-                                <div className="mt-2 h-2 w-10 rounded bg-graphite/30" />
-                                <div className="mt-7 h-8 w-16 rounded bg-ink/10" />
-                                <div className="mt-2 h-2 w-12 rounded bg-graphite/25" />
-                                <div className="mt-12 flex gap-1">
-                                  <span className="size-5 rounded border border-ink/10 bg-white" />
-                                  <span className="size-5 rounded bg-ink" />
+                            <div className="grid min-h-[270px] grid-cols-[0.82fr_1.18fr] gap-3 bg-[#f7f5f1] p-3">
+                              <div className="flex flex-col justify-between">
+                                <div>
+                                  <div className="h-2 w-20 rounded bg-graphite/30" />
+                                  <div className="mt-4 h-8 w-24 rounded bg-ink/85" />
+                                  <div className="mt-2 h-8 w-16 rounded bg-ink/85" />
+                                  <div className="mt-4 h-px w-10 bg-ink/20" />
+                                  <div className="mt-3 h-2 w-14 rounded bg-graphite/25" />
+                                </div>
+                                <div className="flex gap-1.5">
+                                  <span className="size-6 rounded-full border border-ink/10 bg-white" />
+                                  <span className="size-6 rounded-full border border-ink/10 bg-white" />
                                 </div>
                               </div>
                               <div
-                                className="grid grid-cols-2 p-3"
+                                className="grid grid-cols-6 grid-rows-6"
                                 style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
                               >
-                                {[104, 72, 86, 118].map((height, index) => {
+                                {[
+                                  "col-span-4 row-span-4",
+                                  "col-span-2 row-span-3",
+                                  "col-span-2 row-span-3",
+                                  "col-span-3 row-span-2",
+                                  "col-span-3 row-span-2"
+                                ].map((tileClass, index) => {
                                   const previewPhoto = designPreviewGridPhotos[index] ?? designPreviewCoverPhoto;
 
                                   return (
                                     <div
                                       key={`${design.key}-preview-${index}`}
-                                      className="relative overflow-hidden bg-paper shadow-sm"
-                                      style={{
-                                        height: `${height}px`,
-                                        borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px`
-                                      }}
+                                      className={`relative overflow-hidden bg-paper shadow-sm ${tileClass}`}
+                                      style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }}
                                     >
                                       {previewPhoto ? (
                                         <Image

@@ -245,6 +245,7 @@ export default async function PublicGalleryPage({
             }
       )
     : publicPhotos;
+  const museFeaturePhotos = publicGalleryPhotos.filter((photo) => photo.mediaType !== "video").slice(0, 5);
 
   if (!canView) {
     return (
@@ -398,92 +399,136 @@ export default async function PublicGalleryPage({
     return (
       <main className="min-h-screen bg-[#f7f5f1] text-ink">
         <GalleryViewTracker galleryId={gallery.id} />
-        <section className="mx-auto grid w-full max-w-[1600px] gap-8 px-5 py-6 pb-28 lg:grid-cols-[340px_minmax(0,1fr)] lg:px-8 lg:py-8">
-          <aside className="lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)]">
-            <div className="flex h-full flex-col justify-between border-b border-ink/10 pb-6 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8">
-              <div>
-                {coverPhoto ? (
-                  <div className="relative mb-6 aspect-[4/5] overflow-hidden rounded-md bg-ink/10 lg:aspect-[3/4]">
-                    <Image
-                      src={coverPhotoSrc}
-                      alt={gallery.title}
-                      fill
-                      priority
-                      quality={92}
-                      unoptimized
-                      className="object-cover"
-                      sizes="(min-width: 1024px) 320px, 92vw"
-                      style={{ objectPosition: coverPosition }}
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.04),rgba(17,17,17,0.34))]" />
-                  </div>
-                ) : null}
+        <header className="mx-auto grid w-full max-w-[1600px] gap-8 px-5 pb-14 pt-8 lg:min-h-screen lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-center lg:px-8 lg:pb-20">
+          <div className="max-w-2xl">
+            {settings?.logoUrl ? (
+              <Image
+                src={settings.logoUrl}
+                alt={settings.businessName || "Logo"}
+                width={180}
+                height={84}
+                unoptimized
+                className="mb-8 h-auto w-auto max-w-[200px] object-contain"
+                style={{ maxHeight: `${Math.min(82, logoHeight)}px` }}
+              />
+            ) : settings?.businessName ? (
+              <p className="mb-6 text-xs font-semibold uppercase tracking-[0.24em] text-graphite/60">{settings.businessName}</p>
+            ) : null}
 
-                {settings?.logoUrl ? (
-                  <Image
-                    src={settings.logoUrl}
-                    alt={settings.businessName || "Logo"}
-                    width={170}
-                    height={80}
-                    unoptimized
-                    className="mb-5 h-auto w-auto max-w-[190px] object-contain"
-                    style={{ maxHeight: `${Math.min(78, logoHeight)}px` }}
-                  />
-                ) : settings?.businessName ? (
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-graphite/65">{settings.businessName}</p>
-                ) : null}
-
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-graphite/55">Muse</p>
-                <h1 className="mt-3 font-semibold leading-[0.95] text-ink" style={museTitleStyle}>
-                  {gallery.title}
-                </h1>
-                <p className="mt-4 text-sm font-medium text-graphite/70">{heroMeta}</p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-graphite/50">
-                  {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
-                </p>
-
-                {proofingSelection ? (
-                  <p className="mt-5 text-sm leading-6 text-graphite/70">
-                    {language === "hu"
-                      ? "Válasszátok ki azokat a fotókat, amelyeket végleges kidolgozásra szeretnétek."
-                      : "Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet."}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="mt-7 space-y-5">
-                <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
-                {gallery.showContactBox && contactLinks.length > 0 ? (
-                  <div className="rounded-md border border-ink/10 bg-white/75 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-graphite/55">{contactTitle}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {contactLinks.map((link) => {
-                        const Icon = link.icon;
-
-                        return (
-                          <a
-                            key={`${link.label}-${link.href}`}
-                            href={link.href}
-                            target={link.external ? "_blank" : undefined}
-                            rel={link.external ? "noreferrer" : undefined}
-                            className="inline-flex size-9 items-center justify-center rounded-md border border-ink/10 bg-white text-graphite transition hover:border-ink/25 hover:text-ink"
-                            title={link.label}
-                            aria-label={link.label}
-                          >
-                            <Icon size={15} />
-                          </a>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-graphite/50">Muse Lookbook</p>
+            <h1 className="mt-5 max-w-[10ch] font-semibold leading-[0.9] text-ink" style={museTitleStyle}>
+              {gallery.title}
+            </h1>
+            <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-graphite/70">
+              <span>{heroMeta}</span>
+              <span className="h-px w-8 bg-ink/20" />
+              <span>
+                {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
+              </span>
             </div>
-          </aside>
 
-          <section className="min-w-0">
-            {galleryContent}
-          </section>
+            {proofingSelection ? (
+              <p className="mt-6 max-w-lg text-sm leading-6 text-graphite/70">
+                {language === "hu"
+                  ? "Válasszátok ki azokat a fotókat, amelyeket végleges kidolgozásra szeretnétek."
+                  : "Wählt die Fotos aus, die ihr final bearbeiten lassen möchtet."}
+              </p>
+            ) : null}
+
+            <div className="mt-9 flex flex-wrap items-center gap-3">
+              <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
+              {gallery.showContactBox && contactLinks.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {contactLinks.slice(0, 4).map((link) => {
+                    const Icon = link.icon;
+
+                    return (
+                      <a
+                        key={`${link.label}-${link.href}`}
+                        href={link.href}
+                        target={link.external ? "_blank" : undefined}
+                        rel={link.external ? "noreferrer" : undefined}
+                        className="inline-flex size-10 items-center justify-center rounded-full border border-ink/10 bg-white/70 text-graphite transition hover:border-ink/25 hover:text-ink"
+                        title={link.label}
+                        aria-label={link.label}
+                      >
+                        <Icon size={15} />
+                      </a>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid min-h-[420px] grid-cols-6 grid-rows-6 gap-2 sm:min-h-[560px] sm:gap-3 lg:min-h-[76vh]">
+            {museFeaturePhotos[0] ? (
+              <div className="relative col-span-4 row-span-4 overflow-hidden rounded-md bg-ink/10">
+                <Image
+                  src={museFeaturePhotos[0].previewUrl || museFeaturePhotos[0].imageUrl}
+                  alt={museFeaturePhotos[0].filename}
+                  fill
+                  priority
+                  quality={96}
+                  unoptimized
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 48vw, 90vw"
+                />
+              </div>
+            ) : null}
+            {museFeaturePhotos[1] ? (
+              <div className="relative col-span-2 row-span-3 overflow-hidden rounded-md bg-ink/10">
+                <Image
+                  src={museFeaturePhotos[1].previewUrl || museFeaturePhotos[1].imageUrl}
+                  alt={museFeaturePhotos[1].filename}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 24vw, 40vw"
+                />
+              </div>
+            ) : null}
+            {museFeaturePhotos[2] ? (
+              <div className="relative col-span-2 row-span-3 overflow-hidden rounded-md bg-ink/10">
+                <Image
+                  src={museFeaturePhotos[2].previewUrl || museFeaturePhotos[2].imageUrl}
+                  alt={museFeaturePhotos[2].filename}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 24vw, 40vw"
+                />
+              </div>
+            ) : null}
+            {museFeaturePhotos[3] ? (
+              <div className="relative col-span-3 row-span-2 overflow-hidden rounded-md bg-ink/10">
+                <Image
+                  src={museFeaturePhotos[3].previewUrl || museFeaturePhotos[3].imageUrl}
+                  alt={museFeaturePhotos[3].filename}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 32vw, 50vw"
+                />
+              </div>
+            ) : null}
+            {museFeaturePhotos[4] ? (
+              <div className="relative col-span-3 row-span-2 overflow-hidden rounded-md bg-ink/10">
+                <Image
+                  src={museFeaturePhotos[4].previewUrl || museFeaturePhotos[4].imageUrl}
+                  alt={museFeaturePhotos[4].filename}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 32vw, 50vw"
+                />
+              </div>
+            ) : null}
+          </div>
+        </header>
+
+        <section className="mx-auto w-full max-w-[1500px] px-5 pb-28 lg:px-8">
+          {galleryContent}
         </section>
       </main>
     );
