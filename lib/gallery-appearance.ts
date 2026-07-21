@@ -49,6 +49,14 @@ export function galleryTextColorOrDefault(value: unknown, fallback: string) {
   return normalizeGalleryTextColor(value) ?? fallback;
 }
 
+export function normalizeGalleryBackgroundColor(value: unknown) {
+  return normalizeGalleryTextColor(value);
+}
+
+export function galleryBackgroundColorOrDefault(value: unknown, fallback = "#f8f7f4") {
+  return normalizeGalleryBackgroundColor(value) ?? fallback;
+}
+
 function normalizePixelValue(value: unknown, fallback: number, min: number, max: number) {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number.parseInt(value, 10) : Number.NaN;
 

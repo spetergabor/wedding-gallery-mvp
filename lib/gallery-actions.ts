@@ -47,6 +47,7 @@ import {
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
   normalizeClassicGradientIntensity,
+  normalizeGalleryBackgroundColor,
   normalizeGalleryTextColor,
   normalizeGalleryTitleFont,
   normalizeGalleryTitleSize
@@ -3281,6 +3282,7 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
   const galleryDesign = normalizeGalleryDesign(formData.get("galleryDesign"));
   const publicColumnCount = mobileColumnCountFromForm(formData);
   const galleryTextColor = normalizeGalleryTextColor(formString(formData, "galleryTextColor"));
+  const galleryBackgroundColor = normalizeGalleryBackgroundColor(formString(formData, "galleryBackgroundColor"));
   const publicGridGap = normalizeGalleryGridGap(formString(formData, "publicGridGap"));
   const publicImageRadius = normalizeGalleryImageRadius(formString(formData, "publicImageRadius"));
   const galleryTitleFont = normalizeGalleryTitleFont(formString(formData, "galleryTitleFont"));
@@ -3294,6 +3296,7 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
       galleryDesign,
       publicColumnCount,
       galleryTextColor,
+      galleryBackgroundColor,
       galleryTitleFont,
       galleryTitleSize,
       classicGradientIntensity,

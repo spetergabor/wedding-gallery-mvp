@@ -25,6 +25,7 @@ import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
 import { GALLERY_DESIGN_COVER_STICKY, normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   galleryHeroTitleSizeClamp,
+  galleryBackgroundColorOrDefault,
   galleryTextColorOrDefault,
   galleryTitleFontDefinition,
   normalizeClassicGradientIntensity,
@@ -62,6 +63,23 @@ function phoneHref(value: string | null | undefined) {
   const normalizedPhone = phone.replace(/[^\d+]/g, "");
 
   return normalizedPhone ? `tel:${normalizedPhone}` : null;
+}
+
+function hexToRgb(color: string) {
+  const normalizedColor = color.replace("#", "");
+  const value = Number.parseInt(normalizedColor, 16);
+
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255
+  };
+}
+
+function rgbaFromHex(color: string, alpha: number) {
+  const { r, g, b } = hexToRgb(color);
+
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 type ContactQuickLink = {
@@ -170,6 +188,7 @@ export default async function PublicGalleryPage({
     gallery.galleryTextColor,
     galleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
   );
+  const galleryBackgroundColor = galleryBackgroundColorOrDefault(gallery.galleryBackgroundColor);
   const heroTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
   const heroTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
   const heroTitleStyle = {
@@ -178,6 +197,7 @@ export default async function PublicGalleryPage({
   };
   const classicGradientIntensity = normalizeClassicGradientIntensity(gallery.classicGradientIntensity);
   const classicGradientStyle = { opacity: classicGradientIntensity / 100 };
+  const classicGradientBackground = `linear-gradient(to bottom, ${rgbaFromHex(galleryBackgroundColor, 0)} 0%, ${rgbaFromHex(galleryBackgroundColor, 0.52)} 34%, ${rgbaFromHex(galleryBackgroundColor, 0.92)} 58%, ${galleryBackgroundColor} 82%, ${galleryBackgroundColor} 100%)`;
   const publicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const publicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
@@ -337,7 +357,7 @@ export default async function PublicGalleryPage({
 
   if (galleryDesign === GALLERY_DESIGN_COVER_STICKY) {
     return (
-      <main className="min-h-screen bg-paper">
+      <main className="min-h-screen" style={{ backgroundColor: galleryBackgroundColor }}>
         <GalleryViewTracker galleryId={gallery.id} />
         <header className="relative min-h-[56svh] overflow-hidden bg-ink text-white sm:min-h-[64vh] lg:min-h-[70vh]">
           {coverPhoto ? (
@@ -390,9 +410,9 @@ export default async function PublicGalleryPage({
   }
 
   return (
-    <main className="min-h-screen bg-paper">
+    <main className="min-h-screen" style={{ backgroundColor: galleryBackgroundColor }}>
       <GalleryViewTracker galleryId={gallery.id} />
-      <header className="relative min-h-[92vh] overflow-hidden bg-paper text-ink">
+      <header className="relative min-h-[92vh] overflow-hidden text-ink" style={{ backgroundColor: galleryBackgroundColor }}>
         <div className="absolute inset-0 overflow-hidden bg-ink">
           {coverPhoto ? (
             <Image
@@ -412,8 +432,8 @@ export default async function PublicGalleryPage({
           <div className="absolute inset-0 bg-ink/25" />
         </div>
         <div
-          className="absolute inset-x-0 bottom-0 h-[70vh] bg-[linear-gradient(to_bottom,rgba(248,247,244,0)_0%,rgba(248,247,244,0.52)_34%,rgba(248,247,244,0.92)_58%,#f8f7f4_82%,#f8f7f4_100%)]"
-          style={classicGradientStyle}
+          className="absolute inset-x-0 bottom-0 h-[70vh]"
+          style={{ ...classicGradientStyle, background: classicGradientBackground }}
         />
         <div className="relative mx-auto flex min-h-[92vh] w-full max-w-5xl flex-col items-center justify-end px-5 pb-16 pt-32 text-center lg:pb-20">
           <div className="flex w-full flex-col items-center" style={{ color: heroTextColor }}>

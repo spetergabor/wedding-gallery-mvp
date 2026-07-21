@@ -41,6 +41,7 @@ import { prisma } from "@/lib/prisma";
 import { GALLERY_DESIGN_CLASSIC, GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   GALLERY_TITLE_FONTS,
+  galleryBackgroundColorOrDefault,
   galleryTextColorOrDefault,
   galleryTitleFontDefinition,
   normalizeClassicGradientIntensity,
@@ -463,6 +464,7 @@ export default async function GalleryDetailPage({
     gallery.galleryTextColor,
     selectedGalleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
   );
+  const selectedGalleryBackgroundColor = galleryBackgroundColorOrDefault(gallery.galleryBackgroundColor);
   const selectedGalleryTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
   const selectedGalleryTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
   const previewTitleSize = Math.max(24, Math.round(selectedGalleryTitleSize * 0.34));
@@ -991,7 +993,7 @@ export default async function GalleryDetailPage({
 
                         <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:mt-auto">
                           {coverSticky ? (
-                            <div className="bg-paper">
+                            <div style={{ backgroundColor: selectedGalleryBackgroundColor }}>
                               <div className="relative h-32 overflow-hidden bg-ink sm:h-36">
                                 {designPreviewCoverPhoto ? (
                                   <Image
@@ -1066,7 +1068,7 @@ export default async function GalleryDetailPage({
                               </div>
                             </div>
                           ) : (
-                            <div className="space-y-3 bg-paper p-3">
+                            <div className="space-y-3 p-3" style={{ backgroundColor: selectedGalleryBackgroundColor }}>
                               <div className="relative h-24 overflow-hidden rounded bg-ink/10">
                                 {designPreviewCoverPhoto ? (
                                   <Image
@@ -1274,6 +1276,32 @@ export default async function GalleryDetailPage({
                           className="size-8 shrink-0 cursor-pointer rounded border border-ink/10 bg-white"
                         />
                         <span className="font-mono text-xs uppercase text-graphite">{selectedGalleryTextColor}</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Palette size={16} />
+                        Galéria háttérszín
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A publikus galéria oldalának alap háttere. Minden stílusnál érvényes.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Háttér</span>
+                      <div className="flex items-center gap-2 rounded-md border border-ink/15 bg-white px-2 py-2">
+                        <input
+                          type="color"
+                          name="galleryBackgroundColor"
+                          defaultValue={selectedGalleryBackgroundColor}
+                          className="size-8 shrink-0 cursor-pointer rounded border border-ink/10 bg-white"
+                        />
+                        <span className="font-mono text-xs uppercase text-graphite">{selectedGalleryBackgroundColor}</span>
                       </div>
                     </label>
                   </div>
