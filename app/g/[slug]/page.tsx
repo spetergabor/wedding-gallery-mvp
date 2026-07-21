@@ -22,7 +22,7 @@ import {
   galleryPurchasePhotoIds
 } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
-import { GALLERY_DESIGN_COVER_STICKY, normalizeGalleryDesign } from "@/lib/gallery-design";
+import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGN_FULLSCREEN_COVER, normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   galleryHeroTitleSizeClamp,
   galleryBackgroundColorOrDefault,
@@ -184,9 +184,11 @@ export default async function PublicGalleryPage({
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
   const galleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
+  const stickyToolbarDesign =
+    galleryDesign === GALLERY_DESIGN_COVER_STICKY || galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER;
   const heroTextColor = galleryTextColorOrDefault(
     gallery.galleryTextColor,
-    galleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
+    stickyToolbarDesign ? "#ffffff" : "#111111"
   );
   const galleryBackgroundColor = galleryBackgroundColorOrDefault(gallery.galleryBackgroundColor);
   const heroTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
@@ -340,7 +342,7 @@ export default async function PublicGalleryPage({
         gridGap={publicGridGap}
         imageRadius={publicImageRadius}
         stickyToolbar={
-          galleryDesign === GALLERY_DESIGN_COVER_STICKY
+          stickyToolbarDesign
             ? {
                 title: gallery.title,
                 subtitle: settings?.businessName || heroMeta,
@@ -354,6 +356,78 @@ export default async function PublicGalleryPage({
         {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
       </div>
     );
+
+  if (galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER) {
+    return (
+      <main className="min-h-screen" style={{ backgroundColor: galleryBackgroundColor }}>
+        <GalleryViewTracker galleryId={gallery.id} />
+        <header className="relative min-h-screen overflow-hidden bg-ink text-white">
+          {coverPhoto ? (
+            <Image
+              src={coverPhotoSrc}
+              alt={gallery.title}
+              fill
+              priority
+              quality={100}
+              unoptimized
+              className="object-cover"
+              sizes="100vw"
+              style={{ objectPosition: coverPosition }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-graphite" />
+          )}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.10),rgba(17,17,17,0.08)_36%,rgba(17,17,17,0.54)_100%)]" />
+          <div className="absolute inset-x-0 bottom-0 h-2/5 bg-[linear-gradient(to_bottom,rgba(17,17,17,0),rgba(17,17,17,0.72))]" />
+
+          <div className="relative mx-auto flex min-h-screen w-full max-w-[1600px] flex-col justify-end px-5 pb-8 pt-24 sm:px-8 sm:pb-10 lg:px-10">
+            <div className="grid gap-8 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:items-end" style={{ color: heroTextColor }}>
+              <div className="order-2 min-w-0 sm:order-1">
+                {settings?.logoUrl ? (
+                  <Image
+                    src={settings.logoUrl}
+                    alt={settings.businessName || "Logo"}
+                    width={150}
+                    height={70}
+                    unoptimized
+                    className="mb-3 h-auto w-auto max-w-[160px] object-contain drop-shadow-[0_8px_22px_rgba(0,0,0,0.45)]"
+                    style={{ maxHeight: `${Math.min(62, logoHeight)}px` }}
+                  />
+                ) : (
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] drop-shadow-[0_6px_20px_rgba(0,0,0,0.45)]">
+                    {settings?.businessName || "SPETLY"}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-85">
+                  {settings?.instagramUrl ? <span>Instagram</span> : null}
+                  {settings?.facebookUrl ? <span>Facebook</span> : null}
+                  {settings?.contactEmail ? <span>Email</span> : null}
+                </div>
+              </div>
+
+              <div className="order-1 min-w-0 text-left sm:order-2 sm:text-right">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80 sm:text-sm">{heroMeta}</p>
+                <h1
+                  className="mt-2 font-semibold leading-[0.92] drop-shadow-[0_12px_34px_rgba(0,0,0,0.45)]"
+                  style={heroTitleStyle}
+                >
+                  {gallery.title}
+                </h1>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] opacity-85">
+                  {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
+                </p>
+                <span className="mt-4 inline-block h-6 w-px bg-current opacity-80 sm:ml-auto" aria-hidden="true" />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
+          {galleryContent}
+        </section>
+      </main>
+    );
+  }
 
   if (galleryDesign === GALLERY_DESIGN_COVER_STICKY) {
     return (

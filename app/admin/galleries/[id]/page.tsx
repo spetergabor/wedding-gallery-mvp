@@ -38,7 +38,13 @@ import {
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
-import { GALLERY_DESIGN_CLASSIC, GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
+import {
+  GALLERY_DESIGN_CLASSIC,
+  GALLERY_DESIGN_COVER_STICKY,
+  GALLERY_DESIGN_FULLSCREEN_COVER,
+  GALLERY_DESIGNS,
+  normalizeGalleryDesign
+} from "@/lib/gallery-design";
 import {
   GALLERY_TITLE_FONTS,
   galleryBackgroundColorOrDefault,
@@ -945,7 +951,7 @@ export default async function GalleryDetailPage({
                   <p className={sectionMetaClass}>Megjelenés</p>
                   <h2 className="mt-2 text-xl font-semibold text-ink">Galéria dizájn</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">
-                    Válaszd ki, milyen felépítéssel jelenjen meg a publikus galéria. Most csak a választást készítjük elő, a publikus megjelenítés külön lépésben kapja meg az új stílust.
+                    Válaszd ki, milyen felépítéssel jelenjen meg a publikus galéria. A stílusok alatt a közös és stílushoz kötött megjelenési beállításokat is finomhangolhatod.
                   </p>
                 </div>
                 <span className="inline-flex w-fit rounded-full bg-sage/15 px-3 py-1 text-xs font-medium text-sage">
@@ -953,10 +959,11 @@ export default async function GalleryDetailPage({
                 </span>
               </div>
 
-              <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-2">
+              <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-3">
                 {GALLERY_DESIGNS.map((design) => {
                   const selected = selectedGalleryDesign === design.key;
                   const coverSticky = design.key === GALLERY_DESIGN_COVER_STICKY;
+                  const fullscreenCover = design.key === GALLERY_DESIGN_FULLSCREEN_COVER;
 
                   return (
                     <label key={design.key} className="block h-full cursor-pointer">
@@ -992,7 +999,92 @@ export default async function GalleryDetailPage({
                         </div>
 
                         <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:mt-auto">
-                          {coverSticky ? (
+                          {fullscreenCover ? (
+                            <div style={{ backgroundColor: selectedGalleryBackgroundColor }}>
+                              <div className="relative h-44 overflow-hidden bg-ink sm:h-52">
+                                {designPreviewCoverPhoto ? (
+                                  <Image
+                                    src={designPreviewCoverPhoto.previewUrl || designPreviewCoverPhoto.imageUrl}
+                                    alt={designPreviewCoverPhoto.filename}
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                    sizes="(min-width: 1024px) 320px, 90vw"
+                                    style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 bg-graphite" />
+                                )}
+                                <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.04),rgba(17,17,17,0.18)_48%,rgba(17,17,17,0.62))]" />
+                                <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-4" style={{ color: selectedGalleryTextColor }}>
+                                  <div className="min-w-0">
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-85">SPETLY</p>
+                                    <div className="mt-1 flex gap-1">
+                                      <span className="size-1.5 rounded-full bg-current opacity-80" />
+                                      <span className="size-1.5 rounded-full bg-current opacity-80" />
+                                      <span className="size-1.5 rounded-full bg-current opacity-80" />
+                                    </div>
+                                  </div>
+                                  <div className="min-w-0 text-right">
+                                    <p
+                                      className="max-w-[8ch] font-semibold leading-[0.92] drop-shadow"
+                                      style={{ fontFamily: selectedGalleryTitleFont.family, fontSize: `${previewTitleSize}px` }}
+                                    >
+                                      {gallery.title}
+                                    </p>
+                                    <p className="mt-1 text-[9px] font-semibold uppercase opacity-80">Private Galerie</p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between border-b border-ink/10 bg-white px-4 py-2">
+                                <div className="min-w-0">
+                                  <div className="h-3 w-28 max-w-full rounded bg-ink/80" />
+                                  <div className="mt-1.5 h-2 w-20 rounded bg-graphite/30" />
+                                </div>
+                                <div className="flex shrink-0 gap-1.5">
+                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                    <Heart size={13} />
+                                  </span>
+                                  <span className="grid size-7 place-items-center rounded bg-ink text-white">
+                                    <Download size={13} />
+                                  </span>
+                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                    <Share2 size={13} />
+                                  </span>
+                                </div>
+                              </div>
+                              <div
+                                className="grid grid-cols-3 p-3"
+                                style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
+                              >
+                                {[64, 96, 56].map((height, index) => {
+                                  const previewPhoto = designPreviewGridPhotos[index];
+
+                                  return (
+                                    <div
+                                      key={`${design.key}-preview-${index}`}
+                                      className="relative overflow-hidden bg-white shadow-sm"
+                                      style={{
+                                        height: `${height}px`,
+                                        borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px`
+                                      }}
+                                    >
+                                      {previewPhoto ? (
+                                        <Image
+                                          src={previewPhoto.previewUrl || previewPhoto.imageUrl}
+                                          alt={previewPhoto.filename}
+                                          fill
+                                          unoptimized
+                                          className="object-cover"
+                                          sizes="120px"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : coverSticky ? (
                             <div style={{ backgroundColor: selectedGalleryBackgroundColor }}>
                               <div className="relative h-32 overflow-hidden bg-ink sm:h-36">
                                 {designPreviewCoverPhoto ? (
