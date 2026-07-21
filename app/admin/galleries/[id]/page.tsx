@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Camera, Check, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, Palette, Plus, Share2, UserRound } from "lucide-react";
+import { Camera, Check, Columns3, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, Palette, Plus, Share2, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -1039,6 +1039,32 @@ export default async function GalleryDetailPage({
                     </label>
                   );
                 })}
+              </div>
+
+              <div className="mt-6 rounded-md border border-ink/10 bg-paper p-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-center">
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                      <Columns3 size={16} />
+                      Mobil fotórács
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-graphite/70">
+                      Állítsd be, hány oszlopban jelenjenek meg a képek telefonon. Asztali nézetben továbbra is automatikus, reszponzív rácsot használunk.
+                    </p>
+                  </div>
+                  <label className="block space-y-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Telefonos oszlopok</span>
+                    <select
+                      name="publicColumnCount"
+                      defaultValue={Math.min(3, Math.max(1, gallery.publicColumnCount))}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    >
+                      <option value="1">1 oszlop</option>
+                      <option value="2">2 oszlop</option>
+                      <option value="3">3 oszlop</option>
+                    </select>
+                  </label>
+                </div>
               </div>
 
               <div className="mt-6 flex justify-end border-t border-ink/10 pt-5">

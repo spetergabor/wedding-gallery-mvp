@@ -3271,10 +3271,11 @@ export async function updateCoverPositionAction(galleryId: string, formData: For
 export async function updateGalleryDesignAction(galleryId: string, formData: FormData) {
   const { gallery } = await requireGalleryAccess(galleryId);
   const galleryDesign = normalizeGalleryDesign(formData.get("galleryDesign"));
+  const publicColumnCount = mobileColumnCountFromForm(formData);
 
   await prisma.gallery.update({
     where: { id: galleryId },
-    data: { galleryDesign }
+    data: { galleryDesign, publicColumnCount }
   });
 
   revalidatePath("/admin/galleries");

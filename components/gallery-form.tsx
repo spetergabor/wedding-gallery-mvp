@@ -1,4 +1,4 @@
-import { CalendarDays, Columns3, Images, LockKeyhole, UserRound } from "lucide-react";
+import { CalendarDays, Images, LockKeyhole, UserRound } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTypeLabel } from "@/lib/customer-options";
@@ -115,6 +115,7 @@ export function GalleryForm({
 
   return (
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
+      <input type="hidden" name="publicColumnCount" value={defaultMobileColumnCount} />
       <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-5 md:flex-row md:items-start">
         <div>
           <h2 className="text-xl font-semibold text-ink">{proofingMode ? "Nyers válogatás adatai" : "Kész galéria adatai"}</h2>
@@ -250,7 +251,7 @@ export function GalleryForm({
           <section className="space-y-5">
             <SectionTitle
               title="Publikus elérés"
-              description="PIN-kód és mobilos megjelenés a vendégek felé."
+              description="PIN-kód a vendégek felé."
             />
 
             <label className="block space-y-2">
@@ -272,20 +273,6 @@ export function GalleryForm({
               </span>
             </label>
 
-            <label className="block space-y-2">
-              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                <Columns3 size={15} />
-                Mobil fotórács
-              </span>
-              <select name="publicColumnCount" defaultValue={defaultMobileColumnCount} className={fieldClass}>
-                <option value="1">1 oszlopos nézet</option>
-                <option value="2">2 oszlopos nézet</option>
-                <option value="3">3 oszlopos nézet</option>
-              </select>
-              <span className="block text-xs leading-5 text-graphite/70">
-                Csak telefonos nézetben hat. Az asztali galéria marad a megszokott automatikus oszlopos elrendezésben.
-              </span>
-            </label>
           </section>
         </div>
 
