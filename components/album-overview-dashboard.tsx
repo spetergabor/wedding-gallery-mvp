@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ExternalLink, ImagePlus, LayoutTemplate, Trash2, Upload } from "lucide-react";
+import { ArrowRight, ExternalLink, ImagePlus, LayoutTemplate, Upload, X } from "lucide-react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { deleteAlbumDesignAction } from "@/lib/album-design-actions";
 import { deleteAlbumReviewAction } from "@/lib/album-review-actions";
@@ -155,7 +155,7 @@ export function AlbumOverviewDashboard({
             </div>
             <p className="text-sm text-graphite/60">Megnyitás után csak az adott album munkafelülete látszik.</p>
           </div>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3">
             {designs.map((design) => {
               const usedImages = design.spreads.reduce((total, spread) => total + spread.items.length, 0);
 
@@ -176,7 +176,7 @@ export function AlbumOverviewDashboard({
                       {design.spreads.length} oldalpár · {usedImages} kép használva
                     </p>
                   </div>
-                  <div className="mt-4 grid gap-2 border-t border-ink/10 pt-3 sm:grid-cols-2">
+                  <div className="mt-4 flex items-center gap-2 border-t border-ink/10 pt-3">
                     <Link
                       href={albumWorkflowHref(customerId, {
                         albumMode: "editor",
@@ -184,7 +184,7 @@ export function AlbumOverviewDashboard({
                         albumDesignId: design.id,
                         albumEditor: "1"
                       })}
-                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
+                      className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
                     >
                       Szerkesztés
                       <ArrowRight size={14} />
@@ -193,11 +193,11 @@ export function AlbumOverviewDashboard({
                       <ConfirmSubmitButton
                         message="Biztosan törlöd ezt az online albumot? Az összes hozzá tartozó tervezett oldalpár is törlődik."
                         variant="danger"
-                        className="h-10 w-full px-3"
+                        className="flex size-10 items-center justify-center p-0"
                         title="Online album törlése"
+                        aria-label="Online album törlése"
                       >
-                        <Trash2 size={14} />
-                        Törlés
+                        <X size={17} />
                       </ConfirmSubmitButton>
                     </form>
                   </div>
@@ -223,18 +223,18 @@ export function AlbumOverviewDashboard({
                       {review.spreads.length} oldalpár · {approvedCount}/{review.spreads.length} rendben · {commentCount} címke
                     </p>
                   </div>
-                  <div className="mt-4 grid gap-2 border-t border-ink/10 pt-3 sm:grid-cols-3">
+                  <div className="mt-4 flex items-center gap-2 border-t border-ink/10 pt-3">
                     <a
                       href={`/album/${review.accessToken}`}
                       target="_blank"
-                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                      className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
                     >
                       <ExternalLink size={14} />
                       Ügyfél link
                     </a>
                     <Link
                       href={`${albumWorkflowHref(customerId, { albumMode: "upload" })}#album-review-${review.id}`}
-                      className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
+                      className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-ink/90"
                     >
                       Kezelés
                       <ArrowRight size={14} />
@@ -243,11 +243,11 @@ export function AlbumOverviewDashboard({
                       <ConfirmSubmitButton
                         message="Biztosan törlöd ezt az album ellenőrzőt? Az összes oldalpár és ügyfél címke is törlődik."
                         variant="danger"
-                        className="h-10 w-full px-3"
+                        className="flex size-10 items-center justify-center p-0"
                         title="Album ellenőrző törlése"
+                        aria-label="Album ellenőrző törlése"
                       >
-                        <Trash2 size={14} />
-                        Törlés
+                        <X size={17} />
                       </ConfirmSubmitButton>
                     </form>
                   </div>
