@@ -15,7 +15,9 @@ import {
   Menu,
   Plus,
   Settings,
-  Users
+  ShieldCheck,
+  Users,
+  Zap
 } from "lucide-react";
 import { AdminLanguageSwitch } from "@/components/admin-language-switch";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
@@ -367,16 +369,41 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             </Link>
           ) : null}
           {admin?.role === "super_admin" ? (
-            <>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
-                <Users size={17} />
-                {copy.photographers}
-              </Link>
-              <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/r2-storage">
-                <HardDrive size={17} />
-                {copy.r2Storage}
-              </Link>
-            </>
+            <details className="group rounded-md">
+              <summary className="flex cursor-pointer list-none items-center justify-between rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5 marker:hidden">
+                <span className="flex items-center gap-3">
+                  <ShieldCheck size={17} />
+                  {copy.superAdmin}
+                </span>
+                <ChevronDown size={15} className="transition group-open:rotate-180" />
+              </summary>
+              <div className="mt-1 space-y-1 border-l border-ink/10 pl-4">
+                <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
+                  <Users size={16} />
+                  {copy.photographers}
+                </Link>
+                <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/r2-storage">
+                  <HardDrive size={16} />
+                  {copy.r2Storage}
+                </Link>
+                <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/zip-benchmark">
+                  <Zap size={16} />
+                  {copy.zipBenchmark}
+                </Link>
+                <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/settings?tab=monetization">
+                  <CreditCard size={16} />
+                  {copy.monetization}
+                </Link>
+                <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/settings?tab=providers">
+                  <Settings size={16} />
+                  {copy.providers}
+                </Link>
+                <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/settings?tab=logs">
+                  <Bell size={16} />
+                  {copy.systemLogs}
+                </Link>
+              </div>
+            </details>
           ) : null}
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/clients/new">
             <Plus size={17} />
@@ -492,16 +519,41 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                     </Link>
                   ) : null}
                   {admin?.role === "super_admin" ? (
-                    <>
-                      <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
-                        <Users size={17} />
-                        {copy.photographers}
-                      </Link>
-                      <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/r2-storage">
-                        <HardDrive size={17} />
-                        {copy.r2Storage}
-                      </Link>
-                    </>
+                    <details className="group rounded-md">
+                      <summary className="flex cursor-pointer list-none items-center justify-between rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5 marker:hidden">
+                        <span className="flex items-center gap-3">
+                          <ShieldCheck size={17} />
+                          {copy.superAdmin}
+                        </span>
+                        <ChevronDown size={15} className="transition group-open:rotate-180" />
+                      </summary>
+                      <div className="space-y-1 border-l border-ink/10 pl-4">
+                        <Link className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-graphite hover:bg-ink/5" href="/admin/photographers">
+                          <Users size={16} />
+                          {copy.photographers}
+                        </Link>
+                        <Link className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-graphite hover:bg-ink/5" href="/admin/r2-storage">
+                          <HardDrive size={16} />
+                          {copy.r2Storage}
+                        </Link>
+                        <Link className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-graphite hover:bg-ink/5" href="/admin/zip-benchmark">
+                          <Zap size={16} />
+                          {copy.zipBenchmark}
+                        </Link>
+                        <Link className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-graphite hover:bg-ink/5" href="/admin/settings?tab=monetization">
+                          <CreditCard size={16} />
+                          {copy.monetization}
+                        </Link>
+                        <Link className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-graphite hover:bg-ink/5" href="/admin/settings?tab=providers">
+                          <Settings size={16} />
+                          {copy.providers}
+                        </Link>
+                        <Link className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-graphite hover:bg-ink/5" href="/admin/settings?tab=logs">
+                          <Bell size={16} />
+                          {copy.systemLogs}
+                        </Link>
+                      </div>
+                    </details>
                   ) : null}
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/clients/new">
                     <Plus size={17} />
