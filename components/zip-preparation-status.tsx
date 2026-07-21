@@ -238,6 +238,8 @@ export function ZipPreparationStatus({
 
   const primaryCanRetry =
     primaryGroup ? (primaryGroup.failedCount > 0 || primaryGroup.staleProcessingCount > 0) && primaryGroup.pendingCount === 0 && primaryGroup.processingCount === 0 : false;
+  const primaryCanDelete =
+    primaryGroup ? primaryGroup.pendingCount === 0 && primaryGroup.processingCount === 0 && primaryGroup.staleProcessingCount === 0 : false;
   const hasCompletedZip = summaries.some((group) => group.isComplete);
   const hasActiveZip = summaries.some((group) => group.hasActiveWork);
   const hasManualCompletedZip = packages.some(
@@ -284,6 +286,18 @@ export function ZipPreparationStatus({
                 <RotateCcw size={14} />
                 Újraindítás
               </FormSubmitButton>
+            </form>
+          ) : null}
+          {primaryGroup && primaryCanDelete ? (
+            <form action={deleteGalleryZipPackageGroupAction.bind(null, galleryId, primaryGroup.key)}>
+              <ConfirmSubmitButton
+                variant="danger"
+                className="h-9 px-3 text-xs"
+                message="Biztosan törlöd az aktuális ZIP csomagot? A hozzá tartozó R2 fájlok is törlődnek, a régi vendég linkek nem fognak működni."
+              >
+                <Trash2 size={14} />
+                ZIP törlése
+              </ConfirmSubmitButton>
             </form>
           ) : null}
           <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${meta.className}`}>
