@@ -23,7 +23,14 @@ import {
 } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
 import { GALLERY_DESIGN_COVER_STICKY, normalizeGalleryDesign } from "@/lib/gallery-design";
-import { galleryTextColorOrDefault, normalizeGalleryGridGap, normalizeGalleryImageRadius } from "@/lib/gallery-appearance";
+import {
+  galleryHeroTitleSizeClamp,
+  galleryTextColorOrDefault,
+  galleryTitleFontDefinition,
+  normalizeGalleryGridGap,
+  normalizeGalleryImageRadius,
+  normalizeGalleryTitleSize
+} from "@/lib/gallery-appearance";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -162,6 +169,12 @@ export default async function PublicGalleryPage({
     gallery.galleryTextColor,
     galleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
   );
+  const heroTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
+  const heroTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
+  const heroTitleStyle = {
+    fontFamily: heroTitleFont.family,
+    fontSize: galleryHeroTitleSizeClamp(heroTitleSize)
+  };
   const publicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const publicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
@@ -357,7 +370,10 @@ export default async function PublicGalleryPage({
                 <p className="mb-3 text-xs font-semibold uppercase opacity-80 sm:text-sm">{settings.businessName}</p>
               ) : null}
               <p className="text-xs font-semibold uppercase opacity-75 sm:text-sm">{heroMeta}</p>
-              <h1 className="font-playfair mt-2 max-w-[11ch] text-5xl font-semibold leading-[0.95] drop-shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:max-w-[13ch] sm:text-6xl md:text-7xl lg:text-8xl">
+              <h1
+                className="mt-2 max-w-[11ch] font-semibold leading-[0.95] drop-shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:max-w-[13ch]"
+                style={heroTitleStyle}
+              >
                 {gallery.title}
               </h1>
             </div>
@@ -411,7 +427,10 @@ export default async function PublicGalleryPage({
                 {settings.businessName}
               </p>
             ) : null}
-            <h1 className="font-playfair text-5xl font-semibold leading-tight sm:text-6xl md:text-7xl lg:text-8xl">
+            <h1
+              className="font-semibold leading-tight"
+              style={heroTitleStyle}
+            >
               {gallery.title}
             </h1>
             <p className="font-playfair mt-4 text-xl opacity-75 md:text-2xl">{heroMeta}</p>

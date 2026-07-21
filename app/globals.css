@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lora:wght@500;600;700&family=Montserrat:wght@500;600;700&family=Playfair+Display:wght@500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -36,6 +36,18 @@ input[type="time"] {
 
 .font-playfair {
   font-family: "Playfair Display", Georgia, serif;
+}
+
+.font-cormorant {
+  font-family: "Cormorant Garamond", Georgia, serif;
+}
+
+.font-lora {
+  font-family: "Lora", Georgia, serif;
+}
+
+.font-montserrat {
+  font-family: "Montserrat", Arial, sans-serif;
 }
 
 .view-location-marker {

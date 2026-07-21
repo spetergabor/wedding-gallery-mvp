@@ -38,7 +38,14 @@ import {
 } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGNS, normalizeGalleryDesign } from "@/lib/gallery-design";
-import { galleryTextColorOrDefault, normalizeGalleryGridGap, normalizeGalleryImageRadius } from "@/lib/gallery-appearance";
+import {
+  GALLERY_TITLE_FONTS,
+  galleryTextColorOrDefault,
+  galleryTitleFontDefinition,
+  normalizeGalleryGridGap,
+  normalizeGalleryImageRadius,
+  normalizeGalleryTitleSize
+} from "@/lib/gallery-appearance";
 import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import {
@@ -454,6 +461,9 @@ export default async function GalleryDetailPage({
     gallery.galleryTextColor,
     selectedGalleryDesign === GALLERY_DESIGN_COVER_STICKY ? "#ffffff" : "#111111"
   );
+  const selectedGalleryTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
+  const selectedGalleryTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
+  const previewTitleSize = Math.max(24, Math.round(selectedGalleryTitleSize * 0.34));
   const selectedPublicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const selectedPublicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
   const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
@@ -988,7 +998,10 @@ export default async function GalleryDetailPage({
                                 <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.12),rgba(17,17,17,0.56))]" />
                                 <div className="absolute inset-x-4 bottom-4" style={{ color: selectedGalleryTextColor }}>
                                   <p className="text-[10px] font-semibold uppercase opacity-75">Editorial</p>
-                                  <p className="font-playfair mt-1 max-w-[9ch] text-3xl font-semibold leading-[0.95] drop-shadow">
+                                  <p
+                                    className="mt-1 max-w-[9ch] font-semibold leading-[0.95] drop-shadow"
+                                    style={{ fontFamily: selectedGalleryTitleFont.family, fontSize: `${previewTitleSize}px` }}
+                                  >
                                     {gallery.title}
                                   </p>
                                 </div>
@@ -1035,7 +1048,13 @@ export default async function GalleryDetailPage({
                                 ) : null}
                                 <div className="absolute inset-0 bg-white/35" />
                               </div>
-                              <div className="mx-auto h-4 w-36 rounded" style={{ backgroundColor: selectedGalleryTextColor }} />
+                              <div
+                                className="mx-auto h-4 w-36 rounded"
+                                style={{
+                                  backgroundColor: selectedGalleryTextColor,
+                                  fontFamily: selectedGalleryTitleFont.family
+                                }}
+                              />
                               <div className="mx-auto h-2 w-24 rounded bg-graphite/30" />
                               <div
                                 className="grid grid-cols-3"
@@ -1055,6 +1074,66 @@ export default async function GalleryDetailPage({
               </div>
 
               <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Palette size={16} />
+                        Hero betűtípus
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A publikus galéria nagy címének betűtípusa. Az alapértelmezett továbbra is Playfair.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Betűtípus</span>
+                      <select
+                        name="galleryTitleFont"
+                        defaultValue={selectedGalleryTitleFont.key}
+                        className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                      >
+                        {GALLERY_TITLE_FONTS.map((font) => (
+                          <option key={font.key} value={font.key}>
+                            {font.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <p className="mt-3 rounded-md bg-white px-3 py-2 text-sm text-graphite/70">
+                    {selectedGalleryTitleFont.description}
+                  </p>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Palette size={16} />
+                        Hero cím mérete
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A borítóképen megjelenő nagy cím maximális mérete. Mobilon automatikusan kisebb lesz.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Méret</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          name="galleryTitleSize"
+                          min={48}
+                          max={128}
+                          step={2}
+                          defaultValue={selectedGalleryTitleSize}
+                          className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                        />
+                        <span className="text-sm font-medium text-graphite">px</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="rounded-md border border-ink/10 bg-paper p-4">
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-center">
                     <div>

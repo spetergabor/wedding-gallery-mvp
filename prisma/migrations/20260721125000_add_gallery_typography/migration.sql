@@ -1,0 +1,2 @@
+ALTER TABLE "Gallery" ADD COLUMN "galleryTitleFont" TEXT NOT NULL DEFAULT 'playfair';
+ALTER TABLE "Gallery" ADD COLUMN "galleryTitleSize" INTEGER NOT NULL DEFAULT 96;

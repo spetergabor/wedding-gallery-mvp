@@ -43,7 +43,13 @@ import {
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
 import { normalizeGalleryDesign } from "@/lib/gallery-design";
-import { normalizeGalleryGridGap, normalizeGalleryImageRadius, normalizeGalleryTextColor } from "@/lib/gallery-appearance";
+import {
+  normalizeGalleryGridGap,
+  normalizeGalleryImageRadius,
+  normalizeGalleryTextColor,
+  normalizeGalleryTitleFont,
+  normalizeGalleryTitleSize
+} from "@/lib/gallery-appearance";
 import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery-sales";
 import { parseGallerySalePricingTiersFromForm, parsePriceCents } from "@/lib/gallery-sale-pricing";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
@@ -3276,10 +3282,12 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
   const galleryTextColor = normalizeGalleryTextColor(formString(formData, "galleryTextColor"));
   const publicGridGap = normalizeGalleryGridGap(formString(formData, "publicGridGap"));
   const publicImageRadius = normalizeGalleryImageRadius(formString(formData, "publicImageRadius"));
+  const galleryTitleFont = normalizeGalleryTitleFont(formString(formData, "galleryTitleFont"));
+  const galleryTitleSize = normalizeGalleryTitleSize(formString(formData, "galleryTitleSize"));
 
   await prisma.gallery.update({
     where: { id: galleryId },
-    data: { galleryDesign, publicColumnCount, galleryTextColor, publicGridGap, publicImageRadius }
+    data: { galleryDesign, publicColumnCount, galleryTextColor, galleryTitleFont, galleryTitleSize, publicGridGap, publicImageRadius }
   });
 
   revalidatePath("/admin/galleries");
