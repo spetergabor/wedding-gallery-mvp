@@ -951,7 +951,7 @@ export default async function GalleryDetailPage({
                   const coverSticky = design.key === GALLERY_DESIGN_COVER_STICKY;
 
                   return (
-                    <label key={design.key} className="block cursor-pointer">
+                    <label key={design.key} className="block h-full cursor-pointer">
                       <input
                         type="radio"
                         name="galleryDesign"
@@ -959,7 +959,7 @@ export default async function GalleryDetailPage({
                         defaultChecked={selected}
                         className="peer sr-only"
                       />
-                      <div className="rounded-lg border border-ink/10 bg-white p-4 transition peer-checked:border-ink peer-checked:bg-paper peer-checked:shadow-soft">
+                      <div className="flex h-full flex-col rounded-lg border border-ink/10 bg-white p-4 transition peer-checked:border-ink peer-checked:bg-paper peer-checked:shadow-soft">
                         <div className="flex items-start gap-3">
                           <span
                             className={`flex size-11 shrink-0 items-center justify-center rounded-md ${
@@ -983,7 +983,7 @@ export default async function GalleryDetailPage({
                           </span>
                         </div>
 
-                        <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                        <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] lg:mt-auto">
                           {coverSticky ? (
                             <div className="bg-paper">
                               <div className="relative h-32 overflow-hidden bg-ink sm:h-36">
