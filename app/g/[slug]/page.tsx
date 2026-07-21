@@ -315,7 +315,7 @@ export default async function PublicGalleryPage({
     return (
       <main className="min-h-screen bg-paper">
         <GalleryViewTracker galleryId={gallery.id} />
-        <header className="relative min-h-[58vh] overflow-hidden bg-ink text-white sm:min-h-[66vh]">
+        <header className="relative min-h-[52vh] overflow-hidden bg-ink text-white sm:min-h-[62vh] lg:min-h-[68vh]">
           {coverPhoto ? (
             <Image
               src={coverPhotoSrc}
@@ -331,9 +331,9 @@ export default async function PublicGalleryPage({
           ) : (
             <div className="absolute inset-0 bg-graphite" />
           )}
-          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.12),rgba(17,17,17,0.08)_45%,rgba(17,17,17,0.36))]" />
-          <div className="relative mx-auto flex min-h-[58vh] w-full max-w-7xl items-end px-5 pb-8 sm:min-h-[66vh] lg:px-8">
-            <div className="max-w-3xl">
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.10),rgba(17,17,17,0.20)_46%,rgba(17,17,17,0.58))]" />
+          <div className="relative mx-auto flex min-h-[52vh] w-full max-w-7xl items-end px-5 pb-8 pt-24 sm:min-h-[62vh] sm:pb-10 lg:min-h-[68vh] lg:px-8 lg:pb-12">
+            <div className="max-w-4xl">
               {settings?.logoUrl ? (
                 <Image
                   src={settings.logoUrl}
@@ -342,13 +342,13 @@ export default async function PublicGalleryPage({
                   height={84}
                   unoptimized
                   className="mb-5 w-auto object-contain drop-shadow"
-                  style={{ height: `${Math.min(96, logoHeight)}px`, maxWidth: "min(62vw, 260px)" }}
+                  style={{ height: `${Math.min(88, logoHeight)}px`, maxWidth: "min(58vw, 240px)" }}
                 />
               ) : settings?.businessName ? (
-                <p className="mb-3 text-sm font-semibold uppercase tracking-[0.24em] text-white/80">{settings.businessName}</p>
+                <p className="mb-3 text-xs font-semibold uppercase text-white/80 sm:text-sm">{settings.businessName}</p>
               ) : null}
-              <p className="text-sm font-medium uppercase tracking-[0.22em] text-white/75">{heroMeta}</p>
-              <h1 className="font-playfair mt-2 text-4xl font-semibold leading-tight text-white shadow-ink/20 drop-shadow sm:text-5xl md:text-6xl">
+              <p className="text-xs font-semibold uppercase text-white/75 sm:text-sm">{heroMeta}</p>
+              <h1 className="font-playfair mt-2 max-w-[11ch] text-5xl font-semibold leading-[0.95] text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:max-w-[13ch] sm:text-6xl md:text-7xl lg:text-8xl">
                 {gallery.title}
               </h1>
             </div>

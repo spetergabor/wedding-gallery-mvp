@@ -77,6 +77,9 @@ const GALLERY_COPY = {
     favoriteAria: "zu den Favoriten hinzufügen",
     loading: "Lädt...",
     download: "Herunterladen",
+    share: "Teilen",
+    shareCopied: "Link kopiert",
+    shareFailed: "Teilen fehlgeschlagen",
     previousPhoto: "Vorheriges Foto",
     nextPhoto: "Nächstes Foto",
     saveError: "Die Auswahl konnte nicht gespeichert werden.",
@@ -188,6 +191,9 @@ const GALLERY_COPY = {
     favoriteAria: "hozzáadása a kedvencekhez",
     loading: "Betöltés...",
     download: "Letöltés",
+    share: "Megosztás",
+    shareCopied: "Link másolva",
+    shareFailed: "A megosztás nem sikerült",
     previousPhoto: "Előző fotó",
     nextPhoto: "Következő fotó",
     saveError: "A válogatást nem sikerült menteni.",
@@ -1220,7 +1226,11 @@ export function PublicGallery({
       await navigator.clipboard.writeText(shareUrl);
       setShareState("copied");
       window.setTimeout(() => setShareState("idle"), 1600);
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
       setShareState("failed");
       window.setTimeout(() => setShareState("idle"), 1600);
     }
@@ -1475,22 +1485,22 @@ export function PublicGallery({
         onContextMenu={paidGallery ? (event) => event.preventDefault() : undefined}
       >
         {stickyToolbar ? (
-          <div className="sticky top-0 z-30 isolate py-2.5">
+          <div className="sticky top-0 z-30 isolate py-2 sm:py-2.5">
             <div className="pointer-events-none absolute left-1/2 top-0 z-0 h-full w-screen -translate-x-1/2 border-b border-ink/10 bg-paper/95 shadow-[0_14px_30px_rgba(17,17,17,0.06)] backdrop-blur" />
-            <div className="relative z-10 flex w-full items-center justify-between gap-3">
+            <div className="relative z-10 flex w-full items-center justify-between gap-2 sm:gap-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink sm:text-base">{stickyToolbar.title}</p>
+                <p className="truncate text-sm font-semibold leading-tight text-ink sm:text-base">{stickyToolbar.title}</p>
                 {stickyToolbar.subtitle ? (
-                  <p className="mt-0.5 truncate text-xs text-graphite/65">{stickyToolbar.subtitle}</p>
+                  <p className="mt-0.5 truncate text-[11px] leading-tight text-graphite/65 sm:text-xs">{stickyToolbar.subtitle}</p>
                 ) : null}
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
                 {hasPaidCartBar ? (
                   <a
                     href="#paid-gallery-checkout"
                     title={copy.photoCartTitle}
                     aria-label={copy.photoCartTitle}
-                    className={`relative inline-flex size-10 items-center justify-center rounded-md border text-sm transition ${
+                    className={`relative inline-flex size-9 items-center justify-center rounded-md border text-sm transition sm:size-10 ${
                       cartPhotoIds.length > 0
                         ? "border-ink bg-ink text-white hover:bg-graphite"
                         : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
@@ -1511,7 +1521,7 @@ export function PublicGallery({
                     aria-label={proofingSelection ? copy.selection : copy.favorites}
                     onClick={toggleFavoritesFilter}
                     disabled={favoriteCount === 0}
-                    className={`relative inline-flex size-10 items-center justify-center rounded-md transition ${
+                    className={`relative inline-flex size-9 items-center justify-center rounded-md transition sm:size-10 ${
                       showFavoritesOnly ? "bg-ink text-white" : "bg-white text-graphite hover:bg-ink/5 hover:text-ink"
                     } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
                   >
@@ -1530,17 +1540,17 @@ export function PublicGallery({
                     aria-label={copy.download}
                     onClick={() => setIsEmailOpen(true)}
                     disabled={isZipping || photos.length === 0}
-                    className="inline-flex size-10 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex size-9 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60 sm:size-10"
                   >
                     <Download size={17} />
                   </button>
                 ) : null}
                 <button
                   type="button"
-                  title={shareState === "copied" ? "Link copied" : shareState === "failed" ? "Share failed" : "Share"}
-                  aria-label={shareState === "copied" ? "Link copied" : "Share gallery"}
+                  title={shareState === "copied" ? copy.shareCopied : shareState === "failed" ? copy.shareFailed : copy.share}
+                  aria-label={shareState === "copied" ? copy.shareCopied : copy.share}
                   onClick={() => void shareGallery()}
-                  className={`inline-flex size-10 items-center justify-center rounded-md border transition ${
+                  className={`inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-md border px-0 transition sm:h-10 sm:min-w-10 ${
                     shareState === "copied"
                       ? "border-sage/25 bg-sage/10 text-sage"
                       : shareState === "failed"
@@ -1549,6 +1559,11 @@ export function PublicGallery({
                   }`}
                 >
                   <Share2 size={17} />
+                  {shareState !== "idle" ? (
+                    <span className="hidden max-w-28 truncate pr-2 text-xs font-semibold sm:inline">
+                      {shareState === "copied" ? copy.shareCopied : copy.shareFailed}
+                    </span>
+                  ) : null}
                 </button>
               </div>
             </div>

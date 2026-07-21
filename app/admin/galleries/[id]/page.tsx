@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { Camera, Check, CreditCard, Download, ExternalLink, KeyRound, Landmark, Mail, Palette, Plus, UserRound } from "lucide-react";
+import Image from "next/image";
+import { Camera, Check, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, Palette, Plus, Share2, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -479,6 +480,10 @@ export default async function GalleryDetailPage({
     }
   }
   const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
+  const designPreviewCoverPhoto =
+    (coverPhoto?.mediaType !== "video" ? coverPhoto : null) ??
+    gallery.photos.find((photo) => photo.mediaType !== "video") ??
+    null;
   const coverPositionControlProps =
     coverPhoto && coverPhoto.mediaType !== "video"
       ? {
@@ -956,36 +961,76 @@ export default async function GalleryDetailPage({
                           </span>
                         </div>
 
-                        <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white">
+                        <div className="mt-4 overflow-hidden rounded-md border border-ink/10 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                           {coverSticky ? (
-                            <div className="space-y-2 p-3">
-                              <div className="h-24 rounded bg-ink/15" />
-                              <div className="flex items-center justify-between rounded border border-ink/10 bg-white px-3 py-2">
-                                <div className="h-3 w-28 rounded bg-ink/70" />
-                                <div className="flex gap-1.5">
-                                  <div className="size-7 rounded border border-ink/10" />
-                                  <div className="size-7 rounded border border-ink/10" />
-                                  <div className="size-7 rounded border border-ink/10" />
+                            <div className="bg-paper">
+                              <div className="relative h-32 overflow-hidden bg-ink sm:h-36">
+                                {designPreviewCoverPhoto ? (
+                                  <Image
+                                    src={designPreviewCoverPhoto.previewUrl || designPreviewCoverPhoto.imageUrl}
+                                    alt={designPreviewCoverPhoto.filename}
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                    sizes="(min-width: 1024px) 420px, 90vw"
+                                    style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 bg-graphite" />
+                                )}
+                                <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.12),rgba(17,17,17,0.56))]" />
+                                <div className="absolute inset-x-4 bottom-4">
+                                  <p className="text-[10px] font-semibold uppercase text-white/75">Editorial</p>
+                                  <p className="font-playfair mt-1 max-w-[9ch] text-3xl font-semibold leading-[0.95] text-white drop-shadow">
+                                    {gallery.title}
+                                  </p>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="h-16 rounded bg-paper" />
-                                <div className="h-20 rounded bg-paper" />
-                                <div className="h-14 rounded bg-paper" />
+                              <div className="flex items-center justify-between border-b border-ink/10 bg-white px-4 py-2">
+                                <div className="min-w-0">
+                                  <div className="h-3 w-32 max-w-full rounded bg-ink/80" />
+                                  <div className="mt-1.5 h-2 w-24 rounded bg-graphite/30" />
+                                </div>
+                                <div className="flex shrink-0 gap-1.5">
+                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                    <Heart size={13} />
+                                  </span>
+                                  <span className="grid size-7 place-items-center rounded bg-ink text-white">
+                                    <Download size={13} />
+                                  </span>
+                                  <span className="grid size-7 place-items-center rounded border border-ink/10 bg-white text-graphite">
+                                    <Share2 size={13} />
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 p-3">
+                                <div className="h-16 rounded bg-white shadow-sm" />
+                                <div className="h-24 rounded bg-white shadow-sm" />
+                                <div className="h-14 rounded bg-white shadow-sm" />
                               </div>
                             </div>
                           ) : (
-                            <div className="space-y-2 p-3">
-                              <div className="h-20 rounded bg-ink/10" />
-                              <div className="mx-auto h-4 w-32 rounded bg-ink/70" />
-                              <div className="mx-auto flex w-fit gap-1.5">
-                                <div className="h-7 w-16 rounded border border-ink/10" />
-                                <div className="h-7 w-16 rounded border border-ink/10" />
+                            <div className="space-y-3 bg-paper p-3">
+                              <div className="relative h-24 overflow-hidden rounded bg-ink/10">
+                                {designPreviewCoverPhoto ? (
+                                  <Image
+                                    src={designPreviewCoverPhoto.previewUrl || designPreviewCoverPhoto.imageUrl}
+                                    alt={designPreviewCoverPhoto.filename}
+                                    fill
+                                    unoptimized
+                                    className="object-cover opacity-65"
+                                    sizes="(min-width: 1024px) 420px, 90vw"
+                                    style={{ objectPosition: `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%` }}
+                                  />
+                                ) : null}
+                                <div className="absolute inset-0 bg-white/35" />
                               </div>
+                              <div className="mx-auto h-4 w-36 rounded bg-ink/70" />
+                              <div className="mx-auto h-2 w-24 rounded bg-graphite/30" />
                               <div className="grid grid-cols-3 gap-2">
-                                <div className="h-16 rounded bg-paper" />
-                                <div className="h-20 rounded bg-paper" />
-                                <div className="h-14 rounded bg-paper" />
+                                <div className="h-16 rounded bg-white shadow-sm" />
+                                <div className="h-20 rounded bg-white shadow-sm" />
+                                <div className="h-14 rounded bg-white shadow-sm" />
                               </div>
                             </div>
                           )}
