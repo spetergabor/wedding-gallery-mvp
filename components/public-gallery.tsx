@@ -1524,13 +1524,16 @@ export function PublicGallery({
                     href="#paid-gallery-checkout"
                     title={copy.photoCartTitle}
                     aria-label={copy.photoCartTitle}
-                    className={`relative inline-flex size-9 items-center justify-center rounded-md border text-sm transition sm:size-10 ${
+                    className={`group/toolbar relative inline-flex size-9 items-center justify-center rounded-md border text-sm transition sm:size-10 ${
                       cartPhotoIds.length > 0
                         ? "border-ink bg-ink text-white hover:bg-graphite"
                         : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
                     }`}
                   >
                     <ShoppingCart size={17} />
+                    <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block">
+                      {cartPhotoIds.length > 0 ? copy.selectedPhotos(cartPhotoIds.length) : copy.photoCartTitle}
+                    </span>
                     {cartPhotoIds.length > 0 ? (
                       <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-brass px-1 text-[10px] font-semibold leading-5 text-white">
                         {cartPhotoIds.length}
@@ -1545,11 +1548,14 @@ export function PublicGallery({
                     aria-label={proofingSelection ? copy.selection : copy.favorites}
                     onClick={toggleFavoritesFilter}
                     disabled={favoriteCount === 0}
-                    className={`relative inline-flex size-9 items-center justify-center rounded-md transition sm:size-10 ${
+                    className={`group/toolbar relative inline-flex size-9 items-center justify-center rounded-md transition sm:size-10 ${
                       showFavoritesOnly ? "bg-ink text-white" : "bg-white text-graphite hover:bg-ink/5 hover:text-ink"
                     } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
                   >
                     <Heart size={17} fill={showFavoritesOnly ? "currentColor" : "none"} />
+                    <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block">
+                      {proofingSelection ? copy.selection : copy.favorites}
+                    </span>
                     {favoriteCount > 0 ? (
                       <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-brass px-1 text-[10px] font-semibold leading-5 text-white">
                         {favoriteCount}
@@ -1564,9 +1570,12 @@ export function PublicGallery({
                     aria-label={copy.download}
                     onClick={() => setIsEmailOpen(true)}
                     disabled={isZipping || photos.length === 0}
-                    className="inline-flex size-9 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60 sm:size-10"
+                    className="group/toolbar relative inline-flex size-9 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60 sm:size-10"
                   >
                     <Download size={17} />
+                    <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block">
+                      {copy.download}
+                    </span>
                   </button>
                 ) : null}
                 <button
@@ -1574,7 +1583,7 @@ export function PublicGallery({
                   title={shareState === "copied" ? copy.shareCopied : shareState === "failed" ? copy.shareFailed : copy.share}
                   aria-label={shareState === "copied" ? copy.shareCopied : copy.share}
                   onClick={() => void shareGallery()}
-                  className={`inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-md border px-0 transition sm:h-10 sm:min-w-10 ${
+                  className={`group/toolbar relative inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-md border px-0 transition sm:h-10 sm:min-w-10 ${
                     shareState === "copied"
                       ? "border-sage/25 bg-sage/10 text-sage"
                       : shareState === "failed"
@@ -1583,6 +1592,9 @@ export function PublicGallery({
                   }`}
                 >
                   <Share2 size={17} />
+                  <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block">
+                    {shareState === "copied" ? copy.shareCopied : shareState === "failed" ? copy.shareFailed : copy.share}
+                  </span>
                   {shareState !== "idle" ? (
                     <span className="hidden max-w-28 truncate pr-2 text-xs font-semibold sm:inline">
                       {shareState === "copied" ? copy.shareCopied : copy.shareFailed}
@@ -1591,6 +1603,17 @@ export function PublicGallery({
                 </button>
               </div>
             </div>
+            {shareState !== "idle" ? (
+              <div className="pointer-events-none absolute right-0 top-[calc(100%+6px)] z-20 sm:hidden">
+                <span
+                  className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold shadow-soft ${
+                    shareState === "copied" ? "bg-sage text-white" : "bg-red-700 text-white"
+                  }`}
+                >
+                  {shareState === "copied" ? copy.shareCopied : copy.shareFailed}
+                </span>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

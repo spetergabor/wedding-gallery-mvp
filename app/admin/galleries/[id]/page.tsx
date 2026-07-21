@@ -501,6 +501,9 @@ export default async function GalleryDetailPage({
     (coverPhoto?.mediaType !== "video" ? coverPhoto : null) ??
     gallery.photos.find((photo) => photo.mediaType !== "video") ??
     null;
+  const designPreviewGridPhotos = gallery.photos
+    .filter((photo) => photo.mediaType !== "video" && !photo.isClientHidden && photo.id !== designPreviewCoverPhoto?.id)
+    .slice(0, 4);
   const coverPositionControlProps =
     coverPhoto && coverPhoto.mediaType !== "video"
       ? {
@@ -1027,9 +1030,31 @@ export default async function GalleryDetailPage({
                                 className="grid grid-cols-3 p-3"
                                 style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
                               >
-                                <div className="h-16 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
-                                <div className="h-24 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
-                                <div className="h-14 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
+                                {[64, 96, 56].map((height, index) => {
+                                  const previewPhoto = designPreviewGridPhotos[index];
+
+                                  return (
+                                    <div
+                                      key={`${design.key}-preview-${index}`}
+                                      className="relative overflow-hidden bg-white shadow-sm"
+                                      style={{
+                                        height: `${height}px`,
+                                        borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px`
+                                      }}
+                                    >
+                                      {previewPhoto ? (
+                                        <Image
+                                          src={previewPhoto.previewUrl || previewPhoto.imageUrl}
+                                          alt={previewPhoto.filename}
+                                          fill
+                                          unoptimized
+                                          className="object-cover"
+                                          sizes="140px"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           ) : (
@@ -1060,9 +1085,31 @@ export default async function GalleryDetailPage({
                                 className="grid grid-cols-3"
                                 style={{ gap: `${Math.max(2, Math.round(selectedPublicGridGap / 2))}px` }}
                               >
-                                <div className="h-16 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
-                                <div className="h-20 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
-                                <div className="h-14 bg-white shadow-sm" style={{ borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px` }} />
+                                {[64, 80, 56].map((height, index) => {
+                                  const previewPhoto = designPreviewGridPhotos[index];
+
+                                  return (
+                                    <div
+                                      key={`${design.key}-preview-${index}`}
+                                      className="relative overflow-hidden bg-white shadow-sm"
+                                      style={{
+                                        height: `${height}px`,
+                                        borderRadius: `${Math.max(2, Math.round(selectedPublicImageRadius / 2))}px`
+                                      }}
+                                    >
+                                      {previewPhoto ? (
+                                        <Image
+                                          src={previewPhoto.previewUrl || previewPhoto.imageUrl}
+                                          alt={previewPhoto.filename}
+                                          fill
+                                          unoptimized
+                                          className="object-cover"
+                                          sizes="140px"
+                                        />
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}

@@ -337,7 +337,7 @@ export default async function PublicGalleryPage({
     return (
       <main className="min-h-screen bg-paper">
         <GalleryViewTracker galleryId={gallery.id} />
-        <header className="relative min-h-[52vh] overflow-hidden bg-ink text-white sm:min-h-[62vh] lg:min-h-[68vh]">
+        <header className="relative min-h-[56svh] overflow-hidden bg-ink text-white sm:min-h-[64vh] lg:min-h-[70vh]">
           {coverPhoto ? (
             <Image
               src={coverPhotoSrc}
@@ -354,7 +354,7 @@ export default async function PublicGalleryPage({
             <div className="absolute inset-0 bg-graphite" />
           )}
           <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.10),rgba(17,17,17,0.20)_46%,rgba(17,17,17,0.58))]" />
-          <div className="relative mx-auto flex min-h-[52vh] w-full max-w-7xl items-end px-5 pb-8 pt-24 sm:min-h-[62vh] sm:pb-10 lg:min-h-[68vh] lg:px-8 lg:pb-12">
+          <div className="relative mx-auto flex min-h-[56svh] w-full max-w-7xl items-end px-5 pb-9 pt-24 sm:min-h-[64vh] sm:pb-11 lg:min-h-[70vh] lg:px-8 lg:pb-14">
             <div className="max-w-4xl" style={{ color: heroTextColor }}>
               {settings?.logoUrl ? (
                 <Image
