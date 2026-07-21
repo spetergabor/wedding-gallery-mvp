@@ -42,6 +42,7 @@ import {
   GALLERY_TITLE_FONTS,
   galleryTextColorOrDefault,
   galleryTitleFontDefinition,
+  normalizeClassicGradientIntensity,
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
   normalizeGalleryTitleSize
@@ -464,6 +465,7 @@ export default async function GalleryDetailPage({
   const selectedGalleryTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
   const selectedGalleryTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
   const previewTitleSize = Math.max(24, Math.round(selectedGalleryTitleSize * 0.34));
+  const selectedClassicGradientIntensity = normalizeClassicGradientIntensity(gallery.classicGradientIntensity);
   const selectedPublicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const selectedPublicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
   const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
@@ -1179,6 +1181,58 @@ export default async function GalleryDetailPage({
                       </div>
                     </label>
                   </div>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Palette size={16} />
+                        Timeless átmenet
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A Timeless hero alsó világos átmenetének erőssége. 0-nál alig látszik, 100-nál erős, puha kifutást ad.
+                      </p>
+                    </div>
+                    <label className="block space-y-2">
+                      <span className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">
+                        Átmenet
+                        <span>{selectedClassicGradientIntensity}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        name="classicGradientIntensity"
+                        min={0}
+                        max={100}
+                        step={1}
+                        defaultValue={selectedClassicGradientIntensity}
+                        className="w-full accent-ink"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper p-4">
+                  <label className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <Mail size={16} />
+                        Kapcsolat box
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        A publikus Timeless galériában megjelenő „Fotograf kontaktieren / Fragen zur Galerie?” doboz ki- és bekapcsolása.
+                      </p>
+                    </div>
+                    <span className="inline-flex w-fit items-center gap-3 rounded-full border border-ink/10 bg-white px-3 py-2 text-sm font-semibold text-ink">
+                      <input
+                        type="checkbox"
+                        name="showContactBox"
+                        defaultChecked={gallery.showContactBox}
+                        className="size-4 accent-ink"
+                      />
+                      Megjelenik
+                    </span>
+                  </label>
                 </div>
 
                 <div className="rounded-md border border-ink/10 bg-paper p-4">

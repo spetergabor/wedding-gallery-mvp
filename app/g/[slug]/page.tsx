@@ -27,6 +27,7 @@ import {
   galleryHeroTitleSizeClamp,
   galleryTextColorOrDefault,
   galleryTitleFontDefinition,
+  normalizeClassicGradientIntensity,
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
   normalizeGalleryTitleSize
@@ -175,6 +176,8 @@ export default async function PublicGalleryPage({
     fontFamily: heroTitleFont.family,
     fontSize: galleryHeroTitleSizeClamp(heroTitleSize)
   };
+  const classicGradientIntensity = normalizeClassicGradientIntensity(gallery.classicGradientIntensity);
+  const classicGradientStyle = { opacity: classicGradientIntensity / 100 };
   const publicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const publicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
@@ -409,7 +412,10 @@ export default async function PublicGalleryPage({
           )}
           <div className="absolute inset-0 bg-ink/25" />
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-[70vh] bg-[linear-gradient(to_bottom,rgba(248,247,244,0)_0%,rgba(248,247,244,0.52)_34%,rgba(248,247,244,0.92)_58%,#f8f7f4_82%,#f8f7f4_100%)]" />
+        <div
+          className="absolute inset-x-0 bottom-0 h-[70vh] bg-[linear-gradient(to_bottom,rgba(248,247,244,0)_0%,rgba(248,247,244,0.52)_34%,rgba(248,247,244,0.92)_58%,#f8f7f4_82%,#f8f7f4_100%)]"
+          style={classicGradientStyle}
+        />
         <div className="relative mx-auto flex min-h-[92vh] w-full max-w-5xl flex-col items-center justify-end px-5 pb-16 pt-32 text-center lg:pb-20">
           <div className="flex w-full flex-col items-center" style={{ color: heroTextColor }}>
             {settings?.logoUrl ? (
@@ -445,7 +451,7 @@ export default async function PublicGalleryPage({
             <div className="mt-7 flex justify-center">
               <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
             </div>
-            {contactLinks.length > 0 ? (
+            {gallery.showContactBox && contactLinks.length > 0 ? (
               <div className="mt-5 w-full max-w-2xl rounded-lg border border-ink/10 bg-white/80 px-4 py-4 text-center shadow-soft backdrop-blur">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-graphite/65">{contactTitle}</p>
                 <p className="mt-1 text-sm text-graphite/75">{contactText}</p>

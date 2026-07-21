@@ -67,6 +67,10 @@ export function normalizeGalleryImageRadius(value: unknown, fallback = 8) {
   return normalizePixelValue(value, fallback, 0, 32);
 }
 
+export function normalizeClassicGradientIntensity(value: unknown, fallback = 100) {
+  return normalizePixelValue(value, fallback, 0, 100);
+}
+
 export function normalizeGalleryTitleFont(value: unknown): GalleryTitleFontKey {
   if (typeof value !== "string") {
     return "playfair";

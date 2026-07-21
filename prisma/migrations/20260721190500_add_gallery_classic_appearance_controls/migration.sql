@@ -1,0 +1,3 @@
+ALTER TABLE "Gallery"
+ADD COLUMN "classicGradientIntensity" INTEGER NOT NULL DEFAULT 100,
+ADD COLUMN "showContactBox" BOOLEAN NOT NULL DEFAULT true;

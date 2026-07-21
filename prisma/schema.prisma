@@ -810,6 +810,8 @@ model Gallery {
   galleryTextColor String?
   galleryTitleFont String @default("playfair")
   galleryTitleSize Int    @default(96)
+  classicGradientIntensity Int @default(100)
+  showContactBox Boolean @default(true)
   deliveryMode String   @default("free_download")
   salePriceCents Int    @default(0)
   saleUnitPriceCents Int @default(0)

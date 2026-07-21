@@ -46,6 +46,7 @@ import { normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
+  normalizeClassicGradientIntensity,
   normalizeGalleryTextColor,
   normalizeGalleryTitleFont,
   normalizeGalleryTitleSize
@@ -3284,10 +3285,22 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
   const publicImageRadius = normalizeGalleryImageRadius(formString(formData, "publicImageRadius"));
   const galleryTitleFont = normalizeGalleryTitleFont(formString(formData, "galleryTitleFont"));
   const galleryTitleSize = normalizeGalleryTitleSize(formString(formData, "galleryTitleSize"));
+  const classicGradientIntensity = normalizeClassicGradientIntensity(formString(formData, "classicGradientIntensity"));
+  const showContactBox = formData.get("showContactBox") === "on";
 
   await prisma.gallery.update({
     where: { id: galleryId },
-    data: { galleryDesign, publicColumnCount, galleryTextColor, galleryTitleFont, galleryTitleSize, publicGridGap, publicImageRadius }
+    data: {
+      galleryDesign,
+      publicColumnCount,
+      galleryTextColor,
+      galleryTitleFont,
+      galleryTitleSize,
+      classicGradientIntensity,
+      showContactBox,
+      publicGridGap,
+      publicImageRadius
+    }
   });
 
   revalidatePath("/admin/galleries");
