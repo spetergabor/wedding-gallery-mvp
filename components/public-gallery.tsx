@@ -1823,7 +1823,7 @@ export function PublicGallery({
                         <p className="text-sm font-semibold text-ink">{copy.wholeGalleryTitle}</p>
                         <p className="text-sm font-semibold text-brass">{sale.priceLabel}</p>
                       </div>
-                      <FormSubmitButton name="purchaseKind" value="gallery" pendingLabel={copy.sending} variant="secondary" className="h-12 w-full bg-ink text-white hover:bg-graphite">
+                      <FormSubmitButton name="purchaseKind" value="gallery" pendingLabel={copy.sending} className="h-12 w-full">
                         <CreditCard size={16} />
                         {sale.priceCents <= 0 ? copy.paidNoCostButton : copy.buyWholeGallery}
                       </FormSubmitButton>
