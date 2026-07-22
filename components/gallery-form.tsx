@@ -1,4 +1,4 @@
-import { CalendarDays, Images, LockKeyhole, UploadCloud, UserRound } from "lucide-react";
+import { CalendarDays, ExternalLink, Images, LockKeyhole, UploadCloud, UserRound } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTypeLabel } from "@/lib/customer-options";
@@ -14,6 +14,7 @@ import {
 import { normalizeSaleCurrency } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
 import { GalleryPublishSettings } from "@/components/gallery-publish-settings";
+import { CopyLinkButton } from "@/components/copy-link-button";
 
 type CustomerOption = {
   id: string;
@@ -62,6 +63,7 @@ type GalleryFormProps = {
   selectedProjectId?: string | null;
   initialGalleryMode?: string;
   stripeReady?: boolean;
+  guestUploadUrl?: string | null;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -91,7 +93,8 @@ export function GalleryForm({
   selectedCustomerId = null,
   selectedProjectId = null,
   initialGalleryMode = GALLERY_MODE_FULL,
-  stripeReady = false
+  stripeReady = false,
+  guestUploadUrl = null
 }: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
@@ -291,6 +294,34 @@ export function GalleryForm({
                 </span>
               </span>
             </label>
+            {gallery?.guestUploadsEnabled && guestUploadUrl ? (
+              <div className="rounded-md border border-brass/20 bg-brass/[0.06] p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <UploadCloud size={15} />
+                  Vendégfeltöltési gyors link
+                </p>
+                <p className="mt-1 text-xs leading-5 text-graphite/70">
+                  Ezt küldd el a vendégeknek. A link közvetlenül a feltöltési blokkhoz visz.
+                </p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <CopyLinkButton url={guestUploadUrl} label="Feltöltési link másolása" className="w-full sm:w-auto" />
+                  <a
+                    href={guestUploadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/25 hover:bg-paper sm:w-auto"
+                  >
+                    <ExternalLink size={16} />
+                    Megnyitás
+                  </a>
+                </div>
+                <p className="mt-3 break-all rounded-md bg-white px-3 py-2 text-xs text-graphite/70">{guestUploadUrl}</p>
+              </div>
+            ) : gallery ? (
+              <div className="rounded-md border border-ink/10 bg-white p-4 text-xs leading-5 text-graphite/70">
+                A gyors link mentés után jelenik meg, ha a vendégfotó feltöltést engedélyezed.
+              </div>
+            ) : null}
 
           </section>
         </div>

@@ -537,6 +537,7 @@ export default async function GalleryDetailPage({
       : null;
   const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
   const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
+  const guestUploadUrl = `${galleryPublicUrl}#guest-photos`;
 
   return (
     <AdminShell>
@@ -1600,6 +1601,7 @@ export default async function GalleryDetailPage({
               selectedCustomerId={gallery.customerId}
               selectedProjectId={gallery.projectId}
               stripeReady={Boolean(stripeIntegration?.chargesEnabled)}
+              guestUploadUrl={guestUploadUrl}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
