@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { invalidatePublicGalleryDownloadPackages } from "@/lib/download-packages";
 import { prisma } from "@/lib/prisma";
 
 export async function saveClientPhotoVisibilityChangesAction({
@@ -81,7 +80,6 @@ export async function saveClientPhotoVisibilityChangesAction({
       }
     })
   ]);
-  await invalidatePublicGalleryDownloadPackages(galleryId);
 
   revalidatePath(`/g/${gallery.slug}`);
   revalidatePath(`/client/${gallery.slug}`);
@@ -90,6 +88,6 @@ export async function saveClientPhotoVisibilityChangesAction({
   return {
     ok: true,
     hiddenCount: nextHiddenPhotoIds.length,
-    zipNeedsManualRefresh: true
+    zipNeedsManualRefresh: false
   };
 }
