@@ -823,6 +823,7 @@ model Gallery {
   proofingStatus String @default("not_opened")
   proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
+  guestUploadsEnabled Boolean @default(false)
   coverPhotoId String?
   coverPositionX Int      @default(50)
   coverPositionY Int      @default(50)
@@ -849,6 +850,7 @@ model Gallery {
   uploadSessions GalleryUploadSession[]
   mediaProcessingJobs MediaProcessingJob[]
   purchases    GalleryPurchase[]
+  guestUploads GalleryGuestUpload[]
   admin        Admin   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   project      CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -860,6 +862,30 @@ model Gallery {
   @@index([galleryDesign])
   @@index([deliveryMode])
   @@index([proofingStatus])
+}
+
+model GalleryGuestUpload {
+  id           String   @id @default(cuid())
+  galleryId    String
+  email        String
+  filename     String
+  r2Key        String
+  imageUrl     String
+  thumbnailUrl String
+  previewUrl   String   @default("")
+  mediaType    String   @default("image")
+  fileSize     Int      @default(0)
+  imageWidth   Int      @default(0)
+  imageHeight  Int      @default(0)
+  status       String   @default("visible")
+  createdAt    DateTime @default(now())
+  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  @@index([galleryId])
+  @@index([galleryId, status])
+  @@index([email])
+  @@index([createdAt])
+  @@index([r2Key])
 }
 
 model GalleryPurchase {

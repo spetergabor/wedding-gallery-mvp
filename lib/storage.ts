@@ -129,6 +129,20 @@ export function createPhotoObjectKey({
   return `galleries/${gallerySlug}/photos/${uniqueName}`;
 }
 
+export function createGuestPhotoObjectKey({
+  gallerySlug,
+  originalFilename
+}: {
+  gallerySlug: string;
+  originalFilename: string;
+}) {
+  const extension = path.extname(originalFilename) || ".jpg";
+  const baseName = normalizeSlug(path.basename(originalFilename, extension)) || "guest-photo";
+  const uniqueName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${baseName}${extension.toLowerCase()}`;
+
+  return `galleries/${gallerySlug}/guest-photos/${uniqueName}`;
+}
+
 export function createPhotoVariantObjectKey({
   gallerySlug,
   originalFilename,

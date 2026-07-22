@@ -1019,6 +1019,7 @@ export async function createGalleryAction(formData: FormData) {
   const galleryMode = galleryModeFromForm(formData);
   const deliveryMode = galleryDeliveryModeFromForm(formData);
   const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
+  const guestUploadsEnabled = formData.get("guestUploadsEnabled") === "on";
   const salePriceCents = gallerySalePriceCentsFromForm(formData);
   const saleUnitPriceCents = gallerySaleUnitPriceCentsFromForm(formData);
   const salePricingTiers = parseGallerySalePricingTiersFromForm(formData);
@@ -1092,6 +1093,7 @@ export async function createGalleryAction(formData: FormData) {
         proofingStatus: PROOFING_STATUS_NOT_OPENED,
         proofingStatusUpdatedAt: isProofingGallery(galleryMode) ? new Date() : null,
         downloadsEnabled,
+        guestUploadsEnabled,
         publicColumnCount,
         clientEmail: customer ? normalizeEmail(customer.primaryEmail) : null,
         clientAccessToken: createClientAccessToken()
@@ -1127,6 +1129,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
   const galleryMode = galleryModeFromForm(formData);
   const deliveryMode = galleryDeliveryModeFromForm(formData);
   const downloadsEnabled = galleryDeliveryAllowsDownloads(deliveryMode);
+  const guestUploadsEnabled = formData.get("guestUploadsEnabled") === "on";
   const salePriceCents = gallerySalePriceCentsFromForm(formData);
   const saleUnitPriceCents = gallerySaleUnitPriceCentsFromForm(formData);
   const salePricingTiers = parseGallerySalePricingTiersFromForm(formData);
@@ -1214,6 +1217,7 @@ export async function updateGalleryAction(id: string, formData: FormData) {
             }
           : {}),
         downloadsEnabled,
+        guestUploadsEnabled,
         publicColumnCount
       }
     });

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { Facebook, Instagram, Lock, Mail, Music2, Phone, Youtube, type LucideIcon } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
+import { GuestPhotoUpload } from "@/components/guest-photo-upload";
 import { PublicGallery } from "@/components/public-gallery";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { prisma } from "@/lib/prisma";
@@ -115,6 +116,10 @@ export default async function PublicGalleryPage({
             }
           }
         }
+      },
+      guestUploads: {
+        where: { status: "visible" },
+        orderBy: { createdAt: "asc" }
       },
       customer: {
         select: { preferredLanguage: true }
@@ -366,6 +371,21 @@ export default async function PublicGalleryPage({
         {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
       </div>
     );
+  const guestPhotoSection = gallery.guestUploadsEnabled ? (
+    <GuestPhotoUpload
+      galleryId={gallery.id}
+      language={language}
+      initialPhotos={gallery.guestUploads.map((photo) => ({
+        id: photo.id,
+        filename: photo.filename,
+        imageUrl: photo.imageUrl,
+        thumbnailUrl: photo.thumbnailUrl,
+        previewUrl: photo.previewUrl,
+        imageWidth: photo.imageWidth,
+        imageHeight: photo.imageHeight
+      }))}
+    />
+  ) : null;
 
   if (galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER) {
     return (
@@ -434,6 +454,7 @@ export default async function PublicGalleryPage({
 
         <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
           {galleryContent}
+          {guestPhotoSection}
         </section>
       </main>
     );
@@ -488,6 +509,7 @@ export default async function PublicGalleryPage({
 
         <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
           {galleryContent}
+          {guestPhotoSection}
         </section>
       </main>
     );
@@ -626,6 +648,7 @@ export default async function PublicGalleryPage({
           </nav>
         ) : null}
         {galleryContent}
+        {guestPhotoSection}
       </section>
     </main>
   );

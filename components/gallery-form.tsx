@@ -1,4 +1,4 @@
-import { CalendarDays, Images, LockKeyhole, UserRound } from "lucide-react";
+import { CalendarDays, Images, LockKeyhole, UploadCloud, UserRound } from "lucide-react";
 import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTypeLabel } from "@/lib/customer-options";
@@ -52,6 +52,7 @@ type GalleryFormProps = {
     salePricingTiers: unknown;
     saleCurrency: string;
     downloadsEnabled: boolean;
+    guestUploadsEnabled: boolean;
     publicColumnCount: number;
     clientEmail: string | null;
   };
@@ -270,6 +271,24 @@ export function GalleryForm({
               />
               <span className="block text-xs leading-5 text-graphite/70">
                 Üresen hagyva a publikus galéria PIN nélkül nyitható. Ha kitöltöd, a vendég csak ezzel a kóddal látja a galériát.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper p-4">
+              <input
+                type="checkbox"
+                name="guestUploadsEnabled"
+                defaultChecked={Boolean(gallery?.guestUploadsEnabled)}
+                className="mt-1 size-4 accent-ink"
+              />
+              <span>
+                <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <UploadCloud size={15} />
+                  Vendégfotó feltöltés
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-graphite/70">
+                  Ha aktív, a publikus galériában megjelenik egy külön feltöltési blokk. A vendégfotók nem keverednek a fotós képei közé és nem kerülnek bele a ZIP csomagba.
+                </span>
               </span>
             </label>
 
