@@ -1,8 +1,22 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
-import { Check, CheckCircle2, Copy, ExternalLink, Eye, EyeOff, Film, ImageIcon, RefreshCw, RotateCcw, Save } from "lucide-react";
+import { type CSSProperties, useMemo, useState } from "react";
+import {
+  Check,
+  CheckCircle2,
+  CheckSquare,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Film,
+  ImageIcon,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Square
+} from "lucide-react";
 import { Button } from "@/components/button";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { saveClientPhotoVisibilityChangesAction } from "@/lib/client-gallery-actions";
@@ -17,6 +31,8 @@ type ClientPhoto = {
   mediaType: string;
   processingStatus: string;
   isClientHidden: boolean;
+  imageWidth: number;
+  imageHeight: number;
 };
 
 type SaveNotice = {
@@ -30,7 +46,7 @@ const CLIENT_REVIEW_COPY = {
     guestGallery: "Öffentliche Gästegalerie",
     visible: "sichtbar",
     hidden: "ausgeblendet",
-    intro: "Wählt in Ruhe aus. Eure Änderungen werden erst übernommen, wenn ihr unten speichert; danach werden die öffentliche Galerie und das Download-Paket aktualisiert.",
+    intro: "Wählt in Ruhe aus. Eure Änderungen werden erst übernommen, wenn ihr unten speichert; sie betreffen nur die öffentliche Galerie. Das ZIP-Downloadpaket bleibt unverändert.",
     visibleLabel: "Sichtbar",
     hiddenLabel: "Ausgeblendet",
     savedSummary: (visibleCount: number, hiddenCount: number) => `Gespeichert: ${visibleCount} Fotos sind sichtbar, ${hiddenCount} sind ausgeblendet.`,
@@ -44,12 +60,21 @@ const CLIENT_REVIEW_COPY = {
     hiddenBadge: "Nicht für Gäste sichtbar",
     visibleBadge: "Für Gäste sichtbar",
     unsaved: "Ungespeichert",
-    hiddenDescription: "Dieses Foto bleibt hier sichtbar, erscheint aber nicht in der öffentlichen Galerie oder im Gäste-Download.",
-    visibleDescription: "Dieses Foto erscheint in der öffentlichen Galerie und im Gäste-Download.",
+    hiddenDescription: "Dieses Foto bleibt hier sichtbar, erscheint aber nicht in der öffentlichen Galerie.",
+    visibleDescription: "Dieses Foto erscheint in der öffentlichen Galerie.",
     showAgain: "Für Gäste wieder anzeigen",
     hideForGuests: "Für Gäste ausblenden",
+    bulkTitle: "Mehrere Fotos auswählen",
+    bulkHint: "Die Auswahl wirkt erst nach dem Speichern und verändert das ZIP-Downloadpaket nicht.",
+    selectAll: "Alle auswählen",
+    clearSelection: "Auswahl löschen",
+    selected: (count: number) => `${count} ausgewählt`,
+    selectPhoto: "Foto auswählen",
+    unselectPhoto: "Auswahl entfernen",
+    hideSelected: "Ausgewählte ausblenden",
+    showSelected: "Ausgewählte anzeigen",
     doneTitle: "Seid ihr mit dem Ausblenden fertig?",
-    doneIntro: "Speichert die Auswahl, wenn alles passt. Erst danach erscheinen die Änderungen in der öffentlichen Galerie und im Gäste-Download.",
+    doneIntro: "Speichert die Auswahl, wenn alles passt. Erst danach erscheinen die Änderungen in der öffentlichen Galerie.",
     shareGallery: "Öffentliche Galerie teilen",
     bottomStatus: (hiddenCount: number, visibleCount: number) => `${hiddenCount} ausgeblendet · ${visibleCount} sichtbar`,
     unsavedStatus: "Ungespeicherte Änderungen. Speichern aktualisiert nur die Gästegalerie; das ZIP-Downloadpaket bleibt unverändert.",
@@ -63,7 +88,7 @@ const CLIENT_REVIEW_COPY = {
     guestGallery: "Publikus vendéggaléria",
     visible: "látható",
     hidden: "elrejtve",
-    intro: "Válogassatok nyugodtan. A módosítások csak akkor kerülnek át a publikus galériába és a letöltési csomagba, amikor lent mentitek őket.",
+    intro: "Válogassatok nyugodtan. A módosítások csak akkor kerülnek át a publikus galériába, amikor lent mentitek őket. A ZIP letöltési csomag változatlan marad.",
     visibleLabel: "Látható",
     hiddenLabel: "Elrejtve",
     savedSummary: (visibleCount: number, hiddenCount: number) => `Mentve: ${visibleCount} fotó látható, ${hiddenCount} fotó el van rejtve.`,
@@ -77,12 +102,21 @@ const CLIENT_REVIEW_COPY = {
     hiddenBadge: "Vendégeknek nem látható",
     visibleBadge: "Vendégeknek látható",
     unsaved: "Nincs mentve",
-    hiddenDescription: "Ez a fotó itt látható marad, de nem jelenik meg a publikus galériában vagy a vendég letöltésben.",
-    visibleDescription: "Ez a fotó megjelenik a publikus galériában és a vendég letöltésben.",
+    hiddenDescription: "Ez a fotó itt látható marad, de nem jelenik meg a publikus galériában.",
+    visibleDescription: "Ez a fotó megjelenik a publikus galériában.",
     showAgain: "Újra mutatás vendégeknek",
     hideForGuests: "Elrejtés vendégek elől",
+    bulkTitle: "Több fotó kijelölése",
+    bulkHint: "A kijelölés csak mentés után élesedik, és nem módosítja a ZIP letöltési csomagot.",
+    selectAll: "Összes kijelölése",
+    clearSelection: "Kijelölés törlése",
+    selected: (count: number) => `${count} kijelölve`,
+    selectPhoto: "Fotó kijelölése",
+    unselectPhoto: "Kijelölés levétele",
+    hideSelected: "Kijelöltek elrejtése",
+    showSelected: "Kijelöltek mutatása",
     doneTitle: "Készen vagytok az elrejtésekkel?",
-    doneIntro: "Mentsétek a válogatást, amikor minden rendben van. A változások csak mentés után jelennek meg a publikus galériában és a vendég letöltésben.",
+    doneIntro: "Mentsétek a válogatást, amikor minden rendben van. A változások csak mentés után jelennek meg a publikus galériában.",
     shareGallery: "Publikus galéria megosztása",
     bottomStatus: (hiddenCount: number, visibleCount: number) => `${hiddenCount} elrejtve · ${visibleCount} látható`,
     unsavedStatus: "Nem mentett módosítások. A mentés csak a vendéggalériát frissíti; a ZIP letöltési csomag változatlan marad.",
@@ -103,6 +137,18 @@ function getClientPreviewUrl(photo: ClientPhoto) {
   }
 
   return photo.imageUrl;
+}
+
+function getClientPreviewStyle(photo: ClientPhoto): CSSProperties {
+  if (photo.mediaType === "video") {
+    return { aspectRatio: "16 / 9" };
+  }
+
+  if (photo.imageWidth > 0 && photo.imageHeight > 0) {
+    return { aspectRatio: `${photo.imageWidth} / ${photo.imageHeight}` };
+  }
+
+  return { aspectRatio: "4 / 3" };
 }
 
 export function ClientGalleryReview({
@@ -130,11 +176,14 @@ export function ClientGalleryReview({
   const [error, setError] = useState("");
   const [saveNotice, setSaveNotice] = useState<SaveNotice | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(() => new Set());
   const copy = CLIENT_REVIEW_COPY[language ?? "de"];
   const publicHref = `/g/${publicSlug}`;
   const hiddenCount = hiddenPhotoIds.size;
   const visibleCount = photos.length - hiddenCount;
   const reviewedPhotoIds = useMemo(() => photos.map((photo) => photo.id), [photos]);
+  const selectedCount = selectedPhotoIds.size;
+  const allPhotosSelected = photos.length > 0 && selectedCount === photos.length;
   const hasUnsavedChanges = useMemo(() => {
     if (hiddenPhotoIds.size !== savedHiddenPhotoIds.size) {
       return true;
@@ -172,6 +221,64 @@ export function ClientGalleryReview({
         next.delete(photoId);
       } else {
         next.add(photoId);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleSelectedPhoto(photoId: string) {
+    setSelectedPhotoIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        next.add(photoId);
+      }
+
+      return next;
+    });
+  }
+
+  function selectAllPhotos() {
+    setSelectedPhotoIds(new Set(reviewedPhotoIds));
+  }
+
+  function clearSelection() {
+    setSelectedPhotoIds(new Set());
+  }
+
+  function hideSelectedPhotos() {
+    if (selectedPhotoIds.size === 0) {
+      return;
+    }
+
+    setError("");
+    setSaveNotice(null);
+    setHiddenPhotoIds((current) => {
+      const next = new Set(current);
+
+      for (const photoId of selectedPhotoIds) {
+        next.add(photoId);
+      }
+
+      return next;
+    });
+  }
+
+  function showSelectedPhotos() {
+    if (selectedPhotoIds.size === 0) {
+      return;
+    }
+
+    setError("");
+    setSaveNotice(null);
+    setHiddenPhotoIds((current) => {
+      const next = new Set(current);
+
+      for (const photoId of selectedPhotoIds) {
+        next.delete(photoId);
       }
 
       return next;
@@ -272,18 +379,58 @@ export function ClientGalleryReview({
         </div>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-5 rounded-lg border border-ink/10 bg-white p-4 shadow-soft">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-ink">{copy.bulkTitle}</p>
+            <p className="mt-1 text-xs leading-5 text-graphite/65">{copy.bulkHint}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" disabled={photos.length === 0 || allPhotosSelected} onClick={selectAllPhotos}>
+              <CheckSquare size={16} />
+              {copy.selectAll}
+            </Button>
+            {selectedCount > 0 ? (
+              <>
+                <Button type="button" variant="secondary" onClick={clearSelection}>
+                  <RotateCcw size={16} />
+                  {copy.clearSelection}
+                </Button>
+                <Button type="button" variant="danger" disabled={isSaving} onClick={hideSelectedPhotos}>
+                  <EyeOff size={16} />
+                  {copy.hideSelected}
+                </Button>
+                <Button type="button" variant="secondary" disabled={isSaving} onClick={showSelectedPhotos}>
+                  <Eye size={16} />
+                  {copy.showSelected}
+                </Button>
+              </>
+            ) : null}
+          </div>
+        </div>
+        {selectedCount > 0 ? (
+          <p className="mt-3 text-xs font-medium text-brass">{copy.selected(selectedCount)}</p>
+        ) : null}
+      </div>
+
+      <section className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
         {photos.map((photo) => {
           const isHidden = hiddenPhotoIds.has(photo.id);
           const wasHidden = savedHiddenPhotoIds.has(photo.id);
           const hasDraftChange = isHidden !== wasHidden;
+          const isSelected = selectedPhotoIds.has(photo.id);
 
           return (
-            <article key={photo.id} className={`overflow-hidden rounded-lg border bg-white shadow-soft ${isHidden ? "border-brass/40" : hasDraftChange ? "border-sage/50" : "border-ink/10"}`}>
-              <div className="relative aspect-[4/3] bg-mist">
+            <article
+              key={photo.id}
+              className={`mb-4 inline-block w-full break-inside-avoid overflow-hidden rounded-lg border bg-white shadow-soft transition ${
+                isSelected ? "border-brass ring-2 ring-brass/20" : isHidden ? "border-brass/40" : hasDraftChange ? "border-sage/50" : "border-ink/10"
+              }`}
+            >
+              <div className="relative w-full bg-mist" style={getClientPreviewStyle(photo)}>
                 {photo.mediaType === "video" ? (
                   <div className={`relative h-full w-full bg-ink transition ${isHidden ? "opacity-45 grayscale" : ""}`}>
-                    <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
+                    <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-contain opacity-85" />
                     <span className="absolute inset-0 grid place-items-center text-white">
                       <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
                         <Film size={16} />
@@ -298,7 +445,7 @@ export function ClientGalleryReview({
                     fill
                     unoptimized
                     loading="lazy"
-                    className={`object-cover transition ${isHidden ? "opacity-45 grayscale" : ""}`}
+                    className={`object-contain transition ${isHidden ? "opacity-45 grayscale" : ""}`}
                     sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                   />
                 ) : (
@@ -326,6 +473,17 @@ export function ClientGalleryReview({
                     {copy.unsaved}
                   </span>
                 ) : null}
+                <button
+                  type="button"
+                  aria-pressed={isSelected}
+                  aria-label={isSelected ? copy.unselectPhoto : copy.selectPhoto}
+                  className={`absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md border text-ink shadow-soft transition ${
+                    isSelected ? "border-ink bg-ink text-white" : "border-ink/10 bg-white/90 hover:bg-white"
+                  }`}
+                  onClick={() => toggleSelectedPhoto(photo.id)}
+                >
+                  {isSelected ? <CheckSquare size={17} /> : <Square size={17} />}
+                </button>
               </div>
               <div className="space-y-3 p-3">
                 <p className="truncate text-sm font-medium text-ink">{photo.filename}</p>
