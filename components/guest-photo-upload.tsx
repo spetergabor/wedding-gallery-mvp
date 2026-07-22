@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ImagePlus, Loader2, Mail, UploadCloud } from "lucide-react";
+import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { CheckCircle2, ImagePlus, Loader2, Mail, UploadCloud, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
   completeGuestUploadsAction,
@@ -35,13 +35,18 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/h
 const COPY = {
   de: {
     title: "Gästefotos",
+    count: (count: number) => `${count} ${count === 1 ? "Foto" : "Fotos"}`,
     empty: "Noch keine Gästefotos hochgeladen.",
+    openUpload: "Fotos hochladen",
     uploadTitle: "Eigene Fotos hochladen",
     uploadText: "Teile deine Lieblingsmomente mit dem Paar. Deine Fotos erscheinen nach dem Upload in diesem separaten Bereich.",
     email: "E-Mail-Adresse",
     choose: "Fotos auswählen",
+    dropTitle: "Fotos hierher ziehen",
+    dropText: "oder klicken, um Bilder auszuwählen",
     upload: "Hochladen",
     uploading: "Wird hochgeladen...",
+    cancel: "Schließen",
     selected: (count: number) => `${count} ${count === 1 ? "Foto" : "Fotos"} ausgewählt`,
     success: (count: number) => `${count} ${count === 1 ? "Foto wurde" : "Fotos wurden"} hochgeladen.`,
     emailError: "Bitte gib eine gültige E-Mail-Adresse ein.",
@@ -50,13 +55,18 @@ const COPY = {
   },
   hu: {
     title: "Vendégfotók",
+    count: (count: number) => `${count} kép`,
     empty: "Még nincs feltöltött vendégfotó.",
+    openUpload: "Képek feltöltése",
     uploadTitle: "Saját képek feltöltése",
     uploadText: "Oszd meg a kedvenc pillanataidat a párral. A képeid feltöltés után ebben a külön blokkban jelennek meg.",
     email: "E-mail cím",
     choose: "Képek kiválasztása",
+    dropTitle: "Húzd ide a képeket",
+    dropText: "vagy kattints a kiválasztáshoz",
     upload: "Feltöltés",
     uploading: "Feltöltés...",
+    cancel: "Bezárás",
     selected: (count: number) => `${count} kép kiválasztva`,
     success: (count: number) => `${count} kép feltöltve.`,
     emailError: "Adj meg egy érvényes email címet.",
@@ -112,6 +122,8 @@ export function GuestPhotoUpload({
   const [email, setEmail] = useState("");
   const [files, setFiles] = useState<GuestUploadFile[]>([]);
   const [photos] = useState(initialPhotos);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -119,14 +131,14 @@ export function GuestPhotoUpload({
   const selectedCount = files.length;
   const visiblePhotos = useMemo(() => photos.filter((photo) => photo.imageUrl), [photos]);
 
-  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = Array.from(event.target.files ?? []).slice(0, MAX_FILES);
+  async function prepareFiles(selectedFiles: File[]) {
+    const limitedFiles = selectedFiles.slice(0, MAX_FILES);
     setError("");
     setSuccess("");
 
-    const validFiles = selectedFiles.filter((file) => ALLOWED_TYPES.has(file.type) && file.size > 0 && file.size <= MAX_FILE_BYTES);
+    const validFiles = limitedFiles.filter((file) => ALLOWED_TYPES.has(file.type) && file.size > 0 && file.size <= MAX_FILE_BYTES);
 
-    if (validFiles.length !== selectedFiles.length) {
+    if (validFiles.length !== limitedFiles.length) {
       setError(copy.fileError);
     }
 
@@ -145,6 +157,26 @@ export function GuestPhotoUpload({
     );
 
     setFiles(nextFiles);
+  }
+
+  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    await prepareFiles(Array.from(event.target.files ?? []));
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    void prepareFiles(Array.from(event.dataTransfer.files ?? []));
   }
 
   async function uploadFiles() {
@@ -229,61 +261,18 @@ export function GuestPhotoUpload({
   }
 
   return (
-    <section id="guest-photos" className="mt-14 space-y-5">
-      <div className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-start">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brass">{copy.title}</p>
-            <h2 className="mt-2 text-2xl font-semibold text-ink">{copy.uploadTitle}</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">{copy.uploadText}</p>
-          </div>
-
-          <div className="space-y-3 rounded-md border border-ink/10 bg-paper p-4">
-            <label className="block space-y-2">
-              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                <Mail size={15} />
-                {copy.email}
-              </span>
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50"
-              />
-            </label>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-              multiple
-              className="hidden"
-              onChange={(event) => void handleFiles(event)}
-            />
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="button" variant="secondary" className="w-full" onClick={() => inputRef.current?.click()} disabled={isUploading}>
-                <ImagePlus size={16} />
-                {copy.choose}
-              </Button>
-              <Button type="button" className="w-full" onClick={() => void uploadFiles()} disabled={isUploading || files.length === 0}>
-                {isUploading ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={16} />}
-                {isUploading ? copy.uploading : copy.upload}
-              </Button>
-            </div>
-            {selectedCount > 0 ? (
-              <p className="text-xs font-medium text-graphite/70">
-                {copy.selected(selectedCount)}
-                {isUploading ? ` · ${completedCount}/${selectedCount}` : ""}
-              </p>
-            ) : null}
-            {success ? (
-              <p className="flex items-center gap-2 rounded-md border border-sage/20 bg-sage/10 px-3 py-2 text-sm font-medium text-sage">
-                <CheckCircle2 size={16} />
-                {success}
-              </p>
-            ) : null}
-            {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
-          </div>
+    <section id="guest-photos" className="mt-14 scroll-mt-32 space-y-5" aria-labelledby="guest-photos-title">
+      <div className="flex flex-col gap-4 border-b border-ink/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">{copy.count(visiblePhotos.length)}</p>
+          <h2 id="guest-photos-title" className="font-playfair mt-1 text-3xl font-semibold text-ink md:text-4xl">
+            {copy.title}
+          </h2>
         </div>
+        <Button type="button" onClick={() => setIsUploadOpen(true)} className="w-full sm:w-auto">
+          <UploadCloud size={16} />
+          {copy.openUpload}
+        </Button>
       </div>
 
       {visiblePhotos.length > 0 ? (
@@ -309,6 +298,106 @@ export function GuestPhotoUpload({
       ) : (
         <p className="rounded-lg border border-ink/10 bg-white px-5 py-8 text-center text-sm text-graphite/70 shadow-soft">{copy.empty}</p>
       )}
+
+      {isUploadOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="guest-upload-title"
+        >
+          <div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">{copy.title}</p>
+                <h3 id="guest-upload-title" className="mt-1 text-2xl font-semibold text-ink">
+                  {copy.uploadTitle}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsUploadOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
+                aria-label={copy.cancel}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm leading-6 text-graphite/70">{copy.uploadText}</p>
+
+            <div className="mt-5 space-y-4">
+              <label className="block space-y-2">
+                <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                  <Mail size={15} />
+                  {copy.email}
+                </span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50"
+                />
+              </label>
+
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                multiple
+                className="hidden"
+                onChange={(event) => void handleFiles(event)}
+              />
+
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => inputRef.current?.click()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    inputRef.current?.click();
+                  }
+                }}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-5 py-8 text-center transition ${
+                  isDragging ? "border-ink bg-paper" : "border-ink/20 bg-paper/60 hover:border-ink/35 hover:bg-paper"
+                }`}
+              >
+                <ImagePlus size={26} className="text-graphite" />
+                <p className="mt-3 text-sm font-semibold text-ink">{copy.dropTitle}</p>
+                <p className="mt-1 text-xs text-graphite/65">{copy.dropText}</p>
+              </div>
+
+              {selectedCount > 0 ? (
+                <p className="text-xs font-medium text-graphite/70">
+                  {copy.selected(selectedCount)}
+                  {isUploading ? ` · ${completedCount}/${selectedCount}` : ""}
+                </p>
+              ) : null}
+              {success ? (
+                <p className="flex items-center gap-2 rounded-md border border-sage/20 bg-sage/10 px-3 py-2 text-sm font-medium text-sage">
+                  <CheckCircle2 size={16} />
+                  {success}
+                </p>
+              ) : null}
+              {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+
+              <div className="flex flex-col-reverse gap-2 border-t border-ink/10 pt-4 sm:flex-row sm:justify-end">
+                <Button type="button" variant="secondary" onClick={() => setIsUploadOpen(false)} disabled={isUploading}>
+                  {copy.cancel}
+                </Button>
+                <Button type="button" onClick={() => void uploadFiles()} disabled={isUploading || files.length === 0}>
+                  {isUploading ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={16} />}
+                  {isUploading ? copy.uploading : copy.upload}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
