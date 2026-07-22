@@ -215,6 +215,13 @@ export default async function PublicGalleryPage({
   const classicGradientBackground = `linear-gradient(to bottom, ${rgbaFromHex(galleryBackgroundColor, 0)} 0%, ${rgbaFromHex(galleryBackgroundColor, 0.52)} 34%, ${rgbaFromHex(galleryBackgroundColor, 0.92)} 58%, ${galleryBackgroundColor} 82%, ${galleryBackgroundColor} 100%)`;
   const publicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const publicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
+  const guestPhotoAnchorLink = gallery.guestUploadsEnabled
+    ? {
+        href: "#guest-photos",
+        label: language === "hu" ? "Vendégfotók" : "Gästefotos",
+        count: gallery.guestUploads.length
+      }
+    : null;
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
   const contactText = language === "hu" ? "Kérdésed van a galériával kapcsolatban?" : "Fragen zur Galerie?";
   const contactLinks: ContactQuickLink[] = [
@@ -365,6 +372,7 @@ export default async function PublicGalleryPage({
               }
             : null
         }
+        extraAnchorLinks={guestPhotoAnchorLink ? [guestPhotoAnchorLink] : []}
       />
     ) : (
       <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm" style={{ color: galleryBodyTextColor }}>
@@ -606,7 +614,7 @@ export default async function PublicGalleryPage({
       </header>
 
       <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
-        {visibleSections.length > 0 ? (
+        {visibleSections.length > 0 || guestPhotoAnchorLink ? (
           <nav
             className="sticky top-0 z-30 -mx-5 -mt-8 mb-12 border-b border-ink/10 bg-paper/95 px-5 py-2.5 shadow-[0_12px_28px_rgba(17,17,17,0.05)] backdrop-blur lg:-mx-8 lg:px-8"
             aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
@@ -642,6 +650,16 @@ export default async function PublicGalleryPage({
                 >
                   {language === "hu" ? "További képek" : "Weitere Bilder"}
                   <span className="ml-2 text-xs opacity-70">{unsectionedPhotoCount}</span>
+                </a>
+              ) : null}
+              {guestPhotoAnchorLink ? (
+                <a
+                  href={guestPhotoAnchorLink.href}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold shadow-sm transition hover:border-ink/25"
+                  style={{ color: galleryBodyTextColor }}
+                >
+                  {guestPhotoAnchorLink.label}
+                  <span className="ml-2 text-xs opacity-70">{guestPhotoAnchorLink.count}</span>
                 </a>
               ) : null}
             </div>

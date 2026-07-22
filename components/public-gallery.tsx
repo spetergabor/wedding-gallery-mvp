@@ -331,6 +331,12 @@ type StickyToolbarSettings = {
   sharePath: string;
 };
 
+type GalleryAnchorLink = {
+  href: string;
+  label: string;
+  count: number;
+};
+
 type FavoriteListState = {
   id: string;
   name: string;
@@ -502,7 +508,8 @@ export function PublicGallery({
   imageRadius = 8,
   textColor = "#111111",
   fontFamily,
-  stickyToolbar = null
+  stickyToolbar = null,
+  extraAnchorLinks = []
 }: {
   galleryId: string;
   gallerySlug: string;
@@ -521,6 +528,7 @@ export function PublicGallery({
   textColor?: string;
   fontFamily?: string;
   stickyToolbar?: StickyToolbarSettings | null;
+  extraAnchorLinks?: GalleryAnchorLink[];
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -704,9 +712,10 @@ export function PublicGallery({
         href: `#${block.anchorId}`,
         label: block.title,
         count: block.count
-      }))
+      })),
+      ...extraAnchorLinks
     ];
-  }, [language, sectionBlocks, stickyToolbar, visibleVideoItems.length]);
+  }, [extraAnchorLinks, language, sectionBlocks, stickyToolbar, visibleVideoItems.length]);
 
   useEffect(() => {
     if (!favoritesEnabled) {
