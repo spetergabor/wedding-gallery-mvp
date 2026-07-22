@@ -412,3 +412,22 @@ export function GuestPhotoUpload({
     </section>
   );
 }
+
+export function GuestPhotoUploadButton({
+  label,
+  className = ""
+}: {
+  label: string;
+  className?: string;
+}) {
+  return (
+    <Button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(OPEN_GUEST_UPLOAD_EVENT))}
+      className={className}
+    >
+      <UploadCloud size={16} />
+      {label}
+    </Button>
+  );
+}

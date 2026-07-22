@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { Facebook, Instagram, Lock, Mail, Music2, Phone, Youtube, type LucideIcon } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
-import { GuestPhotoUpload } from "@/components/guest-photo-upload";
+import { GuestPhotoUpload, GuestPhotoUploadButton } from "@/components/guest-photo-upload";
 import { PublicGallery } from "@/components/public-gallery";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { prisma } from "@/lib/prisma";
@@ -582,8 +582,11 @@ export default async function PublicGalleryPage({
             <p className="mt-3 text-sm font-medium uppercase tracking-[0.24em]" style={{ color: galleryBodyTextColor }}>
               {visiblePhotos.length} {language === "hu" ? "média" : "Medien"}
             </p>
-            <div className="mt-7 flex justify-center">
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
               <SocialShareButtons path={publicGalleryPath} title={gallery.title} variant="card" language={language} />
+              {gallery.guestUploadsEnabled ? (
+                <GuestPhotoUploadButton label={language === "hu" ? "Képek feltöltése" : "Fotos hochladen"} />
+              ) : null}
             </div>
             {gallery.showContactBox && contactLinks.length > 0 ? (
               <div className="mt-5 w-full max-w-2xl rounded-lg border border-ink/10 bg-white/80 px-4 py-4 text-center shadow-soft backdrop-blur">
