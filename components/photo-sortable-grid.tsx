@@ -39,6 +39,8 @@ export type SortablePhoto = {
   deliveryStage: string;
   mediaType: string;
   fileSize: number;
+  imageWidth: number;
+  imageHeight: number;
   sortOrder: number;
   isClientHidden: boolean;
   clientHiddenAt: Date | null;
@@ -97,6 +99,18 @@ function shouldShowProcessingBadge(photo: SortablePhoto) {
 
 function photosChanged(left: SortablePhoto[], right: SortablePhoto[]) {
   return left.some((photo, index) => photo.id !== right[index]?.id);
+}
+
+function photoPreviewStyle(photo: SortablePhoto): CSSProperties {
+  if (photo.mediaType === "video") {
+    return { aspectRatio: "16 / 9" };
+  }
+
+  if (photo.imageWidth > 0 && photo.imageHeight > 0) {
+    return { aspectRatio: `${photo.imageWidth} / ${photo.imageHeight}` };
+  }
+
+  return { aspectRatio: "4 / 3" };
 }
 
 export function PhotoSortableGrid({
@@ -308,7 +322,7 @@ export function PhotoSortableGrid({
           <p className="mt-0.5 text-xs text-graphite/70">
             {bulkSelectedCount > 0
               ? `${bulkSelectedCount} kép kijelölve törléshez vagy címke alá helyezéshez.`
-              : "Jelölj ki több képet, Shift-kattintással teljes tartományt is választhatsz."}
+              : "Jelölj ki több képet, Shift-kattintással teljes tartományt is választhatsz, majd elrejtheted őket egyszerre."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -335,7 +349,7 @@ export function PhotoSortableGrid({
       </div>
 
       <div
-        className="grid gap-4 sm:grid-cols-2 xl:[grid-template-columns:repeat(var(--photo-grid-columns),minmax(0,1fr))]"
+        className="columns-1 gap-4 sm:columns-2 xl:[column-count:var(--photo-grid-columns)]"
         style={{ "--photo-grid-columns": gridColumnCount } as CSSProperties}
       >
         {displayedPhotos.map((photo) => {
@@ -391,7 +405,7 @@ export function PhotoSortableGrid({
                 event.preventDefault();
                 resetDragState();
               }}
-              className={`group relative transform-gpu cursor-grab overflow-hidden rounded-lg border bg-white shadow-sm transition-[transform,box-shadow,border-color,opacity] duration-200 ease-out active:cursor-grabbing ${
+              className={`group relative mb-4 inline-block w-full transform-gpu cursor-grab break-inside-avoid overflow-hidden rounded-lg border bg-white align-top shadow-sm transition-[transform,box-shadow,border-color,opacity] duration-200 ease-out active:cursor-grabbing ${
                 isDragging
                   ? "scale-[1.02] rotate-[0.35deg] border-brass/70 opacity-85 shadow-[0_18px_45px_rgba(17,17,17,0.16)] ring-2 ring-brass/25"
                   : isDropTarget
@@ -404,7 +418,7 @@ export function PhotoSortableGrid({
               {isDropTarget ? (
                 <span className="pointer-events-none absolute inset-2 z-10 rounded-md border border-dashed border-brass/45" />
               ) : null}
-              <div className="relative aspect-[4/3] bg-mist">
+              <div className="relative w-full bg-mist" style={photoPreviewStyle(photo)}>
                 {photo.mediaType === "video" ? (
                   <div className="relative h-full w-full bg-ink">
                     {hasCustomVideoThumbnail(photo) ? (
@@ -415,11 +429,11 @@ export function PhotoSortableGrid({
                         draggable={false}
                         unoptimized
                         loading="lazy"
-                        className="object-cover"
+                        className="object-contain"
                         sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                       />
                     ) : (
-                      <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-cover opacity-85" />
+                      <video src={photo.imageUrl} preload="metadata" muted playsInline className="h-full w-full object-contain opacity-85" />
                     )}
                     <span className="absolute inset-0 grid place-items-center text-white">
                       <span className="inline-flex items-center gap-2 rounded-md bg-white/90 px-3 py-2 text-sm font-medium text-ink shadow-soft">
@@ -436,7 +450,7 @@ export function PhotoSortableGrid({
                     draggable={false}
                     unoptimized
                     loading="lazy"
-                    className="object-cover"
+                    className="object-contain"
                     sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                   />
                 )}
