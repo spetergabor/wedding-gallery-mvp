@@ -6,6 +6,7 @@ import { CheckSquare, Eye, EyeOff, Film, FolderInput, GripVertical, ImageIcon, S
 import {
   deleteSelectedPhotosAction,
   deletePhotoAction,
+  hideSelectedPhotosAction,
   moveSelectedPhotosToSectionAction,
   restoreClientHiddenPhotoAction,
   saveGalleryPhotoOrderAction,
@@ -627,7 +628,7 @@ export function PhotoSortableGrid({
         <div className="fixed inset-x-4 bottom-4 z-50 mx-auto grid max-w-6xl gap-3 rounded-lg border border-ink/10 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur lg:grid-cols-[minmax(180px,0.75fr)_minmax(420px,1.1fr)_auto] lg:items-center">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">{bulkSelectedCount} kép kijelölve</p>
-            <p className="mt-0.5 text-xs text-graphite/70">Címke alá helyezés vagy törlés.</p>
+            <p className="mt-0.5 text-xs text-graphite/70">Címke alá helyezés, elrejtés vagy törlés.</p>
           </div>
           <form
             action={moveSelectedPhotosToSectionAction.bind(null, galleryId)}
@@ -662,6 +663,19 @@ export function PhotoSortableGrid({
               <Undo2 size={15} />
               Mégse
             </button>
+            <form action={hideSelectedPhotosAction.bind(null, galleryId)}>
+              {[...bulkSelectedPhotoIds].map((photoId) => (
+                <input key={photoId} type="hidden" name="photoIds" value={photoId} />
+              ))}
+              <ConfirmSubmitButton
+                message={`Biztosan elrejted a kijelölt ${bulkSelectedCount} képet? A fájlok megmaradnak, de a publikus galériából és vendég ZIP-ből kikerülnek.`}
+                variant="secondary"
+                className="h-10 shrink-0 whitespace-nowrap px-4"
+              >
+                <EyeOff size={16} />
+                Kijelöltek elrejtése
+              </ConfirmSubmitButton>
+            </form>
             <form action={deleteSelectedPhotosAction.bind(null, galleryId)}>
               {[...bulkSelectedPhotoIds].map((photoId) => (
                 <input key={photoId} type="hidden" name="photoIds" value={photoId} />

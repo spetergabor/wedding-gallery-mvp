@@ -849,7 +849,7 @@ export async function generateClientAccessLinkAction(galleryId: string) {
 
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/client/${gallery.slug}`);
-  redirect(`/admin/galleries/${galleryId}?clientLink=1`);
+  redirect(`/admin/galleries/${galleryId}?tab=client&clientLink=1`);
 }
 
 export async function sendProofingInviteAction(galleryId: string) {
@@ -901,6 +901,48 @@ export async function restoreClientHiddenPhotoAction(galleryId: string, photoId:
   revalidatePath(`/g/${photo.gallery.slug}`);
   revalidatePath(`/client/${photo.gallery.slug}`);
   redirect(`/admin/galleries/${galleryId}?clientRestored=1`);
+}
+
+export async function hideSelectedPhotosAction(galleryId: string, formData: FormData) {
+  const { admin, gallery } = await requireGalleryAccess(galleryId);
+  const requestedPhotoIds = formData
+    .getAll("photoIds")
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const uniqueRequestedPhotoIds = [...new Set(requestedPhotoIds)];
+
+  if (uniqueRequestedPhotoIds.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&bulkHide=none`);
+  }
+
+  const photos = await prisma.photo.findMany({
+    where: {
+      id: { in: uniqueRequestedPhotoIds },
+      galleryId,
+      gallery: adminOwnedWhere(admin)
+    },
+    select: { id: true }
+  });
+
+  if (photos.length === 0) {
+    redirect(`/admin/galleries/${galleryId}?tab=photos&bulkHide=none`);
+  }
+
+  const result = await prisma.photo.updateMany({
+    where: {
+      id: { in: photos.map((photo) => photo.id) },
+      galleryId
+    },
+    data: {
+      isClientHidden: true,
+      clientHiddenAt: new Date()
+    }
+  });
+  await invalidatePublicGalleryDownloadPackages(galleryId);
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/client/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=photos&bulkHide=${result.count}`);
 }
 
 export async function updateGalleryProofingStatusAction(galleryId: string, status: ProofingStatus) {

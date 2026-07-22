@@ -7,6 +7,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { CoverPositionControl } from "@/components/cover-position-control";
+import { CopyClientLinkButton } from "@/components/copy-client-link-button";
 import { CopyPublicLinkButton } from "@/components/copy-public-link-button";
 import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
@@ -32,6 +33,7 @@ import { publicGalleryUrl } from "@/lib/email";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
+  generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
   sendProofingInviteAction,
   updateGalleryDesignAction,
@@ -242,7 +244,9 @@ export default async function GalleryDetailPage({
     proofingInvite?: string;
     proofingStatus?: string;
     bulkDelete?: string;
+    bulkHide?: string;
     bulkMove?: string;
+    clientLink?: string;
     sectionCreated?: string;
     sectionDeleted?: string;
     sectionOrdered?: string;
@@ -590,6 +594,8 @@ export default async function GalleryDetailPage({
         {flags.photoAdded ? <Alert title="Fotók feltöltve." variant="success" /> : null}
         {flags.bulkDelete && flags.bulkDelete !== "none" ? <Alert title={`${flags.bulkDelete} kép törölve.`} variant="success" /> : null}
         {flags.bulkDelete === "none" ? <Alert title="Nem volt törölhető kijelölt kép." variant="error" /> : null}
+        {flags.bulkHide && flags.bulkHide !== "none" ? <Alert title={`${flags.bulkHide} kép elrejtve a publikus galériából.`} variant="success" /> : null}
+        {flags.bulkHide === "none" ? <Alert title="Nem volt elrejthető kijelölt kép." variant="error" /> : null}
         {flags.bulkMove && flags.bulkMove !== "none" && flags.bulkMove !== "section" ? <Alert title={`${flags.bulkMove} kép áthelyezve.`} variant="success" /> : null}
         {flags.bulkMove === "none" ? <Alert title="Nem volt áthelyezhető kijelölt kép." variant="error" /> : null}
         {flags.bulkMove === "section" ? <Alert title="A kiválasztott címke nem található." variant="error" /> : null}
@@ -610,6 +616,7 @@ export default async function GalleryDetailPage({
         {flags.videoThumbnail === "type" ? <Alert title="A videó thumbnail csak képfájl lehet." variant="error" /> : null}
         {flags.videoThumbnail === "not-video" ? <Alert title="Thumbnailt csak videóhoz tudsz beállítani." variant="error" /> : null}
         {flags.videoThumbnail === "storage" ? <Alert title="A videó thumbnail feltöltése nem sikerült." variant="error" /> : null}
+        {flags.clientLink ? <Alert title="Ügyfél kezelő link létrehozva." variant="success" /> : null}
         {flags.zip === "queued" ? <Alert title="ZIP csomag feldolgozásra beütemezve." variant="success" /> : null}
         {flags.zip === "manual-uploaded" ? <Alert title="Kész ZIP feltöltve." variant="success">A vendég letöltés most ezt a csomagot használja.</Alert> : null}
         {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}
@@ -761,6 +768,46 @@ export default async function GalleryDetailPage({
 
         <div data-gallery-tab-panel="client" hidden={activeTab !== "client"}>
           <div className="space-y-6">
+            <section className="rounded-md border border-ink/12 bg-white p-4">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <div>
+                  <div className={sectionMetaClass}>
+                    <KeyRound size={15} />
+                    Ügyfél kezelő link
+                  </div>
+                  <h2 className="mt-2 text-lg font-semibold text-ink">Saját kép-elrejtő felület az ügyfélnek</h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">
+                    Ezen a külön linken az ügyfél maga tudja elrejteni azokat a képeket, amelyeket nem szeretne a publikus vendéggalériában és a ZIP letöltésben látni.
+                    A fájlok nem törlődnek, csak kikerülnek a publikus nézetből.
+                  </p>
+                  <p className="mt-3 text-sm text-graphite/70">
+                    {gallery.clientAccessToken ? `/client/${gallery.slug}?token=${gallery.clientAccessToken}` : "Még nincs létrehozott kezelő link."}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  {gallery.clientAccessToken ? (
+                    <>
+                      <CopyClientLinkButton
+                        slug={gallery.slug}
+                        token={gallery.clientAccessToken}
+                        label="Kezelő link másolása"
+                      />
+                      <ButtonLink href={`/client/${gallery.slug}?token=${gallery.clientAccessToken}`} variant="secondary">
+                        <ExternalLink size={16} />
+                        Megnyitás
+                      </ButtonLink>
+                    </>
+                  ) : (
+                    <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                      <FormSubmitButton pendingLabel="Létrehozás...">
+                        <KeyRound size={16} />
+                        Link létrehozása
+                      </FormSubmitButton>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </section>
             {proofingGallery ? (
               <ProofingStatusPanel
                 galleryId={gallery.id}
