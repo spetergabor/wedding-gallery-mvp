@@ -2,7 +2,8 @@ import { AlertCircle, Archive, CheckCircle2, Clock3, Mail, Send } from "lucide-r
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { publicDownloadQualityFromScope } from "@/lib/download-packages";
 import { galleryDownloadQualityLabel } from "@/lib/download-quality";
-import { resendGalleryDownloadEmailsAction } from "@/lib/gallery-actions";
+import { queueGalleryZipPackageAction, resendGalleryDownloadEmailsAction } from "@/lib/gallery-actions";
+import { FormSubmitButton } from "@/components/form-submit-button";
 
 type DownloadEntry = {
   id: string;
@@ -187,6 +188,8 @@ function requestPackageSummary(request: DownloadRequestGroup) {
 
 export function DownloadLog({ galleryId, downloads, packages }: { galleryId: string; downloads: DownloadEntry[]; packages: DownloadPackage[] }) {
   const requestGroups = groupDownloadRequests(downloads);
+  const hasExpiredPackages = packages.some((downloadPackage) => downloadPackage.status === "expired");
+  const hasActivePackages = packages.some((downloadPackage) => downloadPackage.status === "pending" || downloadPackage.status === "processing");
 
   return (
     <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
@@ -201,9 +204,19 @@ export function DownloadLog({ galleryId, downloads, packages }: { galleryId: str
       </div>
 
       <div className="mt-5 rounded-md border border-ink/10 bg-paper p-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-ink">
-          <Archive size={16} />
-          ZIP csomagok
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-ink">
+            <Archive size={16} />
+            ZIP csomagok
+          </div>
+          {hasExpiredPackages && !hasActivePackages ? (
+            <form action={queueGalleryZipPackageAction.bind(null, galleryId)}>
+              <FormSubmitButton pendingLabel="Indítás..." className="h-8 px-2.5 text-xs">
+                <Archive size={13} />
+                Új ZIP készítése
+              </FormSubmitButton>
+            </form>
+          ) : null}
         </div>
         {packages.length === 0 ? (
           <p className="mt-2 text-sm text-graphite/70">Még nincs előre generált ZIP csomag.</p>
