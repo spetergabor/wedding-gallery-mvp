@@ -112,11 +112,13 @@ function readImageSize(file: File) {
 export function GuestPhotoUpload({
   galleryId,
   language,
-  initialPhotos
+  initialPhotos,
+  uploadsEnabled = true
 }: {
   galleryId: string;
   language: CustomerLanguage;
   initialPhotos: GuestPhoto[];
+  uploadsEnabled?: boolean;
 }) {
   const copy = COPY[language];
   const inputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +135,10 @@ export function GuestPhotoUpload({
   const visiblePhotos = useMemo(() => photos.filter((photo) => photo.imageUrl), [photos]);
 
   useEffect(() => {
+    if (!uploadsEnabled) {
+      return;
+    }
+
     function openUploadDialog() {
       setIsUploadOpen(true);
     }
@@ -140,7 +146,7 @@ export function GuestPhotoUpload({
     window.addEventListener(OPEN_GUEST_UPLOAD_EVENT, openUploadDialog);
 
     return () => window.removeEventListener(OPEN_GUEST_UPLOAD_EVENT, openUploadDialog);
-  }, []);
+  }, [uploadsEnabled]);
 
   async function prepareFiles(selectedFiles: File[]) {
     const limitedFiles = selectedFiles.slice(0, MAX_FILES);
@@ -280,10 +286,12 @@ export function GuestPhotoUpload({
             {copy.title}
           </h2>
         </div>
-        <Button type="button" onClick={() => setIsUploadOpen(true)} className="w-full sm:w-auto">
-          <UploadCloud size={16} />
-          {copy.openUpload}
-        </Button>
+        {uploadsEnabled ? (
+          <Button type="button" onClick={() => setIsUploadOpen(true)} className="w-full sm:w-auto">
+            <UploadCloud size={16} />
+            {copy.openUpload}
+          </Button>
+        ) : null}
       </div>
 
       {visiblePhotos.length > 0 ? (
@@ -310,7 +318,7 @@ export function GuestPhotoUpload({
         <p className="rounded-lg border border-ink/10 bg-white px-5 py-8 text-center text-sm text-graphite/70 shadow-soft">{copy.empty}</p>
       )}
 
-      {isUploadOpen ? (
+      {uploadsEnabled && isUploadOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm"
           role="dialog"

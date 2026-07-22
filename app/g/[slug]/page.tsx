@@ -215,7 +215,9 @@ export default async function PublicGalleryPage({
   const classicGradientBackground = `linear-gradient(to bottom, ${rgbaFromHex(galleryBackgroundColor, 0)} 0%, ${rgbaFromHex(galleryBackgroundColor, 0.52)} 34%, ${rgbaFromHex(galleryBackgroundColor, 0.92)} 58%, ${galleryBackgroundColor} 82%, ${galleryBackgroundColor} 100%)`;
   const publicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const publicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
-  const guestPhotoAnchorLink = gallery.guestUploadsEnabled
+  const hasGuestPhotos = gallery.guestUploads.length > 0;
+  const showGuestPhotoSection = gallery.guestUploadsEnabled || hasGuestPhotos;
+  const guestPhotoAnchorLink = showGuestPhotoSection
     ? {
         href: "#guest-photos",
         label: language === "hu" ? "Vendégfotók" : "Gästefotos",
@@ -380,10 +382,11 @@ export default async function PublicGalleryPage({
         {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
       </div>
     );
-  const guestPhotoSection = gallery.guestUploadsEnabled ? (
+  const guestPhotoSection = showGuestPhotoSection ? (
     <GuestPhotoUpload
       galleryId={gallery.id}
       language={language}
+      uploadsEnabled={gallery.guestUploadsEnabled}
       initialPhotos={gallery.guestUploads.map((photo) => ({
         id: photo.id,
         filename: photo.filename,
