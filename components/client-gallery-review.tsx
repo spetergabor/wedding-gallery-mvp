@@ -397,7 +397,7 @@ export function ClientGalleryReview({
         ) : null}
       </div>
 
-      <section className="columns-1 gap-4 sm:columns-2 lg:columns-3 2xl:columns-4">
+      <section className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {photos.map((photo) => {
           const isHidden = hiddenPhotoIds.has(photo.id);
           const wasHidden = savedHiddenPhotoIds.has(photo.id);
@@ -407,7 +407,7 @@ export function ClientGalleryReview({
           return (
             <article
               key={photo.id}
-              className={`mb-4 inline-block w-full break-inside-avoid overflow-hidden rounded-lg border bg-white shadow-soft transition ${
+              className={`overflow-hidden rounded-lg border bg-white shadow-soft transition ${
                 isSelected ? "border-brass ring-2 ring-brass/20" : isHidden ? "border-brass/40" : hasDraftChange ? "border-sage/50" : "border-ink/10"
               }`}
             >
