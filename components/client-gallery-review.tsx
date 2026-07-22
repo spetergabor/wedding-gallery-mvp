@@ -390,22 +390,6 @@ export function ClientGalleryReview({
               <CheckSquare size={16} />
               {copy.selectAll}
             </Button>
-            {selectedCount > 0 ? (
-              <>
-                <Button type="button" variant="secondary" onClick={clearSelection}>
-                  <RotateCcw size={16} />
-                  {copy.clearSelection}
-                </Button>
-                <Button type="button" variant="danger" disabled={isSaving} onClick={hideSelectedPhotos}>
-                  <EyeOff size={16} />
-                  {copy.hideSelected}
-                </Button>
-                <Button type="button" variant="secondary" disabled={isSaving} onClick={showSelectedPhotos}>
-                  <Eye size={16} />
-                  {copy.showSelected}
-                </Button>
-              </>
-            ) : null}
           </div>
         </div>
         {selectedCount > 0 ? (
@@ -507,6 +491,41 @@ export function ClientGalleryReview({
           );
         })}
       </section>
+
+      {selectedCount > 0 ? (
+        <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-4">
+          <div className="flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg border border-ink/10 bg-ink px-3 py-2 text-white shadow-[0_18px_45px_rgba(31,29,26,0.24)]">
+            <span className="px-2 text-sm font-semibold">{copy.selected(selectedCount)}</span>
+            <span className="h-6 w-px bg-white/20" aria-hidden="true" />
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition hover:bg-white/10 disabled:opacity-50"
+              disabled={isSaving}
+              onClick={hideSelectedPhotos}
+            >
+              <EyeOff size={16} />
+              {copy.hideSelected}
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition hover:bg-white/10 disabled:opacity-50"
+              disabled={isSaving}
+              onClick={showSelectedPhotos}
+            >
+              <Eye size={16} />
+              {copy.showSelected}
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-white/80 transition hover:bg-white/10 hover:text-white"
+              aria-label={copy.clearSelection}
+              onClick={clearSelection}
+            >
+              <RotateCcw size={16} />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 text-center shadow-soft">
         <p className="text-lg font-semibold text-ink">{copy.doneTitle}</p>
