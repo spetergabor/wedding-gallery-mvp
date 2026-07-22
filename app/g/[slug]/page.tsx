@@ -373,6 +373,7 @@ export default async function PublicGalleryPage({
             : null
         }
         extraAnchorLinks={guestPhotoAnchorLink ? [guestPhotoAnchorLink] : []}
+        guestUploadButtonLabel={gallery.guestUploadsEnabled ? (language === "hu" ? "Képek feltöltése" : "Fotos hochladen") : null}
       />
     ) : (
       <div className="rounded-lg border border-ink/10 bg-white px-5 py-16 text-center text-sm" style={{ color: galleryBodyTextColor }}>

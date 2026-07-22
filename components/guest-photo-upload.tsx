@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ImagePlus, Loader2, Mail, UploadCloud, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
@@ -31,6 +31,7 @@ type GuestUploadFile = {
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+const OPEN_GUEST_UPLOAD_EVENT = "spetly:open-guest-photo-upload";
 
 const COPY = {
   de: {
@@ -130,6 +131,16 @@ export function GuestPhotoUpload({
   const completedCount = files.filter((file) => file.status === "done").length;
   const selectedCount = files.length;
   const visiblePhotos = useMemo(() => photos.filter((photo) => photo.imageUrl), [photos]);
+
+  useEffect(() => {
+    function openUploadDialog() {
+      setIsUploadOpen(true);
+    }
+
+    window.addEventListener(OPEN_GUEST_UPLOAD_EVENT, openUploadDialog);
+
+    return () => window.removeEventListener(OPEN_GUEST_UPLOAD_EVENT, openUploadDialog);
+  }, []);
 
   async function prepareFiles(selectedFiles: File[]) {
     const limitedFiles = selectedFiles.slice(0, MAX_FILES);

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { type CSSProperties, FormEvent, useEffect, useMemo, useState, useTransition } from "react";
-import { Check, ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, Share2, ShieldCheck, ShoppingCart, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CreditCard, Download, Heart, Images, Mail, Maximize2, Play, Share2, ShieldCheck, ShoppingCart, UploadCloud, X } from "lucide-react";
 import { Button } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -509,7 +509,8 @@ export function PublicGallery({
   textColor = "#111111",
   fontFamily,
   stickyToolbar = null,
-  extraAnchorLinks = []
+  extraAnchorLinks = [],
+  guestUploadButtonLabel = null
 }: {
   galleryId: string;
   gallerySlug: string;
@@ -529,6 +530,7 @@ export function PublicGallery({
   fontFamily?: string;
   stickyToolbar?: StickyToolbarSettings | null;
   extraAnchorLinks?: GalleryAnchorLink[];
+  guestUploadButtonLabel?: string | null;
 }) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isZipping, setIsZipping] = useState(false);
@@ -1297,6 +1299,10 @@ export function PublicGallery({
     }
   }
 
+  function openGuestPhotoUpload() {
+    window.dispatchEvent(new Event("spetly:open-guest-photo-upload"));
+  }
+
   function renderPaidDownloadStatus() {
     if (!sale?.purchaseSessionId || sale.purchaseStatus !== "success") {
       return null;
@@ -1586,6 +1592,21 @@ export function PublicGallery({
                 </nav>
               ) : null}
               <div className="order-2 flex shrink-0 items-center justify-end gap-1 sm:gap-1.5 lg:order-3">
+                {guestUploadButtonLabel ? (
+                  <button
+                    type="button"
+                    title={guestUploadButtonLabel}
+                    aria-label={guestUploadButtonLabel}
+                    onClick={openGuestPhotoUpload}
+                    className="group/toolbar relative inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-2 text-graphite transition hover:border-ink/25 hover:text-ink sm:h-10 sm:min-w-10 sm:px-3"
+                  >
+                    <UploadCloud size={17} />
+                    <span className="hidden max-w-32 truncate text-xs font-semibold lg:inline">{guestUploadButtonLabel}</span>
+                    <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block lg:hidden">
+                      {guestUploadButtonLabel}
+                    </span>
+                  </button>
+                ) : null}
                 {hasPaidCartBar ? (
                   <a
                     href="#paid-gallery-checkout"
