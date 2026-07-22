@@ -685,6 +685,28 @@ export function PublicGallery({
 
     return blocks;
   }, [columnCount, language, sections, visibleImageItems]);
+  const stickyAnchorLinks = useMemo(() => {
+    if (!stickyToolbar) {
+      return [];
+    }
+
+    return [
+      ...(visibleVideoItems.length > 0
+        ? [
+            {
+              href: "#public-gallery-videos",
+              label: language === "hu" ? "Videók" : "Videos",
+              count: visibleVideoItems.length
+            }
+          ]
+        : []),
+      ...sectionBlocks.map((block) => ({
+        href: `#${block.anchorId}`,
+        label: block.title,
+        count: block.count
+      }))
+    ];
+  }, [language, sectionBlocks, stickyToolbar, visibleVideoItems.length]);
 
   useEffect(() => {
     if (!favoritesEnabled) {
@@ -1530,14 +1552,31 @@ export function PublicGallery({
         {stickyToolbar ? (
           <div className="sticky top-0 z-30 isolate py-2 sm:py-2.5">
             <div className="pointer-events-none absolute left-1/2 top-0 z-0 h-full w-screen -translate-x-1/2 border-b border-ink/10 bg-paper/95 shadow-[0_14px_30px_rgba(17,17,17,0.06)] backdrop-blur" />
-            <div className="relative z-10 flex w-full items-center justify-between gap-2 sm:gap-3">
+            <div className="relative z-10 grid w-full gap-2 lg:grid-cols-[minmax(150px,0.8fr)_minmax(0,1.4fr)_auto] lg:items-center">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold leading-tight text-ink sm:text-base">{stickyToolbar.title}</p>
                 {stickyToolbar.subtitle ? (
                   <p className="mt-0.5 truncate text-[11px] leading-tight text-graphite/65 sm:text-xs">{stickyToolbar.subtitle}</p>
                 ) : null}
               </div>
-              <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+              {stickyAnchorLinks.length > 0 ? (
+                <nav
+                  className="order-3 -mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 [scrollbar-width:none] lg:order-2 lg:mx-0 lg:justify-center lg:px-0 [&::-webkit-scrollbar]:hidden"
+                  aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
+                >
+                  {stickyAnchorLinks.map((link) => (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      className="inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-ink/10 bg-white px-3 text-xs font-semibold text-ink shadow-sm transition hover:border-ink/25 hover:bg-paper sm:min-h-9 sm:text-sm"
+                    >
+                      <span className="max-w-[9rem] truncate">{link.label}</span>
+                      <span className="text-[11px] text-graphite/60">{link.count}</span>
+                    </a>
+                  ))}
+                </nav>
+              ) : null}
+              <div className="order-2 flex shrink-0 items-center justify-end gap-1 sm:gap-1.5 lg:order-3">
                 {hasPaidCartBar ? (
                   <a
                     href="#paid-gallery-checkout"
