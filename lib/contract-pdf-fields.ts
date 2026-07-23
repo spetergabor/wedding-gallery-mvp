@@ -2,6 +2,7 @@ import { contractFieldByKey, type ContractFieldDefinition } from "@/lib/contract
 
 export type ContractPdfField = ContractFieldDefinition & {
   id: string;
+  answerKey: string;
   page: number;
   x: number;
   y: number;
@@ -46,6 +47,7 @@ export function parseContractPdfFields(value: unknown): ContractPdfField[] {
 
       return {
         id: typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : `${field.key}-${index}`,
+        answerKey: typeof raw.answerKey === "string" && raw.answerKey.trim() ? raw.answerKey.trim() : field.key,
         key: field.key,
         label: field.label,
         type: field.type,

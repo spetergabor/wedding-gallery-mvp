@@ -51,6 +51,8 @@ export function PdfContractFieldViewer({
 
                   <div className="absolute inset-0">
                     {pageFields.map((field) => {
+                      const inputName = contractFieldInputName(field.answerKey);
+                      const defaultValue = values[field.answerKey] ?? values[field.key] ?? "";
                       const commonClass =
                         "h-full w-full rounded border border-brass/60 bg-white/92 px-2 text-[11px] font-medium text-ink shadow-sm outline-none transition focus:border-ink focus:bg-white";
 
@@ -70,8 +72,8 @@ export function PdfContractFieldViewer({
                           {field.type === "textarea" ? (
                             <textarea
                               form={formId}
-                              name={contractFieldInputName(field.key)}
-                              defaultValue={values[field.key] ?? ""}
+                              name={inputName}
+                              defaultValue={defaultValue}
                               required
                               disabled={disabled}
                               placeholder={field.label}
@@ -80,9 +82,9 @@ export function PdfContractFieldViewer({
                           ) : (
                             <input
                               form={formId}
-                              name={contractFieldInputName(field.key)}
+                              name={inputName}
                               type={field.type}
-                              defaultValue={values[field.key] ?? ""}
+                              defaultValue={defaultValue}
                               required
                               disabled={disabled}
                               placeholder={field.label}

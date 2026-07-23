@@ -227,8 +227,8 @@ export default async function ContractPublicPage({
                       fields={pdfFields}
                       values={Object.fromEntries(
                         pdfFields.map((field) => [
-                          field.key,
-                          completedFields[field.key] ?? customerDefaults[field.key] ?? ""
+                          field.answerKey,
+                          completedFields[field.answerKey] ?? completedFields[field.key] ?? customerDefaults[field.key] ?? ""
                         ])
                       )}
                       formId={signatureFormId}

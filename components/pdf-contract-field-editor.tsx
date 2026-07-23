@@ -114,8 +114,10 @@ export function PdfContractFieldEditor({
 
     const width = Math.max(minFieldWidth(activeField.type), draft.width || 24);
     const height = Math.max(minFieldHeight(), draft.height || fieldDefaultHeight());
+    const fieldId = `${activeField.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const nextField: ContractPdfField = {
-      id: `${activeField.key}-${Date.now()}`,
+      id: fieldId,
+      answerKey: fieldId,
       key: activeField.key,
       label: activeField.label,
       type: activeField.type,
@@ -126,7 +128,7 @@ export function PdfContractFieldEditor({
       height: roundPercent(height)
     };
 
-    setFields((current) => [...current.filter((field) => field.key !== activeField.key), nextField]);
+    setFields((current) => [...current, nextField]);
     setSelectedFieldId(nextField.id);
     setInteraction(null);
     setDraft(null);

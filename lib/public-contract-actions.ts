@@ -289,7 +289,7 @@ async function createSignedUploadedPdf({
   const signatureImage = await pdf.embedPng(signatureBytes);
 
   for (const field of pdfFields) {
-    const value = completedFields[field.key]?.trim();
+    const value = (completedFields[field.answerKey] ?? completedFields[field.key])?.trim();
 
     if (!value) {
       continue;
@@ -654,12 +654,17 @@ async function createSignedWrittenPdf({
   return Buffer.from(await pdf.save());
 }
 
-function readClientFieldAnswers(formData: FormData, fields: ReturnType<typeof parseContractFields>) {
+function fieldAnswerKey(field: ReturnType<typeof parseContractFields>[number] | ContractPdfField) {
+  return "answerKey" in field ? field.answerKey : field.key;
+}
+
+function readClientFieldAnswers(formData: FormData, fields: Array<ReturnType<typeof parseContractFields>[number] | ContractPdfField>) {
   return Object.fromEntries(
     fields.map((field) => {
-      const value = formData.get(contractFieldInputName(field.key));
+      const key = fieldAnswerKey(field);
+      const value = formData.get(contractFieldInputName(key));
 
-      return [field.key, typeof value === "string" ? value.trim() : ""];
+      return [key, typeof value === "string" ? value.trim() : ""];
     })
   );
 }
