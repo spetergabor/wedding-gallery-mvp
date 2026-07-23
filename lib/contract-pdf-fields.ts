@@ -3,6 +3,7 @@ import { contractFieldByKey, type ContractFieldDefinition } from "@/lib/contract
 export type ContractPdfField = ContractFieldDefinition & {
   id: string;
   answerKey: string;
+  defaultKey: string;
   page: number;
   x: number;
   y: number;
@@ -45,11 +46,14 @@ export function parseContractPdfFields(value: unknown): ContractPdfField[] {
       const x = normalizePercent(raw.x, 8);
       const y = normalizePercent(raw.y, 8);
 
+      const hasOwnAnswerKey = typeof raw.answerKey === "string" && raw.answerKey.trim();
+
       return {
         id: typeof raw.id === "string" && raw.id.trim() ? raw.id.trim() : `${field.key}-${index}`,
-        answerKey: typeof raw.answerKey === "string" && raw.answerKey.trim() ? raw.answerKey.trim() : field.key,
+        answerKey: hasOwnAnswerKey ? raw.answerKey!.trim() : field.key,
+        defaultKey: typeof raw.defaultKey === "string" ? raw.defaultKey.trim() : hasOwnAnswerKey ? "" : field.key,
         key: field.key,
-        label: field.label,
+        label: typeof raw.label === "string" && raw.label.trim() ? raw.label.trim() : field.label,
         type: field.type,
         page: Math.max(1, Math.floor(finiteNumber(raw.page, 1))),
         x: clamp(x, 0, Math.max(0, 100 - width)),

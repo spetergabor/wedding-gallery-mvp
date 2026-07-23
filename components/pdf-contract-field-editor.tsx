@@ -10,6 +10,15 @@ import type { ContractPdfField } from "@/lib/contract-pdf-fields";
 
 type DraftField = Pick<ContractPdfField, "page" | "x" | "y" | "width" | "height"> | null;
 
+const DEFAULT_VALUE_OPTIONS = [
+  { key: "", label: "Üres mező" },
+  { key: "coupleName", label: "Kunde / Projekt" },
+  { key: "primaryEmail", label: "E-mail cím" },
+  { key: "phone", label: "Telefonszám" },
+  { key: "weddingDate", label: "Esküvő dátuma" },
+  { key: "venue", label: "Esküvő helyszíne" }
+];
+
 type EditorInteraction =
   | { kind: "draw"; page: number; start: { x: number; y: number } }
   | { kind: "move"; id: string; offsetX: number; offsetY: number }
@@ -71,6 +80,7 @@ export function PdfContractFieldEditor({
   const [draft, setDraft] = useState<DraftField>(null);
   const { pages, isLoading, error } = usePdfPreviewPages(fileUrl);
   const activeField = CONTRACT_FIELD_OPTIONS.find((field) => field.key === activeKey) ?? CONTRACT_FIELD_OPTIONS[0];
+  const selectedField = fields.find((field) => field.id === selectedFieldId) ?? null;
   const hiddenValue = useMemo(() => JSON.stringify(fields), [fields]);
 
   function beginDraw(event: PointerEvent<HTMLDivElement>, page: number) {
@@ -118,6 +128,7 @@ export function PdfContractFieldEditor({
     const nextField: ContractPdfField = {
       id: fieldId,
       answerKey: fieldId,
+      defaultKey: "",
       key: activeField.key,
       label: activeField.label,
       type: activeField.type,
@@ -236,6 +247,20 @@ export function PdfContractFieldEditor({
   function removeField(id: string) {
     setFields((current) => current.filter((field) => field.id !== id));
     setSelectedFieldId((current) => (current === id ? null : current));
+  }
+
+  function updateField(id: string, updates: Partial<Pick<ContractPdfField, "label" | "defaultKey">>) {
+    setFields((current) =>
+      current.map((field) =>
+        field.id === id
+          ? {
+              ...field,
+              ...updates,
+              label: updates.label !== undefined ? updates.label : field.label
+            }
+          : field
+      )
+    );
   }
 
   return (
@@ -376,6 +401,38 @@ export function PdfContractFieldEditor({
             </p>
             <p className="mt-1">A lerakott mezőt húzással mozgathatod. Kattintás után a jobb alsó fogantyúval méretezhető.</p>
           </div>
+
+          {selectedField ? (
+            <div className="space-y-3 rounded-md border border-ink/10 bg-paper p-3">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/65">Kiválasztott mező</p>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-graphite">Megjelenő név</span>
+                <input
+                  type="text"
+                  value={selectedField.label}
+                  onChange={(event) => updateField(selectedField.id, { label: event.currentTarget.value })}
+                  className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs font-medium text-graphite">Előtöltés</span>
+                <select
+                  value={selectedField.defaultKey ?? ""}
+                  onChange={(event) => updateField(selectedField.id, { defaultKey: event.currentTarget.value })}
+                  className="h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                >
+                  {DEFAULT_VALUE_OPTIONS.map((option) => (
+                    <option key={option.key || "empty"} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-xs leading-5 text-graphite/65">
+                Több azonos típusú mezőnél válaszd ki külön, melyik induljon esküvő dátummal vagy helyszínnel. Üres mezőnél az ügyfél tölti ki.
+              </p>
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/65">Elhelyezett mezők</p>
