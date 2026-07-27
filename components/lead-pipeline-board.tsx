@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
-import { CalendarDays, ClipboardList, GripVertical, Mail, MapPin, Phone, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, ClipboardList, FileText, GripVertical, Mail, MapPin, Phone, Plus, Trash2, X } from "lucide-react";
 import { createLeadAction, deleteLeadAction, moveLeadAction } from "@/lib/lead-actions";
 import { LEAD_EVENT_TYPES, LEAD_STATUSES, leadEventTypeLabel, leadStatusLabel, type LeadStatus } from "@/lib/leads";
 import type { AdminLanguage } from "@/lib/admin-language";
@@ -39,6 +39,9 @@ const LEAD_PIPELINE_COPY = {
     contact: "Kapcsolat",
     event: "Esemény",
     notes: "Jegyzet",
+    inquiryData: "Ajánlatkérés adatai",
+    message: "Üzenet",
+    technicalDetails: "Technikai adatok",
     noNotes: "Nincs megjegyzés.",
     noValue: "Nincs megadva",
     eyebrow: "Érdeklődők",
@@ -61,6 +64,9 @@ const LEAD_PIPELINE_COPY = {
     contact: "Kontakt",
     event: "Event",
     notes: "Notiz",
+    inquiryData: "Anfragedaten",
+    message: "Nachricht",
+    technicalDetails: "Technische Daten",
     noNotes: "Keine Notiz vorhanden.",
     noValue: "Nicht angegeben",
     eyebrow: "Anfragen",
@@ -83,6 +89,9 @@ const LEAD_PIPELINE_COPY = {
     contact: "Contact",
     event: "Event",
     notes: "Notes",
+    inquiryData: "Inquiry data",
+    message: "Message",
+    technicalDetails: "Technical data",
     noNotes: "No notes yet.",
     noValue: "Not set",
     eyebrow: "Leads",
@@ -125,6 +134,20 @@ const HIDDEN_RAW_NOTE_KEYS = new Set([
   "venue",
   "guest_count",
   "source"
+]);
+const SUMMARY_NOTE_KEYS = new Set(["forrás", "menyasszony", "vőlegény", "vendégszám_kb", "honnan_találtak_meg"]);
+const MESSAGE_NOTE_KEYS = new Set(["üzenet", "message", "nachricht"]);
+const TECHNICAL_NOTE_KEYS = new Set([
+  "zeit",
+  "seiten_url",
+  "benutzer_agent",
+  "remote_ip",
+  "unterstützt_von",
+  "unterstutzt_von",
+  "powered_by",
+  "page_url",
+  "user_agent",
+  "remote_addr"
 ]);
 
 function normalizeNoteKey(value: string) {
@@ -171,6 +194,70 @@ function formatLeadNotes(notes: string | null) {
       return true;
     })
     .join("\n");
+}
+
+function parseLeadNotes(notes: string | null) {
+  const result = {
+    intro: [] as string[],
+    summary: [] as Array<{ label: string; value: string }>,
+    message: "",
+    technical: [] as Array<{ label: string; value: string }>
+  };
+
+  if (!notes) {
+    return result;
+  }
+
+  const seenValues = new Set<string>();
+
+  for (const rawLine of notes.split("\n")) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf(":");
+
+    if (separatorIndex < 0) {
+      result.intro.push(line);
+      continue;
+    }
+
+    const label = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    const key = normalizeNoteKey(label);
+    const dedupeValue = value.toLowerCase();
+
+    if (!value || HIDDEN_RAW_NOTE_KEYS.has(key)) {
+      continue;
+    }
+
+    if (MESSAGE_NOTE_KEYS.has(key)) {
+      result.message = result.message ? `${result.message}\n${value}` : value;
+      continue;
+    }
+
+    if (seenValues.has(dedupeValue)) {
+      continue;
+    }
+
+    seenValues.add(dedupeValue);
+
+    if (SUMMARY_NOTE_KEYS.has(key)) {
+      result.summary.push({ label, value });
+      continue;
+    }
+
+    if (TECHNICAL_NOTE_KEYS.has(key) || key.startsWith("keine_feldbezeichnung")) {
+      result.technical.push({ label, value });
+      continue;
+    }
+
+    result.summary.push({ label, value });
+  }
+
+  return result;
 }
 
 function AddLeadForm({
@@ -287,6 +374,7 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
   const [dropTarget, setDropTarget] = useState<{ status: LeadStatus; index: number } | null>(null);
   const copy = LEAD_PIPELINE_COPY[language];
   const selectedLeadNotes = selectedLead ? formatLeadNotes(selectedLead.notes) : "";
+  const selectedLeadNoteSections = selectedLead ? parseLeadNotes(selectedLead.notes) : null;
 
   const groupedLeads = useMemo(() => {
     return LEAD_STATUSES.reduce<Record<LeadStatus, LeadCard[]>>((acc, status) => {
@@ -554,12 +642,62 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
                 </div>
               </div>
 
-              <div className="rounded-md border border-ink/10 bg-white p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">{copy.notes}</p>
-                <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-graphite">
-                  {selectedLeadNotes || copy.noNotes}
-                </p>
-              </div>
+              {selectedLeadNoteSections && (selectedLeadNoteSections.summary.length > 0 || selectedLeadNoteSections.intro.length > 0) ? (
+                <div className="rounded-md border border-ink/10 bg-white p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">
+                    <ClipboardList size={14} />
+                    {copy.inquiryData}
+                  </div>
+                  {selectedLeadNoteSections.intro.length > 0 ? (
+                    <div className="mt-3 rounded-md bg-paper/70 px-3 py-2 text-sm leading-6 text-graphite">
+                      {selectedLeadNoteSections.intro.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {selectedLeadNoteSections.summary.length > 0 ? (
+                    <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {selectedLeadNoteSections.summary.map((item) => (
+                        <div key={`${item.label}-${item.value}`} className="rounded-md border border-ink/8 bg-paper/60 px-3 py-2">
+                          <dt className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">{item.label}</dt>
+                          <dd className="mt-1 break-words text-sm font-medium text-ink">{item.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {selectedLeadNoteSections?.message ? (
+                <div className="rounded-md border border-brass/20 bg-brass/5 p-4">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-brass">
+                    <Mail size={14} />
+                    {copy.message}
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap break-words text-base leading-7 text-ink">{selectedLeadNoteSections.message}</p>
+                </div>
+              ) : null}
+
+              {selectedLeadNoteSections?.technical.length ? (
+                <details className="rounded-md border border-ink/10 bg-white p-4">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">
+                    <FileText size={14} />
+                    {copy.technicalDetails}
+                  </summary>
+                  <dl className="mt-3 grid gap-2">
+                    {selectedLeadNoteSections.technical.map((item) => (
+                      <div key={`${item.label}-${item.value}`} className="rounded-md bg-paper/60 px-3 py-2">
+                        <dt className="text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/55">{item.label}</dt>
+                        <dd className="mt-1 break-words text-xs leading-5 text-graphite">{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
+              ) : null}
+
+              {!selectedLeadNotes ? (
+                <div className="rounded-md border border-ink/10 bg-white p-4 text-sm text-graphite">{copy.noNotes}</div>
+              ) : null}
 
               <div className="flex justify-end gap-2 border-t border-ink/10 pt-4">
                 <button
