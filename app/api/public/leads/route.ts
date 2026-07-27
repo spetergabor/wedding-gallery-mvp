@@ -192,6 +192,31 @@ function hasSpamHoneypot(fields: Record<string, string>) {
 function buildPayload(fields: Record<string, string>): LeadPayload | null {
   const firstName = readFirst(fields, ["first_name", "firstname", "vorname", "keresztnev", "keresztnév"]);
   const lastName = readFirst(fields, ["last_name", "lastname", "nachname", "vezeteknev", "vezetéknév"]);
+  const brideName = readFirst(fields, [
+    "bride_name",
+    "braut_name",
+    "name_der_braut",
+    "name_braut",
+    "braut",
+    "menyasszony_neve",
+    "menyasszony"
+  ]);
+  const groomName = readFirst(fields, [
+    "groom_name",
+    "bräutigam_name",
+    "braeutigam_name",
+    "name_des_bräutigams",
+    "name_des_braeutigams",
+    "name_bräutigam",
+    "name_braeutigam",
+    "bräutigam",
+    "braeutigam",
+    "vőlegény_neve",
+    "volegeny_neve",
+    "vőlegény",
+    "volegeny"
+  ]);
+  const coupleName = [brideName, groomName].filter(Boolean).join(" & ");
   const name =
     readFirst(fields, [
       "name",
@@ -205,7 +230,9 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
       "kundenname",
       "nev",
       "név"
-    ]) || [firstName, lastName].filter(Boolean).join(" ");
+    ]) ||
+    coupleName ||
+    [firstName, lastName].filter(Boolean).join(" ");
   const email = readFirst(fields, ["email", "e_mail", "mail", "your_email", "email_address", "e_mail_adresse", "e-mail-adresse"]);
   const phone = readFirst(fields, ["phone", "telefon", "tel", "mobile", "handy", "your_phone", "telefonnummer"]);
   const eventDateValue = readFirst(fields, [
@@ -221,6 +248,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "venue",
     "location",
     "ort",
+    "ort_der_hochzeit",
     "location_venue",
     "hochzeitslocation",
     "hochzeitsort",
@@ -228,8 +256,31 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "helyszin"
   ]);
   const eventType = readFirst(fields, ["event_type", "shooting_type", "type", "paket", "package", "shooting", "service"]) || "wedding";
+  const guestCount = readFirst(fields, [
+    "guest_count",
+    "guests",
+    "anzahl_der_gäste",
+    "anzahl_der_gäste_ca",
+    "anzahl_der_gaeste",
+    "anzahl_der_gaeste_ca",
+    "anzahl_gäste",
+    "anzahl_gäste_ca",
+    "anzahl_gaeste",
+    "anzahl_gaeste_ca",
+    "vendégek_száma",
+    "vendegek_szama"
+  ]);
+  const referralSource = readFirst(fields, [
+    "referral_source",
+    "found_us",
+    "how_found",
+    "how_did_you_find_me",
+    "wie_habt_ihr_mich_gefunden",
+    "wie_habt_ihr_mich_gefunden_",
+    "source"
+  ]);
   const message = readFirst(fields, ["message", "nachricht", "your_message", "notes", "comment", "kommentar", "uzenet", "üzenet"]);
-  const source = readFirst(fields, ["source", "form_name", "form_id"]) || "Elementor";
+  const source = readFirst(fields, ["form_name", "form_id", "elementor_form_name"]) || "Elementor";
 
   if (!name && !email) {
     return null;
@@ -238,6 +289,10 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
   const noteLines = [
     "Automatikus ajánlatkérés weboldalról.",
     `Forrás: ${source}`,
+    brideName ? `Menyasszony: ${brideName}` : "",
+    groomName ? `Vőlegény: ${groomName}` : "",
+    guestCount ? `Vendégszám kb.: ${guestCount}` : "",
+    referralSource ? `Honnan találtak meg: ${referralSource}` : "",
     message ? `Üzenet: ${message}` : "",
     ...Object.entries(fields)
       .filter(([key]) => !TOKEN_QUERY_KEYS.includes(key) && !HONEYPOT_KEYS.includes(key))
