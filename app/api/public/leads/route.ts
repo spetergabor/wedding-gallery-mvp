@@ -531,5 +531,5 @@ export async function POST(request: NextRequest) {
 
   revalidatePath("/admin/dashboard");
 
-  return json(201, { ok: true, leadId: lead.id });
+  return json(200, { ok: true, leadId: lead.id });
 }
