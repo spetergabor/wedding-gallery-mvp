@@ -31,7 +31,7 @@ function webhookToken() {
 }
 
 function webhookAdminEmail() {
-  return envValue("SPETLY_LEAD_WEBHOOK_ADMIN_EMAIL").toLowerCase();
+  return (envValue("SPETLY_LEAD_WEBHOOK_ADMIN_EMAIL") || envValue("ADMIN_NOTIFICATION_EMAIL")).toLowerCase();
 }
 
 function text(value: unknown) {
@@ -101,6 +101,14 @@ function appendField(fields: Record<string, string>, key: string, value: unknown
 
   fields[key] = cleanValue;
   fields[normalizeKey(key)] = cleanValue;
+
+  const bracketAliases = Array.from(key.matchAll(/\[([^\]]+)\]/g))
+    .map((match) => normalizeKey(match[1] ?? ""))
+    .filter((part) => part && !["fields", "form_fields", "value", "raw_value"].includes(part));
+
+  for (const alias of bracketAliases) {
+    fields[alias] = cleanValue;
+  }
 }
 
 function flattenObject(fields: Record<string, string>, value: unknown, prefix = "") {
