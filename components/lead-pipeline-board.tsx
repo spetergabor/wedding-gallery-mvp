@@ -105,6 +105,74 @@ function formatDate(value: string | null, language: AdminLanguage) {
   }).format(new Date(value));
 }
 
+const HIDDEN_RAW_NOTE_KEYS = new Set([
+  "name_der_braut",
+  "name_des_bräutigams",
+  "name_des_braeutigams",
+  "e_mail_adresse",
+  "telefonnummer",
+  "hochzeitsdatum",
+  "ort_der_hochzeit",
+  "anzahl_der_gäste_ca",
+  "anzahl_der_gaeste_ca",
+  "wie_habt_ihr_mich_gefunden",
+  "message",
+  "bride_name",
+  "groom_name",
+  "email",
+  "phone",
+  "wedding_date",
+  "venue",
+  "guest_count",
+  "source"
+]);
+
+function normalizeNoteKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_äöüßáéíóöőúüű]/g, "");
+}
+
+function formatLeadNotes(notes: string | null) {
+  if (!notes) {
+    return "";
+  }
+
+  const seenValues = new Set<string>();
+
+  return notes
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line) {
+        return false;
+      }
+
+      const separatorIndex = line.indexOf(":");
+
+      if (separatorIndex < 0) {
+        return true;
+      }
+
+      const key = normalizeNoteKey(line.slice(0, separatorIndex));
+      const value = line.slice(separatorIndex + 1).trim().toLowerCase();
+
+      if (HIDDEN_RAW_NOTE_KEYS.has(key)) {
+        return false;
+      }
+
+      if (value && seenValues.has(value)) {
+        return false;
+      }
+
+      seenValues.add(value);
+      return true;
+    })
+    .join("\n");
+}
+
 function AddLeadForm({
   status,
   language,
@@ -218,6 +286,7 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ status: LeadStatus; index: number } | null>(null);
   const copy = LEAD_PIPELINE_COPY[language];
+  const selectedLeadNotes = selectedLead ? formatLeadNotes(selectedLead.notes) : "";
 
   const groupedLeads = useMemo(() => {
     return LEAD_STATUSES.reduce<Record<LeadStatus, LeadCard[]>>((acc, status) => {
@@ -385,7 +454,7 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
                             {lead.email}
                           </p>
                         ) : null}
-                        {lead.notes ? <p className="line-clamp-2 leading-5">{lead.notes}</p> : null}
+                        {lead.notes ? <p className="line-clamp-2 leading-5">{formatLeadNotes(lead.notes)}</p> : null}
                       </div>
                     </div>
                   ))}
@@ -488,7 +557,7 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
               <div className="rounded-md border border-ink/10 bg-white p-4">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">{copy.notes}</p>
                 <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-graphite">
-                  {selectedLead.notes || copy.noNotes}
+                  {selectedLeadNotes || copy.noNotes}
                 </p>
               </div>
 

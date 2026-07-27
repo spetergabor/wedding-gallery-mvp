@@ -189,6 +189,10 @@ function hasSpamHoneypot(fields: Record<string, string>) {
   return HONEYPOT_KEYS.some((key) => Boolean(fields[key] || fields[normalizeKey(key)]));
 }
 
+function normalizedKeySet(keys: string[]) {
+  return new Set(keys.map((key) => normalizeKey(key)));
+}
+
 function buildPayload(fields: Record<string, string>): LeadPayload | null {
   const firstName = readFirst(fields, ["first_name", "firstname", "vorname", "keresztnev", "keresztnév"]);
   const lastName = readFirst(fields, ["last_name", "lastname", "nachname", "vezeteknev", "vezetéknév"]);
@@ -286,6 +290,128 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     return null;
   }
 
+  const surfacedKeys = normalizedKeySet([
+    ...TOKEN_QUERY_KEYS,
+    ...HONEYPOT_KEYS,
+    "name",
+    "full_name",
+    "fullname",
+    "your_name",
+    "name_des_brautpaares",
+    "paar",
+    "couple",
+    "couple_name",
+    "kundenname",
+    "nev",
+    "név",
+    "first_name",
+    "firstname",
+    "vorname",
+    "last_name",
+    "lastname",
+    "nachname",
+    "bride_name",
+    "braut_name",
+    "name_der_braut",
+    "name_braut",
+    "braut",
+    "menyasszony_neve",
+    "menyasszony",
+    "groom_name",
+    "bräutigam_name",
+    "braeutigam_name",
+    "name_des_bräutigams",
+    "name_des_braeutigams",
+    "name_bräutigam",
+    "name_braeutigam",
+    "bräutigam",
+    "braeutigam",
+    "vőlegény_neve",
+    "volegeny_neve",
+    "vőlegény",
+    "volegeny",
+    "email",
+    "e_mail",
+    "mail",
+    "your_email",
+    "email_address",
+    "e_mail_adresse",
+    "e-mail-adresse",
+    "phone",
+    "telefon",
+    "tel",
+    "mobile",
+    "handy",
+    "your_phone",
+    "telefonnummer",
+    "event_date",
+    "wedding_date",
+    "hochzeitsdatum",
+    "datum",
+    "date",
+    "venue",
+    "location",
+    "ort",
+    "ort_der_hochzeit",
+    "location_venue",
+    "hochzeitslocation",
+    "hochzeitsort",
+    "helyszín",
+    "helyszin",
+    "event_type",
+    "shooting_type",
+    "type",
+    "paket",
+    "package",
+    "shooting",
+    "service",
+    "guest_count",
+    "guests",
+    "anzahl_der_gäste",
+    "anzahl_der_gäste_ca",
+    "anzahl_der_gaeste",
+    "anzahl_der_gaeste_ca",
+    "anzahl_gäste",
+    "anzahl_gäste_ca",
+    "anzahl_gaeste",
+    "anzahl_gaeste_ca",
+    "referral_source",
+    "found_us",
+    "how_found",
+    "how_did_you_find_me",
+    "wie_habt_ihr_mich_gefunden",
+    "wie_habt_ihr_mich_gefunden_",
+    "source",
+    "form_name",
+    "form_id",
+    "elementor_form_name",
+    "message",
+    "nachricht",
+    "your_message",
+    "notes",
+    "comment",
+    "kommentar"
+  ]);
+  const seenRawValues = new Set<string>();
+  const extraFieldLines = Object.entries(fields)
+    .filter(([key, value]) => {
+      const normalizedKey = normalizeKey(key);
+      const normalizedValue = value.trim().toLowerCase();
+
+      if (!normalizedValue || surfacedKeys.has(normalizedKey)) {
+        return false;
+      }
+
+      if (seenRawValues.has(normalizedValue)) {
+        return false;
+      }
+
+      seenRawValues.add(normalizedValue);
+      return true;
+    })
+    .slice(0, 20)
+    .map(([key, value]) => `${key}: ${value}`);
+
   const noteLines = [
     "Automatikus ajánlatkérés weboldalról.",
     `Forrás: ${source}`,
@@ -294,10 +420,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     guestCount ? `Vendégszám kb.: ${guestCount}` : "",
     referralSource ? `Honnan találtak meg: ${referralSource}` : "",
     message ? `Üzenet: ${message}` : "",
-    ...Object.entries(fields)
-      .filter(([key]) => !TOKEN_QUERY_KEYS.includes(key) && !HONEYPOT_KEYS.includes(key))
-      .slice(0, 40)
-      .map(([key, value]) => `${key}: ${value}`)
+    ...extraFieldLines
   ].filter(Boolean);
 
   return {
