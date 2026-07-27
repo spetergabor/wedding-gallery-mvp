@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
-import { CalendarDays, GripVertical, Mail, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, ClipboardList, GripVertical, Mail, MapPin, Phone, Plus, Trash2, X } from "lucide-react";
 import { createLeadAction, deleteLeadAction, moveLeadAction } from "@/lib/lead-actions";
 import { LEAD_EVENT_TYPES, LEAD_STATUSES, leadEventTypeLabel, leadStatusLabel, type LeadStatus } from "@/lib/leads";
 import type { AdminLanguage } from "@/lib/admin-language";
@@ -33,7 +33,14 @@ const LEAD_PIPELINE_COPY = {
     saving: "Mentés...",
     saveLead: "Lead mentése",
     cancel: "Mégse",
+    close: "Bezárás",
     deleteLead: "Lead törlése",
+    leadDetails: "Lead részletei",
+    contact: "Kapcsolat",
+    event: "Esemény",
+    notes: "Jegyzet",
+    noNotes: "Nincs megjegyzés.",
+    noValue: "Nincs megadva",
     eyebrow: "Érdeklődők",
     title: "Megkeresések áttekintése",
     description: "Itt követheted, hol tartanak az érdeklődők a megkereséstől a foglalásig. Ügyfelet csak akkor hozz létre, amikor a foglalás már biztos.",
@@ -48,7 +55,14 @@ const LEAD_PIPELINE_COPY = {
     saving: "Speichern...",
     saveLead: "Lead speichern",
     cancel: "Abbrechen",
+    close: "Schließen",
     deleteLead: "Lead löschen",
+    leadDetails: "Lead-Details",
+    contact: "Kontakt",
+    event: "Event",
+    notes: "Notiz",
+    noNotes: "Keine Notiz vorhanden.",
+    noValue: "Nicht angegeben",
     eyebrow: "Anfragen",
     title: "Anfragen im Überblick",
     description: "Hier siehst du, wo Anfragen vom ersten Kontakt bis zur Buchung stehen. Einen Kunden legst du erst an, wenn die Buchung sicher ist.",
@@ -63,7 +77,14 @@ const LEAD_PIPELINE_COPY = {
     saving: "Saving...",
     saveLead: "Save lead",
     cancel: "Cancel",
+    close: "Close",
     deleteLead: "Delete lead",
+    leadDetails: "Lead details",
+    contact: "Contact",
+    event: "Event",
+    notes: "Notes",
+    noNotes: "No notes yet.",
+    noValue: "Not set",
     eyebrow: "Leads",
     title: "Lead overview",
     description: "Track where inquiries are from first contact to confirmed booking. Create a client only when the booking is secure.",
@@ -193,6 +214,7 @@ function AddLeadForm({
 export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardProps) {
   const [leads, setLeads] = useState(initialLeads);
   const [activeFormStatus, setActiveFormStatus] = useState<LeadStatus | null>(null);
+  const [selectedLead, setSelectedLead] = useState<LeadCard | null>(null);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ status: LeadStatus; index: number } | null>(null);
   const copy = LEAD_PIPELINE_COPY[language];
@@ -254,6 +276,7 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
 
   function handleDelete(leadId: string) {
     setLeads((current) => current.filter((lead) => lead.id !== leadId));
+    setSelectedLead((current) => (current?.id === leadId ? null : current));
     void deleteLeadAction(leadId);
   }
 
@@ -304,7 +327,16 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
                   {statusLeads.map((lead, index) => (
                     <div
                       key={lead.id}
+                      role="button"
+                      tabIndex={0}
                       draggable
+                      onClick={() => setSelectedLead(lead)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedLead(lead);
+                        }
+                      }}
                       onDragStart={() => setDraggingLeadId(lead.id)}
                       onDragEnd={() => {
                         setDraggingLeadId(null);
@@ -329,7 +361,10 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleDelete(lead.id)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDelete(lead.id);
+                          }}
                           className="flex size-7 shrink-0 items-center justify-center rounded-md text-graphite/45 opacity-0 transition hover:bg-red-50 hover:text-red-700 group-hover:opacity-100"
                           title={copy.deleteLead}
                         >
@@ -378,6 +413,99 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
           })}
         </div>
       </div>
+
+      {selectedLead ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/35 px-3 py-4 backdrop-blur-sm sm:items-center"
+          onClick={() => setSelectedLead(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lead-details-title"
+            className="max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-md border border-ink/10 bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-ink/10 px-5 py-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/65">
+                  <ClipboardList size={15} />
+                  {copy.leadDetails}
+                </div>
+                <h3 id="lead-details-title" className="mt-2 break-words text-xl font-semibold text-ink">
+                  {selectedLead.name}
+                </h3>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
+                    {leadEventTypeLabel(selectedLead.eventType, language)}
+                  </span>
+                  <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
+                    {leadStatusLabel(selectedLead.status, language)}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLead(null)}
+                className="flex size-9 shrink-0 items-center justify-center rounded-md text-graphite transition hover:bg-ink/5 hover:text-ink"
+                title={copy.close}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid gap-4 px-5 py-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-ink/10 bg-paper/70 p-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">{copy.contact}</p>
+                  <div className="mt-3 space-y-2 text-sm text-graphite">
+                    <p className="flex items-center gap-2">
+                      <Mail size={15} />
+                      <span className="min-w-0 break-all">{selectedLead.email || copy.noValue}</span>
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <Phone size={15} />
+                      <span className="min-w-0 break-all">{selectedLead.phone || copy.noValue}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-paper/70 p-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">{copy.event}</p>
+                  <div className="mt-3 space-y-2 text-sm text-graphite">
+                    <p className="flex items-center gap-2">
+                      <CalendarDays size={15} />
+                      <span>{formatDate(selectedLead.eventDate, language) || copy.noValue}</span>
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <MapPin size={15} />
+                      <span className="min-w-0 break-words">{selectedLead.venue || copy.noValue}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-ink/10 bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">{copy.notes}</p>
+                <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-graphite">
+                  {selectedLead.notes || copy.noNotes}
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-ink/10 pt-4">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(selectedLead.id)}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+                >
+                  <Trash2 size={15} />
+                  {copy.deleteLead}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
