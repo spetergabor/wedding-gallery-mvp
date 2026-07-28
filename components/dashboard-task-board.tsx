@@ -416,11 +416,26 @@ export function DashboardTaskBoard({
                             </div>
                           </div>
                         </div>
-                        <ChevronDown
-                          size={16}
-                          className={`mt-1 shrink-0 text-graphite/45 transition ${isExpanded ? "rotate-180" : ""}`}
-                          aria-hidden="true"
-                        />
+                        <div
+                          className="flex shrink-0 items-center gap-1"
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <form action={deleteDashboardTaskAction.bind(null, task.id)}>
+                            <ConfirmSubmitButton
+                              message="Biztosan törlöd ezt a feladatot?"
+                              variant="ghost"
+                              className="h-8 w-8 px-0 text-red-700 opacity-70 hover:bg-red-50 hover:opacity-100"
+                            >
+                              <Trash2 size={14} />
+                            </ConfirmSubmitButton>
+                          </form>
+                          <ChevronDown
+                            size={16}
+                            className={`text-graphite/45 transition ${isExpanded ? "rotate-180" : ""}`}
+                            aria-hidden="true"
+                          />
+                        </div>
                       </div>
 
                       <div className="mt-3 space-y-1.5 text-xs text-graphite/70">
@@ -466,15 +481,6 @@ export function DashboardTaskBoard({
                                 </span>
                               )}
                             </div>
-                            <form action={deleteDashboardTaskAction.bind(null, task.id)}>
-                              <ConfirmSubmitButton
-                                message="Biztosan törlöd ezt a feladatot?"
-                                variant="ghost"
-                                className="h-8 w-8 px-0 text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 size={14} />
-                              </ConfirmSubmitButton>
-                            </form>
                           </div>
                         </div>
                       ) : null}
