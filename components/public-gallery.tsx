@@ -11,6 +11,7 @@ import {
   getFavoriteListsAction,
   getGalleryDownloadPackageAction,
   getPaidGalleryPurchaseDownloadState,
+  requestFavoriteListDownloadPackageAction,
   requestGalleryDownloadPackageAction,
   submitFavoriteListAction,
   toggleFavoritePhotoAction
@@ -48,6 +49,8 @@ const GALLERY_COPY = {
     zipEmail: "Herunterladen",
     downloadAlbum: "Album herunterladen",
     downloadIntro: "Gib deine E-Mail-Adresse ein. Wir schicken dir die ZIP-Links.",
+    downloadFavorites: "Favoriten herunterladen",
+    downloadFavoritesIntro: "Gib deine E-Mail-Adresse ein. Wir schicken dir nur die Fotos aus deiner aktiven Favoritenliste als ZIP.",
     close: "Schließen",
     email: "E-Mail-Adresse",
     zipPartsInfo: "Große Galerien können aus mehreren ZIP-Teilen bestehen.",
@@ -166,6 +169,8 @@ const GALLERY_COPY = {
     zipEmail: "Letöltés",
     downloadAlbum: "Album letöltése",
     downloadIntro: "Add meg az e-mail címed, elküldjük a ZIP linkeket.",
+    downloadFavorites: "Kedvencek letöltése",
+    downloadFavoritesIntro: "Add meg az e-mail címed. Csak az aktív kedvenclistád fotóiból készítünk ZIP-et.",
     close: "Bezárás",
     email: "E-mail cím",
     zipPartsInfo: "A nagy galériák több ZIP-részből is állhatnak.",
@@ -290,6 +295,7 @@ type PublicPhotoItem = {
 };
 
 type DownloadPackageStatus = "pending" | "processing" | "completed" | "failed";
+type DownloadMode = "gallery" | "favorites";
 
 type DownloadPackageLink = {
   id: string;
@@ -538,6 +544,7 @@ export function PublicGallery({
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [isEmailOpen, setIsEmailOpen] = useState(false);
+  const [downloadMode, setDownloadMode] = useState<DownloadMode>("gallery");
   const [zipProgress, setZipProgress] = useState("");
   const [zipPackageId, setZipPackageId] = useState<string | null>(null);
   const [zipPackageStatus, setZipPackageStatus] = useState<DownloadPackageStatus | null>(null);
@@ -872,6 +879,21 @@ export function PublicGallery({
     setEmailError("");
   }
 
+  function openDownloadDialog(mode: DownloadMode) {
+    setDownloadMode(mode);
+    setZipPackageId(null);
+    setZipPackageStatus(null);
+    setZipDownloadLinks([]);
+    setZipProgress("");
+    setEmailError("");
+
+    if (mode === "favorites" && favoriteEmail && !email) {
+      setEmail(favoriteEmail);
+    }
+
+    setIsEmailOpen(true);
+  }
+
   useEffect(() => {
     if (!zipPackageId || !isEmailOpen || !isZipping) {
       return;
@@ -936,7 +958,10 @@ export function PublicGallery({
     setZipProgress(copy.downloadPreparing);
 
     try {
-      const result = await requestGalleryDownloadPackageAction(galleryId, email, downloadQuality);
+      const result =
+        downloadMode === "favorites"
+          ? await requestFavoriteListDownloadPackageAction(galleryId, email, activeFavoriteList?.id ?? "")
+          : await requestGalleryDownloadPackageAction(galleryId, email, downloadQuality);
 
       if (!result.ok) {
         throw new Error(result.message);
@@ -1656,7 +1681,7 @@ export function PublicGallery({
                     type="button"
                     title={copy.download}
                     aria-label={copy.download}
-                    onClick={() => setIsEmailOpen(true)}
+                    onClick={() => openDownloadDialog("gallery")}
                     disabled={isZipping || photos.length === 0}
                     className="group/toolbar relative inline-flex size-9 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60 sm:size-10"
                   >
@@ -1760,21 +1785,33 @@ export function PublicGallery({
                       : copy.listReady}
                 </p>
               </div>
-              <Button
-                type="button"
-                onClick={handleSelectionSubmitClick}
-                disabled={!activeFavoriteList || favoriteCount === 0 || isSubmittingFavoriteList}
-                className="lg:shrink-0"
-              >
-                <Heart size={16} />
-                {isSubmittingFavoriteList
-                  ? copy.saving
-                  : activeFavoriteList?.submittedAt
-                    ? copy.updateSelection
-                    : proofingSelection
-                      ? copy.sendSelection
-                      : copy.finishSelection}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:shrink-0">
+                {!proofingSelection && canDownload ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => openDownloadDialog("favorites")}
+                    disabled={!activeFavoriteList || favoriteCount === 0 || isZipping}
+                  >
+                    <Download size={16} />
+                    {copy.downloadFavorites}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  onClick={handleSelectionSubmitClick}
+                  disabled={!activeFavoriteList || favoriteCount === 0 || isSubmittingFavoriteList}
+                >
+                  <Heart size={16} />
+                  {isSubmittingFavoriteList
+                    ? copy.saving
+                    : activeFavoriteList?.submittedAt
+                      ? copy.updateSelection
+                      : proofingSelection
+                        ? copy.sendSelection
+                        : copy.finishSelection}
+                </Button>
+              </div>
             </div>
             {favoriteSuccess ? (
               <p className="mt-2 rounded-md border border-sage/20 bg-sage/10 px-3 py-2 text-sm text-sage">
@@ -2053,7 +2090,7 @@ export function PublicGallery({
             </button>
           ) : null}
           {canDownload ? (
-            <Button type="button" onClick={() => setIsEmailOpen(true)} disabled={isZipping || photos.length === 0}>
+            <Button type="button" onClick={() => openDownloadDialog("gallery")} disabled={isZipping || photos.length === 0}>
               <Download size={16} />
               {isZipping ? copy.zipPreparing : copy.zipEmail}
             </Button>
@@ -2084,9 +2121,11 @@ export function PublicGallery({
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
                   <Mail size={20} />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-ink">{copy.downloadAlbum}</h2>
+                <h2 className="mt-4 text-xl font-semibold text-ink">
+                  {downloadMode === "favorites" ? copy.downloadFavorites : copy.downloadAlbum}
+                </h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  {copy.downloadIntro}
+                  {downloadMode === "favorites" ? copy.downloadFavoritesIntro : copy.downloadIntro}
                 </p>
               </div>
               <button

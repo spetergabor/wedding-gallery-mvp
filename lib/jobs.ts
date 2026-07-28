@@ -5,7 +5,13 @@ import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
-import { ensureDownloadPackageAccessToken, publicDownloadQualityFromScope, publicDownloadScopeForQuality } from "@/lib/download-packages";
+import {
+  ensureDownloadPackageAccessToken,
+  favoriteListIdFromScope,
+  isFavoriteDownloadScope,
+  publicDownloadQualityFromScope,
+  publicDownloadScopeForQuality
+} from "@/lib/download-packages";
 import {
   adminGalleryUrl,
   galleryDownloadUrl,
@@ -77,6 +83,16 @@ type PublicGalleryZipPackage = {
   groupId: string | null;
   partIndex: number;
   partCount: number;
+};
+
+type ZipPhoto = {
+  id: string;
+  filename: string;
+  imageUrl: string;
+  previewUrl: string;
+  r2Key: string | null;
+  fileSize: number;
+  mediaType: string;
 };
 
 type PreparePublicGalleryZipPackagesResult =
@@ -185,6 +201,59 @@ function isCompletePackageSet(packages: Array<{ status: string; downloadUrl: str
   return packages.length === expectedPartCount && Array.from({ length: expectedPartCount }, (_, index) => partIndexes.has(index)).every(Boolean);
 }
 
+async function findFavoriteZipPhotos({
+  galleryId,
+  listId,
+  offset,
+  limit
+}: {
+  galleryId: string;
+  listId: string;
+  offset: number;
+  limit: number | null;
+}) {
+  const list = await prisma.galleryFavoriteList.findFirst({
+    where: {
+      id: listId,
+      galleryId
+    },
+    select: {
+      id: true,
+      items: {
+        where: {
+          photo: {
+            galleryId,
+            isClientHidden: false,
+            deliveryStage: PHOTO_DELIVERY_STAGE_FINAL
+          }
+        },
+        orderBy: { createdAt: "asc" },
+        skip: offset,
+        take: limit ?? undefined,
+        select: {
+          photo: {
+            select: {
+              id: true,
+              filename: true,
+              imageUrl: true,
+              previewUrl: true,
+              r2Key: true,
+              fileSize: true,
+              mediaType: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!list) {
+    throw new Error("Diese Favoritenliste konnte nicht gefunden werden.");
+  }
+
+  return list.items.map((item) => item.photo);
+}
+
 function safeRevalidatePath(path: string) {
   try {
     revalidatePath(path);
@@ -241,7 +310,7 @@ function createWebImageStream(photo: {
   filename: string;
   imageUrl: string;
   previewUrl: string;
-  r2Key: string;
+  r2Key: string | null;
   fileSize: number;
 }) {
   const previewR2Key = photo.previewUrl && photo.previewUrl !== photo.imageUrl ? getR2KeyFromPublicUrl(photo.previewUrl) : null;
@@ -911,6 +980,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
 
   const downloadPackageId = downloadPackage.id;
   const quality = publicDownloadQualityFromScope(downloadPackage.scope);
+  const favoriteListId = favoriteListIdFromScope(downloadPackage.scope);
 
   const gallery = await prisma.gallery.findUnique({
     where: { id: payload.galleryId },
@@ -964,11 +1034,20 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     throw new Error("Die finalen Fotos sind noch nicht freigegeben.");
   }
 
-  if (gallery.photos.length === 0) {
+  const zipPhotos: ZipPhoto[] = favoriteListId
+    ? await findFavoriteZipPhotos({
+        galleryId: gallery.id,
+        listId: favoriteListId,
+        offset: downloadPackage.photoOffset,
+        limit: downloadPackage.photoLimit
+      })
+    : gallery.photos;
+
+  if (zipPhotos.length === 0) {
     throw new Error("Diese Galerie enthält noch keine Fotos.");
   }
 
-  const totalPhotoCount = downloadPackage.photoCount || gallery.photos.length;
+  const totalPhotoCount = downloadPackage.photoCount || zipPhotos.length;
 
   await prisma.galleryDownloadPackage.update({
     where: { id: downloadPackage.id },
@@ -1039,7 +1118,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
 
     zip.pipe(zipStream);
 
-    for (const [index, photo] of gallery.photos.entries()) {
+    for (const [index, photo] of zipPhotos.entries()) {
       const entryName = photoZipFileName(photo.filename, downloadPackage.photoOffset + index, quality, photo.mediaType);
       const mediaStream = createZipMediaStream(photo.filename, () =>
         quality === "web" && photo.mediaType !== "video"
@@ -1060,7 +1139,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     const { bytesWritten } = await uploadPromise;
     queueProgressUpdate(
       {
-        processedCount: gallery.photos.length,
+        processedCount: zipPhotos.length,
         processedBytes: bytesWritten
       },
       true
@@ -1068,14 +1147,21 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     await progressUpdatePromise;
 
     const generatedAt = new Date();
-    const zippedPhotoIds = gallery.photos.map((photo) => photo.id);
-    const currentVisiblePhotoIds = await prisma.photo.findMany({
-      where: { galleryId: gallery.id, isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      skip: downloadPackage.photoOffset,
-      take: downloadPackage.photoLimit ?? undefined,
-      select: { id: true }
-    });
+    const zippedPhotoIds = zipPhotos.map((photo) => photo.id);
+    const currentVisiblePhotoIds = favoriteListId
+      ? (await findFavoriteZipPhotos({
+          galleryId: gallery.id,
+          listId: favoriteListId,
+          offset: downloadPackage.photoOffset,
+          limit: downloadPackage.photoLimit
+        })).map((photo) => ({ id: photo.id }))
+      : await prisma.photo.findMany({
+          where: { galleryId: gallery.id, isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          skip: downloadPackage.photoOffset,
+          take: downloadPackage.photoLimit ?? undefined,
+          select: { id: true }
+        });
     const publicPhotoListChanged =
       zippedPhotoIds.length !== currentVisiblePhotoIds.length ||
       zippedPhotoIds.some((photoId, index) => photoId !== currentVisiblePhotoIds[index]?.id);
@@ -1086,7 +1172,9 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         where: { id: downloadPackage.id },
         data: {
           status: "stale",
-          errorMessage: "A publikus képlista megváltozott ZIP készítés közben."
+          errorMessage: favoriteListId
+            ? "A kedvenc lista megváltozott ZIP készítés közben."
+            : "A publikus képlista megváltozott ZIP készítés közben."
         }
       });
 
@@ -1098,7 +1186,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       data: {
         status: "completed",
         photoCount: totalPhotoCount,
-        processedCount: gallery.photos.length,
+        processedCount: zipPhotos.length,
         processedBytes: bytesWritten,
         fileSize: bytesWritten,
         r2Key,
@@ -1118,17 +1206,19 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         keepGroupId: downloadPackage.groupId
       });
 
-      await notifyGalleryZipReady({
-        galleryId: gallery.id,
-        adminId: gallery.adminId,
-        recipient: gallery.admin?.siteSettings?.contactEmail || gallery.admin?.email,
-        galleryTitle: gallery.title,
-        gallerySlug: gallery.slug,
-        publicSubdomain: gallery.admin?.siteSettings?.publicSubdomain ?? null,
-        photoCount: totalPhotoCount,
-        fileSizeBytes: bytesWritten,
-        generatedAt
-      });
+      if (!isFavoriteDownloadScope(downloadPackage.scope)) {
+        await notifyGalleryZipReady({
+          galleryId: gallery.id,
+          adminId: gallery.adminId,
+          recipient: gallery.admin?.siteSettings?.contactEmail || gallery.admin?.email,
+          galleryTitle: gallery.title,
+          gallerySlug: gallery.slug,
+          publicSubdomain: gallery.admin?.siteSettings?.publicSubdomain ?? null,
+          photoCount: totalPhotoCount,
+          fileSizeBytes: bytesWritten,
+          generatedAt
+        });
+      }
     }
 
     safeRevalidatePath(`/admin/galleries/${gallery.id}`);

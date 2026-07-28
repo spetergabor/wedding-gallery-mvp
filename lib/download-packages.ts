@@ -7,6 +7,7 @@ export const PUBLIC_DOWNLOAD_SCOPE = "public";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE_V2 = "public_web_v2";
 export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web_v3";
+export const FAVORITE_DOWNLOAD_SCOPE_PREFIX = "favorites:";
 export const PUBLIC_DOWNLOAD_SCOPES = [
   PUBLIC_DOWNLOAD_SCOPE,
   LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE,
@@ -24,6 +25,20 @@ export function publicDownloadScopeForQuality(value: string | null | undefined) 
 
 export function publicDownloadQualityFromScope(scope: string | null | undefined): GalleryDownloadQuality {
   return scope?.startsWith("public_web") ? "web" : "original";
+}
+
+export function favoriteDownloadScope(listId: string) {
+  return `${FAVORITE_DOWNLOAD_SCOPE_PREFIX}${listId}`;
+}
+
+export function favoriteListIdFromScope(scope: string | null | undefined) {
+  return scope?.startsWith(FAVORITE_DOWNLOAD_SCOPE_PREFIX)
+    ? scope.slice(FAVORITE_DOWNLOAD_SCOPE_PREFIX.length)
+    : null;
+}
+
+export function isFavoriteDownloadScope(scope: string | null | undefined) {
+  return Boolean(favoriteListIdFromScope(scope));
 }
 
 function createDownloadToken() {
