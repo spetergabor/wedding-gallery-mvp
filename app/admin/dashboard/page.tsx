@@ -473,13 +473,18 @@ const DASHBOARD_COPY = {
       title: "Aktuális hónap",
       description: "Fotózások, szerződések, számlák és ügyféloldali aktivitások egy havi naptárban.",
       today: "ma",
-      next7Days: "hónapban",
-      attention: "figyelmet kér",
+      next7Days: "havi bejegyzés",
+      attention: "teendő",
       daysTitle: "Havi nézet",
       quietDaysTitle: "Ezen a napon nincs bejegyzés",
       quietDaysDescription: "A színezett napokra kattintva megnyílnak az adott napi teendők és események.",
       eventCount: (count: number) => `${count} bejegyzés`,
-      agendaTitle: "Agenda",
+      agendaTitle: "Következő bejegyzések",
+      agendaDescription: "Időrendi lista a havi naptárból. A kártyák a kapcsolódó ügyfélhez, munkához vagy galériához visznek.",
+      legendTitle: "Jelmagyarázat",
+      legendTask: "Teendő",
+      legendEvent: "Esemény",
+      legendActivity: "Aktivitás",
       noEventsTitle: "Nincs naptári esemény",
       noEventsDescription: "Ha projekt, szerződés, számla vagy ügyfélaktivitás érkezik, itt jelenik meg időrendben.",
       project: "Projekt",
@@ -584,12 +589,17 @@ const DASHBOARD_COPY = {
       description: "Shootings, Verträge, Rechnungen und Kundenaktivitäten in einer Monatsübersicht.",
       today: "heute",
       next7Days: "im Monat",
-      attention: "braucht Aufmerksamkeit",
+      attention: "Aufgaben",
       daysTitle: "Monatsansicht",
       quietDaysTitle: "An diesem Tag gibt es keine Einträge",
       quietDaysDescription: "Klicke auf markierte Tage, um Aufgaben und Termine dieses Tages zu öffnen.",
       eventCount: (count: number) => `${count} Einträge`,
-      agendaTitle: "Agenda",
+      agendaTitle: "Nächste Einträge",
+      agendaDescription: "Chronologische Liste aus dem Monatskalender. Die Karten führen zum passenden Kunden, Auftrag oder zur Galerie.",
+      legendTitle: "Legende",
+      legendTask: "Aufgabe",
+      legendEvent: "Termin",
+      legendActivity: "Aktivität",
       noEventsTitle: "Keine Kalendereinträge",
       noEventsDescription: "Projekte, Verträge, Rechnungen und Kundenaktivitäten erscheinen hier chronologisch.",
       project: "Projekt",
@@ -693,13 +703,18 @@ const DASHBOARD_COPY = {
       title: "Current month",
       description: "Shootings, contracts, invoices and client-side activity in a monthly calendar.",
       today: "today",
-      next7Days: "this month",
-      attention: "needs attention",
+      next7Days: "month entries",
+      attention: "tasks",
       daysTitle: "Month view",
       quietDaysTitle: "No entries on this day",
       quietDaysDescription: "Click highlighted days to open the tasks and events for that day.",
       eventCount: (count: number) => `${count} entries`,
-      agendaTitle: "Agenda",
+      agendaTitle: "Next entries",
+      agendaDescription: "Chronological list from the monthly calendar. Cards open the related client, work item or gallery.",
+      legendTitle: "Legend",
+      legendTask: "Task",
+      legendEvent: "Event",
+      legendActivity: "Activity",
       noEventsTitle: "No calendar events",
       noEventsDescription: "Projects, contracts, invoices and client activity will appear here in chronological order.",
       project: "Project",
@@ -957,6 +972,19 @@ function DashboardWorkCalendar({
             </div>
             <span className="text-xs font-medium text-graphite/55">{copy.calendar.eventCount(monthEvents.length)}</span>
           </div>
+          <div className="mb-3 flex flex-wrap items-center gap-2 px-1 text-[11px] font-medium text-graphite/60">
+            <span className="mr-1 uppercase tracking-[0.12em] text-graphite/45">{copy.calendar.legendTitle}</span>
+            {[
+              { label: copy.calendar.legendTask, tone: "danger" },
+              { label: copy.calendar.legendEvent, tone: "sage" },
+              { label: copy.calendar.legendActivity, tone: "brass" }
+            ].map((item) => (
+              <span key={item.label} className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-1 ring-1 ring-ink/8">
+                <span className={`size-1.5 rounded-full ${calendarDotClass(item.tone as DashboardCalendarTone)}`} />
+                {item.label}
+              </span>
+            ))}
+          </div>
           <div className="grid grid-cols-7 gap-1">
             {weekdayHeaders.map((day) => (
               <div key={day.toISOString()} className="px-1 pb-1 text-center text-[10px] font-medium uppercase tracking-[0.1em] text-graphite/55">
@@ -1053,10 +1081,13 @@ function DashboardWorkCalendar({
         </div>
 
         <div className="rounded-md border border-ink/8 bg-white">
-          <div className="flex items-center justify-between gap-3 border-b border-ink/8 px-4 py-3">
-            <h3 className="text-sm font-semibold text-ink">{copy.calendar.agendaTitle}</h3>
+          <div className="flex flex-col justify-between gap-3 border-b border-ink/8 px-4 py-3 sm:flex-row sm:items-start">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">{copy.calendar.agendaTitle}</h3>
+              <p className="mt-1 max-w-xl text-xs leading-5 text-graphite/60">{copy.calendar.agendaDescription}</p>
+            </div>
             <span className="rounded-full bg-ink/[0.04] px-2.5 py-1 text-xs font-medium text-graphite/60">
-              {copy.calendar.eventCount(orderedEvents.length)}
+              {orderedEvents.length} / {monthEvents.length}
             </span>
           </div>
           {orderedEvents.length === 0 ? (
