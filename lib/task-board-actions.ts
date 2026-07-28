@@ -139,6 +139,45 @@ export async function updateDashboardTaskStatusAction(taskId: string, formData: 
   redirect(dashboardPath("taskStatusUpdated=1"));
 }
 
+export async function moveDashboardTaskStatusAction(taskId: string, statusValue: string) {
+  const admin = await requireAdmin();
+  const status = normalizeCustomerTaskStatus(statusValue);
+  const task = await prisma.customerTask.findFirst({
+    where: {
+      id: taskId,
+      OR: [
+        { adminId: ownerAdminId(admin) },
+        { customer: adminOwnedWhere(admin) }
+      ]
+    },
+    select: {
+      id: true,
+      customerId: true,
+      completedAt: true
+    }
+  });
+
+  if (!task) {
+    return { ok: false, message: "Feladat nem található." };
+  }
+
+  await prisma.customerTask.update({
+    where: { id: task.id },
+    data: {
+      status,
+      completedAt: isClosedCustomerTaskStatus(status) ? task.completedAt ?? new Date() : null
+    }
+  });
+
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/work");
+  if (task.customerId) {
+    revalidatePath(`/admin/clients/${task.customerId}`);
+  }
+
+  return { ok: true, status };
+}
+
 export async function deleteDashboardTaskAction(taskId: string) {
   const admin = await requireAdmin();
   const task = await prisma.customerTask.findFirst({

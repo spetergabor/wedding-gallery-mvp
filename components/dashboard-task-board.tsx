@@ -1,4 +1,7 @@
-import { CalendarClock, CheckCircle2, ChevronRight, Clock3, ListChecks, Plus, Trash2, UserRound } from "lucide-react";
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { CalendarClock, CheckCircle2, ChevronRight, Clock3, GripVertical, ListChecks, Plus, Trash2, UserRound } from "lucide-react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
@@ -15,6 +18,7 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import {
   createDashboardTaskAction,
   deleteDashboardTaskAction,
+  moveDashboardTaskStatusAction,
   updateDashboardTaskStatusAction
 } from "@/lib/task-board-actions";
 
@@ -29,10 +33,10 @@ type TaskBoardTask = {
   taskType: string;
   status: string;
   priority: string;
-  dueDate: Date | null;
+  dueDate: Date | string | null;
   dueTime: string | null;
   notes: string | null;
-  updatedAt: Date;
+  updatedAt: Date | string;
   customer: TaskBoardCustomer | null;
   project: {
     title: string;
@@ -46,12 +50,13 @@ const BOARD_STATUSES = [
   { value: "closed", label: "Lezárva" }
 ];
 
-function formatDueDate(task: { dueDate: Date | null; dueTime: string | null }) {
+function formatDueDate(task: { dueDate: Date | string | null; dueTime: string | null }) {
   if (!task.dueDate) {
     return "Nincs határidő";
   }
 
-  const date = task.dueDate.toLocaleDateString("hu-HU", {
+  const dueDate = task.dueDate instanceof Date ? task.dueDate : new Date(task.dueDate);
+  const date = dueDate.toLocaleDateString("hu-HU", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -130,11 +135,51 @@ export function DashboardTaskBoard({
   tasks: TaskBoardTask[];
   customers: TaskBoardCustomer[];
 }) {
-  const normalizedTasks = tasks.map((task) => ({
-    ...task,
-    normalizedStatus: normalizeCustomerTaskStatus(task.status)
-  }));
+  const [taskItems, setTaskItems] = useState(tasks);
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dropTargetStatus, setDropTargetStatus] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
+  const normalizedTasks = useMemo(
+    () =>
+      taskItems.map((task) => ({
+        ...task,
+        normalizedStatus: normalizeCustomerTaskStatus(task.status)
+      })),
+    [taskItems]
+  );
   const activeCount = normalizedTasks.filter((task) => !isClosedCustomerTaskStatus(task.normalizedStatus)).length;
+
+  function moveTaskLocally(taskId: string, status: string) {
+    setTaskItems((current) =>
+      current.map((task) => (task.id === taskId ? { ...task, status, updatedAt: new Date() } : task))
+    );
+  }
+
+  function handleDrop(status: string) {
+    if (!draggingTaskId) {
+      return;
+    }
+
+    const task = taskItems.find((item) => item.id === draggingTaskId);
+
+    setDropTargetStatus(null);
+    setDraggingTaskId(null);
+
+    if (!task || normalizeCustomerTaskStatus(task.status) === status) {
+      return;
+    }
+
+    const previousStatus = task.status;
+    moveTaskLocally(task.id, status);
+
+    startTransition(async () => {
+      const result = await moveDashboardTaskStatusAction(task.id, status);
+
+      if (!result.ok) {
+        moveTaskLocally(task.id, previousStatus);
+      }
+    });
+  }
 
   return (
     <section id="task-board" className="mt-8 rounded-md border border-ink/12 bg-white shadow-[0_1px_0_rgba(178,139,78,0.08)]">
@@ -270,19 +315,53 @@ export function DashboardTaskBoard({
       <div className="grid gap-4 p-4 lg:grid-cols-4">
         {BOARD_STATUSES.map((status) => {
           const columnTasks = normalizedTasks.filter((task) => task.normalizedStatus === status.value);
+          const isDropTarget = dropTargetStatus === status.value;
 
           return (
-            <div key={status.value} className={`min-h-48 rounded-md border p-3 ${statusColumnClass(status.value)}`}>
+            <div
+              key={status.value}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDropTargetStatus(status.value);
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget === event.target) {
+                  setDropTargetStatus(null);
+                }
+              }}
+              onDrop={() => handleDrop(status.value)}
+              className={`min-h-48 rounded-md border p-3 transition ${statusColumnClass(status.value)} ${
+                isDropTarget ? "border-ink/35 bg-brass/10 shadow-inner" : ""
+              }`}
+            >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-ink">{status.label}</h3>
                 <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-graphite shadow-sm">{columnTasks.length}</span>
               </div>
               <div className="space-y-3">
                 {columnTasks.map((task) => (
-                  <article key={task.id} className="rounded-md border border-ink/10 bg-white p-3 shadow-sm">
+                  <article
+                    key={task.id}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", task.id);
+                      setDraggingTaskId(task.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingTaskId(null);
+                      setDropTargetStatus(null);
+                    }}
+                    className={`group rounded-md border border-ink/10 bg-white p-3 shadow-sm transition hover:border-ink/25 ${
+                      draggingTaskId === task.id ? "opacity-50" : "cursor-grab active:cursor-grabbing"
+                    }`}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-semibold leading-5 text-ink">{task.title}</p>
+                        <div className="flex items-start gap-2">
+                          <GripVertical className="mt-0.5 shrink-0 text-graphite/35 opacity-0 transition group-hover:opacity-100" size={15} />
+                          <p className="font-semibold leading-5 text-ink">{task.title}</p>
+                        </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
                             {customerTaskTypeLabel(task.taskType)}
