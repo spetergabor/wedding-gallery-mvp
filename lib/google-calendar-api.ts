@@ -1287,7 +1287,7 @@ export async function syncCustomerTaskToGoogleCalendar(taskId: string) {
     }
   });
 
-  if (!task) {
+  if (!task?.customer) {
     return { status: "skipped" as const };
   }
 
@@ -1427,7 +1427,7 @@ export async function deleteCustomerTaskFromGoogleCalendar(taskId: string) {
     }
   });
 
-  if (!task?.googleCalendarEventId) {
+  if (!task?.googleCalendarEventId || !task.customer) {
     return { status: "skipped" as const };
   }
 

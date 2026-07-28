@@ -197,7 +197,7 @@ export default async function AdminWorkPage() {
       where: {
         customer: adminOwnedWhere(admin),
         dueDate: { not: null },
-        status: { notIn: ["done", "cancelled"] }
+        status: { notIn: ["done", "cancelled", "closed"] }
       },
       orderBy: [{ dueDate: "asc" }, { dueTime: "asc" }, { createdAt: "asc" }],
       select: {
@@ -278,9 +278,9 @@ export default async function AdminWorkPage() {
         key: `task-${task.id}`,
         date: task.dueDate,
         endsAt: workEndDate(task.dueDate, task.dueTime),
-        href: `/admin/clients/${task.customer.id}?tab=tasks`,
+        href: task.customer ? `/admin/clients/${task.customer.id}?tab=tasks` : "/admin/dashboard#task-board",
         title: task.title,
-        subtitle: task.customer.coupleName,
+        subtitle: task.customer?.coupleName ?? "Belső feladat",
         time: task.dueTime,
         venue: task.project?.title ?? null,
         badges: [customerTaskTypeLabel(task.taskType), customerTaskStatusLabel(task.status)] as [string, string],

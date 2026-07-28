@@ -50,6 +50,7 @@ model Admin {
   stripeConnectIntegration StripeConnectIntegration?
   galleryPurchases GalleryPurchase[]
   albumDesigns AlbumDesign[]
+  tasks        CustomerTask[]
   planOverride AdminPlanOverride?
 }
 
@@ -388,11 +389,12 @@ model CustomerMeeting {
 
 model CustomerTask {
   id          String   @id @default(cuid())
-  customerId  String
+  adminId     String
+  customerId  String?
   projectId   String?
   title       String
   taskType    String   @default("general")
-  status      String   @default("open")
+  status      String   @default("planned")
   priority    String   @default("normal")
   dueDate     DateTime?
   dueTime     String?
@@ -404,9 +406,11 @@ model CustomerTask {
   googleCalendarSyncError String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  admin       Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
   project     CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
+  @@index([adminId])
   @@index([customerId])
   @@index([projectId])
   @@index([taskType])

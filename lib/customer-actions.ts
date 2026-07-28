@@ -7,7 +7,12 @@ import { customerAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { createCustomerPortalToken } from "@/lib/customer-portal";
 import { normalizeCustomerMeetingStatus, normalizeCustomerMeetingType } from "@/lib/customer-meeting-options";
 import { normalizeCustomerProjectStatus, normalizeCustomerProjectType } from "@/lib/customer-project-options";
-import { normalizeCustomerTaskPriority, normalizeCustomerTaskStatus, normalizeCustomerTaskType } from "@/lib/customer-task-options";
+import {
+  isClosedCustomerTaskStatus,
+  normalizeCustomerTaskPriority,
+  normalizeCustomerTaskStatus,
+  normalizeCustomerTaskType
+} from "@/lib/customer-task-options";
 import { normalizeCustomerStatus, normalizeCustomerType } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
@@ -629,6 +634,7 @@ export async function createCustomerTaskAction(customerId: string, formData: For
 
   const task = await prisma.customerTask.create({
     data: {
+      adminId: ownerAdminId(admin),
       customerId: customer.id,
       projectId,
       title,
@@ -638,7 +644,7 @@ export async function createCustomerTaskAction(customerId: string, formData: For
       dueDate,
       dueTime,
       notes: formOptionalString(formData, "notes"),
-      completedAt: status === "done" ? new Date() : null
+      completedAt: isClosedCustomerTaskStatus(status) ? new Date() : null
     }
   });
 
@@ -682,7 +688,7 @@ export async function updateCustomerTaskAction(customerId: string, taskId: strin
   }
 
   const requestedProjectId = formString(formData, "projectId");
-  const projectId = await projectIdForCustomer(admin, task.customerId, requestedProjectId);
+  const projectId = await projectIdForCustomer(admin, customerId, requestedProjectId);
 
   if (requestedProjectId && !projectId) {
     redirect(`/admin/clients/${customerId}?tab=tasks&taskError=project`);
@@ -701,7 +707,7 @@ export async function updateCustomerTaskAction(customerId: string, taskId: strin
       dueDate,
       dueTime,
       notes: formOptionalString(formData, "notes"),
-      completedAt: status === "done" ? task.completedAt ?? new Date() : null
+      completedAt: isClosedCustomerTaskStatus(status) ? task.completedAt ?? new Date() : null
     }
   });
 
@@ -737,7 +743,7 @@ export async function updateCustomerTaskStatusAction(customerId: string, taskId:
     where: { id: task.id },
     data: {
       status,
-      completedAt: status === "done" ? task.completedAt ?? new Date() : null
+      completedAt: isClosedCustomerTaskStatus(status) ? task.completedAt ?? new Date() : null
     }
   });
 

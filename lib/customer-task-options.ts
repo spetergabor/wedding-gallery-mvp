@@ -10,11 +10,10 @@ export const CUSTOMER_TASK_TYPES = [
 ];
 
 export const CUSTOMER_TASK_STATUSES = [
-  { value: "open", label: "Nyitott" },
+  { value: "planned", label: "Tervezett" },
   { value: "in_progress", label: "Folyamatban" },
-  { value: "done", label: "Kész" },
-  { value: "postponed", label: "Elhalasztva" },
-  { value: "cancelled", label: "Törölve" }
+  { value: "delivered", label: "Átadva" },
+  { value: "closed", label: "Lezárva" }
 ];
 
 export const CUSTOMER_TASK_PRIORITIES = [
@@ -28,7 +27,15 @@ export function normalizeCustomerTaskType(value: string | null | undefined) {
 }
 
 export function normalizeCustomerTaskStatus(value: string | null | undefined) {
-  return CUSTOMER_TASK_STATUSES.some((item) => item.value === value) ? value! : "open";
+  if (value === "open" || value === "postponed") {
+    return "planned";
+  }
+
+  if (value === "done" || value === "cancelled") {
+    return "closed";
+  }
+
+  return CUSTOMER_TASK_STATUSES.some((item) => item.value === value) ? value! : "planned";
 }
 
 export function normalizeCustomerTaskPriority(value: string | null | undefined) {
@@ -42,7 +49,7 @@ export function customerTaskTypeLabel(value: string | null | undefined) {
 
 export function customerTaskStatusLabel(value: string | null | undefined) {
   const normalizedValue = normalizeCustomerTaskStatus(value);
-  return CUSTOMER_TASK_STATUSES.find((item) => item.value === normalizedValue)?.label ?? "Nyitott";
+  return CUSTOMER_TASK_STATUSES.find((item) => item.value === normalizedValue)?.label ?? "Tervezett";
 }
 
 export function customerTaskPriorityLabel(value: string | null | undefined) {
@@ -52,5 +59,5 @@ export function customerTaskPriorityLabel(value: string | null | undefined) {
 
 export function isClosedCustomerTaskStatus(value: string | null | undefined) {
   const normalizedValue = normalizeCustomerTaskStatus(value);
-  return normalizedValue === "done" || normalizedValue === "cancelled";
+  return normalizedValue === "closed";
 }

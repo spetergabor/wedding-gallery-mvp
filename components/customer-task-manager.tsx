@@ -14,7 +14,8 @@ import {
   customerTaskPriorityLabel,
   customerTaskStatusLabel,
   customerTaskTypeLabel,
-  isClosedCustomerTaskStatus
+  isClosedCustomerTaskStatus,
+  normalizeCustomerTaskStatus
 } from "@/lib/customer-task-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 
@@ -71,24 +72,18 @@ function isOverdue(task: CustomerTask) {
 }
 
 function statusClass(status: string, overdue: boolean) {
+  const normalizedStatus = normalizeCustomerTaskStatus(status);
+
   if (overdue) {
     return "bg-red-50 text-red-700";
   }
 
-  if (status === "done") {
+  if (normalizedStatus === "closed") {
     return "bg-sage/10 text-sage";
   }
 
-  if (status === "in_progress") {
+  if (normalizedStatus === "in_progress" || normalizedStatus === "delivered") {
     return "bg-brass/10 text-brass";
-  }
-
-  if (status === "postponed") {
-    return "bg-ink/5 text-graphite";
-  }
-
-  if (status === "cancelled") {
-    return "bg-red-50 text-red-700";
   }
 
   return "bg-ink/5 text-graphite";
@@ -138,8 +133,8 @@ export function CustomerTaskManager({
   tasks: CustomerTask[];
   projects: TaskProjectOption[];
 }) {
-  const openTasks = tasks.filter((task) => !isClosedCustomerTaskStatus(task.status));
-  const doneTasks = tasks.filter((task) => isClosedCustomerTaskStatus(task.status));
+  const activeTasks = tasks.filter((task) => !isClosedCustomerTaskStatus(task.status));
+  const closedTasks = tasks.filter((task) => isClosedCustomerTaskStatus(task.status));
 
   return (
     <section className="space-y-6">
@@ -156,7 +151,7 @@ export function CustomerTaskManager({
             </p>
           </div>
           <span className="inline-flex h-9 w-fit items-center rounded-full bg-ink/5 px-3 text-xs font-medium text-graphite">
-            {openTasks.length} nyitott
+            {activeTasks.length} aktív
           </span>
         </div>
 
@@ -218,7 +213,7 @@ export function CustomerTaskManager({
             <span className="text-sm font-medium text-graphite">Kapcsolódó projekt</span>
             <ProjectSelect projects={projects} />
           </label>
-          <input type="hidden" name="status" value="open" />
+          <input type="hidden" name="status" value="planned" />
           <label className="space-y-2 xl:col-span-4">
             <span className="text-sm font-medium text-graphite">Megjegyzés</span>
             <textarea
@@ -243,7 +238,7 @@ export function CustomerTaskManager({
         </div>
       ) : (
         <div className="space-y-4">
-          {[...openTasks, ...doneTasks].map((task) => {
+          {[...activeTasks, ...closedTasks].map((task) => {
             const overdue = isOverdue(task);
 
             return (
@@ -285,10 +280,10 @@ export function CustomerTaskManager({
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                     {!isClosedCustomerTaskStatus(task.status) ? (
                       <form action={updateCustomerTaskStatusAction.bind(null, customerId, task.id)}>
-                        <input type="hidden" name="status" value="done" />
+                        <input type="hidden" name="status" value="closed" />
                         <FormSubmitButton variant="secondary" className="h-10 px-3" pendingLabel="Mentés...">
                           <CheckCircle2 size={15} />
-                          Kész
+                          Lezárás
                         </FormSubmitButton>
                       </form>
                     ) : null}

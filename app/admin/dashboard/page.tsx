@@ -19,6 +19,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
+import { DashboardTaskBoard } from "@/components/dashboard-task-board";
 import { EmptyState } from "@/components/empty-state";
 import { LeadPipelineBoard } from "@/components/lead-pipeline-board";
 import { UpcomingWorkCardGrid, type UpcomingWorkCard } from "@/components/upcoming-work-card-grid";
@@ -120,7 +121,7 @@ type DashboardUpcomingProject = {
     id: string;
     coupleName: string;
     primaryEmail: string;
-  };
+  } | null;
   _count: {
     galleries: number;
   };
@@ -168,7 +169,7 @@ type DashboardUpcomingTask = {
     id: string;
     coupleName: string;
     primaryEmail: string;
-  };
+  } | null;
   project: {
     title: string;
   } | null;
@@ -780,9 +781,9 @@ function UpcomingProjectsSection({
     ...visibleProjects.map((project) => ({
       key: `project-${project.id}`,
       date: project.eventDate,
-      href: `/admin/clients/${project.customer.id}?tab=projects`,
+      href: project.customer ? `/admin/clients/${project.customer.id}?tab=projects` : "/admin/work",
       title: project.title,
-      subtitle: project.customer.coupleName,
+      subtitle: project.customer?.coupleName ?? copy.projectsEyebrow,
       time: formatProjectTimeText(project),
       venue: project.venue,
       badges: [customerProjectTypeLabel(project.projectType), customerProjectStatusLabel(project.status)] as [string, string],
@@ -824,9 +825,9 @@ function UpcomingProjectsSection({
       .map((task) => ({
         key: `task-${task.id}`,
         date: task.dueDate,
-        href: `/admin/clients/${task.customer.id}?tab=tasks`,
+        href: task.customer ? `/admin/clients/${task.customer.id}?tab=tasks` : "/admin/dashboard#task-board",
         title: task.title,
-        subtitle: task.customer.coupleName,
+        subtitle: task.customer?.coupleName ?? "Belső feladat",
         time: task.dueTime,
         venue: task.project?.title ?? null,
         badges: [customerTaskTypeLabel(task.taskType), customerTaskStatusLabel(task.status)] as [string, string],
@@ -1162,7 +1163,9 @@ export default async function AdminDashboardPage() {
     problemZipPackages,
     latestGalleries,
     viewLocations,
-    leads
+    leads,
+    taskBoardTasks,
+    taskBoardCustomers
   ] = await Promise.all([
     prisma.customerProject.findMany({
       where: {
@@ -1252,7 +1255,7 @@ export default async function AdminDashboardPage() {
       where: {
         customer: adminOwnedWhere(admin),
         dueDate: { gte: today },
-        status: { notIn: ["done", "cancelled"] }
+        status: { notIn: ["done", "cancelled", "closed"] }
       },
       orderBy: [{ dueDate: "asc" }, { dueTime: "asc" }, { createdAt: "asc" }],
       take: 50,
@@ -1318,7 +1321,7 @@ export default async function AdminDashboardPage() {
       where: {
         customer: adminOwnedWhere(admin),
         dueDate: { gte: calendarStart, lt: calendarEnd },
-        status: { notIn: ["done", "cancelled"] }
+        status: { notIn: ["done", "cancelled", "closed"] }
       },
       orderBy: [{ dueDate: "asc" }, { dueTime: "asc" }, { createdAt: "desc" }],
       take: 80,
@@ -1694,6 +1697,47 @@ export default async function AdminDashboardPage() {
         status: true,
         sortOrder: true
       }
+    }),
+    prisma.customerTask.findMany({
+      where: {
+        OR: [
+          { adminId: admin.workspaceAdminId ?? admin.id },
+          { customer: adminOwnedWhere(admin) }
+        ]
+      },
+      orderBy: [{ status: "asc" }, { updatedAt: "desc" }, { createdAt: "desc" }],
+      take: 200,
+      select: {
+        id: true,
+        title: true,
+        taskType: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        dueTime: true,
+        notes: true,
+        updatedAt: true,
+        customer: {
+          select: {
+            id: true,
+            coupleName: true
+          }
+        },
+        project: {
+          select: {
+            title: true
+          }
+        }
+      }
+    }),
+    prisma.customer.findMany({
+      where: adminOwnedWhere(admin),
+      orderBy: [{ coupleName: "asc" }, { createdAt: "desc" }],
+      take: 300,
+      select: {
+        id: true,
+        coupleName: true
+      }
     })
   ]);
   const locationPoints = createViewLocationPoints(viewLocations);
@@ -1876,14 +1920,15 @@ export default async function AdminDashboardPage() {
 
       const timeText = task.dueTime ? ` · ${task.dueTime}` : "";
       const projectText = task.project ? ` · ${task.project.title}` : "";
+      const customerName = task.customer?.coupleName ?? "Belső feladat";
 
       return [
         {
           key: `calendar-customer-task-${task.id}`,
           date: task.dueDate,
           title: task.title,
-          detail: `${task.customer.coupleName}${projectText}${timeText}`,
-          href: `/admin/clients/${task.customer.id}?tab=tasks`,
+          detail: `${customerName}${projectText}${timeText}`,
+          href: task.customer ? `/admin/clients/${task.customer.id}?tab=tasks` : "/admin/dashboard#task-board",
           label: customerTaskTypeLabel(task.taskType),
           kind: "task",
           tone: task.priority === "high" ? "danger" : "brass",
@@ -2163,6 +2208,8 @@ export default async function AdminDashboardPage() {
           status: normalizeLeadStatus(lead.status)
         }))}
       />
+
+      <DashboardTaskBoard tasks={taskBoardTasks} customers={taskBoardCustomers} />
 
       <DashboardWorkCalendar copy={copy} events={calendarEvents} language={language} today={today} />
 
