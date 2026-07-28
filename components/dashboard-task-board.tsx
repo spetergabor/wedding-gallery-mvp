@@ -1,7 +1,18 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { CalendarClock, CheckCircle2, ChevronRight, Clock3, GripVertical, ListChecks, Plus, Trash2, UserRound } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock3,
+  GripVertical,
+  ListChecks,
+  Plus,
+  Trash2,
+  UserRound
+} from "lucide-react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
@@ -138,6 +149,7 @@ export function DashboardTaskBoard({
   const [taskItems, setTaskItems] = useState(tasks);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dropTargetStatus, setDropTargetStatus] = useState<string | null>(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(() => new Set());
   const [, startTransition] = useTransition();
   const normalizedTasks = useMemo(
     () =>
@@ -178,6 +190,20 @@ export function DashboardTaskBoard({
       if (!result.ok) {
         moveTaskLocally(task.id, previousStatus);
       }
+    });
+  }
+
+  function toggleTask(taskId: string) {
+    setExpandedTaskIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+
+      return next;
     });
   }
 
@@ -339,86 +365,122 @@ export function DashboardTaskBoard({
                 <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-graphite shadow-sm">{columnTasks.length}</span>
               </div>
               <div className="space-y-3">
-                {columnTasks.map((task) => (
-                  <article
-                    key={task.id}
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", task.id);
-                      setDraggingTaskId(task.id);
-                    }}
-                    onDragEnd={() => {
-                      setDraggingTaskId(null);
-                      setDropTargetStatus(null);
-                    }}
-                    className={`group rounded-md border border-ink/10 bg-white p-3 shadow-sm transition hover:border-ink/25 ${
-                      draggingTaskId === task.id ? "opacity-50" : "cursor-grab active:cursor-grabbing"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-start gap-2">
-                          <GripVertical className="mt-0.5 shrink-0 text-graphite/35 opacity-0 transition group-hover:opacity-100" size={15} />
-                          <p className="font-semibold leading-5 text-ink">{task.title}</p>
+                {columnTasks.map((task) => {
+                  const isExpanded = expandedTaskIds.has(task.id);
+
+                  return (
+                    <article
+                      key={task.id}
+                      draggable
+                      onClick={() => {
+                        if (!draggingTaskId) {
+                          toggleTask(task.id);
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          toggleTask(task.id);
+                        }
+                      }}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", task.id);
+                        setDraggingTaskId(task.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingTaskId(null);
+                        setDropTargetStatus(null);
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      className={`group rounded-md border border-ink/10 bg-white p-3 text-left shadow-sm transition hover:border-ink/25 ${
+                        draggingTaskId === task.id ? "opacity-50" : "cursor-grab active:cursor-grabbing"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start gap-2">
+                            <GripVertical className="mt-0.5 shrink-0 text-graphite/35 opacity-0 transition group-hover:opacity-100" size={15} />
+                            <div className="min-w-0 flex-1">
+                              <p className={`${isExpanded ? "" : "line-clamp-2"} font-semibold leading-5 text-ink`}>{task.title}</p>
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
+                                  {customerTaskTypeLabel(task.taskType)}
+                                </span>
+                                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${priorityClass(task.priority)}`}>
+                                  {customerTaskPriorityLabel(task.priority)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
-                            {customerTaskTypeLabel(task.taskType)}
-                          </span>
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${priorityClass(task.priority)}`}>
-                            {customerTaskPriorityLabel(task.priority)}
-                          </span>
-                        </div>
+                        <ChevronDown
+                          size={16}
+                          className={`mt-1 shrink-0 text-graphite/45 transition ${isExpanded ? "rotate-180" : ""}`}
+                          aria-hidden="true"
+                        />
                       </div>
-                      <form action={deleteDashboardTaskAction.bind(null, task.id)}>
-                        <ConfirmSubmitButton
-                          message="Biztosan törlöd ezt a feladatot?"
-                          variant="ghost"
-                          className="h-8 w-8 px-0 text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 size={14} />
-                        </ConfirmSubmitButton>
-                      </form>
-                    </div>
 
-                    <div className="mt-3 space-y-1.5 text-xs text-graphite/70">
-                      <p className="flex items-center gap-1.5">
-                        <UserRound size={13} />
-                        {task.customer ? task.customer.coupleName : "Belső feladat"}
-                      </p>
-                      <p className="flex items-center gap-1.5">
-                        <Clock3 size={13} />
-                        {formatDueDate(task)}
-                      </p>
-                      {task.project ? (
-                        <p className="flex items-center gap-1.5">
-                          <CalendarClock size={13} />
-                          {task.project.title}
+                      <div className="mt-3 space-y-1.5 text-xs text-graphite/70">
+                        <p className="flex min-w-0 items-center gap-1.5">
+                          <UserRound size={13} className="shrink-0" />
+                          <span className="truncate">{task.customer ? task.customer.coupleName : "Belső feladat"}</span>
                         </p>
+                        <p className="flex min-w-0 items-center gap-1.5">
+                          <Clock3 size={13} className="shrink-0" />
+                          <span className="truncate">{formatDueDate(task)}</span>
+                        </p>
+                      </div>
+
+                      {isExpanded ? (
+                        <div
+                          className="mt-3"
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          {task.project ? (
+                            <p className="flex items-center gap-1.5 text-xs text-graphite/70">
+                              <CalendarClock size={13} />
+                              {task.project.title}
+                            </p>
+                          ) : null}
+
+                          {task.notes ? <p className="mt-3 line-clamp-4 text-xs leading-5 text-graphite/70">{task.notes}</p> : null}
+
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ink/10 pt-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <TaskStatusButton taskId={task.id} status={status.value} />
+                              {status.value !== "closed" ? (
+                                <form action={updateDashboardTaskStatusAction.bind(null, task.id)}>
+                                  <input type="hidden" name="status" value="closed" />
+                                  <FormSubmitButton variant="ghost" className="h-8 px-2 text-xs" pendingLabel="...">
+                                    Lezárás
+                                  </FormSubmitButton>
+                                </form>
+                              ) : (
+                                <span className="inline-flex h-8 items-center gap-1.5 text-xs font-medium text-sage">
+                                  <CheckCircle2 size={13} />
+                                  Lezárva
+                                </span>
+                              )}
+                            </div>
+                            <form action={deleteDashboardTaskAction.bind(null, task.id)}>
+                              <ConfirmSubmitButton
+                                message="Biztosan törlöd ezt a feladatot?"
+                                variant="ghost"
+                                className="h-8 w-8 px-0 text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 size={14} />
+                              </ConfirmSubmitButton>
+                            </form>
+                          </div>
+                        </div>
                       ) : null}
-                    </div>
-
-                    {task.notes ? <p className="mt-3 line-clamp-3 text-xs leading-5 text-graphite/70">{task.notes}</p> : null}
-
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-ink/10 pt-3">
-                      <TaskStatusButton taskId={task.id} status={status.value} />
-                      {status.value !== "closed" ? (
-                        <form action={updateDashboardTaskStatusAction.bind(null, task.id)}>
-                          <input type="hidden" name="status" value="closed" />
-                          <FormSubmitButton variant="ghost" className="h-8 px-2 text-xs" pendingLabel="...">
-                            Lezárás
-                          </FormSubmitButton>
-                        </form>
-                      ) : (
-                        <span className="inline-flex h-8 items-center gap-1.5 text-xs font-medium text-sage">
-                          <CheckCircle2 size={13} />
-                          Lezárva
-                        </span>
-                      )}
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
                 {columnTasks.length === 0 ? (
                   <div className="rounded-md border border-dashed border-ink/10 bg-white/70 px-3 py-6 text-center text-xs text-graphite/55">
                     Nincs feladat ebben az oszlopban.
