@@ -424,8 +424,10 @@ export function DashboardTaskBoard({
                           <form action={deleteDashboardTaskAction.bind(null, task.id)}>
                             <ConfirmSubmitButton
                               message="Biztosan törlöd ezt a feladatot?"
-                              variant="ghost"
-                              className="h-8 w-8 px-0 text-red-700 opacity-70 hover:bg-red-50 hover:opacity-100"
+                              variant="danger"
+                              className="h-8 w-8 px-0"
+                              aria-label="Feladat törlése"
+                              title="Feladat törlése"
                             >
                               <Trash2 size={14} />
                             </ConfirmSubmitButton>
@@ -481,6 +483,16 @@ export function DashboardTaskBoard({
                                 </span>
                               )}
                             </div>
+                            <form action={deleteDashboardTaskAction.bind(null, task.id)}>
+                              <ConfirmSubmitButton
+                                message="Biztosan törlöd ezt a feladatot?"
+                                variant="danger"
+                                className="h-8 px-2 text-xs"
+                              >
+                                <Trash2 size={13} />
+                                Törlés
+                              </ConfirmSubmitButton>
+                            </form>
                           </div>
                         </div>
                       ) : null}
