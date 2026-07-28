@@ -2129,6 +2129,8 @@ export default async function AdminDashboardPage() {
         tasks={upcomingTasks}
       />
 
+      <DashboardTaskBoard tasks={taskBoardTasks} customers={taskBoardCustomers} />
+
       <section className="mt-8 rounded-md border border-ink/12 bg-white">
         <div className="flex items-center justify-between gap-4 border-b border-ink/10 px-5 py-4">
           <h2 className={sectionTitleClass}>{copy.latestGalleriesTitle}</h2>
@@ -2208,8 +2210,6 @@ export default async function AdminDashboardPage() {
           status: normalizeLeadStatus(lead.status)
         }))}
       />
-
-      <DashboardTaskBoard tasks={taskBoardTasks} customers={taskBoardCustomers} />
 
       <DashboardWorkCalendar copy={copy} events={calendarEvents} language={language} today={today} />
 
