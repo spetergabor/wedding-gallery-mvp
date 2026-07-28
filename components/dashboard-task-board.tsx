@@ -416,28 +416,11 @@ export function DashboardTaskBoard({
                             </div>
                           </div>
                         </div>
-                        <div
-                          className="flex shrink-0 items-center gap-1"
-                          onClick={(event) => event.stopPropagation()}
-                          onKeyDown={(event) => event.stopPropagation()}
-                        >
-                          <form action={deleteDashboardTaskAction.bind(null, task.id)}>
-                            <ConfirmSubmitButton
-                              message="Biztosan törlöd ezt a feladatot?"
-                              variant="danger"
-                              className="h-8 w-8 px-0"
-                              aria-label="Feladat törlése"
-                              title="Feladat törlése"
-                            >
-                              <Trash2 size={14} />
-                            </ConfirmSubmitButton>
-                          </form>
-                          <ChevronDown
-                            size={16}
-                            className={`text-graphite/45 transition ${isExpanded ? "rotate-180" : ""}`}
-                            aria-hidden="true"
-                          />
-                        </div>
+                        <ChevronDown
+                          size={16}
+                          className={`mt-1 shrink-0 text-graphite/45 transition ${isExpanded ? "rotate-180" : ""}`}
+                          aria-hidden="true"
+                        />
                       </div>
 
                       <div className="mt-3 space-y-1.5 text-xs text-graphite/70">
