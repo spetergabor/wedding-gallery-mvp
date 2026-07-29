@@ -108,7 +108,8 @@ const ALBUM_TEXT_FONT_OPTIONS = [
 ];
 const SLOT_VERTICAL_BARRIERS = [25, 50, 75];
 const SLOT_HORIZONTAL_BARRIERS = [50];
-const SLOT_BARRIER_RELEASE_PERCENT = 4;
+const SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT = 4;
+const SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT = 1.6;
 const SLOT_BARRIER_EPSILON = 0.001;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
 
@@ -124,25 +125,27 @@ function formatCropPosition(value: number) {
   return clampCropPosition(value).toFixed(2);
 }
 
-function stopEdgeAtBarrier(startEdge: number, rawEdge: number, barriers: number[]) {
+function stopEdgeAtBarrier(startEdge: number, rawEdge: number, barriers: number[], getReleasePercent: (barrier: number) => number) {
   const orderedBarriers = rawEdge >= startEdge ? [...barriers].sort((left, right) => left - right) : [...barriers].sort((left, right) => right - left);
 
   for (const barrier of orderedBarriers) {
+    const releasePercent = getReleasePercent(barrier);
+
     if (Math.abs(startEdge - barrier) <= SLOT_BARRIER_EPSILON) {
-      if (rawEdge > barrier && rawEdge - barrier <= SLOT_BARRIER_RELEASE_PERCENT) {
+      if (rawEdge > barrier && rawEdge - barrier <= releasePercent) {
         return barrier;
       }
 
-      if (rawEdge < barrier && barrier - rawEdge <= SLOT_BARRIER_RELEASE_PERCENT) {
+      if (rawEdge < barrier && barrier - rawEdge <= releasePercent) {
         return barrier;
       }
     }
 
-    if (startEdge < barrier && rawEdge >= barrier) {
+    if (startEdge < barrier && rawEdge >= barrier && rawEdge - barrier <= releasePercent) {
       return barrier;
     }
 
-    if (startEdge > barrier && rawEdge <= barrier) {
+    if (startEdge > barrier && rawEdge <= barrier && barrier - rawEdge <= releasePercent) {
       return barrier;
     }
   }
@@ -150,14 +153,14 @@ function stopEdgeAtBarrier(startEdge: number, rawEdge: number, barriers: number[
   return rawEdge;
 }
 
-function stopFramePositionAtBarriers(rawPosition: number, startPosition: number, size: number, barriers: number[]) {
+function stopFramePositionAtBarriers(rawPosition: number, startPosition: number, size: number, barriers: number[], getReleasePercent: (barrier: number) => number) {
   if (rawPosition === startPosition) {
     return rawPosition;
   }
 
   const direction = rawPosition > startPosition ? 1 : -1;
   const framePoints = [0, size / 2, size];
-  const stoppedPositions = framePoints.map((offset) => stopEdgeAtBarrier(startPosition + offset, rawPosition + offset, barriers) - offset);
+  const stoppedPositions = framePoints.map((offset) => stopEdgeAtBarrier(startPosition + offset, rawPosition + offset, barriers, getReleasePercent) - offset);
   const stoppedOnPath = stoppedPositions.filter((position) => (direction > 0 ? position >= startPosition && position <= rawPosition : position <= startPosition && position >= rawPosition));
 
   if (stoppedOnPath.length === 0) {
@@ -167,7 +170,7 @@ function stopFramePositionAtBarriers(rawPosition: number, startPosition: number,
   return direction > 0 ? Math.min(...stoppedOnPath) : Math.max(...stoppedOnPath);
 }
 
-function stopFrameSizeAtBarriers(rawSize: number, startPosition: number, startSize: number, barriers: number[]) {
+function stopFrameSizeAtBarriers(rawSize: number, startPosition: number, startSize: number, barriers: number[], getReleasePercent: (barrier: number) => number) {
   if (rawSize === startSize) {
     return rawSize;
   }
@@ -185,7 +188,7 @@ function stopFrameSizeAtBarriers(rawSize: number, startPosition: number, startSi
       toSize: (stoppedPoint: number) => stoppedPoint - startPosition
     }
   ];
-  const stoppedSizes = sizePoints.map((point) => point.toSize(stopEdgeAtBarrier(point.start, point.raw, barriers)));
+  const stoppedSizes = sizePoints.map((point) => point.toSize(stopEdgeAtBarrier(point.start, point.raw, barriers, getReleasePercent)));
   const stoppedOnPath = stoppedSizes.filter((size) => (direction > 0 ? size >= startSize && size <= rawSize : size <= startSize && size >= rawSize));
 
   if (stoppedOnPath.length === 0) {
@@ -198,8 +201,10 @@ function stopFrameSizeAtBarriers(rawSize: number, startPosition: number, startSi
 function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, width: number, height: number): SlotFrame {
   const rawX = Math.min(100 - width, Math.max(0, dragState.startX + deltaX));
   const rawY = Math.min(100 - height, Math.max(0, dragState.startY + deltaY));
-  const blockedX = stopFramePositionAtBarriers(rawX, dragState.startX, width, SLOT_VERTICAL_BARRIERS);
-  const blockedY = stopFramePositionAtBarriers(rawY, dragState.startY, height, SLOT_HORIZONTAL_BARRIERS);
+  const blockedX = stopFramePositionAtBarriers(rawX, dragState.startX, width, SLOT_VERTICAL_BARRIERS, (barrier) =>
+    barrier === 50 ? SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT : SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT
+  );
+  const blockedY = stopFramePositionAtBarriers(rawY, dragState.startY, height, SLOT_HORIZONTAL_BARRIERS, () => SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT);
 
   return {
     x: Math.min(100 - width, Math.max(0, blockedX)),
@@ -212,8 +217,10 @@ function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY
 function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number): SlotFrame {
   const rawWidth = Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startWidth + deltaX));
   const rawHeight = Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startHeight + deltaY));
-  const blockedWidth = stopFrameSizeAtBarriers(rawWidth, dragState.startX, dragState.startWidth, SLOT_VERTICAL_BARRIERS);
-  const blockedHeight = stopFrameSizeAtBarriers(rawHeight, dragState.startY, dragState.startHeight, SLOT_HORIZONTAL_BARRIERS);
+  const blockedWidth = stopFrameSizeAtBarriers(rawWidth, dragState.startX, dragState.startWidth, SLOT_VERTICAL_BARRIERS, (barrier) =>
+    barrier === 50 ? SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT : SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT
+  );
+  const blockedHeight = stopFrameSizeAtBarriers(rawHeight, dragState.startY, dragState.startHeight, SLOT_HORIZONTAL_BARRIERS, () => SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT);
 
   return {
     x: dragState.startX,
