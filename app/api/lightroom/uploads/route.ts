@@ -43,6 +43,18 @@ function asString(value: unknown, maxLength = 500) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
+function asClientId(value: unknown, fallback: string) {
+  if (typeof value === "string") {
+    return value.trim().slice(0, 120) || fallback;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value).slice(0, 120) || fallback;
+  }
+
+  return fallback;
+}
+
 function asOptionalNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number.parseInt(value, 10) : Number.NaN;
   return Number.isFinite(parsed) ? Math.max(0, parsed) : undefined;
@@ -64,7 +76,7 @@ function normalizeDuplicateMode(value: unknown) {
 }
 
 function normalizeUploadFile(input: LightroomUploadFile, fallbackIndex: number) {
-  const clientId = asString(input.clientId, 120) || `lightroom-${fallbackIndex + 1}`;
+  const clientId = asClientId(input.clientId, `lightroom-${fallbackIndex + 1}`);
   const filename = asString(input.filename, 260);
   const contentType = asString(input.contentType, 120);
   const mediaType = input.mediaType === "video" || contentType.startsWith("video/") ? "video" : "image";

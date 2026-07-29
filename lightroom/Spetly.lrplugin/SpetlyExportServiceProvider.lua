@@ -11,7 +11,7 @@ local prefs = LrPrefs.prefsForPlugin()
 local exportServiceProvider = {}
 
 local DEFAULT_BASE_URL = "https://spetly.app"
-local PLUGIN_VERSION = "0.1.4"
+local PLUGIN_VERSION = "0.1.5"
 
 local function trimTrailingSlash(value)
   return tostring(value or ""):gsub("/+$", "")
@@ -76,8 +76,10 @@ local function mediaTypeForPath(path)
 end
 
 local function buildFilePayload(rendition, path, index)
+  local clientId = rendition.photo.localIdentifier or ("lightroom-" .. tostring(index))
+
   return {
-    clientId = rendition.photo.localIdentifier or ("lightroom-" .. tostring(index)),
+    clientId = tostring(clientId),
     filename = LrPathUtils.leafName(path),
     contentType = contentTypeForPath(path),
     mediaType = mediaTypeForPath(path),
