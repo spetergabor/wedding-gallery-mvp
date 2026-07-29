@@ -74,18 +74,6 @@ local function mediaTypeForPath(path)
   return "image"
 end
 
-local function formattedMetadata(photo, key)
-  local ok, value = pcall(function()
-    return photo:getFormattedMetadata(key)
-  end)
-
-  if ok then
-    return value
-  end
-
-  return nil
-end
-
 local function buildFilePayload(rendition, path, index)
   return {
     clientId = rendition.photo.localIdentifier or ("lightroom-" .. tostring(index)),
@@ -93,7 +81,7 @@ local function buildFilePayload(rendition, path, index)
     contentType = contentTypeForPath(path),
     mediaType = mediaTypeForPath(path),
     fileSize = fileSize(path),
-    capturedAt = formattedMetadata(rendition.photo, "dateTimeOriginal"),
+    capturedAt = nil,
     originalIndex = index - 1,
   }
 end
@@ -292,6 +280,15 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
         renderedFile.rendition:uploadFailed(uploadError)
       end
     end
+  end
+
+  if #completedUploads == 0 then
+    LrDialogs.message(
+      "Spetly upload stopped",
+      "No file reached Spetly. The upload session was created, but every rendered file failed before completion. Check the Lightroom export settings and network connection, then try one photo again.",
+      "critical"
+    )
+    return
   end
 
   progressScope:setPortionComplete(1, 1)
