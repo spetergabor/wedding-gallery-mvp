@@ -192,11 +192,11 @@ export async function POST(request: NextRequest) {
     })
     .filter(Boolean);
 
-  if (!sessionId || uploadItemIds.length === 0) {
+  if (!sessionId) {
     return json(400, {
       ok: false,
-      code: "missing_uploads",
-      message: "No completed Lightroom upload items were provided."
+      code: "missing_session",
+      message: "No Lightroom upload session was provided."
     });
   }
 
@@ -223,6 +223,21 @@ export async function POST(request: NextRequest) {
       ok: false,
       code: "session_not_found",
       message: "Lightroom upload session was not found."
+    });
+  }
+
+  if (uploadItemIds.length === 0) {
+    const refreshedSession = await refreshUploadSessionCounts(session.id);
+
+    return json(200, {
+      ok: true,
+      code: "no_completed_uploads",
+      message: "No completed Lightroom upload items were provided.",
+      target: lightroomTargetPayload(gallery),
+      completedItemIds: [],
+      createdCount: 0,
+      replacedCount: 0,
+      session: refreshedSession
     });
   }
 

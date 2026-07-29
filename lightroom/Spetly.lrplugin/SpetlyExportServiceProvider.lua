@@ -11,6 +11,7 @@ local prefs = LrPrefs.prefsForPlugin()
 local exportServiceProvider = {}
 
 local DEFAULT_BASE_URL = "https://spetly.app"
+local PLUGIN_VERSION = "0.1.4"
 
 local function trimTrailingSlash(value)
   return tostring(value or ""):gsub("/+$", "")
@@ -90,7 +91,7 @@ local function testConnection(propertyTable)
   local token = normalizeToken(propertyTable.spetlyToken)
 
   if token == "" then
-    LrDialogs.message("Spetly", "Add the gallery Lightroom token first.", "warning")
+    LrDialogs.message("Spetly " .. PLUGIN_VERSION, "Add the gallery Lightroom token first.", "warning")
     return
   end
 
@@ -101,13 +102,13 @@ local function testConnection(propertyTable)
   )
 
   if errorMessage then
-    LrDialogs.message("Spetly connection failed", errorMessage, "critical")
+    LrDialogs.message("Spetly connection failed " .. PLUGIN_VERSION, errorMessage, "critical")
     return
   end
 
   local target = data.target or {}
   LrDialogs.message(
-    "Spetly connection OK",
+    "Spetly connection OK " .. PLUGIN_VERSION,
     "Connected to gallery: " .. tostring(target.title or target.slug or target.galleryId),
     "info"
   )
@@ -211,7 +212,7 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
   local index = 1
 
   if token == "" then
-    LrDialogs.message("Spetly", "Missing gallery Lightroom token.", "critical")
+    LrDialogs.message("Spetly " .. PLUGIN_VERSION, "Missing gallery Lightroom token.", "critical")
     return
   end
 
@@ -250,11 +251,12 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
   )
 
   if sessionError then
-    LrDialogs.message("Spetly upload failed", sessionError, "critical")
+    LrDialogs.message("Spetly upload failed " .. PLUGIN_VERSION, sessionError, "critical")
     return
   end
 
   local completedUploads = {}
+  local failedUploads = {}
   local uploads = sessionData.uploads or {}
 
   for uploadIndex, upload in ipairs(uploads) do
@@ -277,15 +279,24 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
           replacePhotoId = upload.replacePhotoId,
         }
       else
+        failedUploads[#failedUploads + 1] = tostring(upload.filename or uploadIndex) .. ": " .. tostring(uploadError)
         renderedFile.rendition:uploadFailed(uploadError)
       end
+    else
+      failedUploads[#failedUploads + 1] = tostring(upload.filename or uploadIndex) .. ": missing rendered file or upload URL"
     end
   end
 
   if #completedUploads == 0 then
+    local detail = ""
+
+    if #failedUploads > 0 then
+      detail = "\n\nFirst error: " .. failedUploads[1]
+    end
+
     LrDialogs.message(
-      "Spetly upload stopped",
-      "No file reached Spetly. The upload session was created, but every rendered file failed before completion. Check the Lightroom export settings and network connection, then try one photo again.",
+      "Spetly upload stopped " .. PLUGIN_VERSION,
+      "No file reached Spetly. The upload session was created, but every rendered file failed before completion. Check the Lightroom export settings and network connection, then try one photo again." .. detail,
       "critical"
     )
     return
@@ -305,12 +316,12 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
   )
 
   if completeError then
-    LrDialogs.message("Spetly completion failed", completeError, "critical")
+    LrDialogs.message("Spetly completion failed " .. PLUGIN_VERSION, completeError, "critical")
     return
   end
 
   LrDialogs.message(
-    "Spetly upload complete",
+    "Spetly upload complete " .. PLUGIN_VERSION,
     "Created " .. tostring(completeData.createdCount or 0) .. " photos, replaced " .. tostring(completeData.replacedCount or 0) .. ".",
     "info"
   )
