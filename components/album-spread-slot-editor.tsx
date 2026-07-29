@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { MousePointer2, RotateCcw, Save, Type } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, MousePointer2, RotateCcw, Save, Trash2, Type } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
@@ -75,6 +75,13 @@ const ALBUM_TEXT_FONT_STACKS: Record<string, string> = {
   montserrat: '"Montserrat", Arial, sans-serif'
 };
 
+const ALBUM_TEXT_FONT_OPTIONS = [
+  { value: "playfair", label: "Playfair" },
+  { value: "cormorant", label: "Cormorant" },
+  { value: "lora", label: "Lora" },
+  { value: "montserrat", label: "Montserrat" }
+];
+
 function clampCropPosition(value: number) {
   if (!Number.isFinite(value)) {
     return 50;
@@ -101,6 +108,7 @@ export function AlbumSpreadSlotEditor({
   selectedTextItemId = null,
   onSelectedTextItemIdChange,
   onTextItemsChange,
+  onDeleteTextItem,
   hasChanges,
 }: {
   customerId: string | null;
@@ -116,6 +124,7 @@ export function AlbumSpreadSlotEditor({
   selectedTextItemId?: string | null;
   onSelectedTextItemIdChange?: (textItemId: string | null) => void;
   onTextItemsChange?: (updater: (items: SpreadTextItem[]) => SpreadTextItem[]) => void;
+  onDeleteTextItem?: (textItemId: string) => void;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
@@ -193,6 +202,19 @@ export function AlbumSpreadSlotEditor({
   function selectTextItem(textItemId: string) {
     onFocusSpread?.();
     onSelectedTextItemIdChange?.(textItemId);
+  }
+
+  function updateTextItem(textItemId: string, patch: Partial<SpreadTextItem>) {
+    onTextItemsChange?.((items) =>
+      items.map((item) =>
+        item.id === textItemId
+          ? {
+              ...item,
+              ...patch
+            }
+          : item
+      )
+    );
   }
 
   function beginTextDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadTextItem) {
@@ -439,17 +461,11 @@ export function AlbumSpreadSlotEditor({
             const isSelected = selectedTextItemId === item.id;
 
             return (
-              <button
+              <div
                 key={item.id}
-                type="button"
-                onClick={() => selectTextItem(item.id)}
-                onPointerDown={(event) => beginTextDrag(event, item)}
-                onPointerMove={updateTextDrag}
-                onPointerUp={endTextDrag}
-                onPointerCancel={endTextDrag}
-                className={`absolute z-30 flex touch-none items-center justify-center whitespace-pre-wrap break-words border bg-white/0 px-2 py-1 transition ${
+                className={`group absolute z-30 touch-none border bg-white/0 transition ${
                   isSelected ? "border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.16)]" : "border-transparent hover:border-brass/80"
-                } cursor-grab text-center active:cursor-grabbing`}
+                }`}
                 style={{
                   left: `${item.x}%`,
                   top: `${item.y}%`,
@@ -462,15 +478,108 @@ export function AlbumSpreadSlotEditor({
                   textAlign: item.textAlign as "left" | "center" | "right",
                   touchAction: "none"
                 }}
-                aria-label="Szövegdoboz kijelölése"
+                onMouseDown={() => selectTextItem(item.id)}
               >
-                <span className="pointer-events-none line-clamp-4 w-full">{item.text}</span>
                 {isSelected ? (
-                  <span className="absolute -left-2 -top-2 inline-flex size-6 items-center justify-center rounded-full bg-ink text-white shadow">
-                    <Type size={12} />
-                  </span>
+                  <div
+                    className="absolute z-40 flex min-h-10 -translate-x-1/2 items-center gap-1 rounded-md border border-ink/10 bg-white px-2 py-1 shadow-[0_12px_32px_rgba(0,0,0,0.18)]"
+                    style={{
+                      left: "50%",
+                      top: "-48px"
+                    }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <select
+                      value={item.fontFamily}
+                      onChange={(event) => updateTextItem(item.id, { fontFamily: event.target.value })}
+                      className="h-8 rounded border border-ink/10 bg-white px-2 text-xs font-medium text-ink outline-none"
+                      aria-label="Betűtípus"
+                    >
+                      {ALBUM_TEXT_FONT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="1.5"
+                      max="18"
+                      step="0.5"
+                      value={item.fontSize}
+                      onChange={(event) => updateTextItem(item.id, { fontSize: Number.parseFloat(event.target.value) || item.fontSize })}
+                      className="h-8 w-16 rounded border border-ink/10 bg-white px-2 text-xs font-medium text-ink outline-none"
+                      aria-label="Betűméret"
+                    />
+                    <input
+                      type="color"
+                      value={item.color}
+                      onChange={(event) => updateTextItem(item.id, { color: event.target.value })}
+                      className="size-8 rounded border border-ink/10 bg-white p-1"
+                      aria-label="Szöveg színe"
+                    />
+                    {[
+                      { value: "left", icon: AlignLeft, label: "Balra" },
+                      { value: "center", icon: AlignCenter, label: "Középre" },
+                      { value: "right", icon: AlignRight, label: "Jobbra" }
+                    ].map((option) => {
+                      const Icon = option.icon;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateTextItem(item.id, { textAlign: option.value })}
+                          title={option.label}
+                          className={`inline-flex size-8 items-center justify-center rounded transition ${
+                            item.textAlign === option.value ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                          }`}
+                        >
+                          <Icon size={15} />
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => onDeleteTextItem?.(item.id)}
+                      className="inline-flex size-8 items-center justify-center rounded text-red-600 transition hover:bg-red-50"
+                      title="Szöveg törlése"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 ) : null}
-              </button>
+                <button
+                  type="button"
+                  onPointerDown={(event) => beginTextDrag(event, item)}
+                  onPointerMove={updateTextDrag}
+                  onPointerUp={endTextDrag}
+                  onPointerCancel={endTextDrag}
+                  className={`absolute -left-2 -top-2 z-30 inline-flex size-6 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing ${
+                    isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  }`}
+                  title="Szöveg mozgatása"
+                  aria-label="Szöveg mozgatása"
+                >
+                  <Type size={12} />
+                </button>
+                <textarea
+                  value={item.text}
+                  onFocus={() => selectTextItem(item.id)}
+                  onChange={(event) => updateTextItem(item.id, { text: event.target.value })}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  className="size-full resize-none border-0 bg-transparent p-2 text-inherit outline-none"
+                  style={{
+                    color: item.color,
+                    fontFamily: ALBUM_TEXT_FONT_STACKS[item.fontFamily] ?? ALBUM_TEXT_FONT_STACKS.playfair,
+                    fontSize: `${Math.max(0.65, item.fontSize * 0.22)}rem`,
+                    lineHeight: 1.05,
+                    textAlign: item.textAlign as "left" | "center" | "right"
+                  }}
+                  aria-label="Album szöveg"
+                />
+              </div>
             );
           })}
         </div>

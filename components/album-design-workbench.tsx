@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AlignCenter, AlignLeft, AlignRight, Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -160,13 +160,6 @@ function SpreadDraftInputs({ spreadId, items, textItems }: { spreadId: string; i
   );
 }
 
-const ALBUM_TEXT_FONT_OPTIONS = [
-  { value: "playfair", label: "Playfair" },
-  { value: "cormorant", label: "Cormorant" },
-  { value: "lora", label: "Lora" },
-  { value: "montserrat", label: "Montserrat" }
-];
-
 function TemplatePreview({ layoutKey }: { layoutKey: string }) {
   const template = getTemplate(layoutKey);
   const inset = getAlbumLayoutPreviewSlotInsetPx(template.key);
@@ -268,7 +261,7 @@ export function AlbumDesignWorkbench({
     Object.fromEntries(spreads.map((spread) => [spread.id, getOrderedItems(spread)[0]?.slotIndex ?? 0]))
   );
   const [selectedTextItemIdBySpread, setSelectedTextItemIdBySpread] = useState<Record<string, string | null>>(() =>
-    Object.fromEntries(spreads.map((spread) => [spread.id, spread.textItems[0]?.id ?? null]))
+    Object.fromEntries(spreads.map((spread) => [spread.id, null]))
   );
   const [photoQuery, setPhotoQuery] = useState("");
   const [showUnusedOnly, setShowUnusedOnly] = useState(false);
@@ -342,7 +335,9 @@ export function AlbumDesignWorkbench({
       const next = { ...current };
 
       for (const spread of spreads) {
-        next[spread.id] = next[spread.id] ?? spread.textItems[0]?.id ?? null;
+        if (next[spread.id] === undefined) {
+          next[spread.id] = null;
+        }
       }
 
       return next;
@@ -873,8 +868,7 @@ export function AlbumDesignWorkbench({
                     const hasChanges = changedSpreadIds.includes(spread.id);
                     const isActive = spread.id === activeSpread?.id;
                     const selectedSlotIndex = selectedSlotBySpread[spread.id] ?? draftItems[0]?.slotIndex ?? 0;
-                    const selectedTextItemId = selectedTextItemIdBySpread[spread.id] ?? draftTextItems[0]?.id ?? null;
-                    const selectedTextItem = draftTextItems.find((item) => item.id === selectedTextItemId) ?? null;
+                    const selectedTextItemId = selectedTextItemIdBySpread[spread.id] ?? null;
 
                     return (
                       <section
@@ -974,127 +968,9 @@ export function AlbumDesignWorkbench({
                           selectedTextItemId={selectedTextItemId}
                           onSelectedTextItemIdChange={(textItemId) => setSelectedTextItemForSpread(spread.id, textItemId)}
                           onTextItemsChange={(updater) => updateSpreadTextItems(spread.id, updater)}
+                          onDeleteTextItem={(textItemId) => deleteTextItem(spread.id, textItemId)}
                           hasChanges={hasChanges}
                         />
-
-                        {selectedTextItem ? (
-                          <div className="mt-3 rounded-md border border-ink/10 bg-paper p-3">
-                            <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_180px_140px_120px_150px_auto] xl:items-end">
-                              <label className="grid gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Szöveg</span>
-                                <textarea
-                                  value={selectedTextItem.text}
-                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, text: event.target.value } : item))}
-                                  rows={2}
-                                  className="min-h-11 rounded-md border border-ink/15 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/45"
-                                />
-                              </label>
-                              <label className="grid gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Betűtípus</span>
-                                <select
-                                  value={selectedTextItem.fontFamily}
-                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, fontFamily: event.target.value } : item))}
-                                  className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/45"
-                                >
-                                  {ALBUM_TEXT_FONT_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <label className="grid gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Méret</span>
-                                <input
-                                  type="number"
-                                  min="1.5"
-                                  max="18"
-                                  step="0.5"
-                                  value={selectedTextItem.fontSize}
-                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, fontSize: Number.parseFloat(event.target.value) || 7 } : item))}
-                                  className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/45"
-                                />
-                              </label>
-                              <label className="grid gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Szín</span>
-                                <input
-                                  type="color"
-                                  value={selectedTextItem.color}
-                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, color: event.target.value } : item))}
-                                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-2 py-1 outline-none transition focus:border-ink/45"
-                                />
-                              </label>
-                              <div className="grid gap-1.5">
-                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Igazítás</span>
-                                <div className="inline-flex h-11 rounded-md border border-ink/15 bg-white p-1">
-                                  {[
-                                    { value: "left", icon: AlignLeft, label: "Balra" },
-                                    { value: "center", icon: AlignCenter, label: "Középre" },
-                                    { value: "right", icon: AlignRight, label: "Jobbra" }
-                                  ].map((option) => {
-                                    const Icon = option.icon;
-
-                                    return (
-                                      <button
-                                        key={option.value}
-                                        type="button"
-                                        onClick={() => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, textAlign: option.value } : item))}
-                                        title={option.label}
-                                        className={`inline-flex size-9 items-center justify-center rounded transition ${
-                                          selectedTextItem.textAlign === option.value ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
-                                        }`}
-                                      >
-                                        <Icon size={16} />
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => deleteTextItem(spread.id, selectedTextItem.id)}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-sm font-medium text-red-700 transition hover:bg-red-100"
-                              >
-                                <Trash2 size={15} />
-                                Törlés
-                              </button>
-                            </div>
-                            <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                              {[
-                                { label: "X", key: "x", min: 0, max: 100 },
-                                { label: "Y", key: "y", min: 0, max: 100 },
-                                { label: "Szélesség", key: "width", min: 1, max: 100 },
-                                { label: "Magasság", key: "height", min: 1, max: 100 }
-                              ].map((field) => (
-                                <label key={field.key} className="grid gap-1.5">
-                                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">{field.label}</span>
-                                  <input
-                                    type="number"
-                                    min={field.min}
-                                    max={field.max}
-                                    step="0.5"
-                                    value={selectedTextItem[field.key as "x" | "y" | "width" | "height"]}
-                                    onChange={(event) => {
-                                      const nextValue = Number.parseFloat(event.target.value);
-
-                                      updateSpreadTextItems(spread.id, (items) =>
-                                        items.map((item) =>
-                                          item.id === selectedTextItem.id
-                                            ? {
-                                                ...item,
-                                                [field.key]: Number.isFinite(nextValue) ? nextValue : item[field.key as "x" | "y" | "width" | "height"]
-                                              }
-                                            : item
-                                        )
-                                      );
-                                    }}
-                                    className="h-10 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/45"
-                                  />
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
                       </section>
                     );
                   })}
