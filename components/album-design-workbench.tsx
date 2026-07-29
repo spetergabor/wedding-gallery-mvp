@@ -36,6 +36,13 @@ type SpreadItem = {
   photo: FavoritePhoto;
 };
 
+type SlotFrame = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 type SpreadTextItem = {
   id: string;
   text: string;
@@ -271,6 +278,7 @@ export function AlbumDesignWorkbench({
       : orderedSpreads[0]?.id ?? "";
   const [isEditorOpen, setIsEditorOpen] = useState(initialEditorOpen);
   const [draftItemsBySpread, setDraftItemsBySpread] = useState<Record<string, SpreadItem[]>>(() => createDraftMap(spreads));
+  const [draftSlotFramesBySpread, setDraftSlotFramesBySpread] = useState<Record<string, Record<number, SlotFrame>>>({});
   const [draftTextItemsBySpread, setDraftTextItemsBySpread] = useState<Record<string, SpreadTextItem[]>>(() => createTextDraftMap(spreads));
   const [activeSpreadId, setActiveSpreadId] = useState(() => resolvedInitialActiveSpreadId);
   const [selectedSlotBySpread, setSelectedSlotBySpread] = useState<Record<string, number>>(() =>
@@ -343,6 +351,7 @@ export function AlbumDesignWorkbench({
 
   useEffect(() => {
     setDraftItemsBySpread(createDraftMap(spreads));
+    setDraftSlotFramesBySpread({});
   }, [spreads]);
 
   useEffect(() => {
@@ -506,7 +515,7 @@ export function AlbumDesignWorkbench({
     }
 
     const layout = getTemplate(targetSpread.layoutKey);
-    const slot = layout.slots[slotIndex];
+    const slot = draftSlotFramesBySpread[targetSpread.id]?.[slotIndex] ?? layout.slots[slotIndex];
 
     if (!slot) {
       return;
@@ -565,6 +574,13 @@ export function AlbumDesignWorkbench({
     }
 
     replaceSpreadSlotPhoto(spreadId, slotIndex, photo);
+  }
+
+  function updateSpreadSlotFrames(spreadId: string, updater: (frames: Record<number, SlotFrame>) => Record<number, SlotFrame>) {
+    setDraftSlotFramesBySpread((current) => ({
+      ...current,
+      [spreadId]: updater(current[spreadId] ?? {})
+    }));
   }
 
   function setSelectedTextItemForSpread(spreadId: string, textItemId: string | null) {
@@ -976,6 +992,8 @@ export function AlbumDesignWorkbench({
                               [spread.id]: updater(current[spread.id] ?? getOrderedItems(spread))
                             }))
                           }
+                          draftSlotFrames={draftSlotFramesBySpread[spread.id] ?? {}}
+                          onDraftSlotFramesChange={(updater) => updateSpreadSlotFrames(spread.id, updater)}
                           selectedSlotIndex={selectedSlotIndex}
                           onSelectedSlotIndexChange={(slotIndex) => setActiveSpreadAndSlot(spread.id, slotIndex)}
                           onFocusSpread={() => setActiveSpreadId(spread.id)}

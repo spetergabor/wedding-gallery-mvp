@@ -26,6 +26,13 @@ type SpreadItem = {
   photo: FavoritePhoto;
 };
 
+type SlotFrame = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 type SpreadTextItem = {
   id: string;
   text: string;
@@ -113,6 +120,8 @@ export function AlbumSpreadSlotEditor({
   spread,
   draftItems,
   onDraftItemsChange,
+  draftSlotFrames = {},
+  onDraftSlotFramesChange,
   selectedSlotIndex,
   onSelectedSlotIndexChange,
   onFocusSpread,
@@ -129,6 +138,8 @@ export function AlbumSpreadSlotEditor({
   spread: EditableSpread;
   draftItems: SpreadItem[];
   onDraftItemsChange: (updater: (items: SpreadItem[]) => SpreadItem[]) => void;
+  draftSlotFrames?: Record<number, SlotFrame>;
+  onDraftSlotFramesChange?: (updater: (frames: Record<number, SlotFrame>) => Record<number, SlotFrame>) => void;
   selectedSlotIndex: number;
   onSelectedSlotIndexChange: (slotIndex: number) => void;
   onFocusSpread?: () => void;
@@ -173,6 +184,12 @@ export function AlbumSpreadSlotEditor({
   function selectSlot(slotIndex: number) {
     onFocusSpread?.();
     onSelectedSlotIndexChange(slotIndex);
+  }
+
+  function getSlotFrame(slotIndex: number, item?: SpreadItem | null): SlotFrame {
+    const templateSlot = template.slots[slotIndex] ?? { x: 0, y: 0, width: 100, height: 100 };
+
+    return draftSlotFrames[slotIndex] ?? item ?? templateSlot;
   }
 
   function beginCropDrag(event: PointerEvent<HTMLElement>, item: SpreadItem) {
@@ -301,6 +318,35 @@ export function AlbumSpreadSlotEditor({
         };
       })
     );
+
+    onDraftSlotFramesChange?.((frames) => {
+      const currentFrame = frames[dragState.slotIndex] ?? {
+        x: dragState.startX,
+        y: dragState.startY,
+        width: dragState.startWidth,
+        height: dragState.startHeight
+      };
+
+      if (dragState.mode === "move") {
+        return {
+          ...frames,
+          [dragState.slotIndex]: {
+            ...currentFrame,
+            x: Math.min(100 - currentFrame.width, Math.max(0, dragState.startX + deltaX)),
+            y: Math.min(100 - currentFrame.height, Math.max(0, dragState.startY + deltaY))
+          }
+        };
+      }
+
+      return {
+        ...frames,
+        [dragState.slotIndex]: {
+          ...currentFrame,
+          width: Math.min(100 - dragState.startX, Math.max(3, dragState.startWidth + deltaX)),
+          height: Math.min(100 - dragState.startY, Math.max(3, dragState.startHeight + deltaY))
+        }
+      };
+    });
   }
 
   function endSlotFrameDrag() {
@@ -318,7 +364,7 @@ export function AlbumSpreadSlotEditor({
     }
   }
 
-  function beginSlotFrameDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadItem, mode: SlotFrameDragState["mode"]) {
+  function beginSlotFrameDrag(event: PointerEvent<HTMLButtonElement>, slotIndex: number, frame: SlotFrame, mode: SlotFrameDragState["mode"]) {
     if (event.button !== 0) {
       return;
     }
@@ -331,17 +377,17 @@ export function AlbumSpreadSlotEditor({
 
     event.preventDefault();
     event.stopPropagation();
-    selectSlot(item.slotIndex);
+    selectSlot(slotIndex);
     endSlotFrameDrag();
     slotFrameDragStateRef.current = {
-      slotIndex: item.slotIndex,
+      slotIndex,
       mode,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      startX: item.x,
-      startY: item.y,
-      startWidth: item.width,
-      startHeight: item.height,
+      startX: frame.x,
+      startY: frame.y,
+      startWidth: frame.width,
+      startHeight: frame.height,
       canvasWidth: bounds.width,
       canvasHeight: bounds.height
     };
@@ -524,12 +570,12 @@ export function AlbumSpreadSlotEditor({
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
             const isSelected = slotIndex === selectedSlotIndex;
             const isDragOver = slotIndex === dragOverSlotIndex;
+            const slotFrame = getSlotFrame(slotIndex, item);
 
             if (!item) {
               return (
-                <button
+                <div
                   key={`empty-slot-${spread.id}-${slotIndex}`}
-                  type="button"
                   onClick={() => selectSlot(slotIndex)}
                   onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
                   onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
@@ -542,11 +588,13 @@ export function AlbumSpreadSlotEditor({
                         : "border-ink/20 bg-white/65 hover:border-brass"
                   }`}
                   style={{
-                    left: `calc(${slot.x}% + ${slotInset}px)`,
-                    top: `calc(${slot.y}% + ${slotInset}px)`,
-                    width: `calc(${slot.width}% - ${slotInset * 2}px)`,
-                    height: `calc(${slot.height}% - ${slotInset * 2}px)`
+                    left: `calc(${slotFrame.x}% + ${slotInset}px)`,
+                    top: `calc(${slotFrame.y}% + ${slotInset}px)`,
+                    width: `calc(${slotFrame.width}% - ${slotInset * 2}px)`,
+                    height: `calc(${slotFrame.height}% - ${slotInset * 2}px)`
                   }}
+                  role="button"
+                  tabIndex={0}
                   aria-label={`${slotIndex + 1}. üres slot kiválasztása`}
                 >
                   <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
@@ -555,7 +603,29 @@ export function AlbumSpreadSlotEditor({
                   <span className="flex h-full items-center justify-center px-3 text-center text-xs font-medium text-graphite/45">
                     Húzz ide képet lentről
                   </span>
-                </button>
+                  {isSelected ? (
+                    <>
+                      <button
+                        type="button"
+                        onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "move")}
+                        className="absolute right-2 top-2 z-30 inline-flex size-7 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing"
+                        title="Képdoboz mozgatása"
+                        aria-label="Képdoboz mozgatása"
+                      >
+                        <Move size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "resize")}
+                        className="absolute bottom-2 right-2 z-30 inline-flex size-7 cursor-nwse-resize items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/15"
+                        title="Képdoboz méretezése"
+                        aria-label="Képdoboz méretezése"
+                      >
+                        <Maximize2 size={13} />
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               );
             }
 
@@ -605,7 +675,7 @@ export function AlbumSpreadSlotEditor({
                   <>
                     <button
                       type="button"
-                      onPointerDown={(event) => beginSlotFrameDrag(event, item, "move")}
+                      onPointerDown={(event) => beginSlotFrameDrag(event, item.slotIndex, slotFrame, "move")}
                       className="absolute right-2 top-2 z-30 inline-flex size-7 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing"
                       title="Képdoboz mozgatása"
                       aria-label="Képdoboz mozgatása"
@@ -614,7 +684,7 @@ export function AlbumSpreadSlotEditor({
                     </button>
                     <button
                       type="button"
-                      onPointerDown={(event) => beginSlotFrameDrag(event, item, "resize")}
+                      onPointerDown={(event) => beginSlotFrameDrag(event, item.slotIndex, slotFrame, "resize")}
                       className="absolute bottom-2 right-2 z-30 inline-flex size-7 cursor-nwse-resize items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/15"
                       title="Képdoboz méretezése"
                       aria-label="Képdoboz méretezése"
