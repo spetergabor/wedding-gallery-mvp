@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
@@ -167,6 +167,14 @@ async function requireGalleryAccess(galleryId: string) {
 
 function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
+}
+
+function createLightroomUploadToken() {
+  return `lr_${randomBytes(32).toString("base64url")}`;
+}
+
+function hashLightroomUploadToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 const STALE_MEDIA_PROCESSING_MS = 2 * 60 * 60 * 1000;
@@ -850,6 +858,42 @@ export async function generateClientAccessLinkAction(galleryId: string) {
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/client/${gallery.slug}`);
   redirect(`/admin/galleries/${galleryId}?tab=client&clientLink=1`);
+}
+
+export async function generateLightroomUploadTokenAction(galleryId: string) {
+  await requireGalleryAccess(galleryId);
+  const token = createLightroomUploadToken();
+
+  await prisma.gallery.update({
+    where: { id: galleryId },
+    data: {
+      lightroomUploadsEnabled: true,
+      lightroomUploadTokenHash: hashLightroomUploadToken(token),
+      lightroomUploadTokenCreatedAt: new Date(),
+      lightroomUploadTokenLastUsedAt: null
+    }
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  redirect(`/admin/galleries/${galleryId}?tab=settings&lightroom=token&lightroomToken=${encodeURIComponent(token)}`);
+}
+
+export async function disableLightroomUploadTargetAction(galleryId: string) {
+  const { gallery } = await requireGalleryAccess(galleryId);
+
+  await prisma.gallery.update({
+    where: { id: galleryId },
+    data: {
+      lightroomUploadsEnabled: false,
+      lightroomUploadTokenHash: null,
+      lightroomUploadTokenCreatedAt: null,
+      lightroomUploadTokenLastUsedAt: null
+    }
+  });
+
+  revalidatePath(`/admin/galleries/${galleryId}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  redirect(`/admin/galleries/${galleryId}?tab=settings&lightroom=disabled`);
 }
 
 export async function sendProofingInviteAction(galleryId: string) {

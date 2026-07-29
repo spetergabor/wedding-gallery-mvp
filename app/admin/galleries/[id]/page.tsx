@@ -241,6 +241,8 @@ export default async function GalleryDetailPage({
     photoError?: string;
     photoSearch?: string;
     photoSet?: string;
+    lightroom?: string;
+    lightroomToken?: string;
     proofingInvite?: string;
     proofingStatus?: string;
     bulkDelete?: string;
@@ -618,6 +620,8 @@ export default async function GalleryDetailPage({
         {flags.videoThumbnail === "not-video" ? <Alert title="Thumbnailt csak videóhoz tudsz beállítani." variant="error" /> : null}
         {flags.videoThumbnail === "storage" ? <Alert title="A videó thumbnail feltöltése nem sikerült." variant="error" /> : null}
         {flags.clientLink ? <Alert title="Ügyfél kezelő link létrehozva." variant="success" /> : null}
+        {flags.lightroom === "token" ? <Alert title="Lightroom feltöltési token létrehozva." variant="success">Másold el most, később csak újragenerálni lehet.</Alert> : null}
+        {flags.lightroom === "disabled" ? <Alert title="Lightroom feltöltési cél kikapcsolva." variant="success" /> : null}
         {flags.zip === "queued" ? <Alert title="ZIP csomag feldolgozásra beütemezve." variant="success" /> : null}
         {flags.zip === "manual-uploaded" ? <Alert title="Kész ZIP feltöltve." variant="success">A vendég letöltés most ezt a csomagot használja.</Alert> : null}
         {flags.zip === "already-running" ? <Alert title="A ZIP készítése már fut." variant="info" /> : null}
@@ -1602,6 +1606,7 @@ export default async function GalleryDetailPage({
               selectedProjectId={gallery.projectId}
               stripeReady={Boolean(stripeIntegration?.chargesEnabled)}
               guestUploadUrl={guestUploadUrl}
+              lightroomToken={flags.lightroomToken ?? null}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />

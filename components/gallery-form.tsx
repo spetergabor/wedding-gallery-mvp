@@ -1,5 +1,10 @@
-import { CalendarDays, ExternalLink, Images, LockKeyhole, UploadCloud, UserRound } from "lucide-react";
-import { createGalleryAction, updateGalleryAction } from "@/lib/gallery-actions";
+import { CalendarDays, ExternalLink, Images, KeyRound, LockKeyhole, UploadCloud, UserRound } from "lucide-react";
+import {
+  createGalleryAction,
+  disableLightroomUploadTargetAction,
+  generateLightroomUploadTokenAction,
+  updateGalleryAction
+} from "@/lib/gallery-actions";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { SlugFields } from "@/components/slug-fields";
@@ -54,6 +59,9 @@ type GalleryFormProps = {
     saleCurrency: string;
     downloadsEnabled: boolean;
     guestUploadsEnabled: boolean;
+    lightroomUploadsEnabled: boolean;
+    lightroomUploadTokenCreatedAt: Date | null;
+    lightroomUploadTokenLastUsedAt: Date | null;
     publicColumnCount: number;
     clientEmail: string | null;
   };
@@ -64,6 +72,7 @@ type GalleryFormProps = {
   initialGalleryMode?: string;
   stripeReady?: boolean;
   guestUploadUrl?: string | null;
+  lightroomToken?: string | null;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -76,6 +85,20 @@ function dateInputValue(date: Date | null | undefined) {
 
 const fieldClass =
   "h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
+
+function formatDateTime(date: Date | null | undefined) {
+  if (!date) {
+    return "Még nincs adat";
+  }
+
+  return new Intl.DateTimeFormat("hu-HU", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
 
 function SectionTitle({ title, description }: { title: string; description: string }) {
   return (
@@ -94,7 +117,8 @@ export function GalleryForm({
   selectedProjectId = null,
   initialGalleryMode = GALLERY_MODE_FULL,
   stripeReady = false,
-  guestUploadUrl = null
+  guestUploadUrl = null,
+  lightroomToken = null
 }: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
@@ -118,6 +142,7 @@ export function GalleryForm({
   const paidModeAvailable = stripeReady || defaultDeliveryMode === GALLERY_DELIVERY_PAID;
 
   return (
+    <>
     <form action={action} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
       <input type="hidden" name="publicColumnCount" value={defaultMobileColumnCount} />
       <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-5 md:flex-row md:items-start">
@@ -332,5 +357,69 @@ export function GalleryForm({
         </div>
       </div>
     </form>
+    {gallery ? (
+      <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
+        <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-5 lg:flex-row lg:items-start">
+          <div>
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-brass">
+              <KeyRound size={15} />
+              Lightroom Classic
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-ink">Feltöltési cél ehhez a galériához</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/70">
+              Első lépésként itt készítünk galériánként külön cél-tokeneket. A következő körben erre épül a Lightroom Classic plugin feltöltési API-ja.
+            </p>
+          </div>
+          <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ${gallery.lightroomUploadsEnabled ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
+            {gallery.lightroomUploadsEnabled ? "Aktív cél" : "Nincs bekapcsolva"}
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-md bg-paper p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">Token állapot</p>
+            <p className="mt-2 text-sm font-semibold text-ink">{gallery.lightroomUploadsEnabled ? "Használható" : "Nincs token"}</p>
+          </div>
+          <div className="rounded-md bg-paper p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">Létrehozva</p>
+            <p className="mt-2 text-sm font-semibold text-ink">{formatDateTime(gallery.lightroomUploadTokenCreatedAt)}</p>
+          </div>
+          <div className="rounded-md bg-paper p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">Utolsó használat</p>
+            <p className="mt-2 text-sm font-semibold text-ink">{formatDateTime(gallery.lightroomUploadTokenLastUsedAt)}</p>
+          </div>
+        </div>
+
+        {lightroomToken ? (
+          <div className="mt-5 rounded-md border border-sage/20 bg-sage/[0.08] p-4">
+            <p className="text-sm font-semibold text-ink">Új Lightroom token létrehozva</p>
+            <p className="mt-1 text-xs leading-5 text-graphite/70">
+              Ezt most másold el, később biztonsági okból nem lesz újra látható. Ha elveszik, generálj újat.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <CopyLinkButton url={lightroomToken} label="Token másolása" className="w-full sm:w-auto" />
+              <code className="min-w-0 flex-1 break-all rounded-md bg-white px-3 py-3 text-xs text-graphite">{lightroomToken}</code>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <form action={generateLightroomUploadTokenAction.bind(null, gallery.id)}>
+            <FormSubmitButton pendingLabel="Generálás..." className="w-full sm:w-auto">
+              <KeyRound size={16} />
+              {gallery.lightroomUploadsEnabled ? "Token újragenerálása" : "Lightroom cél bekapcsolása"}
+            </FormSubmitButton>
+          </form>
+          {gallery.lightroomUploadsEnabled ? (
+            <form action={disableLightroomUploadTargetAction.bind(null, gallery.id)}>
+              <FormSubmitButton variant="secondary" pendingLabel="Kikapcsolás..." className="w-full sm:w-auto">
+                Kikapcsolás
+              </FormSubmitButton>
+            </form>
+          ) : null}
+        </div>
+      </section>
+    ) : null}
+    </>
   );
 }

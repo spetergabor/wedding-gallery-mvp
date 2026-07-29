@@ -828,6 +828,10 @@ model Gallery {
   proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
   guestUploadsEnabled Boolean @default(false)
+  lightroomUploadsEnabled Boolean @default(false)
+  lightroomUploadTokenHash String? @unique
+  lightroomUploadTokenCreatedAt DateTime?
+  lightroomUploadTokenLastUsedAt DateTime?
   coverPhotoId String?
   coverPositionX Int      @default(50)
   coverPositionY Int      @default(50)
@@ -866,6 +870,7 @@ model Gallery {
   @@index([galleryDesign])
   @@index([deliveryMode])
   @@index([proofingStatus])
+  @@index([lightroomUploadsEnabled])
 }
 
 model GalleryGuestUpload {
