@@ -374,6 +374,10 @@ export function AlbumSpreadSlotEditor({
           className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white"
           style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}
         >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 left-1/2 top-0 z-20 w-px -translate-x-1/2 bg-ink/35"
+          />
           {template.slots.map((slot, slotIndex) => {
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
             const isSelected = slotIndex === selectedSlotIndex;
