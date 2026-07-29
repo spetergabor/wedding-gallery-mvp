@@ -145,6 +145,8 @@ export function AlbumSpreadSlotEditor({
   const cropDragStateRef = useRef<CropDragState | null>(null);
   const textDragStateRef = useRef<TextDragState | null>(null);
   const slotFrameDragStateRef = useRef<SlotFrameDragState | null>(null);
+  const slotFramePointerMoveHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
+  const slotFramePointerUpHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
@@ -154,6 +156,19 @@ export function AlbumSpreadSlotEditor({
       onSelectedSlotIndexChange(0);
     }
   }, [onSelectedSlotIndexChange, selectedSlotIndex, template.slots]);
+
+  useEffect(() => {
+    return () => {
+      if (slotFramePointerMoveHandlerRef.current) {
+        window.removeEventListener("pointermove", slotFramePointerMoveHandlerRef.current);
+      }
+
+      if (slotFramePointerUpHandlerRef.current) {
+        window.removeEventListener("pointerup", slotFramePointerUpHandlerRef.current);
+        window.removeEventListener("pointercancel", slotFramePointerUpHandlerRef.current);
+      }
+    };
+  }, []);
 
   function selectSlot(slotIndex: number) {
     onFocusSpread?.();
@@ -252,46 +267,15 @@ export function AlbumSpreadSlotEditor({
     );
   }
 
-  function beginSlotFrameDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadItem, mode: SlotFrameDragState["mode"]) {
-    if (event.button !== 0) {
-      return;
-    }
-
-    const bounds = event.currentTarget.closest("[data-album-spread-canvas]")?.getBoundingClientRect();
-
-    if (!bounds) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    selectSlot(item.slotIndex);
-    slotFrameDragStateRef.current = {
-      slotIndex: item.slotIndex,
-      mode,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: item.x,
-      startY: item.y,
-      startWidth: item.width,
-      startHeight: item.height,
-      canvasWidth: bounds.width,
-      canvasHeight: bounds.height
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function updateSlotFrameDrag(event: PointerEvent<HTMLButtonElement>) {
+  function applySlotFrameDrag(clientX: number, clientY: number) {
     const dragState = slotFrameDragStateRef.current;
 
     if (!dragState) {
       return;
     }
 
-    event.preventDefault();
-    event.stopPropagation();
-    const deltaX = ((event.clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
-    const deltaY = ((event.clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
+    const deltaX = ((clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
+    const deltaY = ((clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
 
     onDraftItemsChange((items) =>
       items.map((item) => {
@@ -319,12 +303,60 @@ export function AlbumSpreadSlotEditor({
     );
   }
 
-  function endSlotFrameDrag(event: PointerEvent<HTMLButtonElement>) {
+  function endSlotFrameDrag() {
     slotFrameDragStateRef.current = null;
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    if (slotFramePointerMoveHandlerRef.current) {
+      window.removeEventListener("pointermove", slotFramePointerMoveHandlerRef.current);
+      slotFramePointerMoveHandlerRef.current = null;
     }
+
+    if (slotFramePointerUpHandlerRef.current) {
+      window.removeEventListener("pointerup", slotFramePointerUpHandlerRef.current);
+      window.removeEventListener("pointercancel", slotFramePointerUpHandlerRef.current);
+      slotFramePointerUpHandlerRef.current = null;
+    }
+  }
+
+  function beginSlotFrameDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadItem, mode: SlotFrameDragState["mode"]) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const bounds = event.currentTarget.closest("[data-album-spread-canvas]")?.getBoundingClientRect();
+
+    if (!bounds) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    selectSlot(item.slotIndex);
+    endSlotFrameDrag();
+    slotFrameDragStateRef.current = {
+      slotIndex: item.slotIndex,
+      mode,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: item.x,
+      startY: item.y,
+      startWidth: item.width,
+      startHeight: item.height,
+      canvasWidth: bounds.width,
+      canvasHeight: bounds.height
+    };
+
+    const handleMove = (nativeEvent: globalThis.PointerEvent) => {
+      nativeEvent.preventDefault();
+      applySlotFrameDrag(nativeEvent.clientX, nativeEvent.clientY);
+    };
+    const handleEnd = () => endSlotFrameDrag();
+
+    slotFramePointerMoveHandlerRef.current = handleMove;
+    slotFramePointerUpHandlerRef.current = handleEnd;
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleEnd);
+    window.addEventListener("pointercancel", handleEnd);
   }
 
   function beginTextDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadTextItem) {
@@ -574,9 +606,6 @@ export function AlbumSpreadSlotEditor({
                     <button
                       type="button"
                       onPointerDown={(event) => beginSlotFrameDrag(event, item, "move")}
-                      onPointerMove={updateSlotFrameDrag}
-                      onPointerUp={endSlotFrameDrag}
-                      onPointerCancel={endSlotFrameDrag}
                       className="absolute right-2 top-2 z-30 inline-flex size-7 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing"
                       title="Képdoboz mozgatása"
                       aria-label="Képdoboz mozgatása"
@@ -586,9 +615,6 @@ export function AlbumSpreadSlotEditor({
                     <button
                       type="button"
                       onPointerDown={(event) => beginSlotFrameDrag(event, item, "resize")}
-                      onPointerMove={updateSlotFrameDrag}
-                      onPointerUp={endSlotFrameDrag}
-                      onPointerCancel={endSlotFrameDrag}
                       className="absolute bottom-2 right-2 z-30 inline-flex size-7 cursor-nwse-resize items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/15"
                       title="Képdoboz méretezése"
                       aria-label="Képdoboz méretezése"
