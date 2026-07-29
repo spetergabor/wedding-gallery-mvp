@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AlignCenter, AlignLeft, AlignRight, MousePointer2, RotateCcw, Save, Trash2, Type } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, MousePointer2, PanelLeft, PanelRight, RotateCcw, Save, Trash2, Type } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
@@ -214,6 +214,27 @@ export function AlbumSpreadSlotEditor({
             }
           : item
       )
+    );
+  }
+
+  function centerTextItemOnPage(textItemId: string, page: "left" | "right") {
+    onTextItemsChange?.((items) =>
+      items.map((item) => {
+        if (item.id !== textItemId) {
+          return item;
+        }
+
+        const pageX = page === "left" ? 0 : 50;
+        const pageWidth = 50;
+        const nextX = pageX + Math.max(0, (pageWidth - item.width) / 2);
+        const nextY = Math.max(0, (100 - item.height) / 2);
+
+        return {
+          ...item,
+          x: Math.min(100 - item.width, Math.max(0, nextX)),
+          y: Math.min(100 - item.height, Math.max(0, nextY))
+        };
+      })
     );
   }
 
@@ -523,6 +544,24 @@ export function AlbumSpreadSlotEditor({
                       className="size-8 rounded border border-ink/10 bg-white p-1"
                       aria-label="Szöveg színe"
                     />
+                    <span className="mx-1 h-6 w-px bg-ink/10" aria-hidden="true" />
+                    <button
+                      type="button"
+                      onClick={() => centerTextItemOnPage(item.id, "left")}
+                      title="Bal oldal közepére"
+                      className="inline-flex size-8 items-center justify-center rounded text-graphite transition hover:bg-ink/5 hover:text-ink"
+                    >
+                      <PanelLeft size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => centerTextItemOnPage(item.id, "right")}
+                      title="Jobb oldal közepére"
+                      className="inline-flex size-8 items-center justify-center rounded text-graphite transition hover:bg-ink/5 hover:text-ink"
+                    >
+                      <PanelRight size={15} />
+                    </button>
+                    <span className="mx-1 h-6 w-px bg-ink/10" aria-hidden="true" />
                     {[
                       { value: "left", icon: AlignLeft, label: "Balra" },
                       { value: "center", icon: AlignCenter, label: "Középre" },
