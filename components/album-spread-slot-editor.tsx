@@ -101,7 +101,9 @@ const ALBUM_TEXT_FONT_OPTIONS = [
   { value: "lora", label: "Lora" },
   { value: "montserrat", label: "Montserrat" }
 ];
-const SLOT_CENTER_SNAP_PERCENT = 1.25;
+const SPREAD_CENTER_PERCENT = 50;
+const SLOT_CENTER_SNAP_PERCENT = 1.75;
+const SLOT_CENTER_RELEASE_PERCENT = 5;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
 
 function clampCropPosition(value: number) {
@@ -117,17 +119,35 @@ function formatCropPosition(value: number) {
 }
 
 function snapToSpreadCenter(value: number) {
-  return Math.abs(value - 50) <= SLOT_CENTER_SNAP_PERCENT ? 50 : value;
+  return Math.abs(value - SPREAD_CENTER_PERCENT) <= SLOT_CENTER_SNAP_PERCENT ? SPREAD_CENTER_PERCENT : value;
+}
+
+function stickEdgeToSpreadCenter(startEdge: number, rawEdge: number) {
+  if (Math.abs(startEdge - SPREAD_CENTER_PERCENT) <= SLOT_CENTER_SNAP_PERCENT && Math.abs(rawEdge - SPREAD_CENTER_PERCENT) < SLOT_CENTER_RELEASE_PERCENT) {
+    return SPREAD_CENTER_PERCENT;
+  }
+
+  if (startEdge < SPREAD_CENTER_PERCENT && rawEdge >= SPREAD_CENTER_PERCENT && rawEdge < SPREAD_CENTER_PERCENT + SLOT_CENTER_RELEASE_PERCENT) {
+    return SPREAD_CENTER_PERCENT;
+  }
+
+  if (startEdge > SPREAD_CENTER_PERCENT && rawEdge <= SPREAD_CENTER_PERCENT && rawEdge > SPREAD_CENTER_PERCENT - SLOT_CENTER_RELEASE_PERCENT) {
+    return SPREAD_CENTER_PERCENT;
+  }
+
+  return snapToSpreadCenter(rawEdge);
 }
 
 function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, width: number, height: number): SlotFrame {
   const rawX = Math.min(100 - width, Math.max(0, dragState.startX + deltaX));
   const rawY = Math.min(100 - height, Math.max(0, dragState.startY + deltaY));
-  const snappedLeftX = snapToSpreadCenter(rawX);
-  const snappedRightX = snapToSpreadCenter(rawX + width) - width;
+  const startLeftEdge = dragState.startX;
+  const startRightEdge = dragState.startX + width;
+  const stickyLeftX = stickEdgeToSpreadCenter(startLeftEdge, rawX);
+  const stickyRightX = stickEdgeToSpreadCenter(startRightEdge, rawX + width) - width;
 
   return {
-    x: Math.min(100 - width, Math.max(0, Math.abs(snappedLeftX - rawX) < Math.abs(snappedRightX - rawX) ? snappedLeftX : snappedRightX)),
+    x: Math.min(100 - width, Math.max(0, Math.abs(stickyLeftX - rawX) < Math.abs(stickyRightX - rawX) ? stickyLeftX : stickyRightX)),
     y: rawY,
     width,
     height
@@ -137,12 +157,13 @@ function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY
 function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number): SlotFrame {
   const rawWidth = Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startWidth + deltaX));
   const rawHeight = Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startHeight + deltaY));
-  const snappedRightEdge = snapToSpreadCenter(dragState.startX + rawWidth);
+  const startRightEdge = dragState.startX + dragState.startWidth;
+  const stickyRightEdge = stickEdgeToSpreadCenter(startRightEdge, dragState.startX + rawWidth);
 
   return {
     x: dragState.startX,
     y: dragState.startY,
-    width: Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, snappedRightEdge - dragState.startX)),
+    width: Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, stickyRightEdge - dragState.startX)),
     height: rawHeight
   };
 }
