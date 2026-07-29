@@ -121,7 +121,19 @@ function snapToSpreadCenter(value: number) {
   return Math.abs(value - SPREAD_CENTER_PERCENT) <= SLOT_CENTER_SNAP_PERCENT ? SPREAD_CENTER_PERCENT : value;
 }
 
-function stickEdgeToSpreadCenter(startEdge: number, rawEdge: number) {
+function stickEdgeToSpreadCenter(startEdge: number, rawEdge: number, centerSide?: "left" | "right") {
+  if (Math.abs(startEdge - SPREAD_CENTER_PERCENT) <= SLOT_CENTER_SNAP_PERCENT) {
+    if (centerSide === "left" && rawEdge <= SPREAD_CENTER_PERCENT) {
+      return snapToSpreadCenter(rawEdge);
+    }
+
+    if (centerSide === "right" && rawEdge >= SPREAD_CENTER_PERCENT) {
+      return snapToSpreadCenter(rawEdge);
+    }
+
+    return SPREAD_CENTER_PERCENT;
+  }
+
   if (startEdge < SPREAD_CENTER_PERCENT - SLOT_CENTER_SNAP_PERCENT && rawEdge >= SPREAD_CENTER_PERCENT) {
     return SPREAD_CENTER_PERCENT;
   }
@@ -138,8 +150,9 @@ function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY
   const rawY = Math.min(100 - height, Math.max(0, dragState.startY + deltaY));
   const startLeftEdge = dragState.startX;
   const startRightEdge = dragState.startX + width;
-  const stickyLeftX = stickEdgeToSpreadCenter(startLeftEdge, rawX);
-  const stickyRightX = stickEdgeToSpreadCenter(startRightEdge, rawX + width) - width;
+  const startCenter = dragState.startX + width / 2;
+  const stickyLeftX = stickEdgeToSpreadCenter(startLeftEdge, rawX, startCenter >= SPREAD_CENTER_PERCENT ? "right" : undefined);
+  const stickyRightX = stickEdgeToSpreadCenter(startRightEdge, rawX + width, startCenter <= SPREAD_CENTER_PERCENT ? "left" : undefined) - width;
 
   return {
     x: Math.min(100 - width, Math.max(0, Math.abs(stickyLeftX - rawX) < Math.abs(stickyRightX - rawX) ? stickyLeftX : stickyRightX)),
@@ -153,7 +166,7 @@ function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, delt
   const rawWidth = Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startWidth + deltaX));
   const rawHeight = Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startHeight + deltaY));
   const startRightEdge = dragState.startX + dragState.startWidth;
-  const stickyRightEdge = stickEdgeToSpreadCenter(startRightEdge, dragState.startX + rawWidth);
+  const stickyRightEdge = stickEdgeToSpreadCenter(startRightEdge, dragState.startX + rawWidth, dragState.startX < SPREAD_CENTER_PERCENT ? "left" : undefined);
 
   return {
     x: dragState.startX,
