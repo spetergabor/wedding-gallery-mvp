@@ -101,6 +101,8 @@ const ALBUM_TEXT_FONT_OPTIONS = [
   { value: "lora", label: "Lora" },
   { value: "montserrat", label: "Montserrat" }
 ];
+const SLOT_CENTER_SNAP_PERCENT = 1.25;
+const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
 
 function clampCropPosition(value: number) {
   if (!Number.isFinite(value)) {
@@ -112,6 +114,37 @@ function clampCropPosition(value: number) {
 
 function formatCropPosition(value: number) {
   return clampCropPosition(value).toFixed(2);
+}
+
+function snapToSpreadCenter(value: number) {
+  return Math.abs(value - 50) <= SLOT_CENTER_SNAP_PERCENT ? 50 : value;
+}
+
+function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, width: number, height: number): SlotFrame {
+  const rawX = Math.min(100 - width, Math.max(0, dragState.startX + deltaX));
+  const rawY = Math.min(100 - height, Math.max(0, dragState.startY + deltaY));
+  const snappedLeftX = snapToSpreadCenter(rawX);
+  const snappedRightX = snapToSpreadCenter(rawX + width) - width;
+
+  return {
+    x: Math.min(100 - width, Math.max(0, Math.abs(snappedLeftX - rawX) < Math.abs(snappedRightX - rawX) ? snappedLeftX : snappedRightX)),
+    y: rawY,
+    width,
+    height
+  };
+}
+
+function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number): SlotFrame {
+  const rawWidth = Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startWidth + deltaX));
+  const rawHeight = Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startHeight + deltaY));
+  const snappedRightEdge = snapToSpreadCenter(dragState.startX + rawWidth);
+
+  return {
+    x: dragState.startX,
+    y: dragState.startY,
+    width: Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, snappedRightEdge - dragState.startX)),
+    height: rawHeight
+  };
 }
 
 export function AlbumSpreadSlotEditor({
@@ -301,20 +334,21 @@ export function AlbumSpreadSlotEditor({
         }
 
         if (dragState.mode === "move") {
+          const nextFrame = getMovedSlotFrame(dragState, deltaX, deltaY, item.width, item.height);
+
           return {
             ...item,
-            x: Math.min(100 - item.width, Math.max(0, dragState.startX + deltaX)),
-            y: Math.min(100 - item.height, Math.max(0, dragState.startY + deltaY))
+            x: nextFrame.x,
+            y: nextFrame.y
           };
         }
 
-        const width = Math.min(100 - dragState.startX, Math.max(3, dragState.startWidth + deltaX));
-        const height = Math.min(100 - dragState.startY, Math.max(3, dragState.startHeight + deltaY));
+        const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY);
 
         return {
           ...item,
-          width,
-          height
+          width: nextFrame.width,
+          height: nextFrame.height
         };
       })
     );
@@ -328,22 +362,26 @@ export function AlbumSpreadSlotEditor({
       };
 
       if (dragState.mode === "move") {
+        const nextFrame = getMovedSlotFrame(dragState, deltaX, deltaY, currentFrame.width, currentFrame.height);
+
         return {
           ...frames,
           [dragState.slotIndex]: {
             ...currentFrame,
-            x: Math.min(100 - currentFrame.width, Math.max(0, dragState.startX + deltaX)),
-            y: Math.min(100 - currentFrame.height, Math.max(0, dragState.startY + deltaY))
+            x: nextFrame.x,
+            y: nextFrame.y
           }
         };
       }
+
+      const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY);
 
       return {
         ...frames,
         [dragState.slotIndex]: {
           ...currentFrame,
-          width: Math.min(100 - dragState.startX, Math.max(3, dragState.startWidth + deltaX)),
-          height: Math.min(100 - dragState.startY, Math.max(3, dragState.startHeight + deltaY))
+          width: nextFrame.width,
+          height: nextFrame.height
         }
       };
     });
