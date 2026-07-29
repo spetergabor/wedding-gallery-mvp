@@ -11,7 +11,7 @@ local prefs = LrPrefs.prefsForPlugin()
 local exportServiceProvider = {}
 
 local DEFAULT_BASE_URL = "https://spetly.app"
-local PLUGIN_VERSION = "0.1.5"
+local PLUGIN_VERSION = "0.1.6"
 
 local function trimTrailingSlash(value)
   return tostring(value or ""):gsub("/+$", "")
@@ -89,6 +89,35 @@ local function buildFilePayload(rendition, path, index)
   }
 end
 
+local function normalizeFolderPath(path)
+  return tostring(path or ""):match("^%s*(.-)%s*$") or ""
+end
+
+local function chooseLocalCopyFolder(propertyTable)
+  local result = LrDialogs.runOpenPanel {
+    title = "Choose local copy folder",
+    canChooseFiles = false,
+    canChooseDirectories = true,
+    allowsMultipleSelection = false,
+  }
+
+  if result and result[1] then
+    propertyTable.spetlyLocalCopyFolder = result[1]
+    propertyTable.spetlySaveLocalCopy = true
+  end
+end
+
+local function copyLocalFile(sourcePath, targetFolder)
+  local destinationPath = LrPathUtils.child(targetFolder, LrPathUtils.leafName(sourcePath))
+  local ok, errorMessage = LrFileUtils.copy(sourcePath, destinationPath)
+
+  if ok then
+    return true, nil
+  end
+
+  return false, errorMessage or ("Could not copy file to " .. destinationPath)
+end
+
 local function testConnection(propertyTable)
   local token = normalizeToken(propertyTable.spetlyToken)
 
@@ -120,6 +149,8 @@ function exportServiceProvider.startDialog(propertyTable)
   propertyTable.spetlyBaseUrl = prefs.spetlyBaseUrl or DEFAULT_BASE_URL
   propertyTable.spetlyToken = prefs.spetlyToken or ""
   propertyTable.spetlyDuplicateMode = prefs.spetlyDuplicateMode or "skip"
+  propertyTable.spetlySaveLocalCopy = prefs.spetlySaveLocalCopy or false
+  propertyTable.spetlyLocalCopyFolder = prefs.spetlyLocalCopyFolder or ""
 end
 
 function exportServiceProvider.endDialog(propertyTable, why)
@@ -127,6 +158,8 @@ function exportServiceProvider.endDialog(propertyTable, why)
     prefs.spetlyBaseUrl = propertyTable.spetlyBaseUrl
     prefs.spetlyToken = propertyTable.spetlyToken
     prefs.spetlyDuplicateMode = propertyTable.spetlyDuplicateMode
+    prefs.spetlySaveLocalCopy = propertyTable.spetlySaveLocalCopy
+    prefs.spetlyLocalCopyFolder = propertyTable.spetlyLocalCopyFolder
   end
 end
 
@@ -134,6 +167,8 @@ exportServiceProvider.exportPresetFields = {
   { key = "spetlyBaseUrl", default = DEFAULT_BASE_URL },
   { key = "spetlyToken", default = "" },
   { key = "spetlyDuplicateMode", default = "skip" },
+  { key = "spetlySaveLocalCopy", default = false },
+  { key = "spetlyLocalCopyFolder", default = "" },
 }
 
 exportServiceProvider.showSections = {
@@ -195,6 +230,36 @@ function exportServiceProvider.sectionsForTopOfDialog(viewFactory, propertyTable
           end,
         },
       },
+      f:row {
+        spacing = f:control_spacing(),
+        f:static_text {
+          title = "Local copy",
+          width = LrView.share "labelWidth",
+        },
+        f:checkbox {
+          title = "Save rendered files locally too",
+          value = bind "spetlySaveLocalCopy",
+        },
+      },
+      f:row {
+        spacing = f:control_spacing(),
+        f:static_text {
+          title = "Folder",
+          width = LrView.share "labelWidth",
+        },
+        f:edit_field {
+          value = bind "spetlyLocalCopyFolder",
+          width_in_chars = 38,
+          enabled = bind "spetlySaveLocalCopy",
+        },
+        f:push_button {
+          title = "Choose...",
+          enabled = bind "spetlySaveLocalCopy",
+          action = function()
+            chooseLocalCopyFolder(propertyTable)
+          end,
+        },
+      },
     },
   }
 end
@@ -205,6 +270,8 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
   local token = normalizeToken(exportSettings.spetlyToken)
   local baseUrl = trimTrailingSlash(exportSettings.spetlyBaseUrl)
   local duplicateMode = exportSettings.spetlyDuplicateMode or "skip"
+  local saveLocalCopy = exportSettings.spetlySaveLocalCopy == true
+  local localCopyFolder = normalizeFolderPath(exportSettings.spetlyLocalCopyFolder)
   local renditionCount = exportSession:countRenditions()
   local progressScope = exportContext:configureProgress {
     title = renditionCount > 1 and "Uploading to Spetly" or "Uploading photo to Spetly",
@@ -215,6 +282,11 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
 
   if token == "" then
     LrDialogs.message("Spetly " .. PLUGIN_VERSION, "Missing gallery Lightroom token.", "critical")
+    return
+  end
+
+  if saveLocalCopy and localCopyFolder == "" then
+    LrDialogs.message("Spetly " .. PLUGIN_VERSION, "Choose a local copy folder first, or turn off local copy.", "critical")
     return
   end
 
@@ -259,6 +331,8 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
 
   local completedUploads = {}
   local failedUploads = {}
+  local localCopyCount = 0
+  local localCopyFailures = {}
   local uploads = sessionData.uploads or {}
 
   for uploadIndex, upload in ipairs(uploads) do
@@ -272,6 +346,16 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
         uploadItemId = upload.uploadItemId,
         replacePhotoId = upload.replacePhotoId,
       }
+
+      if saveLocalCopy and renderedFile then
+        local copyOk, copyError = copyLocalFile(renderedFile.path, localCopyFolder)
+
+        if copyOk then
+          localCopyCount = localCopyCount + 1
+        else
+          localCopyFailures[#localCopyFailures + 1] = tostring(upload.filename or uploadIndex) .. ": " .. tostring(copyError)
+        end
+      end
     elseif renderedFile and upload.uploadUrl and upload.uploadUrl ~= "" then
       local ok, uploadError = SpetlyApi.putFile(upload.uploadUrl, renderedFile.path, renderedFile.contentType)
 
@@ -280,6 +364,16 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
           uploadItemId = upload.uploadItemId,
           replacePhotoId = upload.replacePhotoId,
         }
+
+        if saveLocalCopy then
+          local copyOk, copyError = copyLocalFile(renderedFile.path, localCopyFolder)
+
+          if copyOk then
+            localCopyCount = localCopyCount + 1
+          else
+            localCopyFailures[#localCopyFailures + 1] = tostring(upload.filename or uploadIndex) .. ": " .. tostring(copyError)
+          end
+        end
       else
         failedUploads[#failedUploads + 1] = tostring(upload.filename or uploadIndex) .. ": " .. tostring(uploadError)
         renderedFile.rendition:uploadFailed(uploadError)
@@ -322,9 +416,19 @@ function exportServiceProvider.processRenderedPhotos(functionContext, exportCont
     return
   end
 
+  local localCopyMessage = ""
+
+  if saveLocalCopy then
+    localCopyMessage = "\nLocal copies: " .. tostring(localCopyCount)
+
+    if #localCopyFailures > 0 then
+      localCopyMessage = localCopyMessage .. "\nLocal copy warning: " .. localCopyFailures[1]
+    end
+  end
+
   LrDialogs.message(
     "Spetly upload complete " .. PLUGIN_VERSION,
-    "Created " .. tostring(completeData.createdCount or 0) .. " photos, replaced " .. tostring(completeData.replacedCount or 0) .. ".",
+    "Created " .. tostring(completeData.createdCount or 0) .. " photos, replaced " .. tostring(completeData.replacedCount or 0) .. "." .. localCopyMessage,
     "info"
   )
 end

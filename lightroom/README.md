@@ -9,6 +9,7 @@ This folder contains the first minimal Lightroom Classic export plugin skeleton.
 3. Click `Add`.
 4. Select `/Users/mac/SPETER - gallery app/lightroom/Spetly.lrplugin`.
 5. Export photos and choose `Spetly` as the export service.
+6. Optional: turn on `Save rendered files locally too` and choose a folder if you also want a local copy.
 
 ## Required values
 
@@ -20,6 +21,7 @@ This folder contains the first minimal Lightroom Classic export plugin skeleton.
 - Tests the gallery token.
 - Creates a Spetly upload session.
 - Uploads rendered export files to the R2 presigned URLs.
+- Optionally saves the same rendered files into a local folder.
 - Completes the session so the files appear in the gallery.
 
 This is intentionally still a small v0.1 plugin. The next step is a real-world Lightroom test and then tightening error handling/resume behavior.
