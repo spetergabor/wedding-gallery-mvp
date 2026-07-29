@@ -103,7 +103,6 @@ const ALBUM_TEXT_FONT_OPTIONS = [
 ];
 const SPREAD_CENTER_PERCENT = 50;
 const SLOT_CENTER_SNAP_PERCENT = 1.75;
-const SLOT_CENTER_RELEASE_PERCENT = 5;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
 
 function clampCropPosition(value: number) {
@@ -123,15 +122,11 @@ function snapToSpreadCenter(value: number) {
 }
 
 function stickEdgeToSpreadCenter(startEdge: number, rawEdge: number) {
-  if (Math.abs(startEdge - SPREAD_CENTER_PERCENT) <= SLOT_CENTER_SNAP_PERCENT && Math.abs(rawEdge - SPREAD_CENTER_PERCENT) < SLOT_CENTER_RELEASE_PERCENT) {
+  if (startEdge < SPREAD_CENTER_PERCENT - SLOT_CENTER_SNAP_PERCENT && rawEdge >= SPREAD_CENTER_PERCENT) {
     return SPREAD_CENTER_PERCENT;
   }
 
-  if (startEdge < SPREAD_CENTER_PERCENT && rawEdge >= SPREAD_CENTER_PERCENT && rawEdge < SPREAD_CENTER_PERCENT + SLOT_CENTER_RELEASE_PERCENT) {
-    return SPREAD_CENTER_PERCENT;
-  }
-
-  if (startEdge > SPREAD_CENTER_PERCENT && rawEdge <= SPREAD_CENTER_PERCENT && rawEdge > SPREAD_CENTER_PERCENT - SLOT_CENTER_RELEASE_PERCENT) {
+  if (startEdge > SPREAD_CENTER_PERCENT + SLOT_CENTER_SNAP_PERCENT && rawEdge <= SPREAD_CENTER_PERCENT) {
     return SPREAD_CENTER_PERCENT;
   }
 
