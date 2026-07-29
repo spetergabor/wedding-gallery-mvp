@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AlignCenter, AlignLeft, AlignRight, MousePointer2, PanelLeft, PanelRight, RotateCcw, Save, Trash2, Type } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Maximize2, MousePointer2, Move, PanelLeft, PanelRight, RotateCcw, Save, Trash2, Type } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
@@ -68,6 +68,19 @@ type TextDragState = {
   height: number;
 };
 
+type SlotFrameDragState = {
+  slotIndex: number;
+  mode: "move" | "resize";
+  startClientX: number;
+  startClientY: number;
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
+  canvasWidth: number;
+  canvasHeight: number;
+};
+
 const ALBUM_TEXT_FONT_STACKS: Record<string, string> = {
   playfair: '"Playfair Display", Georgia, serif',
   cormorant: '"Cormorant Garamond", Georgia, serif',
@@ -131,6 +144,7 @@ export function AlbumSpreadSlotEditor({
   const template = getAlbumLayoutTemplate(spread.layoutKey);
   const cropDragStateRef = useRef<CropDragState | null>(null);
   const textDragStateRef = useRef<TextDragState | null>(null);
+  const slotFrameDragStateRef = useRef<SlotFrameDragState | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
@@ -146,7 +160,7 @@ export function AlbumSpreadSlotEditor({
     onSelectedSlotIndexChange(slotIndex);
   }
 
-  function beginCropDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadItem) {
+  function beginCropDrag(event: PointerEvent<HTMLElement>, item: SpreadItem) {
     if (event.button !== 0) {
       return;
     }
@@ -165,7 +179,7 @@ export function AlbumSpreadSlotEditor({
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function updateCropDrag(event: PointerEvent<HTMLButtonElement>) {
+  function updateCropDrag(event: PointerEvent<HTMLElement>) {
     const dragState = cropDragStateRef.current;
 
     if (!dragState) {
@@ -191,7 +205,7 @@ export function AlbumSpreadSlotEditor({
     );
   }
 
-  function endCropDrag(event: PointerEvent<HTMLButtonElement>) {
+  function endCropDrag(event: PointerEvent<HTMLElement>) {
     cropDragStateRef.current = null;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -236,6 +250,81 @@ export function AlbumSpreadSlotEditor({
         };
       })
     );
+  }
+
+  function beginSlotFrameDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadItem, mode: SlotFrameDragState["mode"]) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const bounds = event.currentTarget.closest("[data-album-spread-canvas]")?.getBoundingClientRect();
+
+    if (!bounds) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    selectSlot(item.slotIndex);
+    slotFrameDragStateRef.current = {
+      slotIndex: item.slotIndex,
+      mode,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: item.x,
+      startY: item.y,
+      startWidth: item.width,
+      startHeight: item.height,
+      canvasWidth: bounds.width,
+      canvasHeight: bounds.height
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function updateSlotFrameDrag(event: PointerEvent<HTMLButtonElement>) {
+    const dragState = slotFrameDragStateRef.current;
+
+    if (!dragState) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const deltaX = ((event.clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
+    const deltaY = ((event.clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
+
+    onDraftItemsChange((items) =>
+      items.map((item) => {
+        if (item.slotIndex !== dragState.slotIndex) {
+          return item;
+        }
+
+        if (dragState.mode === "move") {
+          return {
+            ...item,
+            x: Math.min(100 - item.width, Math.max(0, dragState.startX + deltaX)),
+            y: Math.min(100 - item.height, Math.max(0, dragState.startY + deltaY))
+          };
+        }
+
+        const width = Math.min(100 - dragState.startX, Math.max(3, dragState.startWidth + deltaX));
+        const height = Math.min(100 - dragState.startY, Math.max(3, dragState.startHeight + deltaY));
+
+        return {
+          ...item,
+          width,
+          height
+        };
+      })
+    );
+  }
+
+  function endSlotFrameDrag(event: PointerEvent<HTMLButtonElement>) {
+    slotFrameDragStateRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function beginTextDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadTextItem) {
@@ -321,7 +410,7 @@ export function AlbumSpreadSlotEditor({
     return Array.from(event.dataTransfer.types).includes("application/x-spetly-album-photo-id");
   }
 
-  function handleSlotDragOver(event: DragEvent<HTMLButtonElement>, slotIndex: number) {
+  function handleSlotDragOver(event: DragEvent<HTMLElement>, slotIndex: number) {
     if (!onPhotoDropToSlot || !hasDraggedAlbumPhoto(event)) {
       return;
     }
@@ -340,7 +429,7 @@ export function AlbumSpreadSlotEditor({
     }
   }
 
-  function handleSlotDragLeave(event: DragEvent<HTMLButtonElement>, slotIndex: number) {
+  function handleSlotDragLeave(event: DragEvent<HTMLElement>, slotIndex: number) {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
       return;
     }
@@ -348,7 +437,7 @@ export function AlbumSpreadSlotEditor({
     setDragOverSlotIndex((current) => (current === slotIndex ? null : current));
   }
 
-  function handleSlotDrop(event: DragEvent<HTMLButtonElement>, slotIndex: number) {
+  function handleSlotDrop(event: DragEvent<HTMLElement>, slotIndex: number) {
     const photoId = getDraggedPhotoId(event);
 
     if (!onPhotoDropToSlot || !photoId) {
@@ -439,9 +528,8 @@ export function AlbumSpreadSlotEditor({
             }
 
             return (
-              <button
+              <div
                 key={item.id}
-                type="button"
                   onClick={() => selectSlot(item.slotIndex)}
                   onPointerDown={(event) => beginCropDrag(event, item)}
                   onPointerMove={updateCropDrag}
@@ -464,6 +552,8 @@ export function AlbumSpreadSlotEditor({
                   height: `calc(${item.height}% - ${slotInset * 2}px)`,
                   touchAction: "none"
                 }}
+                role="button"
+                tabIndex={0}
                 aria-label={`${slotIndex + 1}. slot kiválasztása`}
               >
                 <Image
@@ -479,7 +569,35 @@ export function AlbumSpreadSlotEditor({
                 <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
                   {slotIndex + 1}
                 </span>
-              </button>
+                {isSelected ? (
+                  <>
+                    <button
+                      type="button"
+                      onPointerDown={(event) => beginSlotFrameDrag(event, item, "move")}
+                      onPointerMove={updateSlotFrameDrag}
+                      onPointerUp={endSlotFrameDrag}
+                      onPointerCancel={endSlotFrameDrag}
+                      className="absolute right-2 top-2 z-30 inline-flex size-7 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing"
+                      title="Képdoboz mozgatása"
+                      aria-label="Képdoboz mozgatása"
+                    >
+                      <Move size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={(event) => beginSlotFrameDrag(event, item, "resize")}
+                      onPointerMove={updateSlotFrameDrag}
+                      onPointerUp={endSlotFrameDrag}
+                      onPointerCancel={endSlotFrameDrag}
+                      className="absolute bottom-2 right-2 z-30 inline-flex size-7 cursor-nwse-resize items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/15"
+                      title="Képdoboz méretezése"
+                      aria-label="Képdoboz méretezése"
+                    >
+                      <Maximize2 size={13} />
+                    </button>
+                  </>
+                ) : null}
+              </div>
             );
           })}
           {textItems.map((item) => {
@@ -661,6 +779,10 @@ export function AlbumSpreadSlotEditor({
                 <span key={`slot-draft-${item.slotIndex}`}>
                   <input type="hidden" name="slotIndexes" value={String(item.slotIndex)} />
                   <input type="hidden" name="slotPhotoIds" value={item.photo.id} />
+                  <input type="hidden" name="slotX" value={formatCropPosition(item.x)} />
+                  <input type="hidden" name="slotY" value={formatCropPosition(item.y)} />
+                  <input type="hidden" name="slotWidth" value={formatCropPosition(item.width)} />
+                  <input type="hidden" name="slotHeight" value={formatCropPosition(item.height)} />
                   <input type="hidden" name="slotCropX" value={formatCropPosition(item.cropX)} />
                   <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />
                 </span>

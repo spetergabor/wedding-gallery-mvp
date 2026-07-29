@@ -92,7 +92,19 @@ function getOrderedItems(spread: AlbumSpread) {
 }
 
 function getItemSignature(items: SpreadItem[]) {
-  return items.map((item) => `${item.photo.id}:${formatCropPosition(item.cropX)}:${formatCropPosition(item.cropY)}`).join("|");
+  return items
+    .map((item) =>
+      [
+        item.photo.id,
+        formatCropPosition(item.x),
+        formatCropPosition(item.y),
+        formatCropPosition(item.width),
+        formatCropPosition(item.height),
+        formatCropPosition(item.cropX),
+        formatCropPosition(item.cropY)
+      ].join(":")
+    )
+    .join("|");
 }
 
 function getTextItemSignature(items: SpreadTextItem[]) {
@@ -138,6 +150,10 @@ function SpreadDraftInputs({ spreadId, items, textItems }: { spreadId: string; i
         <span key={`all-draft-${spreadId}-${item.slotIndex}`}>
           <input type="hidden" name={`spread-${spreadId}-slotIndexes`} value={String(item.slotIndex)} />
           <input type="hidden" name={`spread-${spreadId}-slotPhotoIds`} value={item.photo.id} />
+          <input type="hidden" name={`spread-${spreadId}-slotX`} value={formatCropPosition(item.x)} />
+          <input type="hidden" name={`spread-${spreadId}-slotY`} value={formatCropPosition(item.y)} />
+          <input type="hidden" name={`spread-${spreadId}-slotWidth`} value={formatCropPosition(item.width)} />
+          <input type="hidden" name={`spread-${spreadId}-slotHeight`} value={formatCropPosition(item.height)} />
           <input type="hidden" name={`spread-${spreadId}-slotCropX`} value={formatCropPosition(item.cropX)} />
           <input type="hidden" name={`spread-${spreadId}-slotCropY`} value={formatCropPosition(item.cropY)} />
         </span>

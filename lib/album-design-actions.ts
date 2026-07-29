@@ -104,6 +104,46 @@ function getOrderedCropPositions(formData: FormData, count: number, keys = { cro
   }));
 }
 
+function normalizeAlbumSlotFrame(frame: { x: number; y: number; width: number; height: number }, fallback: { x: number; y: number; width: number; height: number }) {
+  const width = clampSizePercent(frame.width, fallback.width);
+  const height = clampSizePercent(frame.height, fallback.height);
+  const x = Math.min(100 - width, clampPercent(frame.x, fallback.x));
+  const y = Math.min(100 - height, clampPercent(frame.y, fallback.y));
+
+  return {
+    x,
+    y,
+    width,
+    height
+  };
+}
+
+function getOrderedSlotFrames(
+  formData: FormData,
+  layout: AlbumLayoutTemplate,
+  slotIndexes: number[],
+  keys = { x: "slotX", y: "slotY", width: "slotWidth", height: "slotHeight" }
+) {
+  const xValues = getOrderedFormStrings(formData, keys.x);
+  const yValues = getOrderedFormStrings(formData, keys.y);
+  const widthValues = getOrderedFormStrings(formData, keys.width);
+  const heightValues = getOrderedFormStrings(formData, keys.height);
+
+  return slotIndexes.map((slotIndex, index) => {
+    const fallback = layout.slots[slotIndex] ?? layout.slots[index] ?? { x: 0, y: 0, width: 100, height: 100 };
+
+    return normalizeAlbumSlotFrame(
+      {
+        x: formNumber(xValues[index] ?? "", fallback.x),
+        y: formNumber(yValues[index] ?? "", fallback.y),
+        width: formNumber(widthValues[index] ?? "", fallback.width),
+        height: formNumber(heightValues[index] ?? "", fallback.height)
+      },
+      fallback
+    );
+  });
+}
+
 function getAlbumTextItemDrafts(formData: FormData, spreadId: string) {
   const ids = getOrderedFormStrings(formData, `spread-${spreadId}-textIds`);
   const texts = formData.getAll(`spread-${spreadId}-textValues`).map((value) => (typeof value === "string" ? value.trim().slice(0, 500) : ""));
@@ -168,12 +208,14 @@ function createSpreadItemsForSlotIndexes(
   layout: AlbumLayoutTemplate,
   photoIds: string[],
   slotIndexes: number[],
-  cropPositions?: Array<{ cropX: number; cropY: number }>
+  cropPositions?: Array<{ cropX: number; cropY: number }>,
+  slotFrames?: Array<{ x: number; y: number; width: number; height: number }>
 ) {
   return photoIds
     .map((photoId, index) => {
       const slotIndex = slotIndexes[index] ?? index;
       const slot = layout.slots[slotIndex];
+      const frame = slotFrames?.[index] ?? slot;
 
       if (!photoId || !slot) {
         return null;
@@ -182,10 +224,10 @@ function createSpreadItemsForSlotIndexes(
       return {
         photoId,
         slotIndex,
-        x: slot.x,
-        y: slot.y,
-        width: slot.width,
-        height: slot.height,
+        x: frame.x,
+        y: frame.y,
+        width: frame.width,
+        height: frame.height,
         cropX: cropPositions?.[index]?.cropX ?? 50,
         cropY: cropPositions?.[index]?.cropY ?? 50
       };
@@ -1122,6 +1164,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
     return Number.isFinite(parsed) ? parsed : index;
   });
   const cropPositions = getOrderedCropPositions(formData, layout.slots.length);
+  const slotFrames = getOrderedSlotFrames(formData, layout, slotIndexes);
 
   if (photoIds.length === 0 || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
@@ -1139,7 +1182,7 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
     data: {
       items: {
         deleteMany: {},
-        create: createSpreadItemsForSlotIndexes(layout, photoIds, slotIndexes, cropPositions)
+        create: createSpreadItemsForSlotIndexes(layout, photoIds, slotIndexes, cropPositions, slotFrames)
       }
     }
   });
@@ -1191,6 +1234,12 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
       cropX: `spread-${spread.id}-slotCropX`,
       cropY: `spread-${spread.id}-slotCropY`
     });
+    const slotFrames = getOrderedSlotFrames(formData, layout, slotIndexes, {
+      x: `spread-${spread.id}-slotX`,
+      y: `spread-${spread.id}-slotY`,
+      width: `spread-${spread.id}-slotWidth`,
+      height: `spread-${spread.id}-slotHeight`
+    });
     const textItems = getAlbumTextItemDrafts(formData, spread.id);
 
     if ((photoIds.length === 0 && textItems.length === 0) || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
@@ -1203,6 +1252,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
       photoIds,
       slotIndexes,
       cropPositions,
+      slotFrames,
       textItems
     };
   });
@@ -1225,7 +1275,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
         data: {
           items: {
             deleteMany: {},
-            create: createSpreadItemsForSlotIndexes(draft.layout, draft.photoIds, draft.slotIndexes, draft.cropPositions)
+            create: createSpreadItemsForSlotIndexes(draft.layout, draft.photoIds, draft.slotIndexes, draft.cropPositions, draft.slotFrames)
           },
           textItems: {
             deleteMany: {},
