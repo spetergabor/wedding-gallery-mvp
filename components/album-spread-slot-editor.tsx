@@ -75,9 +75,12 @@ type TextDragState = {
   height: number;
 };
 
+type SlotResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
 type SlotFrameDragState = {
   slotIndex: number;
   mode: "move" | "resize";
+  resizeCorner: SlotResizeCorner;
   startClientX: number;
   startClientY: number;
   startX: number;
@@ -112,6 +115,32 @@ const SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT = 4;
 const SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT = 1.6;
 const SLOT_BARRIER_EPSILON = 0.001;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
+const SLOT_RESIZE_HANDLES: Array<{
+  corner: SlotResizeCorner;
+  className: string;
+  label: string;
+}> = [
+  {
+    corner: "top-left",
+    className: "-left-2 -top-2 cursor-nwse-resize",
+    label: "Bal felső sarok méretezése"
+  },
+  {
+    corner: "top-right",
+    className: "-right-2 -top-2 cursor-nesw-resize",
+    label: "Jobb felső sarok méretezése"
+  },
+  {
+    corner: "bottom-left",
+    className: "-bottom-2 -left-2 cursor-nesw-resize",
+    label: "Bal alsó sarok méretezése"
+  },
+  {
+    corner: "bottom-right",
+    className: "-bottom-2 -right-2 cursor-nwse-resize",
+    label: "Jobb alsó sarok méretezése"
+  }
+];
 
 function clampCropPosition(value: number) {
   if (!Number.isFinite(value)) {
@@ -198,13 +227,55 @@ function stopFrameSizeAtBarriers(rawSize: number, startPosition: number, startSi
   return direction > 0 ? Math.min(...stoppedOnPath) : Math.max(...stoppedOnPath);
 }
 
+function stopFrameStartResizeAtBarriers(
+  rawPosition: number,
+  startPosition: number,
+  fixedEndPosition: number,
+  barriers: number[],
+  getReleasePercent: (barrier: number) => number
+) {
+  if (rawPosition === startPosition) {
+    return rawPosition;
+  }
+
+  const direction = rawPosition > startPosition ? 1 : -1;
+  const startSize = fixedEndPosition - startPosition;
+  const rawSize = fixedEndPosition - rawPosition;
+  const resizePoints = [
+    {
+      start: startPosition,
+      raw: rawPosition,
+      toPosition: (stoppedPoint: number) => stoppedPoint
+    },
+    {
+      start: startPosition + startSize / 2,
+      raw: rawPosition + rawSize / 2,
+      toPosition: (stoppedPoint: number) => stoppedPoint * 2 - fixedEndPosition
+    }
+  ];
+  const stoppedPositions = resizePoints.map((point) => point.toPosition(stopEdgeAtBarrier(point.start, point.raw, barriers, getReleasePercent)));
+  const stoppedOnPath = stoppedPositions.filter((position) => (direction > 0 ? position >= startPosition && position <= rawPosition : position <= startPosition && position >= rawPosition));
+
+  if (stoppedOnPath.length === 0) {
+    return rawPosition;
+  }
+
+  return direction > 0 ? Math.min(...stoppedOnPath) : Math.max(...stoppedOnPath);
+}
+
+function getSlotVerticalBarrierRelease(barrier: number) {
+  return barrier === 50 ? SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT : SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT;
+}
+
+function getSlotPageCenterBarrierRelease() {
+  return SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT;
+}
+
 function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, width: number, height: number): SlotFrame {
   const rawX = Math.min(100 - width, Math.max(0, dragState.startX + deltaX));
   const rawY = Math.min(100 - height, Math.max(0, dragState.startY + deltaY));
-  const blockedX = stopFramePositionAtBarriers(rawX, dragState.startX, width, SLOT_VERTICAL_BARRIERS, (barrier) =>
-    barrier === 50 ? SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT : SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT
-  );
-  const blockedY = stopFramePositionAtBarriers(rawY, dragState.startY, height, SLOT_HORIZONTAL_BARRIERS, () => SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT);
+  const blockedX = stopFramePositionAtBarriers(rawX, dragState.startX, width, SLOT_VERTICAL_BARRIERS, getSlotVerticalBarrierRelease);
+  const blockedY = stopFramePositionAtBarriers(rawY, dragState.startY, height, SLOT_HORIZONTAL_BARRIERS, getSlotPageCenterBarrierRelease);
 
   return {
     x: Math.min(100 - width, Math.max(0, blockedX)),
@@ -214,19 +285,60 @@ function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY
   };
 }
 
-function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number): SlotFrame {
-  const rawWidth = Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startWidth + deltaX));
-  const rawHeight = Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startHeight + deltaY));
-  const blockedWidth = stopFrameSizeAtBarriers(rawWidth, dragState.startX, dragState.startWidth, SLOT_VERTICAL_BARRIERS, (barrier) =>
-    barrier === 50 ? SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT : SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT
-  );
-  const blockedHeight = stopFrameSizeAtBarriers(rawHeight, dragState.startY, dragState.startHeight, SLOT_HORIZONTAL_BARRIERS, () => SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT);
+function getResizedSlotAxis(
+  startPosition: number,
+  startSize: number,
+  delta: number,
+  edge: "start" | "end",
+  barriers: number[],
+  getReleasePercent: (barrier: number) => number
+) {
+  if (edge === "start") {
+    const fixedEndPosition = startPosition + startSize;
+    const rawPosition = Math.min(fixedEndPosition - MIN_SLOT_FRAME_SIZE_PERCENT, Math.max(0, startPosition + delta));
+    const blockedPosition = stopFrameStartResizeAtBarriers(rawPosition, startPosition, fixedEndPosition, barriers, getReleasePercent);
+    const position = Math.min(fixedEndPosition - MIN_SLOT_FRAME_SIZE_PERCENT, Math.max(0, blockedPosition));
+
+    return {
+      position,
+      size: fixedEndPosition - position
+    };
+  }
+
+  const rawSize = Math.min(100 - startPosition, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, startSize + delta));
+  const blockedSize = stopFrameSizeAtBarriers(rawSize, startPosition, startSize, barriers, getReleasePercent);
 
   return {
-    x: dragState.startX,
-    y: dragState.startY,
-    width: Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, blockedWidth)),
-    height: Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, blockedHeight))
+    position: startPosition,
+    size: Math.min(100 - startPosition, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, blockedSize))
+  };
+}
+
+function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number): SlotFrame {
+  const horizontalEdge = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "bottom-left" ? "start" : "end";
+  const verticalEdge = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "top-right" ? "start" : "end";
+  const horizontal = getResizedSlotAxis(
+    dragState.startX,
+    dragState.startWidth,
+    deltaX,
+    horizontalEdge,
+    SLOT_VERTICAL_BARRIERS,
+    getSlotVerticalBarrierRelease
+  );
+  const vertical = getResizedSlotAxis(
+    dragState.startY,
+    dragState.startHeight,
+    deltaY,
+    verticalEdge,
+    SLOT_HORIZONTAL_BARRIERS,
+    getSlotPageCenterBarrierRelease
+  );
+
+  return {
+    x: horizontal.position,
+    y: vertical.position,
+    width: horizontal.size,
+    height: vertical.size
   };
 }
 
@@ -439,6 +551,8 @@ export function AlbumSpreadSlotEditor({
 
         return {
           ...item,
+          x: nextFrame.x,
+          y: nextFrame.y,
           width: nextFrame.width,
           height: nextFrame.height
         };
@@ -472,6 +586,8 @@ export function AlbumSpreadSlotEditor({
         ...frames,
         [dragState.slotIndex]: {
           ...currentFrame,
+          x: nextFrame.x,
+          y: nextFrame.y,
           width: nextFrame.width,
           height: nextFrame.height
         }
@@ -527,7 +643,13 @@ export function AlbumSpreadSlotEditor({
     }
   }
 
-  function beginSlotFrameDrag(event: PointerEvent<HTMLButtonElement>, slotIndex: number, frame: SlotFrame, mode: SlotFrameDragState["mode"]) {
+  function beginSlotFrameDrag(
+    event: PointerEvent<HTMLButtonElement>,
+    slotIndex: number,
+    frame: SlotFrame,
+    mode: SlotFrameDragState["mode"],
+    resizeCorner: SlotResizeCorner = "bottom-right"
+  ) {
     if (event.button !== 0) {
       return;
     }
@@ -554,6 +676,7 @@ export function AlbumSpreadSlotEditor({
     slotFrameDragStateRef.current = {
       slotIndex,
       mode,
+      resizeCorner,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startX: frame.x,
@@ -701,6 +824,34 @@ export function AlbumSpreadSlotEditor({
     onPhotoDropToSlot(slotIndex, photoId);
   }
 
+  function renderSlotFrameControls(slotIndex: number, slotFrame: SlotFrame) {
+    return (
+      <>
+        <button
+          type="button"
+          onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "move")}
+          className="absolute right-2 top-2 z-40 inline-flex size-7 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing"
+          title="Képdoboz mozgatása"
+          aria-label="Képdoboz mozgatása"
+        >
+          <Move size={13} />
+        </button>
+        {SLOT_RESIZE_HANDLES.map((handle) => (
+          <button
+            key={handle.corner}
+            type="button"
+            onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "resize", handle.corner)}
+            className={`absolute z-40 inline-flex size-5 items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/20 transition hover:bg-ink hover:text-white ${handle.className}`}
+            title={handle.label}
+            aria-label={handle.label}
+          >
+            <Maximize2 size={10} />
+          </button>
+        ))}
+      </>
+    );
+  }
+
   return (
     <div className="mt-4 space-y-3">
       <div className="rounded-md border border-ink/10 bg-paper p-3">
@@ -765,7 +916,7 @@ export function AlbumSpreadSlotEditor({
                   onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
                   onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
                   onDrop={(event) => handleSlotDrop(event, slotIndex)}
-                  className={`absolute overflow-hidden border border-dashed transition ${
+                  className={`absolute border border-dashed transition ${isSelected ? "overflow-visible" : "overflow-hidden"} ${
                     isDragOver
                       ? "z-20 border-brass bg-brass/15 shadow-[0_0_0_4px_rgba(181,143,77,0.18)]"
                       : isSelected
@@ -788,28 +939,7 @@ export function AlbumSpreadSlotEditor({
                   <span className="flex h-full items-center justify-center px-3 text-center text-xs font-medium text-graphite/45">
                     Húzz ide képet lentről
                   </span>
-                  {isSelected ? (
-                    <>
-                      <button
-                        type="button"
-                        onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "move")}
-                        className="absolute right-2 top-2 z-30 inline-flex size-7 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing"
-                        title="Képdoboz mozgatása"
-                        aria-label="Képdoboz mozgatása"
-                      >
-                        <Move size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "resize")}
-                        className="absolute bottom-2 right-2 z-30 inline-flex size-7 cursor-nwse-resize items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/15"
-                        title="Képdoboz méretezése"
-                        aria-label="Képdoboz méretezése"
-                      >
-                        <Maximize2 size={13} />
-                      </button>
-                    </>
-                  ) : null}
+                  {isSelected ? renderSlotFrameControls(slotIndex, slotFrame) : null}
                 </div>
               );
             }
@@ -817,15 +947,15 @@ export function AlbumSpreadSlotEditor({
             return (
               <div
                 key={item.id}
-                  onClick={() => selectSlot(item.slotIndex)}
-                  onPointerDown={(event) => beginCropDrag(event, item)}
-                  onPointerMove={updateCropDrag}
-                  onPointerUp={endCropDrag}
-                  onPointerCancel={endCropDrag}
-                  onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
-                  onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
-                  onDrop={(event) => handleSlotDrop(event, slotIndex)}
-                  className={`absolute overflow-hidden border bg-white transition ${
+                onClick={() => selectSlot(item.slotIndex)}
+                onPointerDown={(event) => beginCropDrag(event, item)}
+                onPointerMove={updateCropDrag}
+                onPointerUp={endCropDrag}
+                onPointerCancel={endCropDrag}
+                onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
+                onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
+                onDrop={(event) => handleSlotDrop(event, slotIndex)}
+                className={`absolute border bg-white transition ${isSelected ? "overflow-visible" : "overflow-hidden"} ${
                   isDragOver
                     ? "z-20 border-brass shadow-[0_0_0_4px_rgba(181,143,77,0.2)]"
                     : isSelected
@@ -856,28 +986,7 @@ export function AlbumSpreadSlotEditor({
                 <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
                   {slotIndex + 1}
                 </span>
-                {isSelected ? (
-                  <>
-                    <button
-                      type="button"
-                      onPointerDown={(event) => beginSlotFrameDrag(event, item.slotIndex, slotFrame, "move")}
-                      className="absolute right-2 top-2 z-30 inline-flex size-7 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing"
-                      title="Képdoboz mozgatása"
-                      aria-label="Képdoboz mozgatása"
-                    >
-                      <Move size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onPointerDown={(event) => beginSlotFrameDrag(event, item.slotIndex, slotFrame, "resize")}
-                      className="absolute bottom-2 right-2 z-30 inline-flex size-7 cursor-nwse-resize items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/15"
-                      title="Képdoboz méretezése"
-                      aria-label="Képdoboz méretezése"
-                    >
-                      <Maximize2 size={13} />
-                    </button>
-                  </>
-                ) : null}
+                {isSelected ? renderSlotFrameControls(item.slotIndex, slotFrame) : null}
               </div>
             );
           })}
