@@ -88,6 +88,11 @@ type SlotFrameDragState = {
   canvasHeight: number;
 };
 
+type SlotFrameUndoState = {
+  slotIndex: number;
+  frame: SlotFrame;
+};
+
 const ALBUM_TEXT_FONT_STACKS: Record<string, string> = {
   playfair: '"Playfair Display", Georgia, serif',
   cormorant: '"Cormorant Garamond", Georgia, serif',
@@ -260,9 +265,12 @@ export function AlbumSpreadSlotEditor({
   const cropDragStateRef = useRef<CropDragState | null>(null);
   const textDragStateRef = useRef<TextDragState | null>(null);
   const slotFrameDragStateRef = useRef<SlotFrameDragState | null>(null);
+  const pendingSlotFrameUndoRef = useRef<SlotFrameUndoState | null>(null);
+  const slotFrameChangedRef = useRef(false);
   const slotFramePointerMoveHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const slotFramePointerUpHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
+  const [lastSlotFrameUndo, setLastSlotFrameUndo] = useState<SlotFrameUndoState | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
 
@@ -397,6 +405,14 @@ export function AlbumSpreadSlotEditor({
 
     const deltaX = ((clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
     const deltaY = ((clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
+    const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY);
+    const movedFrame = getMovedSlotFrame(dragState, deltaX, deltaY, dragState.startWidth, dragState.startHeight);
+    const activeFrame = dragState.mode === "move" ? movedFrame : nextFrame;
+    slotFrameChangedRef.current =
+      Math.abs(activeFrame.x - dragState.startX) > SLOT_BARRIER_EPSILON ||
+      Math.abs(activeFrame.y - dragState.startY) > SLOT_BARRIER_EPSILON ||
+      Math.abs(activeFrame.width - dragState.startWidth) > SLOT_BARRIER_EPSILON ||
+      Math.abs(activeFrame.height - dragState.startHeight) > SLOT_BARRIER_EPSILON;
 
     onDraftItemsChange((items) =>
       items.map((item) => {
@@ -413,8 +429,6 @@ export function AlbumSpreadSlotEditor({
             y: nextFrame.y
           };
         }
-
-        const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY);
 
         return {
           ...item,
@@ -458,8 +472,41 @@ export function AlbumSpreadSlotEditor({
     });
   }
 
+  function undoLastSlotFrameChange() {
+    if (!lastSlotFrameUndo) {
+      return;
+    }
+
+    const { slotIndex, frame } = lastSlotFrameUndo;
+    onDraftItemsChange((items) =>
+      items.map((item) =>
+        item.slotIndex === slotIndex
+          ? {
+              ...item,
+              x: frame.x,
+              y: frame.y,
+              width: frame.width,
+              height: frame.height
+            }
+          : item
+      )
+    );
+    onDraftSlotFramesChange?.((frames) => ({
+      ...frames,
+      [slotIndex]: frame
+    }));
+    selectSlot(slotIndex);
+    setLastSlotFrameUndo(null);
+  }
+
   function endSlotFrameDrag() {
+    if (slotFrameChangedRef.current && pendingSlotFrameUndoRef.current) {
+      setLastSlotFrameUndo(pendingSlotFrameUndoRef.current);
+    }
+
     slotFrameDragStateRef.current = null;
+    pendingSlotFrameUndoRef.current = null;
+    slotFrameChangedRef.current = false;
 
     if (slotFramePointerMoveHandlerRef.current) {
       window.removeEventListener("pointermove", slotFramePointerMoveHandlerRef.current);
@@ -488,6 +535,15 @@ export function AlbumSpreadSlotEditor({
     event.stopPropagation();
     selectSlot(slotIndex);
     endSlotFrameDrag();
+    pendingSlotFrameUndoRef.current = {
+      slotIndex,
+      frame: {
+        x: frame.x,
+        y: frame.y,
+        width: frame.width,
+        height: frame.height
+      }
+    };
     slotFrameDragStateRef.current = {
       slotIndex,
       mode,
@@ -573,6 +629,7 @@ export function AlbumSpreadSlotEditor({
   function resetDraft() {
     onDraftItemsChange(() => orderedItems);
     onSelectedSlotIndexChange(orderedItems[0]?.slotIndex ?? 0);
+    setLastSlotFrameUndo(null);
   }
 
   function centerSelectedSlotCrop() {
@@ -981,6 +1038,16 @@ export function AlbumSpreadSlotEditor({
             >
               <MousePointer2 size={14} />
               Középre
+            </button>
+            <button
+              type="button"
+              onClick={undoLastSlotFrameChange}
+              disabled={!lastSlotFrameUndo}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-xs font-medium text-ink transition hover:border-ink/30 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Utolsó slot mozgatás visszavonása"
+            >
+              <RotateCcw size={14} />
+              Slot vissza
             </button>
             <button
               type="button"
