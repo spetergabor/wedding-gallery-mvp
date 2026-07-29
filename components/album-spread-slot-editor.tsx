@@ -101,8 +101,8 @@ const ALBUM_TEXT_FONT_OPTIONS = [
   { value: "lora", label: "Lora" },
   { value: "montserrat", label: "Montserrat" }
 ];
-const SPREAD_CENTER_PERCENT = 50;
-const SLOT_CENTER_SNAP_PERCENT = 3;
+const SLOT_VERTICAL_BARRIERS = [25, 50, 75];
+const SLOT_HORIZONTAL_BARRIERS = [50];
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
 
 function clampCropPosition(value: number) {
@@ -117,21 +117,61 @@ function formatCropPosition(value: number) {
   return clampCropPosition(value).toFixed(2);
 }
 
-function snapToSpreadCenter(value: number) {
-  return Math.abs(value - SPREAD_CENTER_PERCENT) <= SLOT_CENTER_SNAP_PERCENT ? SPREAD_CENTER_PERCENT : value;
+function stopEdgeAtBarrier(startEdge: number, rawEdge: number, barriers: number[]) {
+  const orderedBarriers = rawEdge >= startEdge ? [...barriers].sort((left, right) => left - right) : [...barriers].sort((left, right) => right - left);
+
+  for (const barrier of orderedBarriers) {
+    if (startEdge < barrier && rawEdge >= barrier) {
+      return barrier;
+    }
+
+    if (startEdge > barrier && rawEdge <= barrier) {
+      return barrier;
+    }
+  }
+
+  return rawEdge;
+}
+
+function stopLeadingVerticalEdgeAtBarrier(rawX: number, startX: number, width: number) {
+  const rawRightEdge = rawX + width;
+  const startRightEdge = startX + width;
+
+  if (rawX < startX) {
+    return stopEdgeAtBarrier(startX, rawX, SLOT_VERTICAL_BARRIERS);
+  }
+
+  if (rawX > startX) {
+    return stopEdgeAtBarrier(startRightEdge, rawRightEdge, SLOT_VERTICAL_BARRIERS) - width;
+  }
+
+  return rawX;
+}
+
+function stopLeadingHorizontalEdgeAtBarrier(rawY: number, startY: number, height: number) {
+  const rawBottomEdge = rawY + height;
+  const startBottomEdge = startY + height;
+
+  if (rawY < startY) {
+    return stopEdgeAtBarrier(startY, rawY, SLOT_HORIZONTAL_BARRIERS);
+  }
+
+  if (rawY > startY) {
+    return stopEdgeAtBarrier(startBottomEdge, rawBottomEdge, SLOT_HORIZONTAL_BARRIERS) - height;
+  }
+
+  return rawY;
 }
 
 function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, width: number, height: number): SlotFrame {
   const rawX = Math.min(100 - width, Math.max(0, dragState.startX + deltaX));
   const rawY = Math.min(100 - height, Math.max(0, dragState.startY + deltaY));
-  const rawRightEdge = rawX + width;
-  const leftDistance = Math.abs(rawX - SPREAD_CENTER_PERCENT);
-  const rightDistance = Math.abs(rawRightEdge - SPREAD_CENTER_PERCENT);
-  const snappedX = leftDistance <= rightDistance ? snapToSpreadCenter(rawX) : snapToSpreadCenter(rawRightEdge) - width;
+  const blockedX = stopLeadingVerticalEdgeAtBarrier(rawX, dragState.startX, width);
+  const blockedY = stopLeadingHorizontalEdgeAtBarrier(rawY, dragState.startY, height);
 
   return {
-    x: Math.min(100 - width, Math.max(0, snappedX)),
-    y: rawY,
+    x: Math.min(100 - width, Math.max(0, blockedX)),
+    y: Math.min(100 - height, Math.max(0, blockedY)),
     width,
     height
   };
@@ -140,13 +180,14 @@ function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY
 function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number): SlotFrame {
   const rawWidth = Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startWidth + deltaX));
   const rawHeight = Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startHeight + deltaY));
-  const snappedRightEdge = snapToSpreadCenter(dragState.startX + rawWidth);
+  const blockedRightEdge = stopEdgeAtBarrier(dragState.startX + dragState.startWidth, dragState.startX + rawWidth, SLOT_VERTICAL_BARRIERS);
+  const blockedBottomEdge = stopEdgeAtBarrier(dragState.startY + dragState.startHeight, dragState.startY + rawHeight, SLOT_HORIZONTAL_BARRIERS);
 
   return {
     x: dragState.startX,
     y: dragState.startY,
-    width: Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, snappedRightEdge - dragState.startX)),
-    height: rawHeight
+    width: Math.min(100 - dragState.startX, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, blockedRightEdge - dragState.startX)),
+    height: Math.min(100 - dragState.startY, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, blockedBottomEdge - dragState.startY))
   };
 }
 
@@ -606,6 +647,18 @@ export function AlbumSpreadSlotEditor({
           <div
             aria-hidden="true"
             className="pointer-events-none absolute bottom-0 left-1/2 top-0 z-20 w-px -translate-x-1/2 bg-ink/35"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 left-1/4 top-0 z-20 w-px -translate-x-1/2 bg-ink/15"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-0 left-3/4 top-0 z-20 w-px -translate-x-1/2 bg-ink/15"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-0 right-0 top-1/2 z-20 h-px -translate-y-1/2 bg-ink/15"
           />
           {template.slots.map((slot, slotIndex) => {
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
