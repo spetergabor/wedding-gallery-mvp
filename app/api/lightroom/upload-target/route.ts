@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publicGalleryUrl } from "@/lib/email";
-import { hashLightroomUploadToken, normalizeLightroomUploadToken } from "@/lib/lightroom-upload-token";
+import { findLightroomUploadTarget, lightroomTargetPayload, readLightroomUploadToken } from "@/lib/lightroom-upload-auth";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
@@ -10,35 +9,8 @@ function json(status: number, body: Record<string, unknown>) {
   return NextResponse.json(body, { status });
 }
 
-async function tokenFromRequest(request: NextRequest) {
-  const authorization = request.headers.get("authorization") ?? "";
-
-  if (authorization.toLowerCase().startsWith("bearer ")) {
-    return normalizeLightroomUploadToken(authorization.slice(7));
-  }
-
-  const queryToken = request.nextUrl.searchParams.get("token");
-
-  if (queryToken) {
-    return normalizeLightroomUploadToken(queryToken);
-  }
-
-  const contentType = request.headers.get("content-type") ?? "";
-
-  if (contentType.includes("application/json")) {
-    const body = await request.json().catch(() => null);
-
-    if (body && typeof body === "object" && "token" in body) {
-      return normalizeLightroomUploadToken((body as { token?: unknown }).token);
-    }
-  }
-
-  const formData = await request.formData().catch(() => null);
-  return normalizeLightroomUploadToken(formData?.get("token"));
-}
-
 export async function POST(request: NextRequest) {
-  const token = await tokenFromRequest(request);
+  const token = await readLightroomUploadToken(request);
 
   if (!token) {
     return json(400, {
@@ -64,41 +36,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const tokenHash = hashLightroomUploadToken(token);
-  const gallery = await prisma.gallery.findFirst({
-    where: {
-      lightroomUploadTokenHash: tokenHash
-    },
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      isActive: true,
-      lightroomUploadsEnabled: true,
-      lightroomUploadTokenCreatedAt: true,
-      lightroomUploadTokenLastUsedAt: true,
-      _count: {
-        select: { photos: true }
-      },
-      customer: {
-        select: {
-          coupleName: true,
-          preferredLanguage: true
-        }
-      },
-      admin: {
-        select: {
-          name: true,
-          siteSettings: {
-            select: {
-              businessName: true,
-              publicSubdomain: true
-            }
-          }
-        }
-      }
-    }
-  });
+  const gallery = await findLightroomUploadTarget(token);
 
   if (!gallery) {
     return json(401, {
@@ -123,17 +61,6 @@ export async function POST(request: NextRequest) {
 
   return json(200, {
     ok: true,
-    target: {
-      galleryId: gallery.id,
-      title: gallery.title,
-      slug: gallery.slug,
-      active: gallery.isActive,
-      photoCount: gallery._count.photos,
-      publicUrl: publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, gallery.admin.siteSettings?.publicSubdomain ?? null),
-      customerName: gallery.customer?.coupleName ?? null,
-      photographerName: gallery.admin.siteSettings?.businessName || gallery.admin.name,
-      tokenCreatedAt: gallery.lightroomUploadTokenCreatedAt?.toISOString() ?? null,
-      tokenLastUsedAt: gallery.lightroomUploadTokenLastUsedAt?.toISOString() ?? null
-    }
+    target: lightroomTargetPayload(gallery)
   });
 }

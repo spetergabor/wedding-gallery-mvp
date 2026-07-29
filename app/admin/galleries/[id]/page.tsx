@@ -541,6 +541,7 @@ export default async function GalleryDetailPage({
   const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
   const guestUploadUrl = `${galleryPublicUrl}#guest-photos`;
   const lightroomUploadTargetUrl = new URL("/api/lightroom/upload-target", appBaseUrl()).toString();
+  const lightroomUploadsUrl = new URL("/api/lightroom/uploads", appBaseUrl()).toString();
 
   return (
     <AdminShell>
@@ -1609,6 +1610,7 @@ export default async function GalleryDetailPage({
               guestUploadUrl={guestUploadUrl}
               lightroomToken={flags.lightroomToken ?? null}
               lightroomUploadTargetUrl={lightroomUploadTargetUrl}
+              lightroomUploadsUrl={lightroomUploadsUrl}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />

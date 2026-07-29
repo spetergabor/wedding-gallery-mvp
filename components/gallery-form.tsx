@@ -74,6 +74,7 @@ type GalleryFormProps = {
   guestUploadUrl?: string | null;
   lightroomToken?: string | null;
   lightroomUploadTargetUrl?: string | null;
+  lightroomUploadsUrl?: string | null;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -120,7 +121,8 @@ export function GalleryForm({
   stripeReady = false,
   guestUploadUrl = null,
   lightroomToken = null,
-  lightroomUploadTargetUrl = null
+  lightroomUploadTargetUrl = null,
+  lightroomUploadsUrl = null
 }: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
@@ -407,13 +409,21 @@ export function GalleryForm({
 
         {lightroomUploadTargetUrl ? (
           <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
-            <p className="text-sm font-semibold text-ink">Kapcsolat teszt endpoint</p>
+            <p className="text-sm font-semibold text-ink">Lightroom API endpointok</p>
             <p className="mt-1 text-xs leading-5 text-graphite/70">
-              A Lightroom plugin első tesztje ezt az URL-t fogja hívni a fenti tokennel.
+              A plugin először a kapcsolat tesztet hívja, majd a feltöltési endpoint kéri le az R2 upload URL-eket.
             </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <CopyLinkButton url={lightroomUploadTargetUrl} label="Endpoint másolása" className="w-full sm:w-auto" />
-              <code className="min-w-0 flex-1 break-all rounded-md bg-white px-3 py-3 text-xs text-graphite">{lightroomUploadTargetUrl}</code>
+            <div className="mt-3 grid gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <CopyLinkButton url={lightroomUploadTargetUrl} label="Teszt endpoint másolása" className="w-full sm:w-auto" />
+                <code className="min-w-0 flex-1 break-all rounded-md bg-white px-3 py-3 text-xs text-graphite">{lightroomUploadTargetUrl}</code>
+              </div>
+              {lightroomUploadsUrl ? (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <CopyLinkButton url={lightroomUploadsUrl} label="Upload endpoint másolása" className="w-full sm:w-auto" />
+                  <code className="min-w-0 flex-1 break-all rounded-md bg-white px-3 py-3 text-xs text-graphite">{lightroomUploadsUrl}</code>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
