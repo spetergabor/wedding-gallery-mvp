@@ -700,6 +700,7 @@ model AlbumDesignSpread {
   updatedAt DateTime @updatedAt
   design    AlbumDesign @relation(fields: [designId], references: [id], onDelete: Cascade)
   items     AlbumDesignSpreadItem[]
+  textItems AlbumDesignSpreadTextItem[]
 
   @@index([designId])
   @@index([designId, sortOrder])
@@ -724,6 +725,27 @@ model AlbumDesignSpreadItem {
   @@index([spreadId])
   @@index([photoId])
   @@index([spreadId, slotIndex])
+}
+
+model AlbumDesignSpreadTextItem {
+  id         String   @id @default(cuid())
+  spreadId   String
+  text       String
+  x          Float
+  y          Float
+  width      Float
+  height     Float
+  fontFamily String   @default("playfair")
+  fontSize   Float    @default(7)
+  color      String   @default("#191919")
+  textAlign  String   @default("center")
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  spread     AlbumDesignSpread @relation(fields: [spreadId], references: [id], onDelete: Cascade)
+
+  @@index([spreadId])
+  @@index([spreadId, sortOrder])
 }
 
 model Contract {

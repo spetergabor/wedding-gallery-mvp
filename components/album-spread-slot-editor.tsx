@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { MousePointer2, RotateCcw, Save } from "lucide-react";
+import { MousePointer2, RotateCcw, Save, Type } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
@@ -26,6 +26,20 @@ type SpreadItem = {
   photo: FavoritePhoto;
 };
 
+type SpreadTextItem = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  textAlign: string;
+  sortOrder: number;
+};
+
 type EditableSpread = {
   id: string;
   title: string | null;
@@ -42,6 +56,23 @@ type CropDragState = {
   startCropY: number;
   width: number;
   height: number;
+};
+
+type TextDragState = {
+  id: string;
+  startClientX: number;
+  startClientY: number;
+  startX: number;
+  startY: number;
+  width: number;
+  height: number;
+};
+
+const ALBUM_TEXT_FONT_STACKS: Record<string, string> = {
+  playfair: '"Playfair Display", Georgia, serif',
+  cormorant: '"Cormorant Garamond", Georgia, serif',
+  lora: '"Lora", Georgia, serif',
+  montserrat: '"Montserrat", Arial, sans-serif'
 };
 
 function clampCropPosition(value: number) {
@@ -66,6 +97,10 @@ export function AlbumSpreadSlotEditor({
   onSelectedSlotIndexChange,
   onFocusSpread,
   onPhotoDropToSlot,
+  textItems = [],
+  selectedTextItemId = null,
+  onSelectedTextItemIdChange,
+  onTextItemsChange,
   hasChanges,
 }: {
   customerId: string | null;
@@ -77,11 +112,16 @@ export function AlbumSpreadSlotEditor({
   onSelectedSlotIndexChange: (slotIndex: number) => void;
   onFocusSpread?: () => void;
   onPhotoDropToSlot?: (slotIndex: number, photoId: string) => void;
+  textItems?: SpreadTextItem[];
+  selectedTextItemId?: string | null;
+  onSelectedTextItemIdChange?: (textItemId: string | null) => void;
+  onTextItemsChange?: (updater: (items: SpreadTextItem[]) => SpreadTextItem[]) => void;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
   const template = getAlbumLayoutTemplate(spread.layoutKey);
   const cropDragStateRef = useRef<CropDragState | null>(null);
+  const textDragStateRef = useRef<TextDragState | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
@@ -144,6 +184,67 @@ export function AlbumSpreadSlotEditor({
 
   function endCropDrag(event: PointerEvent<HTMLButtonElement>) {
     cropDragStateRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function selectTextItem(textItemId: string) {
+    onFocusSpread?.();
+    onSelectedTextItemIdChange?.(textItemId);
+  }
+
+  function beginTextDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadTextItem) {
+    if (event.button !== 0 || !onTextItemsChange) {
+      return;
+    }
+
+    const bounds = event.currentTarget.closest("[data-album-spread-canvas]")?.getBoundingClientRect();
+
+    if (!bounds) {
+      return;
+    }
+
+    selectTextItem(item.id);
+    textDragStateRef.current = {
+      id: item.id,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: item.x,
+      startY: item.y,
+      width: bounds.width,
+      height: bounds.height
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function updateTextDrag(event: PointerEvent<HTMLButtonElement>) {
+    const dragState = textDragStateRef.current;
+
+    if (!dragState || !onTextItemsChange) {
+      return;
+    }
+
+    event.preventDefault();
+    const deltaX = ((event.clientX - dragState.startClientX) / Math.max(1, dragState.width)) * 100;
+    const deltaY = ((event.clientY - dragState.startClientY) / Math.max(1, dragState.height)) * 100;
+
+    onTextItemsChange((items) =>
+      items.map((item) =>
+        item.id === dragState.id
+          ? {
+              ...item,
+              x: Math.min(100 - item.width, Math.max(0, dragState.startX + deltaX)),
+              y: Math.min(100 - item.height, Math.max(0, dragState.startY + deltaY))
+            }
+          : item
+      )
+    );
+  }
+
+  function endTextDrag(event: PointerEvent<HTMLButtonElement>) {
+    textDragStateRef.current = null;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -246,7 +347,11 @@ export function AlbumSpreadSlotEditor({
             })}
           </div>
         </div>
-        <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white" style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}>
+        <div
+          data-album-spread-canvas
+          className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white"
+          style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}
+        >
           {template.slots.map((slot, slotIndex) => {
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
             const isSelected = slotIndex === selectedSlotIndex;
@@ -327,6 +432,44 @@ export function AlbumSpreadSlotEditor({
                 <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
                   {slotIndex + 1}
                 </span>
+              </button>
+            );
+          })}
+          {textItems.map((item) => {
+            const isSelected = selectedTextItemId === item.id;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => selectTextItem(item.id)}
+                onPointerDown={(event) => beginTextDrag(event, item)}
+                onPointerMove={updateTextDrag}
+                onPointerUp={endTextDrag}
+                onPointerCancel={endTextDrag}
+                className={`absolute z-30 flex touch-none items-center justify-center whitespace-pre-wrap break-words border bg-white/0 px-2 py-1 transition ${
+                  isSelected ? "border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.16)]" : "border-transparent hover:border-brass/80"
+                } cursor-grab text-center active:cursor-grabbing`}
+                style={{
+                  left: `${item.x}%`,
+                  top: `${item.y}%`,
+                  width: `${item.width}%`,
+                  height: `${item.height}%`,
+                  color: item.color,
+                  fontFamily: ALBUM_TEXT_FONT_STACKS[item.fontFamily] ?? ALBUM_TEXT_FONT_STACKS.playfair,
+                  fontSize: `${Math.max(0.65, item.fontSize * 0.22)}rem`,
+                  lineHeight: 1.05,
+                  textAlign: item.textAlign as "left" | "center" | "right",
+                  touchAction: "none"
+                }}
+                aria-label="Szövegdoboz kijelölése"
+              >
+                <span className="pointer-events-none line-clamp-4 w-full">{item.text}</span>
+                {isSelected ? (
+                  <span className="absolute -left-2 -top-2 inline-flex size-6 items-center justify-center rounded-full bg-ink text-white shadow">
+                    <Type size={12} />
+                  </span>
+                ) : null}
               </button>
             );
           })}

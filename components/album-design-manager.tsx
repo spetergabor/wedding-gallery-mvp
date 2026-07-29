@@ -92,6 +92,19 @@ type AlbumDesign = {
     title: string | null;
     layoutKey: string;
     sortOrder: number;
+    textItems: Array<{
+      id: string;
+      text: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      fontFamily: string;
+      fontSize: number;
+      color: string;
+      textAlign: string;
+      sortOrder: number;
+    }>;
     items: Array<{
       id: string;
       slotIndex: number;

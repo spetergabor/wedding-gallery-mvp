@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -36,12 +36,27 @@ type SpreadItem = {
   photo: FavoritePhoto;
 };
 
+type SpreadTextItem = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  textAlign: string;
+  sortOrder: number;
+};
+
 type AlbumSpread = {
   id: string;
   title: string | null;
   layoutKey: string;
   sortOrder: number;
   items: SpreadItem[];
+  textItems: SpreadTextItem[];
 };
 
 const MIN_WORKBENCH_ZOOM = 0.55;
@@ -80,11 +95,42 @@ function getItemSignature(items: SpreadItem[]) {
   return items.map((item) => `${item.photo.id}:${formatCropPosition(item.cropX)}:${formatCropPosition(item.cropY)}`).join("|");
 }
 
+function getTextItemSignature(items: SpreadTextItem[]) {
+  return items
+    .map((item) =>
+      [
+        item.id,
+        item.text,
+        formatCropPosition(item.x),
+        formatCropPosition(item.y),
+        formatCropPosition(item.width),
+        formatCropPosition(item.height),
+        item.fontFamily,
+        formatCropPosition(item.fontSize),
+        item.color,
+        item.textAlign
+      ].join(":")
+    )
+    .join("|");
+}
+
 function createDraftMap(spreads: AlbumSpread[]) {
   return Object.fromEntries(spreads.map((spread) => [spread.id, getOrderedItems(spread)]));
 }
 
-function SpreadDraftInputs({ spreadId, items }: { spreadId: string; items: SpreadItem[] }) {
+function createTextDraftMap(spreads: AlbumSpread[]) {
+  return Object.fromEntries(spreads.map((spread) => [spread.id, [...spread.textItems].sort((left, right) => left.sortOrder - right.sortOrder)]));
+}
+
+function formatAlbumTextNumber(value: number) {
+  if (!Number.isFinite(value)) {
+    return "0.00";
+  }
+
+  return value.toFixed(2);
+}
+
+function SpreadDraftInputs({ spreadId, items, textItems }: { spreadId: string; items: SpreadItem[]; textItems: SpreadTextItem[] }) {
   return (
     <>
       <input type="hidden" name="draftSpreadIds" value={spreadId} />
@@ -96,9 +142,30 @@ function SpreadDraftInputs({ spreadId, items }: { spreadId: string; items: Sprea
           <input type="hidden" name={`spread-${spreadId}-slotCropY`} value={formatCropPosition(item.cropY)} />
         </span>
       ))}
+      {textItems.map((item) => (
+        <span key={`all-text-draft-${spreadId}-${item.id}`}>
+          <input type="hidden" name={`spread-${spreadId}-textIds`} value={item.id} />
+          <input type="hidden" name={`spread-${spreadId}-textValues`} value={item.text} />
+          <input type="hidden" name={`spread-${spreadId}-textX`} value={formatAlbumTextNumber(item.x)} />
+          <input type="hidden" name={`spread-${spreadId}-textY`} value={formatAlbumTextNumber(item.y)} />
+          <input type="hidden" name={`spread-${spreadId}-textWidth`} value={formatAlbumTextNumber(item.width)} />
+          <input type="hidden" name={`spread-${spreadId}-textHeight`} value={formatAlbumTextNumber(item.height)} />
+          <input type="hidden" name={`spread-${spreadId}-textFont`} value={item.fontFamily} />
+          <input type="hidden" name={`spread-${spreadId}-textSize`} value={formatAlbumTextNumber(item.fontSize)} />
+          <input type="hidden" name={`spread-${spreadId}-textColor`} value={item.color} />
+          <input type="hidden" name={`spread-${spreadId}-textAlign`} value={item.textAlign} />
+        </span>
+      ))}
     </>
   );
 }
+
+const ALBUM_TEXT_FONT_OPTIONS = [
+  { value: "playfair", label: "Playfair" },
+  { value: "cormorant", label: "Cormorant" },
+  { value: "lora", label: "Lora" },
+  { value: "montserrat", label: "Montserrat" }
+];
 
 function TemplatePreview({ layoutKey }: { layoutKey: string }) {
   const template = getTemplate(layoutKey);
@@ -195,9 +262,13 @@ export function AlbumDesignWorkbench({
       : orderedSpreads[0]?.id ?? "";
   const [isEditorOpen, setIsEditorOpen] = useState(initialEditorOpen);
   const [draftItemsBySpread, setDraftItemsBySpread] = useState<Record<string, SpreadItem[]>>(() => createDraftMap(spreads));
+  const [draftTextItemsBySpread, setDraftTextItemsBySpread] = useState<Record<string, SpreadTextItem[]>>(() => createTextDraftMap(spreads));
   const [activeSpreadId, setActiveSpreadId] = useState(() => resolvedInitialActiveSpreadId);
   const [selectedSlotBySpread, setSelectedSlotBySpread] = useState<Record<string, number>>(() =>
     Object.fromEntries(spreads.map((spread) => [spread.id, getOrderedItems(spread)[0]?.slotIndex ?? 0]))
+  );
+  const [selectedTextItemIdBySpread, setSelectedTextItemIdBySpread] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(spreads.map((spread) => [spread.id, spread.textItems[0]?.id ?? null]))
   );
   const [photoQuery, setPhotoQuery] = useState("");
   const [showUnusedOnly, setShowUnusedOnly] = useState(false);
@@ -212,12 +283,21 @@ export function AlbumDesignWorkbench({
     () => Object.fromEntries(localSpreads.map((spread) => [spread.id, getItemSignature(getOrderedItems(spread))])),
     [localSpreads]
   );
+  const originalTextSignaturesBySpread = useMemo(
+    () => Object.fromEntries(localSpreads.map((spread) => [spread.id, getTextItemSignature(spread.textItems)])),
+    [localSpreads]
+  );
   const changedSpreadIds = useMemo(
     () =>
       localSpreads
-        .filter((spread) => getItemSignature(draftItemsBySpread[spread.id] ?? getOrderedItems(spread)) !== originalSignaturesBySpread[spread.id])
+        .filter((spread) => {
+          const photoSignatureChanged = getItemSignature(draftItemsBySpread[spread.id] ?? getOrderedItems(spread)) !== originalSignaturesBySpread[spread.id];
+          const textSignatureChanged = getTextItemSignature(draftTextItemsBySpread[spread.id] ?? spread.textItems) !== originalTextSignaturesBySpread[spread.id];
+
+          return photoSignatureChanged || textSignatureChanged;
+        })
         .map((spread) => spread.id),
-    [draftItemsBySpread, localSpreads, originalSignaturesBySpread]
+    [draftItemsBySpread, draftTextItemsBySpread, localSpreads, originalSignaturesBySpread, originalTextSignaturesBySpread]
   );
   const usedPhotoIds = useMemo(
     () => [
@@ -254,6 +334,19 @@ export function AlbumDesignWorkbench({
 
   useEffect(() => {
     setDraftItemsBySpread(createDraftMap(spreads));
+  }, [spreads]);
+
+  useEffect(() => {
+    setDraftTextItemsBySpread(createTextDraftMap(spreads));
+    setSelectedTextItemIdBySpread((current) => {
+      const next = { ...current };
+
+      for (const spread of spreads) {
+        next[spread.id] = next[spread.id] ?? spread.textItems[0]?.id ?? null;
+      }
+
+      return next;
+    });
   }, [spreads]);
 
   useEffect(() => {
@@ -463,6 +556,57 @@ export function AlbumDesignWorkbench({
     replaceSpreadSlotPhoto(spreadId, slotIndex, photo);
   }
 
+  function setSelectedTextItemForSpread(spreadId: string, textItemId: string | null) {
+    setSelectedTextItemIdBySpread((current) => ({
+      ...current,
+      [spreadId]: textItemId
+    }));
+  }
+
+  function updateSpreadTextItems(spreadId: string, updater: (items: SpreadTextItem[]) => SpreadTextItem[]) {
+    const targetSpread = orderedSpreads.find((spread) => spread.id === spreadId);
+
+    if (!targetSpread) {
+      return;
+    }
+
+    setDraftTextItemsBySpread((current) => ({
+      ...current,
+      [spreadId]: updater(current[spreadId] ?? targetSpread.textItems)
+    }));
+  }
+
+  function addTextItemToSpread(spreadId: string) {
+    const targetSpread = orderedSpreads.find((spread) => spread.id === spreadId);
+
+    if (!targetSpread) {
+      return;
+    }
+
+    const textItem: SpreadTextItem = {
+      id: `draft-text-${spreadId}-${Date.now()}`,
+      text: "Új szöveg",
+      x: 30,
+      y: 42,
+      width: 40,
+      height: 12,
+      fontFamily: "playfair",
+      fontSize: 7,
+      color: "#191919",
+      textAlign: "center",
+      sortOrder: (draftTextItemsBySpread[spreadId] ?? targetSpread.textItems).length
+    };
+
+    updateSpreadTextItems(spreadId, (items) => [...items, textItem]);
+    setActiveSpreadId(spreadId);
+    setSelectedTextItemForSpread(spreadId, textItem.id);
+  }
+
+  function deleteTextItem(spreadId: string, textItemId: string) {
+    updateSpreadTextItems(spreadId, (items) => items.filter((item) => item.id !== textItemId));
+    setSelectedTextItemForSpread(spreadId, null);
+  }
+
   const createInlineSpread = useCallback(() => {
     if (isCreatingSpread) {
       return;
@@ -479,9 +623,17 @@ export function AlbumDesignWorkbench({
           ...current,
           [spread.id]: []
         }));
+        setDraftTextItemsBySpread((current) => ({
+          ...current,
+          [spread.id]: []
+        }));
         setSelectedSlotBySpread((current) => ({
           ...current,
           [spread.id]: 0
+        }));
+        setSelectedTextItemIdBySpread((current) => ({
+          ...current,
+          [spread.id]: null
         }));
         setActiveSpreadId(spread.id);
         setLayoutModalSpreadId(null);
@@ -576,7 +728,12 @@ export function AlbumDesignWorkbench({
                   {changedSpreadIds.length > 0 ? (
                     <form action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
                       {changedSpreadIds.map((spreadId) => (
-                        <SpreadDraftInputs key={spreadId} spreadId={spreadId} items={draftItemsBySpread[spreadId] ?? []} />
+                        <SpreadDraftInputs
+                          key={spreadId}
+                          spreadId={spreadId}
+                          items={draftItemsBySpread[spreadId] ?? []}
+                          textItems={draftTextItemsBySpread[spreadId] ?? []}
+                        />
                       ))}
                       <FormSubmitButton
                         variant="secondary"
@@ -712,9 +869,12 @@ export function AlbumDesignWorkbench({
                   {orderedSpreads.map((spread) => {
                     const template = getTemplate(spread.layoutKey);
                     const draftItems = draftItemsBySpread[spread.id] ?? getOrderedItems(spread);
+                    const draftTextItems = draftTextItemsBySpread[spread.id] ?? spread.textItems;
                     const hasChanges = changedSpreadIds.includes(spread.id);
                     const isActive = spread.id === activeSpread?.id;
                     const selectedSlotIndex = selectedSlotBySpread[spread.id] ?? draftItems[0]?.slotIndex ?? 0;
+                    const selectedTextItemId = selectedTextItemIdBySpread[spread.id] ?? draftTextItems[0]?.id ?? null;
+                    const selectedTextItem = draftTextItems.find((item) => item.id === selectedTextItemId) ?? null;
 
                     return (
                       <section
@@ -728,7 +888,7 @@ export function AlbumDesignWorkbench({
                           <div className="min-w-0">
                             <p className="text-lg font-semibold text-ink">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</p>
                             <p className="mt-0.5 text-xs text-graphite/60">
-                              {template.name} · {spread.items.length} kép
+                              {template.name} · {spread.items.length} kép · {draftTextItems.length} szöveg
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               {isActive ? (
@@ -745,6 +905,14 @@ export function AlbumDesignWorkbench({
                           </div>
 
                           <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => addTextItemToSpread(spread.id)}
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                            >
+                              <Type size={15} />
+                              Szöveg
+                            </button>
                             <a
                               href={`/admin/album-design-spreads/${spread.id}/export`}
                               className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
@@ -802,8 +970,131 @@ export function AlbumDesignWorkbench({
                           onSelectedSlotIndexChange={(slotIndex) => setActiveSpreadAndSlot(spread.id, slotIndex)}
                           onFocusSpread={() => setActiveSpreadId(spread.id)}
                           onPhotoDropToSlot={(slotIndex, photoId) => replaceSpreadSlotPhotoById(spread.id, slotIndex, photoId)}
+                          textItems={draftTextItems}
+                          selectedTextItemId={selectedTextItemId}
+                          onSelectedTextItemIdChange={(textItemId) => setSelectedTextItemForSpread(spread.id, textItemId)}
+                          onTextItemsChange={(updater) => updateSpreadTextItems(spread.id, updater)}
                           hasChanges={hasChanges}
                         />
+
+                        {selectedTextItem ? (
+                          <div className="mt-3 rounded-md border border-ink/10 bg-paper p-3">
+                            <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_180px_140px_120px_150px_auto] xl:items-end">
+                              <label className="grid gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Szöveg</span>
+                                <textarea
+                                  value={selectedTextItem.text}
+                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, text: event.target.value } : item))}
+                                  rows={2}
+                                  className="min-h-11 rounded-md border border-ink/15 bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-ink/45"
+                                />
+                              </label>
+                              <label className="grid gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Betűtípus</span>
+                                <select
+                                  value={selectedTextItem.fontFamily}
+                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, fontFamily: event.target.value } : item))}
+                                  className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/45"
+                                >
+                                  {ALBUM_TEXT_FONT_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="grid gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Méret</span>
+                                <input
+                                  type="number"
+                                  min="1.5"
+                                  max="18"
+                                  step="0.5"
+                                  value={selectedTextItem.fontSize}
+                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, fontSize: Number.parseFloat(event.target.value) || 7 } : item))}
+                                  className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/45"
+                                />
+                              </label>
+                              <label className="grid gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Szín</span>
+                                <input
+                                  type="color"
+                                  value={selectedTextItem.color}
+                                  onChange={(event) => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, color: event.target.value } : item))}
+                                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-2 py-1 outline-none transition focus:border-ink/45"
+                                />
+                              </label>
+                              <div className="grid gap-1.5">
+                                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Igazítás</span>
+                                <div className="inline-flex h-11 rounded-md border border-ink/15 bg-white p-1">
+                                  {[
+                                    { value: "left", icon: AlignLeft, label: "Balra" },
+                                    { value: "center", icon: AlignCenter, label: "Középre" },
+                                    { value: "right", icon: AlignRight, label: "Jobbra" }
+                                  ].map((option) => {
+                                    const Icon = option.icon;
+
+                                    return (
+                                      <button
+                                        key={option.value}
+                                        type="button"
+                                        onClick={() => updateSpreadTextItems(spread.id, (items) => items.map((item) => item.id === selectedTextItem.id ? { ...item, textAlign: option.value } : item))}
+                                        title={option.label}
+                                        className={`inline-flex size-9 items-center justify-center rounded transition ${
+                                          selectedTextItem.textAlign === option.value ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
+                                        }`}
+                                      >
+                                        <Icon size={16} />
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => deleteTextItem(spread.id, selectedTextItem.id)}
+                                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-sm font-medium text-red-700 transition hover:bg-red-100"
+                              >
+                                <Trash2 size={15} />
+                                Törlés
+                              </button>
+                            </div>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                              {[
+                                { label: "X", key: "x", min: 0, max: 100 },
+                                { label: "Y", key: "y", min: 0, max: 100 },
+                                { label: "Szélesség", key: "width", min: 1, max: 100 },
+                                { label: "Magasság", key: "height", min: 1, max: 100 }
+                              ].map((field) => (
+                                <label key={field.key} className="grid gap-1.5">
+                                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">{field.label}</span>
+                                  <input
+                                    type="number"
+                                    min={field.min}
+                                    max={field.max}
+                                    step="0.5"
+                                    value={selectedTextItem[field.key as "x" | "y" | "width" | "height"]}
+                                    onChange={(event) => {
+                                      const nextValue = Number.parseFloat(event.target.value);
+
+                                      updateSpreadTextItems(spread.id, (items) =>
+                                        items.map((item) =>
+                                          item.id === selectedTextItem.id
+                                            ? {
+                                                ...item,
+                                                [field.key]: Number.isFinite(nextValue) ? nextValue : item[field.key as "x" | "y" | "width" | "height"]
+                                              }
+                                            : item
+                                        )
+                                      );
+                                    }}
+                                    className="h-10 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/45"
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                       </section>
                     );
                   })}

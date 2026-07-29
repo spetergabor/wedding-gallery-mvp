@@ -209,6 +209,9 @@ export default async function AdminAlbumsPage({
         spreads: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
           include: {
+            textItems: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
+            },
             items: {
               orderBy: { slotIndex: "asc" },
               include: {

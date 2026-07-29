@@ -36,12 +36,46 @@ function formInteger(formData: FormData, key: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function formNumber(value: string, fallback: number) {
+  const parsed = Number.parseFloat(value);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function clampCropPosition(value: number) {
   if (!Number.isFinite(value)) {
     return 50;
   }
 
   return Math.min(100, Math.max(0, value));
+}
+
+function clampPercent(value: number, fallback = 0) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(100, Math.max(0, value));
+}
+
+function clampSizePercent(value: number, fallback: number) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(100, Math.max(1, value));
+}
+
+function normalizeAlbumTextFont(value: string) {
+  return ["playfair", "cormorant", "lora", "montserrat"].includes(value) ? value : "playfair";
+}
+
+function normalizeAlbumTextAlign(value: string) {
+  return ["left", "center", "right"].includes(value) ? value : "center";
+}
+
+function normalizeAlbumTextColor(value: string) {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value : "#191919";
 }
 
 function getSelectedPhotoIds(formData: FormData) {
@@ -68,6 +102,42 @@ function getOrderedCropPositions(formData: FormData, count: number, keys = { cro
     cropX: clampCropPosition(Number.parseFloat(cropXValues[index] ?? "50")),
     cropY: clampCropPosition(Number.parseFloat(cropYValues[index] ?? "50"))
   }));
+}
+
+function getAlbumTextItemDrafts(formData: FormData, spreadId: string) {
+  const ids = getOrderedFormStrings(formData, `spread-${spreadId}-textIds`);
+  const texts = formData.getAll(`spread-${spreadId}-textValues`).map((value) => (typeof value === "string" ? value.trim().slice(0, 500) : ""));
+  const xValues = getOrderedFormStrings(formData, `spread-${spreadId}-textX`);
+  const yValues = getOrderedFormStrings(formData, `spread-${spreadId}-textY`);
+  const widthValues = getOrderedFormStrings(formData, `spread-${spreadId}-textWidth`);
+  const heightValues = getOrderedFormStrings(formData, `spread-${spreadId}-textHeight`);
+  const fontValues = getOrderedFormStrings(formData, `spread-${spreadId}-textFont`);
+  const sizeValues = getOrderedFormStrings(formData, `spread-${spreadId}-textSize`);
+  const colorValues = getOrderedFormStrings(formData, `spread-${spreadId}-textColor`);
+  const alignValues = getOrderedFormStrings(formData, `spread-${spreadId}-textAlign`);
+
+  return ids
+    .map((id, index) => {
+      const text = texts[index] ?? "";
+
+      if (!text) {
+        return null;
+      }
+
+      return {
+        text,
+        x: clampPercent(formNumber(xValues[index] ?? "", 12), 12),
+        y: clampPercent(formNumber(yValues[index] ?? "", 42), 42),
+        width: clampSizePercent(formNumber(widthValues[index] ?? "", 76), 76),
+        height: clampSizePercent(formNumber(heightValues[index] ?? "", 12), 12),
+        fontFamily: normalizeAlbumTextFont(fontValues[index] ?? "playfair"),
+        fontSize: Math.min(18, Math.max(1.5, formNumber(sizeValues[index] ?? "", 7))),
+        color: normalizeAlbumTextColor(colorValues[index] ?? "#191919"),
+        textAlign: normalizeAlbumTextAlign(alignValues[index] ?? "center"),
+        sortOrder: index
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
 }
 
 function shufflePhotoIds(photoIds: string[]) {
@@ -595,7 +665,8 @@ export async function createEmptyAlbumDesignSpreadInlineAction(customerId: strin
 
   return {
     ...spread,
-    items: []
+    items: [],
+    textItems: []
   };
 }
 
@@ -837,6 +908,22 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
                 }
               }
             }
+          },
+          textItems: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            select: {
+              id: true,
+              text: true,
+              x: true,
+              y: true,
+              width: true,
+              height: true,
+              fontFamily: true,
+              fontSize: true,
+              color: true,
+              textAlign: true,
+              sortOrder: true
+            }
           }
         }
       }
@@ -851,7 +938,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=customer"));
   }
 
-  const spreads = albumDesign.spreads.filter((spread) => spread.items.length > 0) satisfies AlbumDesignSpreadExportData[];
+  const spreads = albumDesign.spreads.filter((spread) => spread.items.length > 0 || spread.textItems.length > 0) satisfies AlbumDesignSpreadExportData[];
 
   if (spreads.length === 0) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=no-spreads"));
@@ -1104,8 +1191,9 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
       cropX: `spread-${spread.id}-slotCropX`,
       cropY: `spread-${spread.id}-slotCropY`
     });
+    const textItems = getAlbumTextItemDrafts(formData, spread.id);
 
-    if (photoIds.length === 0 || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
+    if ((photoIds.length === 0 && textItems.length === 0) || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
       redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
     }
 
@@ -1114,7 +1202,8 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
       layout,
       photoIds,
       slotIndexes,
-      cropPositions
+      cropPositions,
+      textItems
     };
   });
 
@@ -1137,6 +1226,10 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
           items: {
             deleteMany: {},
             create: createSpreadItemsForSlotIndexes(draft.layout, draft.photoIds, draft.slotIndexes, draft.cropPositions)
+          },
+          textItems: {
+            deleteMany: {},
+            create: draft.textItems
           }
         }
       })

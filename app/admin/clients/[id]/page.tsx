@@ -1656,6 +1656,9 @@ export default async function AdminClientDetailPage({
           spreads: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
             include: {
+              textItems: {
+                orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }]
+              },
               items: {
                 orderBy: { slotIndex: "asc" },
                 include: {
