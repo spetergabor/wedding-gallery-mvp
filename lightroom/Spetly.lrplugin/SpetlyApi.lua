@@ -1,5 +1,5 @@
 local LrHttp = import "LrHttp"
-local LrJson = import "LrJson"
+local SpetlyJson = require "SpetlyJson"
 
 local SpetlyApi = {}
 
@@ -25,7 +25,7 @@ local function decodeJson(response)
   end
 
   local ok, parsed = pcall(function()
-    return LrJson.decode(response)
+    return SpetlyJson.decode(response)
   end)
 
   if ok then
@@ -36,7 +36,7 @@ local function decodeJson(response)
 end
 
 function SpetlyApi.postJson(url, token, payload, timeout)
-  local body = LrJson.encode(payload or {})
+  local body = SpetlyJson.encode(payload or {})
   local response, headers = LrHttp.post(url, body, jsonHeaders(token), "POST", timeout or 60)
   local status = statusCode(headers)
   local parsed = decodeJson(response)
