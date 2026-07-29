@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicGalleryDownloadPackages, PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
@@ -43,6 +43,7 @@ import {
   normalizeGalleryDeliveryMode
 } from "@/lib/gallery-delivery";
 import { normalizeGalleryDesign } from "@/lib/gallery-design";
+import { createLightroomUploadToken, hashLightroomUploadToken } from "@/lib/lightroom-upload-token";
 import {
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
@@ -167,14 +168,6 @@ async function requireGalleryAccess(galleryId: string) {
 
 function createClientAccessToken() {
   return randomBytes(24).toString("base64url");
-}
-
-function createLightroomUploadToken() {
-  return `lr_${randomBytes(32).toString("base64url")}`;
-}
-
-function hashLightroomUploadToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 const STALE_MEDIA_PROCESSING_MS = 2 * 60 * 60 * 1000;

@@ -73,6 +73,7 @@ type GalleryFormProps = {
   stripeReady?: boolean;
   guestUploadUrl?: string | null;
   lightroomToken?: string | null;
+  lightroomUploadTargetUrl?: string | null;
 };
 
 function dateInputValue(date: Date | null | undefined) {
@@ -118,7 +119,8 @@ export function GalleryForm({
   initialGalleryMode = GALLERY_MODE_FULL,
   stripeReady = false,
   guestUploadUrl = null,
-  lightroomToken = null
+  lightroomToken = null,
+  lightroomUploadTargetUrl = null
 }: GalleryFormProps) {
   const action = gallery
     ? updateGalleryAction.bind(null, gallery.id)
@@ -399,6 +401,19 @@ export function GalleryForm({
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <CopyLinkButton url={lightroomToken} label="Token másolása" className="w-full sm:w-auto" />
               <code className="min-w-0 flex-1 break-all rounded-md bg-white px-3 py-3 text-xs text-graphite">{lightroomToken}</code>
+            </div>
+          </div>
+        ) : null}
+
+        {lightroomUploadTargetUrl ? (
+          <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
+            <p className="text-sm font-semibold text-ink">Kapcsolat teszt endpoint</p>
+            <p className="mt-1 text-xs leading-5 text-graphite/70">
+              A Lightroom plugin első tesztje ezt az URL-t fogja hívni a fenti tokennel.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <CopyLinkButton url={lightroomUploadTargetUrl} label="Endpoint másolása" className="w-full sm:w-auto" />
+              <code className="min-w-0 flex-1 break-all rounded-md bg-white px-3 py-3 text-xs text-graphite">{lightroomUploadTargetUrl}</code>
             </div>
           </div>
         ) : null}

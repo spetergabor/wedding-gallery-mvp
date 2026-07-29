@@ -29,7 +29,7 @@ import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, albumDesignOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { publicGalleryUrl } from "@/lib/email";
+import { appBaseUrl, publicGalleryUrl } from "@/lib/email";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
@@ -540,6 +540,7 @@ export default async function GalleryDetailPage({
   const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
   const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
   const guestUploadUrl = `${galleryPublicUrl}#guest-photos`;
+  const lightroomUploadTargetUrl = new URL("/api/lightroom/upload-target", appBaseUrl()).toString();
 
   return (
     <AdminShell>
@@ -1607,6 +1608,7 @@ export default async function GalleryDetailPage({
               stripeReady={Boolean(stripeIntegration?.chargesEnabled)}
               guestUploadUrl={guestUploadUrl}
               lightroomToken={flags.lightroomToken ?? null}
+              lightroomUploadTargetUrl={lightroomUploadTargetUrl}
             />
             <UploadSessionLog sessions={gallery.uploadSessions} />
             <GalleryDangerZone galleryId={gallery.id} isActive={gallery.isActive} />
