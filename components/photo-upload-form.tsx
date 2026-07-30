@@ -1099,7 +1099,6 @@ export function PhotoUploadForm({
             type="file"
             accept="image/*,video/*"
             multiple
-            required
             disabled={isUploading || isReadingExif}
             onChange={handleFileChange}
             className="sr-only"
