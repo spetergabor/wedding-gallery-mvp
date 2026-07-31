@@ -127,10 +127,18 @@ function getPrimaryGroup(packages: DownloadPackage[]) {
   }
 
   const summaries = Array.from(groups.entries()).map(([key, groupPackages]) => summarizeGroup(key, groupPackages));
+  const latestCompleteAt = summaries
+    .filter((group) => group.isComplete)
+    .reduce((latest, group) => Math.max(latest, group.latestAt.getTime()), 0);
+  const isStillRelevantAttention = (group: ZipGroupSummary) => !latestCompleteAt || group.latestAt.getTime() > latestCompleteAt;
 
   summaries.sort((a, b) => {
     if (a.hasActiveWork !== b.hasActiveWork) {
       return a.hasActiveWork ? -1 : 1;
+    }
+
+    if (a.isComplete !== b.isComplete) {
+      return a.isComplete ? -1 : 1;
     }
 
     const aNeedsAttention = a.failedCount > 0 || a.staleCount > 0;
@@ -140,10 +148,6 @@ function getPrimaryGroup(packages: DownloadPackage[]) {
       return aNeedsAttention ? -1 : 1;
     }
 
-    if (a.isComplete !== b.isComplete) {
-      return a.isComplete ? -1 : 1;
-    }
-
     return b.latestAt.getTime() - a.latestAt.getTime();
   });
 
@@ -151,8 +155,10 @@ function getPrimaryGroup(packages: DownloadPackage[]) {
     primaryGroup: summaries[0] ?? null,
     summaries,
     groupCount: summaries.length,
-    oldFailedCount: summaries.slice(1).reduce((sum, group) => sum + group.failedCount + group.staleCount, 0),
-    totalStaleCount: summaries.reduce((sum, group) => sum + group.staleCount, 0)
+    oldFailedCount: summaries
+      .slice(1)
+      .reduce((sum, group) => sum + group.failedCount + (isStillRelevantAttention(group) ? group.staleCount : 0), 0),
+    totalStaleCount: summaries.reduce((sum, group) => sum + (isStillRelevantAttention(group) ? group.staleCount : 0), 0)
   };
 }
 
