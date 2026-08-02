@@ -17,6 +17,24 @@ export type AlbumLayoutTemplate = {
 export const ALBUM_SPREAD_BACKGROUND = "#ffffff";
 export const ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX = 4;
 export const ALBUM_SPREAD_EXPORT_SLOT_INSET_PX = 14;
+const ALBUM_SLOT_EDGE_EPSILON_PERCENT = 0.001;
+
+function isAlbumPageVerticalEdge(value: number) {
+  return [0, 50, 100].some((edge) => Math.abs(value - edge) <= ALBUM_SLOT_EDGE_EPSILON_PERCENT);
+}
+
+function isAlbumPageHorizontalEdge(value: number) {
+  return value <= ALBUM_SLOT_EDGE_EPSILON_PERCENT || value >= 100 - ALBUM_SLOT_EDGE_EPSILON_PERCENT;
+}
+
+export function getAlbumSlotEdgeInsetsPx(slot: AlbumLayoutSlot, insetPx: number) {
+  return {
+    left: isAlbumPageVerticalEdge(slot.x) ? 0 : insetPx,
+    right: isAlbumPageVerticalEdge(slot.x + slot.width) ? 0 : insetPx,
+    top: isAlbumPageHorizontalEdge(slot.y) ? 0 : insetPx,
+    bottom: isAlbumPageHorizontalEdge(slot.y + slot.height) ? 0 : insetPx
+  };
+}
 
 export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
   {

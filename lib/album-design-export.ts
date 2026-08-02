@@ -3,7 +3,7 @@ import path from "node:path";
 import * as opentype from "opentype.js";
 import sharp from "sharp";
 import { albumDesignOwnedWhere } from "@/lib/admin-scope";
-import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutExportSlotInsetPx, getAlbumLayoutTemplate } from "@/lib/album-design-templates";
+import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutExportSlotInsetPx, getAlbumLayoutTemplate, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
 
@@ -608,8 +608,9 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
       });
       const slotWidth = Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH);
       const slotHeight = Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT);
-      const width = Math.max(1, slotWidth - slotInset * 2);
-      const height = Math.max(1, slotHeight - slotInset * 2);
+      const edgeInsets = getAlbumSlotEdgeInsetsPx(item, slotInset);
+      const width = Math.max(1, slotWidth - edgeInsets.left - edgeInsets.right);
+      const height = Math.max(1, slotHeight - edgeInsets.top - edgeInsets.bottom);
       const input = await renderCroppedPhotoBuffer({
         photoBuffer,
         width,
@@ -620,8 +621,8 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
 
       return {
         input,
-        left: Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH) + slotInset,
-        top: Math.round((item.y / 100) * ALBUM_DESIGN_EXPORT_HEIGHT) + slotInset
+        left: Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH) + edgeInsets.left,
+        top: Math.round((item.y / 100) * ALBUM_DESIGN_EXPORT_HEIGHT) + edgeInsets.top
       };
     })
   );

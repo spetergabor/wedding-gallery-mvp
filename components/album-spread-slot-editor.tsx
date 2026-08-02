@@ -5,7 +5,7 @@ import { Maximize2, MousePointer2, Move, RotateCcw, Save } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
-import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumLayoutTemplate } from "@/lib/album-design-templates";
+import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumLayoutTemplate, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
   id: string;
@@ -985,6 +985,7 @@ export function AlbumSpreadSlotEditor({
             const isSelected = slotIndex === selectedSlotIndex;
             const isDragOver = slotIndex === dragOverSlotIndex;
             const slotFrame = getSlotFrame(slotIndex, item);
+            const edgeInsets = getAlbumSlotEdgeInsetsPx(slotFrame, slotInset);
 
             if (!item) {
               return (
@@ -1002,10 +1003,10 @@ export function AlbumSpreadSlotEditor({
                         : "border-ink/20 bg-white/65 hover:border-brass"
                   }`}
                   style={{
-                    left: `calc(${slotFrame.x}% + ${slotInset}px)`,
-                    top: `calc(${slotFrame.y}% + ${slotInset}px)`,
-                    width: `calc(${slotFrame.width}% - ${slotInset * 2}px)`,
-                    height: `calc(${slotFrame.height}% - ${slotInset * 2}px)`
+                    left: `calc(${slotFrame.x}% + ${edgeInsets.left}px)`,
+                    top: `calc(${slotFrame.y}% + ${edgeInsets.top}px)`,
+                    width: `calc(${slotFrame.width}% - ${edgeInsets.left + edgeInsets.right}px)`,
+                    height: `calc(${slotFrame.height}% - ${edgeInsets.top + edgeInsets.bottom}px)`
                   }}
                   role="button"
                   tabIndex={0}
@@ -1033,18 +1034,18 @@ export function AlbumSpreadSlotEditor({
                 onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
                 onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
                 onDrop={(event) => handleSlotDrop(event, slotIndex)}
-                className={`absolute border bg-white transition ${isSelected ? "overflow-visible" : "overflow-hidden"} ${
+                className={`absolute border-0 bg-white transition ${isSelected ? "overflow-visible" : "overflow-hidden"} ${
                   isDragOver
-                    ? "z-20 border-brass shadow-[0_0_0_4px_rgba(181,143,77,0.2)]"
+                    ? "z-20 ring-2 ring-inset ring-brass shadow-[0_0_0_4px_rgba(181,143,77,0.2)]"
                     : isSelected
-                      ? "z-10 border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.18)]"
-                      : "border-white hover:border-brass"
+                      ? "z-10 ring-1 ring-inset ring-ink shadow-[0_0_0_3px_rgba(25,25,25,0.18)]"
+                      : "hover:ring-1 hover:ring-inset hover:ring-brass"
                 } cursor-grab touch-none active:cursor-grabbing`}
                 style={{
-                  left: `calc(${item.x}% + ${slotInset}px)`,
-                  top: `calc(${item.y}% + ${slotInset}px)`,
-                  width: `calc(${item.width}% - ${slotInset * 2}px)`,
-                  height: `calc(${item.height}% - ${slotInset * 2}px)`,
+                  left: `calc(${item.x}% + ${edgeInsets.left}px)`,
+                  top: `calc(${item.y}% + ${edgeInsets.top}px)`,
+                  width: `calc(${item.width}% - ${edgeInsets.left + edgeInsets.right}px)`,
+                  height: `calc(${item.height}% - ${edgeInsets.top + edgeInsets.bottom}px)`,
                   touchAction: "none"
                 }}
                 role="button"

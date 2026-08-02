@@ -14,7 +14,7 @@ import {
   saveAlbumDesignSpreadDraftsAction,
   updateAlbumDesignSpreadLayoutOnlyAction
 } from "@/lib/album-design-actions";
-import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx } from "@/lib/album-design-templates";
+import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
 import { GALLERY_MODE_ALBUM_SOURCE, PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
 
 type FavoritePhoto = {
@@ -198,18 +198,22 @@ function TemplatePreview({ layoutKey }: { layoutKey: string }) {
 
   return (
     <div className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10" style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}>
-      {template.slots.map((slot, index) => (
-        <div
-          key={`${template.key}-${index}`}
-          className="absolute border border-brass/50 bg-brass/15"
-          style={{
-            left: `calc(${slot.x}% + ${inset}px)`,
-            top: `calc(${slot.y}% + ${inset}px)`,
-            width: `calc(${slot.width}% - ${inset * 2}px)`,
-            height: `calc(${slot.height}% - ${inset * 2}px)`
-          }}
-        />
-      ))}
+      {template.slots.map((slot, index) => {
+        const edgeInsets = getAlbumSlotEdgeInsetsPx(slot, inset);
+
+        return (
+          <div
+            key={`${template.key}-${index}`}
+            className="absolute border border-brass/50 bg-brass/15"
+            style={{
+              left: `calc(${slot.x}% + ${edgeInsets.left}px)`,
+              top: `calc(${slot.y}% + ${edgeInsets.top}px)`,
+              width: `calc(${slot.width}% - ${edgeInsets.left + edgeInsets.right}px)`,
+              height: `calc(${slot.height}% - ${edgeInsets.top + edgeInsets.bottom}px)`
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
