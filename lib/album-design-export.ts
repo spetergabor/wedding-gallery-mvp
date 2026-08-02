@@ -62,6 +62,7 @@ export type AlbumDesignSpreadExportData = {
 export const ALBUM_DESIGN_EXPORT_WIDTH = 7200;
 export const ALBUM_DESIGN_EXPORT_HEIGHT = 3600;
 const ALBUM_DESIGN_EXPORT_JPEG_QUALITY = 95;
+const ALBUM_DESIGN_TEXT_EXPORT_SCALE = 250;
 
 const ALBUM_DESIGN_TEXT_FONT_FILES: Record<string, string> = {
   playfair: "playfair-display-600.ttf",
@@ -550,14 +551,60 @@ function textPathXForAlign(font: opentype.Font, line: string, align: string, wid
   return Math.max(0, (width - lineWidth) / 2);
 }
 
+function fitTextLayoutToBox({
+  font,
+  text,
+  baseFontSize,
+  lineHeightRatio,
+  width,
+  height
+}: {
+  font: opentype.Font;
+  text: string;
+  baseFontSize: number;
+  lineHeightRatio: number;
+  width: number;
+  height: number;
+}) {
+  let fontSize = baseFontSize;
+  let lines = wrapTextLines(text, font, fontSize, width);
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const lineHeight = Math.max(1, fontSize * lineHeightRatio);
+    const maxLineWidth = Math.max(1, ...lines.map((line) => textLineWidth(font, line, fontSize)));
+    const totalLineHeight = Math.max(lineHeight, lines.length * lineHeight);
+    const fitScale = Math.min(1, width / maxLineWidth, height / totalLineHeight);
+
+    if (fitScale >= 0.98) {
+      break;
+    }
+
+    fontSize = Math.max(8, fontSize * fitScale * 0.96);
+    lines = wrapTextLines(text, font, fontSize, width);
+  }
+
+  return {
+    fontSize,
+    lines,
+    lineHeight: Math.max(1, Math.round(fontSize * lineHeightRatio))
+  };
+}
+
 function renderTextItemSvg(item: AlbumDesignSpreadExportData["textItems"][number]) {
   const width = Math.max(1, Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH));
   const height = Math.max(1, Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT));
-  const fontSize = Math.max(16, Math.round((item.fontSize / 100) * ALBUM_DESIGN_EXPORT_HEIGHT));
   const font = loadAlbumTextFont(item.fontFamily);
   const align = normalizeTextAlign(item.textAlign);
-  const lineHeight = Math.round(fontSize * Math.min(2.5, Math.max(0.8, item.lineHeight)));
-  const lines = wrapTextLines(item.text, font, fontSize, width);
+  const baseFontSize = Math.max(16, Math.round((item.fontSize / ALBUM_DESIGN_TEXT_EXPORT_SCALE) * ALBUM_DESIGN_EXPORT_HEIGHT));
+  const lineHeightRatio = Math.min(2.5, Math.max(0.8, item.lineHeight));
+  const { fontSize, lines, lineHeight } = fitTextLayoutToBox({
+    font,
+    text: item.text,
+    baseFontSize,
+    lineHeightRatio,
+    width,
+    height
+  });
   const startY = Math.max(fontSize, Math.round((height - Math.max(fontSize, lines.length * lineHeight)) / 2) + fontSize);
   const pathNodes = lines
     .slice(0, Math.max(1, Math.floor(height / lineHeight)))
