@@ -776,14 +776,24 @@ export function AlbumDesignWorkbench({
                       </FormSubmitButton>
                     </form>
                   ) : null}
-                  <a
-                    href={`/admin/album-designs/${designId}/export`}
-                    className="inline-flex size-9 items-center justify-center rounded-md border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
-                    aria-label="Összes oldalpár exportálása"
-                    title="Összes export"
-                  >
-                    <Download size={18} />
-                  </a>
+                  <form method="post" action={`/admin/album-designs/${designId}/export`}>
+                    {orderedSpreads.map((spread) => (
+                      <SpreadDraftInputs
+                        key={`export-${spread.id}`}
+                        spreadId={spread.id}
+                        items={draftItemsBySpread[spread.id] ?? []}
+                        textItems={draftTextItemsBySpread[spread.id] ?? []}
+                      />
+                    ))}
+                    <button
+                      type="submit"
+                      className="inline-flex size-9 items-center justify-center rounded-md border border-white/15 bg-white/10 text-white transition hover:bg-white/15"
+                      aria-label="Összes oldalpár exportálása"
+                      title="Összes export"
+                    >
+                      <Download size={18} />
+                    </button>
+                  </form>
                   <button
                     type="button"
                     onClick={() => setIsEditorOpen(false)}
