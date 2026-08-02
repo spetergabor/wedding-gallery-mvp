@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { AlignCenter, AlignLeft, AlignRight, Download, Grid3X3, Images, Maximize2, MousePointer2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -305,6 +305,7 @@ export function AlbumDesignWorkbench({
   const [isTextToolActive, setIsTextToolActive] = useState(false);
   const [workbenchZoom, setWorkbenchZoom] = useState(1);
   const [layoutModalSpreadId, setLayoutModalSpreadId] = useState<string | null>(null);
+  const [isCreateLayoutModalOpen, setIsCreateLayoutModalOpen] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [createSpreadError, setCreateSpreadError] = useState<string | null>(null);
   const [isCreatingSpread, setIsCreatingSpread] = useState(false);
@@ -460,6 +461,11 @@ export function AlbumDesignWorkbench({
       }
 
       if (event.key === "Escape") {
+        if (isCreateLayoutModalOpen) {
+          setIsCreateLayoutModalOpen(false);
+          return;
+        }
+
         if (layoutModalSpreadId) {
           setLayoutModalSpreadId(null);
           return;
@@ -485,7 +491,7 @@ export function AlbumDesignWorkbench({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [activeSpreadId, isEditorOpen, isTextToolActive, layoutModalSpreadId, selectedTextItemIdBySpread]);
+  }, [activeSpreadId, isCreateLayoutModalOpen, isEditorOpen, isTextToolActive, layoutModalSpreadId, selectedTextItemIdBySpread]);
 
   useEffect(() => {
     const element = workbenchScrollRef.current;
@@ -693,7 +699,7 @@ export function AlbumDesignWorkbench({
     setSelectedTextItemForSpread(spreadId, null);
   }
 
-  const createInlineSpread = useCallback(() => {
+  const createInlineSpread = useCallback((layoutKey: string) => {
     if (isCreatingSpread) {
       return;
     }
@@ -702,7 +708,7 @@ export function AlbumDesignWorkbench({
     setIsCreatingSpread(true);
     void (async () => {
       try {
-        const spread = await createEmptyAlbumDesignSpreadInlineAction(customerId, designId);
+        const spread = await createEmptyAlbumDesignSpreadInlineAction(customerId, designId, layoutKey);
 
         setLocalSpreads((current) => [...current.filter((item) => item.id !== spread.id), spread]);
         setDraftItemsBySpread((current) => ({
@@ -722,6 +728,7 @@ export function AlbumDesignWorkbench({
           [spread.id]: null
         }));
         setActiveSpreadId(spread.id);
+        setIsCreateLayoutModalOpen(false);
         setLayoutModalSpreadId(null);
       } catch (error) {
         console.error("Failed to create inline album spread", error);
@@ -731,6 +738,19 @@ export function AlbumDesignWorkbench({
       }
     })();
   }, [customerId, designId, isCreatingSpread]);
+
+  function submitCreateSpread(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const layoutKey = formData.get("layoutKey");
+
+    if (typeof layoutKey !== "string" || !layoutKey) {
+      setCreateSpreadError("Válassz layoutot az új oldalpárhoz.");
+      return;
+    }
+
+    createInlineSpread(layoutKey);
+  }
 
   return (
     <div className="mt-5">
@@ -993,7 +1013,10 @@ export function AlbumDesignWorkbench({
                 <SidebarSpreadCreateForm
                   isCreating={isCreatingSpread}
                   errorMessage={createSpreadError}
-                  onCreateSpread={createInlineSpread}
+                  onCreateSpread={() => {
+                    setCreateSpreadError(null);
+                    setIsCreateLayoutModalOpen(true);
+                  }}
                 />
               </aside>
 
@@ -1049,14 +1072,17 @@ export function AlbumDesignWorkbench({
                       <p className="text-lg font-semibold text-ink">Még nincs oldalpár</p>
                       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-graphite/65">
                         {canUploadSourceImages && sourcePhotos.length === 0
-                          ? "Tölts fel képeket az Album képkészlet blokkban, vagy kezdj egy üres oldalpárral és később tölts fel fotókat."
-                          : "Hozz létre egy üres oldalpárt, majd válassz layoutot és képeket ebben a teljes munkanézetben."}
+                          ? "Tölts fel képeket az Album képkészlet blokkban, vagy válassz layoutot egy új, üres oldalpárhoz."
+                          : "Válassz layoutot az új oldalpárhoz, majd töltsd fel képekkel ebben a teljes munkanézetben."}
                       </p>
                       <div className="mx-auto mt-4 max-w-sm lg:hidden">
                         <SidebarSpreadCreateForm
                           isCreating={isCreatingSpread}
                           errorMessage={createSpreadError}
-                          onCreateSpread={createInlineSpread}
+                          onCreateSpread={() => {
+                            setCreateSpreadError(null);
+                            setIsCreateLayoutModalOpen(true);
+                          }}
                         />
                       </div>
                       <p className="mt-4 hidden text-sm text-graphite/60 lg:block">
@@ -1178,6 +1204,56 @@ export function AlbumDesignWorkbench({
                 </div>
               </main>
             </div>
+
+            {isCreateLayoutModalOpen ? (
+              <div className="fixed inset-0 z-[95] flex items-center justify-center bg-ink/60 px-4 py-6">
+                <div className="flex max-h-[88dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-ink/10 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+                  <div className="flex flex-col gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Új oldalpár</p>
+                      <h4 className="mt-1 text-xl font-semibold text-ink">Válassz layoutot</h4>
+                      <p className="mt-1 text-sm text-graphite/65">
+                        A jóváhagyás után az új oldalpár rögtön ezzel a slotelrendezéssel jelenik meg.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateLayoutModalOpen(false)}
+                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white text-ink transition hover:border-ink/30"
+                      aria-label="Layout választó bezárása"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <form onSubmit={submitCreateSpread} className="flex min-h-0 flex-col">
+                    <div className="max-h-[62dvh] overflow-auto px-5 py-4">
+                      <AlbumLayoutRadioGrid defaultLayoutKey={ALBUM_LAYOUT_TEMPLATES[1]?.key ?? ALBUM_LAYOUT_TEMPLATES[0].key} className="" />
+                    </div>
+                    <div className="flex flex-col-reverse gap-2 border-t border-ink/10 bg-paper px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      {createSpreadError ? <p className="text-sm text-red-600">{createSpreadError}</p> : <span />}
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => setIsCreateLayoutModalOpen(false)}
+                          disabled={isCreatingSpread}
+                          className="inline-flex h-10 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30 disabled:opacity-50"
+                        >
+                          Mégse
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isCreatingSpread}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Plus size={15} />
+                          {isCreatingSpread ? "Létrehozás..." : "Oldalpár létrehozása"}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            ) : null}
 
             {layoutModalSpread ? (
               <div className="fixed inset-0 z-[95] flex items-center justify-center bg-ink/60 px-4 py-6">
