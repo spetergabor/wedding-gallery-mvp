@@ -568,7 +568,9 @@ async function renderTextItemBuffer(item: AlbumDesignSpreadExportData["textItems
   const innerWidth = Math.max(1, width - paddingX * 2);
   const lines = wrapTextLines(item.text, font, baseFontSize, innerWidth);
   const escapedText = escapePangoMarkup(lines.join("\n"));
-  const markup = `<span foreground="${normalizeTextColor(item.color)}" line_height="${lineHeightRatio.toFixed(2)}">${escapedText}</span>`;
+  const fontMetricLineHeightRatio = Math.max(0.01, (font.ascender - font.descender) / font.unitsPerEm);
+  const pangoLineHeightFactor = lineHeightRatio / fontMetricLineHeightRatio;
+  const markup = `<span foreground="${normalizeTextColor(item.color)}" line_height="${pangoLineHeightFactor.toFixed(4)}">${escapedText}</span>`;
   const rendered = await sharp({
     text: {
       text: markup,
