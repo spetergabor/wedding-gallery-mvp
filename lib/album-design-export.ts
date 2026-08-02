@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import * as opentype from "opentype.js";
 import sharp from "sharp";
 import { albumDesignOwnedWhere } from "@/lib/admin-scope";
 import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutExportSlotInsetPx, getAlbumLayoutTemplate } from "@/lib/album-design-templates";
@@ -60,12 +63,13 @@ export const ALBUM_DESIGN_EXPORT_WIDTH = 7200;
 export const ALBUM_DESIGN_EXPORT_HEIGHT = 3600;
 const ALBUM_DESIGN_EXPORT_JPEG_QUALITY = 95;
 
-const ALBUM_DESIGN_TEXT_FONTS: Record<string, string> = {
-  playfair: "Playfair Display, Georgia, serif",
-  cormorant: "Cormorant Garamond, Georgia, serif",
-  lora: "Lora, Georgia, serif",
-  montserrat: "Montserrat, Arial, sans-serif"
+const ALBUM_DESIGN_TEXT_FONT_FILES: Record<string, string> = {
+  playfair: "playfair-display-600.ttf",
+  cormorant: "cormorant-garamond-600.ttf",
+  lora: "lora-600.ttf",
+  montserrat: "montserrat-600.ttf"
 };
+const loadedAlbumTextFonts = new Map<string, opentype.Font>();
 
 function formNumber(value: string | null | undefined, fallback: number) {
   const parsed = Number.parseFloat(value ?? "");
@@ -103,7 +107,7 @@ function clampSizePercent(value: number, fallback: number) {
 }
 
 function normalizeAlbumTextFont(value: string) {
-  return ALBUM_DESIGN_TEXT_FONTS[value] ? value : "playfair";
+  return ALBUM_DESIGN_TEXT_FONT_FILES[value] ? value : "playfair";
 }
 
 function normalizeAlbumTextLineHeight(value: number) {
@@ -470,14 +474,6 @@ async function renderCroppedPhotoBuffer({
     .toBuffer();
 }
 
-function escapeSvgText(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function normalizeTextColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#191919";
 }
@@ -486,33 +482,29 @@ function normalizeTextAlign(value: string) {
   return value === "left" || value === "right" ? value : "center";
 }
 
-function textAnchorForAlign(value: string) {
-  if (value === "left") {
-    return "start";
+function loadAlbumTextFont(fontKey: string) {
+  const normalizedFontKey = normalizeAlbumTextFont(fontKey);
+  const cachedFont = loadedAlbumTextFonts.get(normalizedFontKey);
+
+  if (cachedFont) {
+    return cachedFont;
   }
 
-  if (value === "right") {
-    return "end";
-  }
+  const fontFile = ALBUM_DESIGN_TEXT_FONT_FILES[normalizedFontKey] ?? ALBUM_DESIGN_TEXT_FONT_FILES.playfair;
+  const fontPath = path.join(process.cwd(), "public", "fonts", "album-export", fontFile);
+  const fontBuffer = readFileSync(fontPath);
+  const font = opentype.parse(fontBuffer.buffer.slice(fontBuffer.byteOffset, fontBuffer.byteOffset + fontBuffer.byteLength));
+  loadedAlbumTextFonts.set(normalizedFontKey, font);
 
-  return "middle";
+  return font;
 }
 
-function textXForAlign(align: string, width: number) {
-  if (align === "left") {
-    return 0;
-  }
-
-  if (align === "right") {
-    return width;
-  }
-
-  return width / 2;
+function textLineWidth(font: opentype.Font, text: string, fontSize: number) {
+  return font.getAdvanceWidth(text, fontSize);
 }
 
-function wrapTextLines(text: string, fontSize: number, width: number) {
+function wrapTextLines(text: string, font: opentype.Font, fontSize: number, width: number) {
   const manualLines = text.replace(/\r\n/g, "\n").split("\n");
-  const maxChars = Math.max(1, Math.floor(width / Math.max(1, fontSize * 0.58)));
   const lines: string[] = [];
 
   for (const manualLine of manualLines) {
@@ -528,7 +520,7 @@ function wrapTextLines(text: string, fontSize: number, width: number) {
     for (const word of words) {
       const nextLine = currentLine ? `${currentLine} ${word}` : word;
 
-      if (nextLine.length > maxChars && currentLine) {
+      if (textLineWidth(font, nextLine, fontSize) > width && currentLine) {
         lines.push(currentLine);
         currentLine = word;
       } else {
@@ -544,34 +536,53 @@ function wrapTextLines(text: string, fontSize: number, width: number) {
   return lines;
 }
 
+function textPathXForAlign(font: opentype.Font, line: string, align: string, width: number, fontSize: number) {
+  if (align === "left") {
+    return 0;
+  }
+
+  const lineWidth = textLineWidth(font, line, fontSize);
+
+  if (align === "right") {
+    return Math.max(0, width - lineWidth);
+  }
+
+  return Math.max(0, (width - lineWidth) / 2);
+}
+
 function renderTextItemSvg(item: AlbumDesignSpreadExportData["textItems"][number]) {
   const width = Math.max(1, Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH));
   const height = Math.max(1, Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT));
   const fontSize = Math.max(16, Math.round((item.fontSize / 100) * ALBUM_DESIGN_EXPORT_HEIGHT));
-  const fontFamily = ALBUM_DESIGN_TEXT_FONTS[item.fontFamily] ?? ALBUM_DESIGN_TEXT_FONTS.playfair;
+  const font = loadAlbumTextFont(item.fontFamily);
   const align = normalizeTextAlign(item.textAlign);
-  const anchor = textAnchorForAlign(align);
-  const x = textXForAlign(align, width);
   const lineHeight = Math.round(fontSize * Math.min(2.5, Math.max(0.8, item.lineHeight)));
-  const lines = wrapTextLines(item.text, fontSize, width);
+  const lines = wrapTextLines(item.text, font, fontSize, width);
   const startY = Math.max(fontSize, Math.round((height - Math.max(fontSize, lines.length * lineHeight)) / 2) + fontSize);
-  const textNodes = lines
+  const pathNodes = lines
     .slice(0, Math.max(1, Math.floor(height / lineHeight)))
-    .map((line, index) => `<text x="${x}" y="${startY + index * lineHeight}" text-anchor="${anchor}">${escapeSvgText(line)}</text>`)
+    .map((line, index) => {
+      if (!line) {
+        return "";
+      }
+
+      const x = textPathXForAlign(font, line, align, width, fontSize);
+      const y = startY + index * lineHeight;
+      const textPath = font.getPath(line, x, y, fontSize);
+
+      return `<path d="${textPath.toPathData(2)}" />`;
+    })
     .join("");
 
   return {
     input: Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
         <style>
-          text {
+          path {
             fill: ${normalizeTextColor(item.color)};
-            font-family: ${fontFamily};
-            font-size: ${fontSize}px;
-            font-weight: 600;
           }
         </style>
-        ${textNodes}
+        ${pathNodes}
       </svg>`
     ),
     left: Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH),
