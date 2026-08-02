@@ -914,26 +914,26 @@ export function AlbumDesignWorkbench({
                       <ZoomIn size={15} />
                     </button>
                   </div>
-                  {changedSpreadIds.length > 0 ? (
-                    <form action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
-                      {changedSpreadIds.map((spreadId) => (
-                        <SpreadDraftInputs
-                          key={spreadId}
-                          spreadId={spreadId}
-                          items={draftItemsBySpread[spreadId] ?? []}
-                          textItems={draftTextItemsBySpread[spreadId] ?? []}
-                        />
-                      ))}
-                      <FormSubmitButton
-                        variant="secondary"
-                        className="!h-9 !px-3 border-white/20 bg-white text-sm text-ink shadow-none hover:bg-white/90"
-                        pendingLabel="Mentés..."
-                      >
-                        <Save size={14} />
-                        Összes mentése
-                      </FormSubmitButton>
-                    </form>
-                  ) : null}
+                  <form action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
+                    {changedSpreadIds.map((spreadId) => (
+                      <SpreadDraftInputs
+                        key={spreadId}
+                        spreadId={spreadId}
+                        items={draftItemsBySpread[spreadId] ?? []}
+                        textItems={draftTextItemsBySpread[spreadId] ?? []}
+                      />
+                    ))}
+                    <FormSubmitButton
+                      variant="secondary"
+                      className="!h-9 !px-3 border-white/20 bg-white text-sm text-ink shadow-none hover:bg-white/90 disabled:bg-white/60"
+                      pendingLabel="Minden módosítás mentése..."
+                      disabled={changedSpreadIds.length === 0}
+                      title={changedSpreadIds.length > 0 ? `${changedSpreadIds.length} módosított oldalpár mentése` : "Minden módosítás el van mentve"}
+                    >
+                      <Save size={14} />
+                      {changedSpreadIds.length > 0 ? `Mentés (${changedSpreadIds.length})` : "Minden mentve"}
+                    </FormSubmitButton>
+                  </form>
                   <form method="post" action={`/admin/album-designs/${designId}/export`}>
                     {orderedSpreads.map((spread) => (
                       <SpreadDraftInputs
@@ -1149,8 +1149,6 @@ export function AlbumDesignWorkbench({
                         </div>
 
                         <AlbumSpreadSlotEditor
-                          customerId={customerId}
-                          designId={designId}
                           spread={spread}
                           draftItems={draftItems}
                           onDraftItemsChange={(updater) =>

@@ -1,10 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Maximize2, MousePointer2, Move, RotateCcw, Save } from "lucide-react";
+import { Maximize2, MousePointer2, Move, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
-import { FormSubmitButton } from "@/components/form-submit-button";
-import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
 import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumLayoutTemplate, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
@@ -346,8 +344,6 @@ function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, delt
 }
 
 export function AlbumSpreadSlotEditor({
-  customerId,
-  designId,
   spread,
   draftItems,
   onDraftItemsChange,
@@ -366,8 +362,6 @@ export function AlbumSpreadSlotEditor({
   onCreateTextItem,
   hasChanges,
 }: {
-  customerId: string | null;
-  designId: string;
   spread: EditableSpread;
   draftItems: SpreadItem[];
   onDraftItemsChange: (updater: (items: SpreadItem[]) => SpreadItem[]) => void;
@@ -1154,7 +1148,7 @@ export function AlbumSpreadSlotEditor({
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-semibold text-ink">{selectedItem?.photo.filename ?? "Nincs kép"}</p>
             <p className="mt-1 text-xs leading-5 text-graphite/60">
-              {hasChanges ? "Nem mentett módosítások vannak. Mentésig csak ebben a nézetben változik." : "Képet húzással pozicionálsz a sloton belül."}
+              {hasChanges ? "Nem mentett módosítások vannak. A fejléc Mentés gombja minden oldalpárt egyszerre ment." : "Képet húzással pozicionálsz a sloton belül."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1186,43 +1180,6 @@ export function AlbumSpreadSlotEditor({
               <RotateCcw size={14} />
               Vissza
             </button>
-            <form action={saveAlbumDesignSpreadSlotDraftAction.bind(null, customerId, designId, spread.id)}>
-              {draftItems.map((item) => (
-                <span key={`slot-draft-${item.slotIndex}`}>
-                  <input type="hidden" name="slotIndexes" value={String(item.slotIndex)} />
-                  <input type="hidden" name="slotPhotoIds" value={item.photo.id} />
-                  <input type="hidden" name="slotX" value={formatCropPosition(item.x)} />
-                  <input type="hidden" name="slotY" value={formatCropPosition(item.y)} />
-                  <input type="hidden" name="slotWidth" value={formatCropPosition(item.width)} />
-                  <input type="hidden" name="slotHeight" value={formatCropPosition(item.height)} />
-                  <input type="hidden" name="slotCropX" value={formatCropPosition(item.cropX)} />
-                  <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />
-                </span>
-              ))}
-              {textItems.map((item) => (
-                <span key={`text-draft-${item.id}`}>
-                  <input type="hidden" name={`spread-${spread.id}-textIds`} value={item.id} />
-                  <input type="hidden" name={`spread-${spread.id}-textValues`} value={item.text} />
-                  <input type="hidden" name={`spread-${spread.id}-textX`} value={formatCropPosition(item.x)} />
-                  <input type="hidden" name={`spread-${spread.id}-textY`} value={formatCropPosition(item.y)} />
-                  <input type="hidden" name={`spread-${spread.id}-textWidth`} value={formatCropPosition(item.width)} />
-                  <input type="hidden" name={`spread-${spread.id}-textHeight`} value={formatCropPosition(item.height)} />
-                  <input type="hidden" name={`spread-${spread.id}-textFont`} value={item.fontFamily} />
-                  <input type="hidden" name={`spread-${spread.id}-textSize`} value={formatCropPosition(item.fontSize)} />
-                  <input type="hidden" name={`spread-${spread.id}-textLineHeight`} value={formatCropPosition(item.lineHeight)} />
-                  <input type="hidden" name={`spread-${spread.id}-textColor`} value={item.color} />
-                  <input type="hidden" name={`spread-${spread.id}-textAlign`} value={item.textAlign} />
-                </span>
-              ))}
-              <FormSubmitButton
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-ink px-3 text-xs font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!hasChanges}
-                pendingLabel="Mentés..."
-              >
-                <Save size={14} />
-                Mentés
-              </FormSubmitButton>
-            </form>
           </div>
         </div>
 
