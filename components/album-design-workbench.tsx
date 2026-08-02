@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AlignCenter, AlignLeft, AlignRight, Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Download, Grid3X3, Images, Maximize2, MousePointer2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -443,6 +443,12 @@ export function AlbumDesignWorkbench({
         return;
       }
 
+      if (!isEditableTarget && !event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        setIsTextToolActive(false);
+        return;
+      }
+
       if (!isEditableTarget && (event.key === "Backspace" || event.key === "Delete") && selectedTextItemIdBySpread[activeSpreadId]) {
         event.preventDefault();
         deleteTextItem(activeSpreadId, selectedTextItemIdBySpread[activeSpreadId]!);
@@ -773,20 +779,32 @@ export function AlbumDesignWorkbench({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsTextToolActive((current) => !current)}
-                    className={`inline-flex size-9 items-center justify-center rounded-md border transition ${
-                      isTextToolActive
-                        ? "border-white bg-white text-ink"
-                        : "border-white/15 bg-white/10 text-white hover:bg-white/15"
-                    }`}
-                    aria-pressed={isTextToolActive}
-                    aria-label="Szöveg eszköz"
-                    title={isTextToolActive ? "Szöveg eszköz aktív – kattints a vászonra" : "Szöveg eszköz"}
-                  >
-                    <Type size={18} />
-                  </button>
+                  <div className="inline-flex h-9 items-center rounded-md border border-white/15 bg-white/10 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsTextToolActive(false)}
+                      className={`inline-flex size-8 items-center justify-center rounded transition ${
+                        !isTextToolActive ? "bg-white text-ink" : "text-white hover:bg-white/15"
+                      }`}
+                      aria-pressed={!isTextToolActive}
+                      aria-label="Kijelölés és mozgatás"
+                      title="Kijelölés és mozgatás (V)"
+                    >
+                      <MousePointer2 size={17} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsTextToolActive(true)}
+                      className={`inline-flex size-8 items-center justify-center rounded transition ${
+                        isTextToolActive ? "bg-white text-ink" : "text-white hover:bg-white/15"
+                      }`}
+                      aria-pressed={isTextToolActive}
+                      aria-label="Szöveg eszköz"
+                      title={isTextToolActive ? "Szöveg eszköz aktív – kattints a vászonra" : "Szöveg eszköz (T)"}
+                    >
+                      <Type size={17} />
+                    </button>
+                  </div>
                   {activeSelectedTextItem ? (
                     <div className="flex h-9 items-center gap-1 rounded-md border border-white/15 bg-white/10 p-0.5 text-white">
                       <select

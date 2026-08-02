@@ -1075,7 +1075,7 @@ export function AlbumSpreadSlotEditor({
               <div
                 key={item.id}
                 data-album-text-item
-                className={`absolute z-30 touch-none bg-transparent ${isTextToolActive ? "cursor-text" : "cursor-move"}`}
+                className={`absolute z-30 touch-none bg-transparent ${isTextToolActive ? "cursor-text" : "cursor-grab active:cursor-grabbing"}`}
                 style={{
                   left: `${item.x}%`,
                   top: `${item.y}%`,
