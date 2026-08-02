@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Download, Grid3X3, Images, Maximize2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -70,6 +70,12 @@ type AlbumSpread = {
 const MIN_WORKBENCH_ZOOM = 0.55;
 const MAX_WORKBENCH_ZOOM = 1.8;
 const WORKBENCH_ZOOM_STEP = 0.1;
+const ALBUM_TEXT_FONT_OPTIONS = [
+  { value: "playfair", label: "Playfair" },
+  { value: "cormorant", label: "Cormorant" },
+  { value: "lora", label: "Lora" },
+  { value: "montserrat", label: "Montserrat" }
+];
 
 function clampWorkbenchZoom(value: number) {
   if (!Number.isFinite(value)) {
@@ -292,6 +298,7 @@ export function AlbumDesignWorkbench({
   );
   const [photoQuery, setPhotoQuery] = useState("");
   const [showUnusedOnly, setShowUnusedOnly] = useState(false);
+  const [isTextToolActive, setIsTextToolActive] = useState(false);
   const [workbenchZoom, setWorkbenchZoom] = useState(1);
   const [layoutModalSpreadId, setLayoutModalSpreadId] = useState<string | null>(null);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
@@ -335,6 +342,9 @@ export function AlbumDesignWorkbench({
   const activeDraftItems = activeSpread ? (draftItemsBySpread[activeSpread.id] ?? getOrderedItems(activeSpread)) : [];
   const activeSlotIndex = activeSpread ? (selectedSlotBySpread[activeSpread.id] ?? activeDraftItems[0]?.slotIndex ?? 0) : 0;
   const activeSlotItem = activeDraftItems.find((item) => item.slotIndex === activeSlotIndex) ?? null;
+  const activeTextItems = activeSpread ? (draftTextItemsBySpread[activeSpread.id] ?? activeSpread.textItems) : [];
+  const activeSelectedTextItemId = activeSpread ? (selectedTextItemIdBySpread[activeSpread.id] ?? null) : null;
+  const activeSelectedTextItem = activeTextItems.find((item) => item.id === activeSelectedTextItemId) ?? null;
   const filteredPhotos = useMemo(() => {
     const normalizedQuery = photoQuery.trim().toLowerCase();
     const searchedPhotos = normalizedQuery ? sourcePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedQuery)) : sourcePhotos;
@@ -424,9 +434,34 @@ export function AlbumDesignWorkbench({
     document.body.style.overflow = "hidden";
 
     function closeOnEscape(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const isEditableTarget = target?.matches("input, textarea, select, [contenteditable='true']") ?? false;
+
+      if (!isEditableTarget && !event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "t") {
+        event.preventDefault();
+        setIsTextToolActive(true);
+        return;
+      }
+
+      if (!isEditableTarget && (event.key === "Backspace" || event.key === "Delete") && selectedTextItemIdBySpread[activeSpreadId]) {
+        event.preventDefault();
+        deleteTextItem(activeSpreadId, selectedTextItemIdBySpread[activeSpreadId]!);
+        return;
+      }
+
       if (event.key === "Escape") {
         if (layoutModalSpreadId) {
           setLayoutModalSpreadId(null);
+          return;
+        }
+
+        if (isTextToolActive) {
+          setIsTextToolActive(false);
+          return;
+        }
+
+        if (selectedTextItemIdBySpread[activeSpreadId]) {
+          setSelectedTextItemForSpread(activeSpreadId, null);
           return;
         }
 
@@ -440,7 +475,7 @@ export function AlbumDesignWorkbench({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
     };
-  }, [isEditorOpen, layoutModalSpreadId]);
+  }, [activeSpreadId, isEditorOpen, isTextToolActive, layoutModalSpreadId, selectedTextItemIdBySpread]);
 
   useEffect(() => {
     const element = workbenchScrollRef.current;
@@ -606,7 +641,7 @@ export function AlbumDesignWorkbench({
     }));
   }
 
-  function addTextItemToSpread(spreadId: string) {
+  function addTextItemToSpread(spreadId: string, position: { x: number; y: number } = { x: 30, y: 42 }) {
     const targetSpread = orderedSpreads.find((spread) => spread.id === spreadId);
 
     if (!targetSpread) {
@@ -615,22 +650,32 @@ export function AlbumDesignWorkbench({
 
     const textItem: SpreadTextItem = {
       id: `draft-text-${spreadId}-${Date.now()}`,
-      text: "Új szöveg",
-      x: 30,
-      y: 42,
-      width: 40,
+      text: "",
+      x: Math.min(97, Math.max(0, position.x)),
+      y: Math.min(88, Math.max(0, position.y)),
+      width: Math.max(3, Math.min(40, 100 - position.x)),
       height: 12,
       fontFamily: "playfair",
       fontSize: 7,
       lineHeight: 1.05,
       color: "#191919",
-      textAlign: "center",
+      textAlign: "left",
       sortOrder: (draftTextItemsBySpread[spreadId] ?? targetSpread.textItems).length
     };
 
     updateSpreadTextItems(spreadId, (items) => [...items, textItem]);
     setActiveSpreadId(spreadId);
     setSelectedTextItemForSpread(spreadId, textItem.id);
+  }
+
+  function updateActiveSelectedTextItem(patch: Partial<SpreadTextItem>) {
+    if (!activeSpread || !activeSelectedTextItem) {
+      return;
+    }
+
+    updateSpreadTextItems(activeSpread.id, (items) =>
+      items.map((item) => (item.id === activeSelectedTextItem.id ? { ...item, ...patch } : item))
+    );
   }
 
   function deleteTextItem(spreadId: string, textItemId: string) {
@@ -728,6 +773,97 @@ export function AlbumDesignWorkbench({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsTextToolActive((current) => !current)}
+                    className={`inline-flex size-9 items-center justify-center rounded-md border transition ${
+                      isTextToolActive
+                        ? "border-white bg-white text-ink"
+                        : "border-white/15 bg-white/10 text-white hover:bg-white/15"
+                    }`}
+                    aria-pressed={isTextToolActive}
+                    aria-label="Szöveg eszköz"
+                    title={isTextToolActive ? "Szöveg eszköz aktív – kattints a vászonra" : "Szöveg eszköz"}
+                  >
+                    <Type size={18} />
+                  </button>
+                  {activeSelectedTextItem ? (
+                    <div className="flex h-9 items-center gap-1 rounded-md border border-white/15 bg-white/10 p-0.5 text-white">
+                      <select
+                        value={activeSelectedTextItem.fontFamily}
+                        onChange={(event) => updateActiveSelectedTextItem({ fontFamily: event.target.value })}
+                        className="h-8 w-28 rounded border-0 bg-white px-2 text-xs font-medium text-ink outline-none"
+                        aria-label="Betűtípus"
+                      >
+                        {ALBUM_TEXT_FONT_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min="1.5"
+                        max="18"
+                        step="0.5"
+                        value={activeSelectedTextItem.fontSize}
+                        onChange={(event) => updateActiveSelectedTextItem({ fontSize: Number.parseFloat(event.target.value) || activeSelectedTextItem.fontSize })}
+                        className="h-8 w-14 rounded border-0 bg-white px-2 text-xs font-medium text-ink outline-none"
+                        title="Betűméret"
+                        aria-label="Betűméret"
+                      />
+                      <input
+                        type="number"
+                        min="0.8"
+                        max="2.5"
+                        step="0.05"
+                        value={activeSelectedTextItem.lineHeight}
+                        onChange={(event) => updateActiveSelectedTextItem({ lineHeight: Number.parseFloat(event.target.value) || activeSelectedTextItem.lineHeight })}
+                        className="h-8 w-14 rounded border-0 bg-white px-2 text-xs font-medium text-ink outline-none"
+                        title="Sormagasság"
+                        aria-label="Sormagasság"
+                      />
+                      <input
+                        type="color"
+                        value={activeSelectedTextItem.color}
+                        onChange={(event) => updateActiveSelectedTextItem({ color: event.target.value })}
+                        className="size-8 rounded border-0 bg-white p-1"
+                        title="Szövegszín"
+                        aria-label="Szövegszín"
+                      />
+                      {[
+                        { value: "left", icon: AlignLeft, label: "Balra igazítás" },
+                        { value: "center", icon: AlignCenter, label: "Középre igazítás" },
+                        { value: "right", icon: AlignRight, label: "Jobbra igazítás" }
+                      ].map((option) => {
+                        const Icon = option.icon;
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => updateActiveSelectedTextItem({ textAlign: option.value })}
+                            className={`inline-flex size-8 items-center justify-center rounded transition ${
+                              activeSelectedTextItem.textAlign === option.value ? "bg-white text-ink" : "text-white/75 hover:bg-white/15 hover:text-white"
+                            }`}
+                            title={option.label}
+                            aria-label={option.label}
+                          >
+                            <Icon size={15} />
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => deleteTextItem(activeSpread!.id, activeSelectedTextItem.id)}
+                        className="inline-flex size-8 items-center justify-center rounded text-red-200 transition hover:bg-red-500/20 hover:text-red-100"
+                        title="Szöveg törlése"
+                        aria-label="Szöveg törlése"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ) : null}
                   <div className="inline-flex h-9 items-center rounded-md border border-white/15 bg-white/10 p-0.5 text-sm font-medium text-white">
                     <button
                       type="button"
@@ -945,14 +1081,6 @@ export function AlbumDesignWorkbench({
                           </div>
 
                           <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => addTextItemToSpread(spread.id)}
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-                            >
-                              <Type size={15} />
-                              Szöveg
-                            </button>
                             <form method="post" action={`/admin/album-design-spreads/${spread.id}/export`}>
                               <SpreadDraftInputs spreadId={spread.id} items={draftItems} textItems={draftTextItems} />
                               <button
@@ -1019,7 +1147,9 @@ export function AlbumDesignWorkbench({
                           selectedTextItemId={selectedTextItemId}
                           onSelectedTextItemIdChange={(textItemId) => setSelectedTextItemForSpread(spread.id, textItemId)}
                           onTextItemsChange={(updater) => updateSpreadTextItems(spread.id, updater)}
-                          onDeleteTextItem={(textItemId) => deleteTextItem(spread.id, textItemId)}
+                          isTextToolActive={isTextToolActive}
+                          onActivateTextTool={() => setIsTextToolActive(true)}
+                          onCreateTextItem={(position) => addTextItemToSpread(spread.id, position)}
                           hasChanges={hasChanges}
                         />
                       </section>

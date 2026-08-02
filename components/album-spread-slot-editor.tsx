@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { AlignCenter, AlignLeft, AlignRight, Maximize2, MousePointer2, Move, PanelLeft, PanelRight, RotateCcw, Save, Trash2, Type } from "lucide-react";
+import { Maximize2, MousePointer2, Move, RotateCcw, Save } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { saveAlbumDesignSpreadSlotDraftAction } from "@/lib/album-design-actions";
@@ -77,20 +77,6 @@ type TextDragState = {
 };
 
 type SlotResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
-type TextResizeCorner = SlotResizeCorner;
-
-type TextResizeState = {
-  id: string;
-  corner: TextResizeCorner;
-  startClientX: number;
-  startClientY: number;
-  startX: number;
-  startY: number;
-  startWidth: number;
-  startHeight: number;
-  canvasWidth: number;
-  canvasHeight: number;
-};
 
 type SlotFrameDragState = {
   slotIndex: number;
@@ -118,47 +104,14 @@ const ALBUM_TEXT_FONT_STACKS: Record<string, string> = {
   montserrat: '"Montserrat", Arial, sans-serif'
 };
 
-const ALBUM_TEXT_FONT_OPTIONS = [
-  { value: "playfair", label: "Playfair" },
-  { value: "cormorant", label: "Cormorant" },
-  { value: "lora", label: "Lora" },
-  { value: "montserrat", label: "Montserrat" }
-];
 const SLOT_VERTICAL_BARRIERS = [25, 50, 75];
 const SLOT_HORIZONTAL_BARRIERS = [50];
 const SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT = 4;
 const SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT = 1.6;
 const SLOT_BARRIER_EPSILON = 0.001;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
-const MIN_TEXT_BOX_SIZE_PERCENT = 3;
 const SLOT_RESIZE_HANDLES: Array<{
   corner: SlotResizeCorner;
-  className: string;
-  label: string;
-}> = [
-  {
-    corner: "top-left",
-    className: "-left-2 -top-2 cursor-nwse-resize",
-    label: "Bal felső sarok méretezése"
-  },
-  {
-    corner: "top-right",
-    className: "-right-2 -top-2 cursor-nesw-resize",
-    label: "Jobb felső sarok méretezése"
-  },
-  {
-    corner: "bottom-left",
-    className: "-bottom-2 -left-2 cursor-nesw-resize",
-    label: "Bal alsó sarok méretezése"
-  },
-  {
-    corner: "bottom-right",
-    className: "-bottom-2 -right-2 cursor-nwse-resize",
-    label: "Jobb alsó sarok méretezése"
-  }
-];
-const TEXT_RESIZE_HANDLES: Array<{
-  corner: TextResizeCorner;
   className: string;
   label: string;
 }> = [
@@ -408,7 +361,9 @@ export function AlbumSpreadSlotEditor({
   selectedTextItemId = null,
   onSelectedTextItemIdChange,
   onTextItemsChange,
-  onDeleteTextItem,
+  isTextToolActive = false,
+  onActivateTextTool,
+  onCreateTextItem,
   hasChanges,
 }: {
   customerId: string | null;
@@ -426,14 +381,16 @@ export function AlbumSpreadSlotEditor({
   selectedTextItemId?: string | null;
   onSelectedTextItemIdChange?: (textItemId: string | null) => void;
   onTextItemsChange?: (updater: (items: SpreadTextItem[]) => SpreadTextItem[]) => void;
-  onDeleteTextItem?: (textItemId: string) => void;
+  isTextToolActive?: boolean;
+  onActivateTextTool?: () => void;
+  onCreateTextItem?: (position: { x: number; y: number }) => void;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
   const template = getAlbumLayoutTemplate(spread.layoutKey);
   const cropDragStateRef = useRef<CropDragState | null>(null);
   const textDragStateRef = useRef<TextDragState | null>(null);
-  const textResizeStateRef = useRef<TextResizeState | null>(null);
+  const textAreaRefs = useRef(new Map<string, HTMLTextAreaElement>());
   const slotFrameDragStateRef = useRef<SlotFrameDragState | null>(null);
   const pendingSlotFrameUndoRef = useRef<SlotFrameUndoState | null>(null);
   const slotFrameChangedRef = useRef(false);
@@ -449,6 +406,33 @@ export function AlbumSpreadSlotEditor({
       onSelectedSlotIndexChange(0);
     }
   }, [onSelectedSlotIndexChange, selectedSlotIndex, template.slots]);
+
+  useEffect(() => {
+    if (!isTextToolActive || !selectedTextItemId) {
+      return;
+    }
+
+    const textArea = textAreaRefs.current.get(selectedTextItemId);
+
+    if (!textArea) {
+      return;
+    }
+
+    textArea.focus();
+    textArea.setSelectionRange(textArea.value.length, textArea.value.length);
+  }, [isTextToolActive, selectedTextItemId]);
+
+  const selectedTextItem = textItems.find((item) => item.id === selectedTextItemId) ?? null;
+
+  useEffect(() => {
+    if (!selectedTextItem) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => fitTextItemToContent(selectedTextItem.id));
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedTextItem?.color, selectedTextItem?.fontFamily, selectedTextItem?.fontSize, selectedTextItem?.id, selectedTextItem?.lineHeight, selectedTextItem?.text]);
 
   useEffect(() => {
     return () => {
@@ -545,46 +529,53 @@ export function AlbumSpreadSlotEditor({
     );
   }
 
-  function getResizedTextItem(dragState: TextResizeState, deltaX: number, deltaY: number) {
-    const movesLeft = dragState.corner === "top-left" || dragState.corner === "bottom-left";
-    const movesTop = dragState.corner === "top-left" || dragState.corner === "top-right";
-    const fixedRight = dragState.startX + dragState.startWidth;
-    const fixedBottom = dragState.startY + dragState.startHeight;
-    const rawX = movesLeft ? Math.min(fixedRight - MIN_TEXT_BOX_SIZE_PERCENT, Math.max(0, dragState.startX + deltaX)) : dragState.startX;
-    const rawY = movesTop ? Math.min(fixedBottom - MIN_TEXT_BOX_SIZE_PERCENT, Math.max(0, dragState.startY + deltaY)) : dragState.startY;
-    const rawWidth = movesLeft
-      ? fixedRight - rawX
-      : Math.min(100 - dragState.startX, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, dragState.startWidth + deltaX));
-    const rawHeight = movesTop
-      ? fixedBottom - rawY
-      : Math.min(100 - dragState.startY, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, dragState.startHeight + deltaY));
+  function fitTextItemToContent(textItemId: string) {
+    const textArea = textAreaRefs.current.get(textItemId);
+    const item = textItems.find((candidate) => candidate.id === textItemId);
+    const canvas = textArea?.closest("[data-album-spread-canvas]");
 
-    return {
-      x: Math.min(100 - rawWidth, Math.max(0, rawX)),
-      y: Math.min(100 - rawHeight, Math.max(0, rawY)),
-      width: Math.min(100, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, rawWidth)),
-      height: Math.min(100, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, rawHeight))
-    };
-  }
+    if (!textArea || !item || !canvas || !onTextItemsChange) {
+      return;
+    }
 
-  function centerTextItemOnPage(textItemId: string, page: "left" | "right") {
-    onTextItemsChange?.((items) =>
-      items.map((item) => {
-        if (item.id !== textItemId) {
-          return item;
-        }
+    const canvasWidth = Math.max(1, canvas.clientWidth);
+    const canvasHeight = Math.max(1, canvas.clientHeight);
+    const computedStyle = window.getComputedStyle(textArea);
+    const measurementCanvas = document.createElement("canvas");
+    const context = measurementCanvas.getContext("2d");
 
-        const pageX = page === "left" ? 0 : 50;
-        const pageWidth = 50;
-        const nextX = pageX + Math.max(0, (pageWidth - item.width) / 2);
-        const nextY = Math.max(0, (100 - item.height) / 2);
+    if (!context) {
+      return;
+    }
 
-        return {
-          ...item,
-          x: Math.min(100 - item.width, Math.max(0, nextX)),
-          y: Math.min(100 - item.height, Math.max(0, nextY))
-        };
-      })
+    context.font = `${computedStyle.fontWeight} ${computedStyle.fontSize} ${computedStyle.fontFamily}`;
+    const lines = (item.text || " ").replace(/\r\n/g, "\n").split("\n");
+    const paddingX = Number.parseFloat(computedStyle.paddingLeft) + Number.parseFloat(computedStyle.paddingRight);
+    const paddingY = Number.parseFloat(computedStyle.paddingTop) + Number.parseFloat(computedStyle.paddingBottom);
+    const lineHeightPx = Number.parseFloat(computedStyle.lineHeight) || Number.parseFloat(computedStyle.fontSize) * clampTextLineHeight(item.lineHeight);
+    const contentWidthPx = Math.max(...lines.map((line) => context.measureText(line || " ").width)) + paddingX + 2;
+    const contentHeightPx = Math.max(1, lines.length) * lineHeightPx + paddingY;
+    const nextWidth = Math.min(100, Math.max(1, (contentWidthPx / canvasWidth) * 100));
+    const nextHeight = Math.min(100, Math.max(1, (contentHeightPx / canvasHeight) * 100));
+    const anchorX = item.textAlign === "right" ? item.x + item.width : item.textAlign === "center" ? item.x + item.width / 2 : item.x;
+    const nextX = item.textAlign === "right" ? anchorX - nextWidth : item.textAlign === "center" ? anchorX - nextWidth / 2 : item.x;
+    const clampedX = Math.min(100 - nextWidth, Math.max(0, nextX));
+
+    if (Math.abs(item.x - clampedX) < 0.01 && Math.abs(item.width - nextWidth) < 0.01 && Math.abs(item.height - nextHeight) < 0.01) {
+      return;
+    }
+
+    onTextItemsChange((items) =>
+      items.map((candidate) =>
+        candidate.id === textItemId
+          ? {
+              ...candidate,
+              x: clampedX,
+              width: nextWidth,
+              height: nextHeight
+            }
+          : candidate
+      )
     );
   }
 
@@ -773,7 +764,7 @@ export function AlbumSpreadSlotEditor({
     window.addEventListener("pointercancel", handleEnd);
   }
 
-  function beginTextDrag(event: PointerEvent<HTMLButtonElement>, item: SpreadTextItem) {
+  function beginTextDrag(event: PointerEvent<HTMLElement>, item: SpreadTextItem) {
     if (event.button !== 0 || !onTextItemsChange) {
       return;
     }
@@ -797,7 +788,7 @@ export function AlbumSpreadSlotEditor({
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function updateTextDrag(event: PointerEvent<HTMLButtonElement>) {
+  function updateTextDrag(event: PointerEvent<HTMLElement>) {
     const dragState = textDragStateRef.current;
 
     if (!dragState || !onTextItemsChange) {
@@ -821,7 +812,7 @@ export function AlbumSpreadSlotEditor({
     );
   }
 
-  function endTextDrag(event: PointerEvent<HTMLButtonElement>) {
+  function endTextDrag(event: PointerEvent<HTMLElement>) {
     textDragStateRef.current = null;
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -829,65 +820,17 @@ export function AlbumSpreadSlotEditor({
     }
   }
 
-  function beginTextResize(event: PointerEvent<HTMLButtonElement>, item: SpreadTextItem, corner: TextResizeCorner) {
-    if (event.button !== 0 || !onTextItemsChange) {
-      return;
-    }
-
-    const bounds = event.currentTarget.closest("[data-album-spread-canvas]")?.getBoundingClientRect();
-
-    if (!bounds) {
+  function handleCanvasTextPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!isTextToolActive || !onCreateTextItem || (event.target as HTMLElement).closest("[data-album-text-item]")) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    selectTextItem(item.id);
-    textResizeStateRef.current = {
-      id: item.id,
-      corner,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: item.x,
-      startY: item.y,
-      startWidth: item.width,
-      startHeight: item.height,
-      canvasWidth: bounds.width,
-      canvasHeight: bounds.height
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function updateTextResize(event: PointerEvent<HTMLButtonElement>) {
-    const dragState = textResizeStateRef.current;
-
-    if (!dragState || !onTextItemsChange) {
-      return;
-    }
-
-    event.preventDefault();
-    const deltaX = ((event.clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
-    const deltaY = ((event.clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
-    const nextFrame = getResizedTextItem(dragState, deltaX, deltaY);
-
-    onTextItemsChange((items) =>
-      items.map((item) =>
-        item.id === dragState.id
-          ? {
-              ...item,
-              ...nextFrame
-            }
-          : item
-      )
-    );
-  }
-
-  function endTextResize(event: PointerEvent<HTMLButtonElement>) {
-    textResizeStateRef.current = null;
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 100;
+    const y = ((event.clientY - bounds.top) / Math.max(1, bounds.height)) * 100;
+    onCreateTextItem({ x, y });
   }
 
   function resetDraft() {
@@ -1017,8 +960,9 @@ export function AlbumSpreadSlotEditor({
         </div>
         <div
           data-album-spread-canvas
-          className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white"
+          className={`relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white ${isTextToolActive ? "cursor-text" : ""}`}
           style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND, containerType: "inline-size" }}
+          onPointerDownCapture={handleCanvasTextPointerDown}
         >
           <div
             aria-hidden="true"
@@ -1130,9 +1074,8 @@ export function AlbumSpreadSlotEditor({
             return (
               <div
                 key={item.id}
-                className={`group absolute z-30 touch-none border bg-white/0 transition ${
-                  isSelected ? "border-ink shadow-[0_0_0_3px_rgba(25,25,25,0.16)]" : "border-transparent hover:border-brass/80"
-                }`}
+                data-album-text-item
+                className={`absolute z-30 touch-none bg-transparent ${isTextToolActive ? "cursor-text" : "cursor-move"}`}
                 style={{
                   left: `${item.x}%`,
                   top: `${item.y}%`,
@@ -1145,150 +1088,56 @@ export function AlbumSpreadSlotEditor({
                   textAlign: item.textAlign as "left" | "center" | "right",
                   touchAction: "none"
                 }}
-                onMouseDown={() => selectTextItem(item.id)}
-              >
-                {isSelected ? (
-                  <div
-                    className="absolute z-40 flex min-h-10 -translate-x-1/2 items-center gap-1 rounded-md border border-ink/10 bg-white px-2 py-1 shadow-[0_12px_32px_rgba(0,0,0,0.18)]"
-                    style={{
-                      left: "50%",
-                      top: "-48px"
-                    }}
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onPointerDown={(event) => event.stopPropagation()}
-                  >
-                    <select
-                      value={item.fontFamily}
-                      onChange={(event) => updateTextItem(item.id, { fontFamily: event.target.value })}
-                      className="h-8 rounded border border-ink/10 bg-white px-2 text-xs font-medium text-ink outline-none"
-                      aria-label="Betűtípus"
-                    >
-                      {ALBUM_TEXT_FONT_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min="1.5"
-                      max="18"
-                      step="0.5"
-                      value={item.fontSize}
-                      onChange={(event) => updateTextItem(item.id, { fontSize: Number.parseFloat(event.target.value) || item.fontSize })}
-                      className="h-8 w-16 rounded border border-ink/10 bg-white px-2 text-xs font-medium text-ink outline-none"
-                      aria-label="Betűméret"
-                    />
-                    <input
-                      type="number"
-                      min="0.8"
-                      max="2.5"
-                      step="0.05"
-                      value={clampTextLineHeight(item.lineHeight)}
-                      onChange={(event) => updateTextItem(item.id, { lineHeight: clampTextLineHeight(Number.parseFloat(event.target.value)) })}
-                      className="h-8 w-16 rounded border border-ink/10 bg-white px-2 text-xs font-medium text-ink outline-none"
-                      title="Sormagasság"
-                      aria-label="Sormagasság"
-                    />
-                    <input
-                      type="color"
-                      value={item.color}
-                      onChange={(event) => updateTextItem(item.id, { color: event.target.value })}
-                      className="size-8 rounded border border-ink/10 bg-white p-1"
-                      aria-label="Szöveg színe"
-                    />
-                    <span className="mx-1 h-6 w-px bg-ink/10" aria-hidden="true" />
-                    <button
-                      type="button"
-                      onClick={() => centerTextItemOnPage(item.id, "left")}
-                      title="Bal oldal közepére"
-                      className="inline-flex size-8 items-center justify-center rounded text-graphite transition hover:bg-ink/5 hover:text-ink"
-                    >
-                      <PanelLeft size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => centerTextItemOnPage(item.id, "right")}
-                      title="Jobb oldal közepére"
-                      className="inline-flex size-8 items-center justify-center rounded text-graphite transition hover:bg-ink/5 hover:text-ink"
-                    >
-                      <PanelRight size={15} />
-                    </button>
-                    <span className="mx-1 h-6 w-px bg-ink/10" aria-hidden="true" />
-                    {[
-                      { value: "left", icon: AlignLeft, label: "Balra" },
-                      { value: "center", icon: AlignCenter, label: "Középre" },
-                      { value: "right", icon: AlignRight, label: "Jobbra" }
-                    ].map((option) => {
-                      const Icon = option.icon;
+                onPointerDown={(event) => {
+                  selectTextItem(item.id);
 
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => updateTextItem(item.id, { textAlign: option.value })}
-                          title={option.label}
-                          className={`inline-flex size-8 items-center justify-center rounded transition ${
-                            item.textAlign === option.value ? "bg-ink text-white" : "text-graphite hover:bg-ink/5 hover:text-ink"
-                          }`}
-                        >
-                          <Icon size={15} />
-                        </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={() => onDeleteTextItem?.(item.id)}
-                      className="inline-flex size-8 items-center justify-center rounded text-red-600 transition hover:bg-red-50"
-                      title="Szöveg törlése"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                ) : null}
-                <button
-                  type="button"
-                  onPointerDown={(event) => beginTextDrag(event, item)}
-                  onPointerMove={updateTextDrag}
-                  onPointerUp={endTextDrag}
-                  onPointerCancel={endTextDrag}
-                  className={`absolute -left-2 -top-2 z-30 inline-flex size-6 cursor-grab items-center justify-center rounded-full bg-ink text-white shadow active:cursor-grabbing ${
-                    isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                  }`}
-                  title="Szöveg mozgatása"
-                  aria-label="Szöveg mozgatása"
-                >
-                  <Type size={12} />
-                </button>
-                {isSelected
-                  ? TEXT_RESIZE_HANDLES.map((handle) => (
-                      <button
-                        key={`${item.id}-${handle.corner}`}
-                        type="button"
-                        onPointerDown={(event) => beginTextResize(event, item, handle.corner)}
-                        onPointerMove={updateTextResize}
-                        onPointerUp={endTextResize}
-                        onPointerCancel={endTextResize}
-                        className={`absolute z-40 inline-flex size-5 items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/20 transition hover:bg-ink hover:text-white ${handle.className}`}
-                        title={handle.label}
-                        aria-label={handle.label}
-                      >
-                        <Maximize2 size={10} />
-                      </button>
-                    ))
-                  : null}
+                  if (!isTextToolActive) {
+                    beginTextDrag(event, item);
+                  }
+                }}
+                onPointerMove={(event) => {
+                  if (!isTextToolActive) {
+                    updateTextDrag(event);
+                  }
+                }}
+                onPointerUp={(event) => {
+                  if (!isTextToolActive) {
+                    endTextDrag(event);
+                  }
+                }}
+                onPointerCancel={(event) => {
+                  if (!isTextToolActive) {
+                    endTextDrag(event);
+                  }
+                }}
+                onDoubleClick={() => onActivateTextTool?.()}
+              >
                 <textarea
+                  ref={(element) => {
+                    if (element) {
+                      textAreaRefs.current.set(item.id, element);
+                    } else {
+                      textAreaRefs.current.delete(item.id);
+                    }
+                  }}
                   value={item.text}
+                  readOnly={!isTextToolActive}
+                  placeholder={isSelected && isTextToolActive ? "Írj ide…" : ""}
                   onFocus={() => selectTextItem(item.id)}
                   onChange={(event) => updateTextItem(item.id, { text: event.target.value })}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  className="size-full resize-none border-0 bg-transparent p-2 text-inherit outline-none"
+                  onPointerDown={(event) => {
+                    if (isTextToolActive) {
+                      event.stopPropagation();
+                    }
+                  }}
+                  className="size-full resize-none overflow-hidden border-0 bg-transparent p-2 text-inherit outline-none placeholder:text-ink/35"
                   style={{
                     color: item.color,
                     fontFamily: ALBUM_TEXT_FONT_STACKS[item.fontFamily] ?? ALBUM_TEXT_FONT_STACKS.playfair,
                     fontSize: `${item.fontSize * 0.2}cqw`,
                     lineHeight: clampTextLineHeight(item.lineHeight),
-                    textAlign: item.textAlign as "left" | "center" | "right"
+                    textAlign: item.textAlign as "left" | "center" | "right",
+                    pointerEvents: isTextToolActive ? "auto" : "none"
                   }}
                   aria-label="Album szöveg"
                 />
