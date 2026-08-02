@@ -551,84 +551,6 @@ function wrapTextLines(text: string, font: opentype.Font, fontSize: number, widt
   return lines;
 }
 
-function textBlockBounds(font: opentype.Font, lines: string[], fontSize: number, lineHeight: number) {
-  if (lines.length === 0) {
-    return {
-      top: 0,
-      bottom: lineHeight,
-      height: lineHeight
-    };
-  }
-
-  let top = Number.POSITIVE_INFINITY;
-  let bottom = Number.NEGATIVE_INFINITY;
-
-  lines.forEach((line, index) => {
-    if (!line) {
-      top = Math.min(top, index * lineHeight);
-      bottom = Math.max(bottom, index * lineHeight + lineHeight);
-      return;
-    }
-
-    const bounds = font.getPath(line, 0, 0, fontSize).getBoundingBox();
-    top = Math.min(top, bounds.y1 + index * lineHeight);
-    bottom = Math.max(bottom, bounds.y2 + index * lineHeight);
-  });
-
-  if (!Number.isFinite(top) || !Number.isFinite(bottom)) {
-    return {
-      top: 0,
-      bottom: lineHeight,
-      height: lineHeight
-    };
-  }
-
-  return {
-    top,
-    bottom,
-    height: Math.max(1, bottom - top)
-  };
-}
-
-function fitTextLayoutToBox({
-  font,
-  text,
-  baseFontSize,
-  lineHeightRatio,
-  width,
-  height
-}: {
-  font: opentype.Font;
-  text: string;
-  baseFontSize: number;
-  lineHeightRatio: number;
-  width: number;
-  height: number;
-}) {
-  let fontSize = baseFontSize;
-  let lines = wrapTextLines(text, font, fontSize, width);
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const lineHeight = Math.max(1, fontSize * lineHeightRatio);
-    const maxLineWidth = Math.max(1, ...lines.map((line) => textLineWidth(font, line, fontSize)));
-    const blockBounds = textBlockBounds(font, lines, fontSize, lineHeight);
-    const fitScale = Math.min(1, width / maxLineWidth, height / blockBounds.height);
-
-    if (fitScale >= 0.98) {
-      break;
-    }
-
-    fontSize = Math.max(8, fontSize * fitScale * 0.96);
-    lines = wrapTextLines(text, font, fontSize, width);
-  }
-
-  return {
-    fontSize,
-    lines,
-    lineHeight: Math.max(1, Math.round(fontSize * lineHeightRatio))
-  };
-}
-
 function escapePangoMarkup(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -644,15 +566,7 @@ async function renderTextItemBuffer(item: AlbumDesignSpreadExportData["textItems
   const paddingX = Math.min(width * 0.08, Math.max(12, baseFontSize * 0.18));
   const paddingY = Math.min(height * 0.16, Math.max(12, baseFontSize * 0.14));
   const innerWidth = Math.max(1, width - paddingX * 2);
-  const innerHeight = Math.max(1, height - paddingY * 2);
-  const { fontSize, lines } = fitTextLayoutToBox({
-    font,
-    text: item.text,
-    baseFontSize,
-    lineHeightRatio,
-    width: innerWidth,
-    height: innerHeight
-  });
+  const lines = wrapTextLines(item.text, font, baseFontSize, innerWidth);
   const escapedText = escapePangoMarkup(lines.join("\n"));
   const markup = `<span foreground="${normalizeTextColor(item.color)}" line_height="${lineHeightRatio.toFixed(2)}">${escapedText}</span>`;
   const rendered = await sharp({
@@ -662,7 +576,7 @@ async function renderTextItemBuffer(item: AlbumDesignSpreadExportData["textItems
       fontfile: albumTextFontPath(normalizedFontKey),
       width: Math.max(1, Math.floor(innerWidth)),
       align,
-      dpi: Math.max(72, Math.round(fontSize * 6)),
+      dpi: Math.max(72, Math.round(baseFontSize * 6)),
       rgba: true
     }
   })
@@ -677,7 +591,7 @@ async function renderTextItemBuffer(item: AlbumDesignSpreadExportData["textItems
   return {
     input: rendered.data,
     left: Math.min(ALBUM_DESIGN_EXPORT_WIDTH - renderedWidth, Math.max(0, Math.round(boxLeft + horizontalOffset))),
-    top: Math.min(ALBUM_DESIGN_EXPORT_HEIGHT - renderedHeight, Math.max(0, Math.round(boxTop + (height - renderedHeight) / 2)))
+    top: Math.min(ALBUM_DESIGN_EXPORT_HEIGHT - renderedHeight, Math.max(0, Math.round(boxTop + paddingY)))
   };
 }
 
