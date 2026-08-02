@@ -943,13 +943,16 @@ export function AlbumDesignWorkbench({
                               <Type size={15} />
                               Szöveg
                             </button>
-                            <a
-                              href={`/admin/album-design-spreads/${spread.id}/export`}
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
-                            >
-                              <Download size={15} />
-                              JPG export
-                            </a>
+                            <form method="post" action={`/admin/album-design-spreads/${spread.id}/export`}>
+                              <SpreadDraftInputs spreadId={spread.id} items={draftItems} textItems={draftTextItems} />
+                              <button
+                                type="submit"
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
+                              >
+                                <Download size={15} />
+                                JPG export
+                              </button>
+                            </form>
                             <button
                               type="button"
                               onClick={() => {
