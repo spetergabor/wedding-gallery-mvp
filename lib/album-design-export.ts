@@ -70,6 +70,12 @@ const ALBUM_DESIGN_TEXT_FONT_FILES: Record<string, string> = {
   lora: "lora-600.ttf",
   montserrat: "montserrat-600.ttf"
 };
+const ALBUM_DESIGN_TEXT_FONT_NAMES: Record<string, string> = {
+  playfair: "Playfair Display SemiBold",
+  cormorant: "Cormorant Garamond SemiBold",
+  lora: "Lora SemiBold",
+  montserrat: "Montserrat SemiBold"
+};
 const loadedAlbumTextFonts = new Map<string, opentype.Font>();
 
 function formNumber(value: string | null | undefined, fallback: number) {
@@ -623,42 +629,23 @@ function fitTextLayoutToBox({
   };
 }
 
-function textXForAlign(align: string, width: number) {
-  if (align === "left") {
-    return 0;
-  }
-
-  if (align === "right") {
-    return width;
-  }
-
-  return width / 2;
+function escapePangoMarkup(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function textPathXForAlign(align: string, anchorX: number, lineWidth: number) {
-  if (align === "right") {
-    return anchorX - lineWidth;
-  }
-
-  if (align === "center") {
-    return anchorX - lineWidth / 2;
-  }
-
-  return anchorX;
-}
-
-function renderTextItemSvg(item: AlbumDesignSpreadExportData["textItems"][number]) {
+async function renderTextItemBuffer(item: AlbumDesignSpreadExportData["textItems"][number]) {
   const width = Math.max(1, Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH));
   const height = Math.max(1, Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT));
   const font = loadAlbumTextFont(item.fontFamily);
   const align = normalizeTextAlign(item.textAlign);
+  const normalizedFontKey = normalizeAlbumTextFont(item.fontFamily);
   const baseFontSize = Math.max(16, Math.round((item.fontSize / ALBUM_DESIGN_TEXT_EXPORT_SCALE) * ALBUM_DESIGN_EXPORT_HEIGHT));
   const lineHeightRatio = Math.min(2.5, Math.max(0.8, item.lineHeight));
   const paddingX = Math.min(width * 0.08, Math.max(12, baseFontSize * 0.18));
   const paddingY = Math.min(height * 0.16, Math.max(12, baseFontSize * 0.14));
   const innerWidth = Math.max(1, width - paddingX * 2);
   const innerHeight = Math.max(1, height - paddingY * 2);
-  const { fontSize, lines, lineHeight } = fitTextLayoutToBox({
+  const { fontSize, lines } = fitTextLayoutToBox({
     font,
     text: item.text,
     baseFontSize,
@@ -666,32 +653,31 @@ function renderTextItemSvg(item: AlbumDesignSpreadExportData["textItems"][number
     width: innerWidth,
     height: innerHeight
   });
-  const blockBounds = textBlockBounds(font, lines, fontSize, lineHeight);
-  const baselineOffsetY = paddingY + Math.max(0, (innerHeight - blockBounds.height) / 2) - blockBounds.top;
-  const textX = paddingX + textXForAlign(align, innerWidth);
-  const textNodes = lines
-    .map((line, index) => {
-      if (!line) {
-        return "";
-      }
-
-      const y = baselineOffsetY + index * lineHeight;
-      const lineWidth = font.getAdvanceWidth(line, fontSize);
-      const pathX = textPathXForAlign(align, textX, lineWidth);
-      const pathData = font.getPath(line, pathX, y, fontSize).toPathData(2);
-
-      return `<path d="${pathData}" />`;
-    })
-    .join("");
+  const escapedText = escapePangoMarkup(lines.join("\n"));
+  const markup = `<span foreground="${normalizeTextColor(item.color)}" line_height="${lineHeightRatio.toFixed(2)}">${escapedText}</span>`;
+  const rendered = await sharp({
+    text: {
+      text: markup,
+      font: ALBUM_DESIGN_TEXT_FONT_NAMES[normalizedFontKey],
+      fontfile: albumTextFontPath(normalizedFontKey),
+      width: Math.max(1, Math.floor(innerWidth)),
+      align,
+      dpi: Math.max(72, Math.round(fontSize * 6)),
+      rgba: true
+    }
+  })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  const renderedWidth = rendered.info.width;
+  const renderedHeight = rendered.info.height;
+  const boxLeft = Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH);
+  const boxTop = Math.round((item.y / 100) * ALBUM_DESIGN_EXPORT_HEIGHT);
+  const horizontalOffset = align === "left" ? paddingX : align === "right" ? width - paddingX - renderedWidth : (width - renderedWidth) / 2;
 
   return {
-    input: Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <g fill="${normalizeTextColor(item.color)}">${textNodes}</g>
-      </svg>`
-    ),
-    left: Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH),
-    top: Math.round((item.y / 100) * ALBUM_DESIGN_EXPORT_HEIGHT)
+    input: rendered.data,
+    left: Math.min(ALBUM_DESIGN_EXPORT_WIDTH - renderedWidth, Math.max(0, Math.round(boxLeft + horizontalOffset))),
+    top: Math.min(ALBUM_DESIGN_EXPORT_HEIGHT - renderedHeight, Math.max(0, Math.round(boxTop + (height - renderedHeight) / 2)))
   };
 }
 
@@ -723,7 +709,7 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
       };
     })
   );
-  const textComposites = spread.textItems.map(renderTextItemSvg);
+  const textComposites = await Promise.all(spread.textItems.map(renderTextItemBuffer));
 
   return sharp({
     create: {
