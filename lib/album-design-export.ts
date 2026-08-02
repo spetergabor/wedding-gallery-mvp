@@ -71,6 +71,7 @@ const ALBUM_DESIGN_TEXT_FONT_FILES: Record<string, string> = {
   montserrat: "montserrat-600.ttf"
 };
 const loadedAlbumTextFonts = new Map<string, opentype.Font>();
+const loadedAlbumTextFontDataUrls = new Map<string, string>();
 
 function formNumber(value: string | null | undefined, fallback: number) {
   const parsed = Number.parseFloat(value ?? "");
@@ -109,6 +110,13 @@ function clampSizePercent(value: number, fallback: number) {
 
 function normalizeAlbumTextFont(value: string) {
   return ALBUM_DESIGN_TEXT_FONT_FILES[value] ? value : "playfair";
+}
+
+function albumTextFontPath(fontKey: string) {
+  const normalizedFontKey = normalizeAlbumTextFont(fontKey);
+  const fontFile = ALBUM_DESIGN_TEXT_FONT_FILES[normalizedFontKey] ?? ALBUM_DESIGN_TEXT_FONT_FILES.playfair;
+
+  return path.join(process.cwd(), "public", "fonts", "album-export", fontFile);
 }
 
 function normalizeAlbumTextLineHeight(value: number) {
@@ -491,17 +499,40 @@ function loadAlbumTextFont(fontKey: string) {
     return cachedFont;
   }
 
-  const fontFile = ALBUM_DESIGN_TEXT_FONT_FILES[normalizedFontKey] ?? ALBUM_DESIGN_TEXT_FONT_FILES.playfair;
-  const fontPath = path.join(process.cwd(), "public", "fonts", "album-export", fontFile);
-  const fontBuffer = readFileSync(fontPath);
+  const fontBuffer = readFileSync(albumTextFontPath(normalizedFontKey));
   const font = opentype.parse(fontBuffer.buffer.slice(fontBuffer.byteOffset, fontBuffer.byteOffset + fontBuffer.byteLength));
   loadedAlbumTextFonts.set(normalizedFontKey, font);
 
   return font;
 }
 
+function loadAlbumTextFontDataUrl(fontKey: string) {
+  const normalizedFontKey = normalizeAlbumTextFont(fontKey);
+  const cachedDataUrl = loadedAlbumTextFontDataUrls.get(normalizedFontKey);
+
+  if (cachedDataUrl) {
+    return cachedDataUrl;
+  }
+
+  const fontBuffer = readFileSync(albumTextFontPath(normalizedFontKey));
+  const dataUrl = `data:font/truetype;base64,${fontBuffer.toString("base64")}`;
+  loadedAlbumTextFontDataUrls.set(normalizedFontKey, dataUrl);
+
+  return dataUrl;
+}
+
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function textLineWidth(font: opentype.Font, text: string, fontSize: number) {
-  return font.getAdvanceWidth(text, fontSize);
+  const bounds = font.getPath(text, 0, 0, fontSize).getBoundingBox();
+  const visualWidth = Math.max(0, bounds.x2 - bounds.x1);
+
+  return Math.max(font.getAdvanceWidth(text, fontSize), visualWidth);
 }
 
 function wrapTextLines(text: string, font: opentype.Font, fontSize: number, width: number) {
@@ -537,18 +568,43 @@ function wrapTextLines(text: string, font: opentype.Font, fontSize: number, widt
   return lines;
 }
 
-function textPathXForAlign(font: opentype.Font, line: string, align: string, width: number, fontSize: number) {
-  if (align === "left") {
-    return 0;
+function textBlockBounds(font: opentype.Font, lines: string[], fontSize: number, lineHeight: number) {
+  if (lines.length === 0) {
+    return {
+      top: 0,
+      bottom: lineHeight,
+      height: lineHeight
+    };
   }
 
-  const lineWidth = textLineWidth(font, line, fontSize);
+  let top = Number.POSITIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
 
-  if (align === "right") {
-    return Math.max(0, width - lineWidth);
+  lines.forEach((line, index) => {
+    if (!line) {
+      top = Math.min(top, index * lineHeight);
+      bottom = Math.max(bottom, index * lineHeight + lineHeight);
+      return;
+    }
+
+    const bounds = font.getPath(line, 0, 0, fontSize).getBoundingBox();
+    top = Math.min(top, bounds.y1 + index * lineHeight);
+    bottom = Math.max(bottom, bounds.y2 + index * lineHeight);
+  });
+
+  if (!Number.isFinite(top) || !Number.isFinite(bottom)) {
+    return {
+      top: 0,
+      bottom: lineHeight,
+      height: lineHeight
+    };
   }
 
-  return Math.max(0, (width - lineWidth) / 2);
+  return {
+    top,
+    bottom,
+    height: Math.max(1, bottom - top)
+  };
 }
 
 function fitTextLayoutToBox({
@@ -572,8 +628,8 @@ function fitTextLayoutToBox({
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const lineHeight = Math.max(1, fontSize * lineHeightRatio);
     const maxLineWidth = Math.max(1, ...lines.map((line) => textLineWidth(font, line, fontSize)));
-    const totalLineHeight = Math.max(lineHeight, lines.length * lineHeight);
-    const fitScale = Math.min(1, width / maxLineWidth, height / totalLineHeight);
+    const blockBounds = textBlockBounds(font, lines, fontSize, lineHeight);
+    const fitScale = Math.min(1, width / maxLineWidth, height / blockBounds.height);
 
     if (fitScale >= 0.98) {
       break;
@@ -590,34 +646,64 @@ function fitTextLayoutToBox({
   };
 }
 
+function textAnchorForAlign(align: string) {
+  if (align === "left") {
+    return "start";
+  }
+
+  if (align === "right") {
+    return "end";
+  }
+
+  return "middle";
+}
+
+function textXForAlign(align: string, width: number) {
+  if (align === "left") {
+    return 0;
+  }
+
+  if (align === "right") {
+    return width;
+  }
+
+  return width / 2;
+}
+
 function renderTextItemSvg(item: AlbumDesignSpreadExportData["textItems"][number]) {
   const width = Math.max(1, Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH));
   const height = Math.max(1, Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT));
   const font = loadAlbumTextFont(item.fontFamily);
   const align = normalizeTextAlign(item.textAlign);
+  const normalizedFontKey = normalizeAlbumTextFont(item.fontFamily);
+  const fontFamily = `AlbumExportText-${normalizedFontKey}`;
   const baseFontSize = Math.max(16, Math.round((item.fontSize / ALBUM_DESIGN_TEXT_EXPORT_SCALE) * ALBUM_DESIGN_EXPORT_HEIGHT));
   const lineHeightRatio = Math.min(2.5, Math.max(0.8, item.lineHeight));
+  const paddingX = Math.min(width * 0.08, Math.max(12, baseFontSize * 0.18));
+  const paddingY = Math.min(height * 0.16, Math.max(12, baseFontSize * 0.14));
+  const innerWidth = Math.max(1, width - paddingX * 2);
+  const innerHeight = Math.max(1, height - paddingY * 2);
   const { fontSize, lines, lineHeight } = fitTextLayoutToBox({
     font,
     text: item.text,
     baseFontSize,
     lineHeightRatio,
-    width,
-    height
+    width: innerWidth,
+    height: innerHeight
   });
-  const startY = Math.max(fontSize, Math.round((height - Math.max(fontSize, lines.length * lineHeight)) / 2) + fontSize);
-  const pathNodes = lines
-    .slice(0, Math.max(1, Math.floor(height / lineHeight)))
+  const blockBounds = textBlockBounds(font, lines, fontSize, lineHeight);
+  const baselineOffsetY = paddingY + Math.max(0, (innerHeight - blockBounds.height) / 2) - blockBounds.top;
+  const textAnchor = textAnchorForAlign(align);
+  const textX = paddingX + textXForAlign(align, innerWidth);
+  const textNodes = lines
     .map((line, index) => {
       if (!line) {
         return "";
       }
 
-      const x = textPathXForAlign(font, line, align, width, fontSize);
-      const y = startY + index * lineHeight;
-      const textPath = font.getPath(line, x, y, fontSize);
+      const y = baselineOffsetY + index * lineHeight;
 
-      return `<path d="${textPath.toPathData(2)}" />`;
+      return `<text class="album-export-text" x="${textX.toFixed(2)}" y="${y.toFixed(2)}" text-anchor="${textAnchor}" xml:space="preserve">${escapeSvgText(line)}</text>`;
     })
     .join("");
 
@@ -625,11 +711,21 @@ function renderTextItemSvg(item: AlbumDesignSpreadExportData["textItems"][number
     input: Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
         <style>
-          path {
+          @font-face {
+            font-family: "${fontFamily}";
+            src: url("${loadAlbumTextFontDataUrl(normalizedFontKey)}") format("truetype");
+            font-weight: 600;
+            font-style: normal;
+          }
+
+          .album-export-text {
+            font-family: "${fontFamily}", Georgia, serif;
+            font-size: ${fontSize.toFixed(2)}px;
+            font-weight: 600;
             fill: ${normalizeTextColor(item.color)};
           }
         </style>
-        ${pathNodes}
+        ${textNodes}
       </svg>`
     ),
     left: Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH),
