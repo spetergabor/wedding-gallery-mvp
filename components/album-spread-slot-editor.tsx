@@ -1018,7 +1018,7 @@ export function AlbumSpreadSlotEditor({
         <div
           data-album-spread-canvas
           className="relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white"
-          style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND }}
+          style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND, containerType: "inline-size" }}
         >
           <div
             aria-hidden="true"
@@ -1140,7 +1140,7 @@ export function AlbumSpreadSlotEditor({
                   height: `${item.height}%`,
                   color: item.color,
                   fontFamily: ALBUM_TEXT_FONT_STACKS[item.fontFamily] ?? ALBUM_TEXT_FONT_STACKS.playfair,
-                  fontSize: `${Math.max(0.65, item.fontSize * 0.22)}rem`,
+                  fontSize: `${item.fontSize * 0.2}cqw`,
                   lineHeight: clampTextLineHeight(item.lineHeight),
                   textAlign: item.textAlign as "left" | "center" | "right",
                   touchAction: "none"
@@ -1286,7 +1286,7 @@ export function AlbumSpreadSlotEditor({
                   style={{
                     color: item.color,
                     fontFamily: ALBUM_TEXT_FONT_STACKS[item.fontFamily] ?? ALBUM_TEXT_FONT_STACKS.playfair,
-                    fontSize: `${Math.max(0.65, item.fontSize * 0.22)}rem`,
+                    fontSize: `${item.fontSize * 0.2}cqw`,
                     lineHeight: clampTextLineHeight(item.lineHeight),
                     textAlign: item.textAlign as "left" | "center" | "right"
                   }}
