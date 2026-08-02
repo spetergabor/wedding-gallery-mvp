@@ -101,6 +101,7 @@ type AlbumDesign = {
       height: number;
       fontFamily: string;
       fontSize: number;
+      lineHeight: number;
       color: string;
       textAlign: string;
       sortOrder: number;

@@ -44,6 +44,7 @@ export type AlbumDesignSpreadExportData = {
     height: number;
     fontFamily: string;
     fontSize: number;
+    lineHeight: number;
     color: string;
     textAlign: string;
     sortOrder: number;
@@ -116,6 +117,7 @@ export async function loadAlbumDesignSpreadForExport({
           height: true,
           fontFamily: true,
           fontSize: true,
+          lineHeight: true,
           color: true,
           textAlign: true,
           sortOrder: true
@@ -185,6 +187,7 @@ export async function loadAlbumDesignForExport({
               height: true,
               fontFamily: true,
               fontSize: true,
+              lineHeight: true,
               color: true,
               textAlign: true,
               sortOrder: true
@@ -324,7 +327,7 @@ function renderTextItemSvg(item: AlbumDesignSpreadExportData["textItems"][number
   const align = normalizeTextAlign(item.textAlign);
   const anchor = textAnchorForAlign(align);
   const x = textXForAlign(align, width);
-  const lineHeight = Math.round(fontSize * 1.15);
+  const lineHeight = Math.round(fontSize * Math.min(2.5, Math.max(0.8, item.lineHeight)));
   const lines = wrapTextLines(item.text, fontSize, width);
   const startY = Math.max(fontSize, Math.round((height - Math.max(fontSize, lines.length * lineHeight)) / 2) + fontSize);
   const textNodes = lines

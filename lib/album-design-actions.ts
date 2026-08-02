@@ -78,6 +78,14 @@ function normalizeAlbumTextColor(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : "#191919";
 }
 
+function normalizeAlbumTextLineHeight(value: number) {
+  if (!Number.isFinite(value)) {
+    return 1.05;
+  }
+
+  return Math.min(2.5, Math.max(0.8, value));
+}
+
 function getSelectedPhotoIds(formData: FormData) {
   return [
     ...new Set(
@@ -153,6 +161,7 @@ function getAlbumTextItemDrafts(formData: FormData, spreadId: string) {
   const heightValues = getOrderedFormStrings(formData, `spread-${spreadId}-textHeight`);
   const fontValues = getOrderedFormStrings(formData, `spread-${spreadId}-textFont`);
   const sizeValues = getOrderedFormStrings(formData, `spread-${spreadId}-textSize`);
+  const lineHeightValues = getOrderedFormStrings(formData, `spread-${spreadId}-textLineHeight`);
   const colorValues = getOrderedFormStrings(formData, `spread-${spreadId}-textColor`);
   const alignValues = getOrderedFormStrings(formData, `spread-${spreadId}-textAlign`);
 
@@ -172,6 +181,7 @@ function getAlbumTextItemDrafts(formData: FormData, spreadId: string) {
         height: clampSizePercent(formNumber(heightValues[index] ?? "", 12), 12),
         fontFamily: normalizeAlbumTextFont(fontValues[index] ?? "playfair"),
         fontSize: Math.min(18, Math.max(1.5, formNumber(sizeValues[index] ?? "", 7))),
+        lineHeight: normalizeAlbumTextLineHeight(formNumber(lineHeightValues[index] ?? "", 1.05)),
         color: normalizeAlbumTextColor(colorValues[index] ?? "#191919"),
         textAlign: normalizeAlbumTextAlign(alignValues[index] ?? "center"),
         sortOrder: index
@@ -962,6 +972,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
               height: true,
               fontFamily: true,
               fontSize: true,
+              lineHeight: true,
               color: true,
               textAlign: true,
               sortOrder: true
@@ -1165,8 +1176,9 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
   });
   const cropPositions = getOrderedCropPositions(formData, layout.slots.length);
   const slotFrames = getOrderedSlotFrames(formData, layout, slotIndexes);
+  const textItems = getAlbumTextItemDrafts(formData, spread.id);
 
-  if (photoIds.length === 0 || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
+  if ((photoIds.length === 0 && textItems.length === 0) || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
   }
 
@@ -1183,6 +1195,10 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
       items: {
         deleteMany: {},
         create: createSpreadItemsForSlotIndexes(layout, photoIds, slotIndexes, cropPositions, slotFrames)
+      },
+      textItems: {
+        deleteMany: {},
+        create: textItems
       }
     }
   });

@@ -42,6 +42,7 @@ type SpreadTextItem = {
   height: number;
   fontFamily: string;
   fontSize: number;
+  lineHeight: number;
   color: string;
   textAlign: string;
   sortOrder: number;
@@ -76,6 +77,20 @@ type TextDragState = {
 };
 
 type SlotResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type TextResizeCorner = SlotResizeCorner;
+
+type TextResizeState = {
+  id: string;
+  corner: TextResizeCorner;
+  startClientX: number;
+  startClientY: number;
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
+  canvasWidth: number;
+  canvasHeight: number;
+};
 
 type SlotFrameDragState = {
   slotIndex: number;
@@ -115,6 +130,7 @@ const SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT = 4;
 const SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT = 1.6;
 const SLOT_BARRIER_EPSILON = 0.001;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
+const MIN_TEXT_BOX_SIZE_PERCENT = 3;
 const SLOT_RESIZE_HANDLES: Array<{
   corner: SlotResizeCorner;
   className: string;
@@ -141,6 +157,40 @@ const SLOT_RESIZE_HANDLES: Array<{
     label: "Jobb alsó sarok méretezése"
   }
 ];
+const TEXT_RESIZE_HANDLES: Array<{
+  corner: TextResizeCorner;
+  className: string;
+  label: string;
+}> = [
+  {
+    corner: "top-left",
+    className: "-left-2 -top-2 cursor-nwse-resize",
+    label: "Bal felső sarok méretezése"
+  },
+  {
+    corner: "top-right",
+    className: "-right-2 -top-2 cursor-nesw-resize",
+    label: "Jobb felső sarok méretezése"
+  },
+  {
+    corner: "bottom-left",
+    className: "-bottom-2 -left-2 cursor-nesw-resize",
+    label: "Bal alsó sarok méretezése"
+  },
+  {
+    corner: "bottom-right",
+    className: "-bottom-2 -right-2 cursor-nwse-resize",
+    label: "Jobb alsó sarok méretezése"
+  }
+];
+
+function clampTextLineHeight(value: number) {
+  if (!Number.isFinite(value)) {
+    return 1.05;
+  }
+
+  return Math.min(2.5, Math.max(0.8, value));
+}
 
 function clampCropPosition(value: number) {
   if (!Number.isFinite(value)) {
@@ -383,6 +433,7 @@ export function AlbumSpreadSlotEditor({
   const template = getAlbumLayoutTemplate(spread.layoutKey);
   const cropDragStateRef = useRef<CropDragState | null>(null);
   const textDragStateRef = useRef<TextDragState | null>(null);
+  const textResizeStateRef = useRef<TextResizeState | null>(null);
   const slotFrameDragStateRef = useRef<SlotFrameDragState | null>(null);
   const pendingSlotFrameUndoRef = useRef<SlotFrameUndoState | null>(null);
   const slotFrameChangedRef = useRef(false);
@@ -492,6 +543,28 @@ export function AlbumSpreadSlotEditor({
           : item
       )
     );
+  }
+
+  function getResizedTextItem(dragState: TextResizeState, deltaX: number, deltaY: number) {
+    const movesLeft = dragState.corner === "top-left" || dragState.corner === "bottom-left";
+    const movesTop = dragState.corner === "top-left" || dragState.corner === "top-right";
+    const fixedRight = dragState.startX + dragState.startWidth;
+    const fixedBottom = dragState.startY + dragState.startHeight;
+    const rawX = movesLeft ? Math.min(fixedRight - MIN_TEXT_BOX_SIZE_PERCENT, Math.max(0, dragState.startX + deltaX)) : dragState.startX;
+    const rawY = movesTop ? Math.min(fixedBottom - MIN_TEXT_BOX_SIZE_PERCENT, Math.max(0, dragState.startY + deltaY)) : dragState.startY;
+    const rawWidth = movesLeft
+      ? fixedRight - rawX
+      : Math.min(100 - dragState.startX, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, dragState.startWidth + deltaX));
+    const rawHeight = movesTop
+      ? fixedBottom - rawY
+      : Math.min(100 - dragState.startY, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, dragState.startHeight + deltaY));
+
+    return {
+      x: Math.min(100 - rawWidth, Math.max(0, rawX)),
+      y: Math.min(100 - rawHeight, Math.max(0, rawY)),
+      width: Math.min(100, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, rawWidth)),
+      height: Math.min(100, Math.max(MIN_TEXT_BOX_SIZE_PERCENT, rawHeight))
+    };
   }
 
   function centerTextItemOnPage(textItemId: string, page: "left" | "right") {
@@ -756,6 +829,67 @@ export function AlbumSpreadSlotEditor({
     }
   }
 
+  function beginTextResize(event: PointerEvent<HTMLButtonElement>, item: SpreadTextItem, corner: TextResizeCorner) {
+    if (event.button !== 0 || !onTextItemsChange) {
+      return;
+    }
+
+    const bounds = event.currentTarget.closest("[data-album-spread-canvas]")?.getBoundingClientRect();
+
+    if (!bounds) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    selectTextItem(item.id);
+    textResizeStateRef.current = {
+      id: item.id,
+      corner,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: item.x,
+      startY: item.y,
+      startWidth: item.width,
+      startHeight: item.height,
+      canvasWidth: bounds.width,
+      canvasHeight: bounds.height
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function updateTextResize(event: PointerEvent<HTMLButtonElement>) {
+    const dragState = textResizeStateRef.current;
+
+    if (!dragState || !onTextItemsChange) {
+      return;
+    }
+
+    event.preventDefault();
+    const deltaX = ((event.clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
+    const deltaY = ((event.clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
+    const nextFrame = getResizedTextItem(dragState, deltaX, deltaY);
+
+    onTextItemsChange((items) =>
+      items.map((item) =>
+        item.id === dragState.id
+          ? {
+              ...item,
+              ...nextFrame
+            }
+          : item
+      )
+    );
+  }
+
+  function endTextResize(event: PointerEvent<HTMLButtonElement>) {
+    textResizeStateRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
   function resetDraft() {
     onDraftItemsChange(() => orderedItems);
     onSelectedSlotIndexChange(orderedItems[0]?.slotIndex ?? 0);
@@ -1007,7 +1141,7 @@ export function AlbumSpreadSlotEditor({
                   color: item.color,
                   fontFamily: ALBUM_TEXT_FONT_STACKS[item.fontFamily] ?? ALBUM_TEXT_FONT_STACKS.playfair,
                   fontSize: `${Math.max(0.65, item.fontSize * 0.22)}rem`,
-                  lineHeight: 1.05,
+                  lineHeight: clampTextLineHeight(item.lineHeight),
                   textAlign: item.textAlign as "left" | "center" | "right",
                   touchAction: "none"
                 }}
@@ -1044,6 +1178,17 @@ export function AlbumSpreadSlotEditor({
                       onChange={(event) => updateTextItem(item.id, { fontSize: Number.parseFloat(event.target.value) || item.fontSize })}
                       className="h-8 w-16 rounded border border-ink/10 bg-white px-2 text-xs font-medium text-ink outline-none"
                       aria-label="Betűméret"
+                    />
+                    <input
+                      type="number"
+                      min="0.8"
+                      max="2.5"
+                      step="0.05"
+                      value={clampTextLineHeight(item.lineHeight)}
+                      onChange={(event) => updateTextItem(item.id, { lineHeight: clampTextLineHeight(Number.parseFloat(event.target.value)) })}
+                      className="h-8 w-16 rounded border border-ink/10 bg-white px-2 text-xs font-medium text-ink outline-none"
+                      title="Sormagasság"
+                      aria-label="Sormagasság"
                     />
                     <input
                       type="color"
@@ -1115,6 +1260,23 @@ export function AlbumSpreadSlotEditor({
                 >
                   <Type size={12} />
                 </button>
+                {isSelected
+                  ? TEXT_RESIZE_HANDLES.map((handle) => (
+                      <button
+                        key={`${item.id}-${handle.corner}`}
+                        type="button"
+                        onPointerDown={(event) => beginTextResize(event, item, handle.corner)}
+                        onPointerMove={updateTextResize}
+                        onPointerUp={endTextResize}
+                        onPointerCancel={endTextResize}
+                        className={`absolute z-40 inline-flex size-5 items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/20 transition hover:bg-ink hover:text-white ${handle.className}`}
+                        title={handle.label}
+                        aria-label={handle.label}
+                      >
+                        <Maximize2 size={10} />
+                      </button>
+                    ))
+                  : null}
                 <textarea
                   value={item.text}
                   onFocus={() => selectTextItem(item.id)}
@@ -1125,7 +1287,7 @@ export function AlbumSpreadSlotEditor({
                     color: item.color,
                     fontFamily: ALBUM_TEXT_FONT_STACKS[item.fontFamily] ?? ALBUM_TEXT_FONT_STACKS.playfair,
                     fontSize: `${Math.max(0.65, item.fontSize * 0.22)}rem`,
-                    lineHeight: 1.05,
+                    lineHeight: clampTextLineHeight(item.lineHeight),
                     textAlign: item.textAlign as "left" | "center" | "right"
                   }}
                   aria-label="Album szöveg"
@@ -1185,6 +1347,21 @@ export function AlbumSpreadSlotEditor({
                   <input type="hidden" name="slotHeight" value={formatCropPosition(item.height)} />
                   <input type="hidden" name="slotCropX" value={formatCropPosition(item.cropX)} />
                   <input type="hidden" name="slotCropY" value={formatCropPosition(item.cropY)} />
+                </span>
+              ))}
+              {textItems.map((item) => (
+                <span key={`text-draft-${item.id}`}>
+                  <input type="hidden" name={`spread-${spread.id}-textIds`} value={item.id} />
+                  <input type="hidden" name={`spread-${spread.id}-textValues`} value={item.text} />
+                  <input type="hidden" name={`spread-${spread.id}-textX`} value={formatCropPosition(item.x)} />
+                  <input type="hidden" name={`spread-${spread.id}-textY`} value={formatCropPosition(item.y)} />
+                  <input type="hidden" name={`spread-${spread.id}-textWidth`} value={formatCropPosition(item.width)} />
+                  <input type="hidden" name={`spread-${spread.id}-textHeight`} value={formatCropPosition(item.height)} />
+                  <input type="hidden" name={`spread-${spread.id}-textFont`} value={item.fontFamily} />
+                  <input type="hidden" name={`spread-${spread.id}-textSize`} value={formatCropPosition(item.fontSize)} />
+                  <input type="hidden" name={`spread-${spread.id}-textLineHeight`} value={formatCropPosition(item.lineHeight)} />
+                  <input type="hidden" name={`spread-${spread.id}-textColor`} value={item.color} />
+                  <input type="hidden" name={`spread-${spread.id}-textAlign`} value={item.textAlign} />
                 </span>
               ))}
               <FormSubmitButton

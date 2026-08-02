@@ -52,6 +52,7 @@ type SpreadTextItem = {
   height: number;
   fontFamily: string;
   fontSize: number;
+  lineHeight: number;
   color: string;
   textAlign: string;
   sortOrder: number;
@@ -126,6 +127,7 @@ function getTextItemSignature(items: SpreadTextItem[]) {
         formatCropPosition(item.height),
         item.fontFamily,
         formatCropPosition(item.fontSize),
+        formatCropPosition(item.lineHeight),
         item.color,
         item.textAlign
       ].join(":")
@@ -175,6 +177,7 @@ function SpreadDraftInputs({ spreadId, items, textItems }: { spreadId: string; i
           <input type="hidden" name={`spread-${spreadId}-textHeight`} value={formatAlbumTextNumber(item.height)} />
           <input type="hidden" name={`spread-${spreadId}-textFont`} value={item.fontFamily} />
           <input type="hidden" name={`spread-${spreadId}-textSize`} value={formatAlbumTextNumber(item.fontSize)} />
+          <input type="hidden" name={`spread-${spreadId}-textLineHeight`} value={formatAlbumTextNumber(item.lineHeight)} />
           <input type="hidden" name={`spread-${spreadId}-textColor`} value={item.color} />
           <input type="hidden" name={`spread-${spreadId}-textAlign`} value={item.textAlign} />
         </span>
@@ -619,6 +622,7 @@ export function AlbumDesignWorkbench({
       height: 12,
       fontFamily: "playfair",
       fontSize: 7,
+      lineHeight: 1.05,
       color: "#191919",
       textAlign: "center",
       sortOrder: (draftTextItemsBySpread[spreadId] ?? targetSpread.textItems).length
