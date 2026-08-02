@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { AlignCenter, AlignLeft, AlignRight, Download, Grid3X3, Images, Maximize2, MousePointer2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type WheelEvent } from "react";
+import { AlignCenter, AlignLeft, AlignRight, Download, GripVertical, Grid3X3, Images, Maximize2, MousePointer2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -11,6 +11,7 @@ import {
   createEmptyAlbumDesignSpreadInlineAction,
   deleteAlbumDesignSpreadAction,
   regenerateAlbumDesignSpreadLayoutAction,
+  reorderAlbumDesignSpreadsInlineAction,
   saveAlbumDesignSpreadDraftsAction,
   updateAlbumDesignSpreadLayoutOnlyAction
 } from "@/lib/album-design-actions";
@@ -147,6 +148,18 @@ function createDraftMap(spreads: AlbumSpread[]) {
 
 function createTextDraftMap(spreads: AlbumSpread[]) {
   return Object.fromEntries(spreads.map((spread) => [spread.id, [...spread.textItems].sort((left, right) => left.sortOrder - right.sortOrder)]));
+}
+
+function normalizeSpreadOrder(spreads: AlbumSpread[]) {
+  return spreads.map((spread, index) => {
+    const sortOrder = index + 1;
+
+    return {
+      ...spread,
+      sortOrder,
+      title: /^Oldalpár \d+$/i.test(spread.title ?? "") ? `Oldalpár ${sortOrder}` : spread.title
+    };
+  });
 }
 
 function formatAlbumTextNumber(value: number) {
@@ -307,6 +320,10 @@ export function AlbumDesignWorkbench({
   const [layoutModalSpreadId, setLayoutModalSpreadId] = useState<string | null>(null);
   const [isCreateLayoutModalOpen, setIsCreateLayoutModalOpen] = useState(false);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
+  const [draggedSpreadId, setDraggedSpreadId] = useState<string | null>(null);
+  const [spreadDropTarget, setSpreadDropTarget] = useState<{ spreadId: string; position: "before" | "after" } | null>(null);
+  const [isReorderingSpreads, setIsReorderingSpreads] = useState(false);
+  const [spreadOrderError, setSpreadOrderError] = useState<string | null>(null);
   const [createSpreadError, setCreateSpreadError] = useState<string | null>(null);
   const [isCreatingSpread, setIsCreatingSpread] = useState(false);
   const workbenchZoomRef = useRef(workbenchZoom);
@@ -559,6 +576,72 @@ export function AlbumDesignWorkbench({
         [spreadId]: slotIndex
       }));
     }
+  }
+
+  function updateSpreadDropTarget(event: DragEvent<HTMLDivElement>, spreadId: string) {
+    if (!draggedSpreadId || draggedSpreadId === spreadId || isReorderingSpreads) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const position = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+
+    setSpreadDropTarget((current) =>
+      current?.spreadId === spreadId && current.position === position ? current : { spreadId, position }
+    );
+  }
+
+  function reorderSpread(droppedOnSpreadId: string, position: "before" | "after") {
+    if (!draggedSpreadId || draggedSpreadId === droppedOnSpreadId || isReorderingSpreads) {
+      setDraggedSpreadId(null);
+      setSpreadDropTarget(null);
+      return;
+    }
+
+    const previousSpreads = orderedSpreads;
+    const draggedSpread = previousSpreads.find((spread) => spread.id === draggedSpreadId);
+
+    if (!draggedSpread) {
+      setDraggedSpreadId(null);
+      setSpreadDropTarget(null);
+      return;
+    }
+
+    const remainingSpreads = previousSpreads.filter((spread) => spread.id !== draggedSpread.id);
+    const targetIndex = remainingSpreads.findIndex((spread) => spread.id === droppedOnSpreadId);
+
+    if (targetIndex < 0) {
+      setDraggedSpreadId(null);
+      setSpreadDropTarget(null);
+      return;
+    }
+
+    const insertionIndex = position === "after" ? targetIndex + 1 : targetIndex;
+    const nextSpreads = normalizeSpreadOrder([
+      ...remainingSpreads.slice(0, insertionIndex),
+      draggedSpread,
+      ...remainingSpreads.slice(insertionIndex)
+    ]);
+
+    setLocalSpreads(nextSpreads);
+    setDraggedSpreadId(null);
+    setSpreadDropTarget(null);
+    setSpreadOrderError(null);
+    setIsReorderingSpreads(true);
+
+    void (async () => {
+      try {
+        await reorderAlbumDesignSpreadsInlineAction(customerId, designId, nextSpreads.map((spread) => spread.id));
+      } catch (error) {
+        console.error("Failed to reorder album spreads", error);
+        setLocalSpreads(previousSpreads);
+        setSpreadOrderError("Nem sikerült elmenteni az oldalpárok sorrendjét. Próbáld újra.");
+      } finally {
+        setIsReorderingSpreads(false);
+      }
+    })();
   }
 
   function replaceSpreadSlotPhoto(spreadId: string, slotIndex: number, photo: FavoritePhoto) {
@@ -992,24 +1075,54 @@ export function AlbumDesignWorkbench({
                   {orderedSpreads.map((spread) => {
                     const isActive = spread.id === activeSpread?.id;
                     const template = getTemplate(spread.layoutKey);
+                    const showDropBefore = spreadDropTarget?.spreadId === spread.id && spreadDropTarget.position === "before";
+                    const showDropAfter = spreadDropTarget?.spreadId === spread.id && spreadDropTarget.position === "after";
 
                     return (
-                      <button
+                      <div
                         key={`spread-nav-${spread.id}`}
-                        type="button"
-                        onClick={() => setActiveSpreadAndSlot(spread.id, selectedSlotBySpread[spread.id] ?? getOrderedItems(spread)[0]?.slotIndex ?? 0)}
-                        className={`w-full rounded-md border px-3 py-2 text-left text-sm transition ${
-                          isActive ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
-                        }`}
+                        draggable={!isReorderingSpreads}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", spread.id);
+                          setDraggedSpreadId(spread.id);
+                          setSpreadOrderError(null);
+                        }}
+                        onDragOver={(event) => updateSpreadDropTarget(event, spread.id)}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const position = spreadDropTarget?.spreadId === spread.id ? spreadDropTarget.position : "before";
+                          reorderSpread(spread.id, position);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedSpreadId(null);
+                          setSpreadDropTarget(null);
+                        }}
+                        className={`relative ${isReorderingSpreads ? "cursor-wait" : "cursor-grab active:cursor-grabbing"}`}
                       >
-                        <span className="block font-semibold">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</span>
-                        <span className={`mt-1 block text-xs ${isActive ? "text-white/65" : "text-graphite/55"}`}>
-                          {template.name} · {spread.items.length} kép
-                        </span>
-                      </button>
+                        {showDropBefore ? <span className="pointer-events-none absolute -top-[5px] left-1 right-1 z-10 h-0.5 rounded-full bg-brass" /> : null}
+                        <button
+                          type="button"
+                          onClick={() => setActiveSpreadAndSlot(spread.id, selectedSlotBySpread[spread.id] ?? getOrderedItems(spread)[0]?.slotIndex ?? 0)}
+                          className={`flex w-full items-center gap-2 rounded-md border px-2 py-2 text-left text-sm transition ${
+                            isActive ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:text-ink"
+                          } ${draggedSpreadId === spread.id ? "opacity-45" : ""}`}
+                        >
+                          <GripVertical size={16} className={`shrink-0 ${isActive ? "text-white/50" : "text-graphite/35"}`} aria-hidden="true" />
+                          <span className="min-w-0">
+                            <span className="block font-semibold">{spread.title ?? `Oldalpár ${spread.sortOrder}`}</span>
+                            <span className={`mt-1 block text-xs ${isActive ? "text-white/65" : "text-graphite/55"}`}>
+                              {template.name} · {spread.items.length} kép
+                            </span>
+                          </span>
+                        </button>
+                        {showDropAfter ? <span className="pointer-events-none absolute -bottom-[5px] left-1 right-1 z-10 h-0.5 rounded-full bg-brass" /> : null}
+                      </div>
                     );
                   })}
                 </div>
+                {isReorderingSpreads ? <p className="mt-2 px-2 text-xs text-graphite/55">Sorrend mentése...</p> : null}
+                {spreadOrderError ? <p className="mt-2 px-2 text-xs leading-5 text-red-600">{spreadOrderError}</p> : null}
                 <SidebarSpreadCreateForm
                   isCreating={isCreatingSpread}
                   errorMessage={createSpreadError}

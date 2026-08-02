@@ -70,16 +70,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ des
     notFound();
   }
 
-  const submittedSpreadIds = new Set(
-    formData.getAll("draftSpreadIds").filter((value): value is string => typeof value === "string")
-  );
-  const spreads = await Promise.all(
-    design.spreads.map(async (savedSpread) => {
-      if (!submittedSpreadIds.has(savedSpread.id)) {
-        return savedSpread;
-      }
+  const submittedSpreadIds = [
+    ...new Set(formData.getAll("draftSpreadIds").filter((value): value is string => typeof value === "string" && value.length > 0))
+  ];
+  const submittedSpreadIdSet = new Set(submittedSpreadIds);
+  const savedSpreadsById = new Map(design.spreads.map((spread) => [spread.id, spread]));
+  const orderedSavedSpreads = [
+    ...submittedSpreadIds.flatMap((spreadId) => {
+      const spread = savedSpreadsById.get(spreadId);
 
-      return (await loadAlbumDesignSpreadDraftForExport({ admin, spreadId: savedSpread.id, formData })) ?? savedSpread;
+      return spread ? [spread] : [];
+    }),
+    ...design.spreads.filter((spread) => !submittedSpreadIdSet.has(spread.id))
+  ];
+  const spreads = await Promise.all(
+    orderedSavedSpreads.map(async (savedSpread, index) => {
+      const exportSpread = submittedSpreadIdSet.has(savedSpread.id)
+        ? ((await loadAlbumDesignSpreadDraftForExport({ admin, spreadId: savedSpread.id, formData })) ?? savedSpread)
+        : savedSpread;
+
+      return {
+        ...exportSpread,
+        sortOrder: index + 1
+      };
     })
   );
 

@@ -726,6 +726,52 @@ export async function createEmptyAlbumDesignSpreadInlineAction(customerId: strin
   };
 }
 
+export async function reorderAlbumDesignSpreadsInlineAction(
+  customerId: string | null,
+  designId: string,
+  orderedSpreadIds: string[]
+) {
+  const { design } = await requireAlbumDesignAccess(customerId, designId);
+  const uniqueSpreadIds = [...new Set(orderedSpreadIds.filter(Boolean))];
+  const spreads = await prisma.albumDesignSpread.findMany({
+    where: { designId: design.id },
+    select: {
+      id: true,
+      title: true
+    }
+  });
+
+  if (uniqueSpreadIds.length !== spreads.length) {
+    throw new Error("Album spread order is incomplete.");
+  }
+
+  const spreadsById = new Map(spreads.map((spread) => [spread.id, spread]));
+
+  if (uniqueSpreadIds.some((spreadId) => !spreadsById.has(spreadId))) {
+    throw new Error("Album spread order contains an invalid spread.");
+  }
+
+  await prisma.$transaction(
+    uniqueSpreadIds.map((spreadId, index) => {
+      const spread = spreadsById.get(spreadId)!;
+      const nextSortOrder = index + 1;
+      const hasAutomaticTitle = /^Oldalpár \d+$/i.test(spread.title ?? "");
+
+      return prisma.albumDesignSpread.update({
+        where: { id: spreadId },
+        data: {
+          sortOrder: nextSortOrder,
+          ...(hasAutomaticTitle ? { title: `Oldalpár ${nextSortOrder}` } : {})
+        }
+      });
+    })
+  );
+
+  revalidateAlbumDesignPaths(customerId);
+
+  return { orderedSpreadIds: uniqueSpreadIds };
+}
+
 export async function createAutoAlbumDesignSpreadAction(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
