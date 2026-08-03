@@ -614,7 +614,7 @@ export async function approveAlbumReviewSpreadAction({
   };
 }
 
-export async function revokeAlbumReviewSpreadApprovalAction({
+export async function resetAlbumReviewSpreadDecisionAction({
   token,
   spreadId
 }: {
@@ -648,6 +648,9 @@ export async function revokeAlbumReviewSpreadApprovalAction({
   }
 
   await prisma.$transaction([
+    prisma.albumReviewComment.deleteMany({
+      where: { spreadId: spread.id }
+    }),
     prisma.albumReviewSpread.update({
       where: { id: spread.id },
       data: { approvedAt: null }

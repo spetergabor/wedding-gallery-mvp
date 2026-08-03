@@ -6,7 +6,7 @@ import {
   approveAlbumReviewSpreadAction,
   createAlbumReviewCommentAction,
   deleteAlbumReviewCommentAction,
-  revokeAlbumReviewSpreadApprovalAction,
+  resetAlbumReviewSpreadDecisionAction,
   submitAlbumReviewAction,
   updateAlbumReviewCommentAction
 } from "@/lib/album-review-actions";
@@ -52,6 +52,8 @@ const ALBUM_REVIEW_COPY = {
     deleteError: "Die Notiz konnte nicht gelöscht werden.",
     approveError: "Die Freigabe konnte nicht gespeichert werden.",
     revokeApprovalError: "Die Freigabe konnte nicht zurückgenommen werden.",
+    revokeChangesConfirm: "Alle Änderungsnotizen dieser Doppelseite löschen und den Änderungswunsch zurücknehmen?",
+    revokeChangesError: "Der Änderungswunsch konnte nicht zurückgenommen werden.",
     spread: (index: number) => `Doppelseite ${index}`,
     notes: "Notizen",
     approved: "Freigegeben",
@@ -60,6 +62,8 @@ const ALBUM_REVIEW_COPY = {
     approve: "Diese Seite ist in Ordnung",
     revokingApproval: "Wird zurückgenommen...",
     revokeApproval: "Freigabe zurücknehmen",
+    revokingChanges: "Wird zurückgenommen...",
+    revokeChanges: "Änderungswunsch zurücknehmen",
     editTitle: "Notiz bearbeiten",
     updatePending: "Speichern...",
     update: "Notiz aktualisieren",
@@ -92,6 +96,8 @@ const ALBUM_REVIEW_COPY = {
     deleteError: "A megjegyzést nem sikerült törölni.",
     approveError: "Az oldalpár jóváhagyását nem sikerült menteni.",
     revokeApprovalError: "Az oldalpár jóváhagyását nem sikerült visszavonni.",
+    revokeChangesConfirm: "Törlitek az oldalpár összes módosítási megjegyzését, és visszavonjátok a módosításkérést?",
+    revokeChangesError: "A módosításkérést nem sikerült visszavonni.",
     spread: (index: number) => `Oldalpár ${index}`,
     notes: "megjegyzés",
     approved: "Rendben jelölve",
@@ -100,6 +106,8 @@ const ALBUM_REVIEW_COPY = {
     approve: "Ez az oldal rendben van",
     revokingApproval: "Visszavonás...",
     revokeApproval: "Jóváhagyás visszavonása",
+    revokingChanges: "Visszavonás...",
+    revokeChanges: "Módosításkérés visszavonása",
     editTitle: "Megjegyzés szerkesztése",
     updatePending: "Mentés...",
     update: "Megjegyzés frissítése",
@@ -331,23 +339,32 @@ export function AlbumReviewBoard({
     setApprovingSpreadId(null);
   }
 
-  async function revokeSpreadApproval(spreadId: string) {
+  async function resetSpreadDecision(spreadId: string, hasChangeRequest: boolean) {
     if (isSubmitted || pending || approvingSpreadId || revokingSpreadId) {
+      return;
+    }
+
+    if (hasChangeRequest && !window.confirm(copy.revokeChangesConfirm)) {
       return;
     }
 
     setRevokingSpreadId(spreadId);
     setError("");
 
-    const result = await revokeAlbumReviewSpreadApprovalAction({ token, spreadId });
+    const result = await resetAlbumReviewSpreadDecisionAction({ token, spreadId });
 
     if (!result.ok) {
-      setError(result.message ?? copy.revokeApprovalError);
+      setError(result.message ?? (hasChangeRequest ? copy.revokeChangesError : copy.revokeApprovalError));
       setRevokingSpreadId(null);
       return;
     }
 
+    setComments((current) => current.filter((comment) => comment.spreadId !== spreadId));
     setApprovedSpreads((current) => ({ ...current, [spreadId]: null }));
+    setDraft((current) => (current?.spreadId === spreadId ? null : current));
+    setSelectedCommentId(null);
+    setEditingCommentId(null);
+    setEditingText("");
     setRevokingSpreadId(null);
   }
 
@@ -398,10 +415,23 @@ export function AlbumReviewBoard({
                   <p className="mt-1 text-sm text-graphite/70">{spreadComments.length} {copy.notes}</p>
                 </div>
                 {hasChangeRequest ? (
-                  <span className="inline-flex w-fit items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
-                    <CircleAlert size={16} />
-                    {copy.changesRequested}
-                  </span>
+                  <div className="flex w-fit flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
+                      <CircleAlert size={16} />
+                      {copy.changesRequested}
+                    </span>
+                    {!isSubmitted ? (
+                      <button
+                        type="button"
+                        onClick={() => resetSpreadDecision(spread.id, true)}
+                        disabled={revokingSpreadId === spread.id || Boolean(approvingSpreadId)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-graphite transition hover:border-ink/30 hover:text-ink disabled:opacity-60"
+                      >
+                        <Undo2 size={15} />
+                        {revokingSpreadId === spread.id ? copy.revokingChanges : copy.revokeChanges}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : approvedAt ? (
                   <div className="flex w-fit flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-2 rounded-md bg-brass/10 px-3 py-2 text-sm font-medium text-brass">
@@ -411,7 +441,7 @@ export function AlbumReviewBoard({
                     {!isSubmitted ? (
                       <button
                         type="button"
-                        onClick={() => revokeSpreadApproval(spread.id)}
+                        onClick={() => resetSpreadDecision(spread.id, false)}
                         disabled={revokingSpreadId === spread.id || Boolean(approvingSpreadId)}
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-graphite transition hover:border-ink/30 hover:text-ink disabled:opacity-60"
                       >
