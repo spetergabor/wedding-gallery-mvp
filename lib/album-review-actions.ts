@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { albumReviewAccessWhere, customerAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { prisma } from "@/lib/prisma";
 import {
   createAlbumReviewSpreadObjectKey,
@@ -67,6 +68,8 @@ function normalizePoint(value: number) {
 
 export async function ensureAlbumReviewApprovalSchema() {
   await prisma.$executeRawUnsafe(`ALTER TABLE "AlbumReviewSpread" ADD COLUMN IF NOT EXISTS "approvedAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AlbumReview" ADD COLUMN IF NOT EXISTS "submittedAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AlbumReview_submittedAt_idx" ON "AlbumReview"("submittedAt")`);
 }
 
 async function requireAlbumReviewAccess(customerId: string, reviewId: string) {
@@ -288,6 +291,7 @@ export async function completeAlbumReviewSpreadUploadsAction(
       where: { id: review.id },
       data: {
         status: "ready",
+        submittedAt: null,
         spreads: {
           createMany: {
             data: spreads
@@ -371,12 +375,22 @@ export async function createAlbumReviewCommentAction({
     },
     select: {
       id: true,
-      reviewId: true
+      reviewId: true,
+      review: {
+        select: {
+          customerId: true,
+          submittedAt: true
+        }
+      }
     }
   });
 
   if (!spread) {
     return { ok: false, message: "Diese Albumseite wurde nicht gefunden." };
+  }
+
+  if (spread.review.submittedAt) {
+    return { ok: false, message: "Diese Albumprüfung wurde bereits übermittelt." };
   }
 
   const comment = await prisma.albumReviewComment.create({
@@ -408,6 +422,7 @@ export async function createAlbumReviewCommentAction({
   ]);
 
   revalidatePath(`/album/${token}`);
+  revalidatePath(`/admin/clients/${spread.review.customerId}`);
 
   return {
     ok: true,
@@ -450,7 +465,8 @@ export async function updateAlbumReviewCommentAction({
         select: {
           review: {
             select: {
-              customerId: true
+              customerId: true,
+              submittedAt: true
             }
           }
         }
@@ -460,6 +476,10 @@ export async function updateAlbumReviewCommentAction({
 
   if (!comment) {
     return { ok: false, message: "Diese Notiz wurde nicht gefunden." };
+  }
+
+  if (comment.spread.review.submittedAt) {
+    return { ok: false, message: "Diese Albumprüfung wurde bereits übermittelt." };
   }
 
   const updatedComment = await prisma.albumReviewComment.update({
@@ -507,7 +527,8 @@ export async function deleteAlbumReviewCommentAction({
         select: {
           review: {
             select: {
-              customerId: true
+              customerId: true,
+              submittedAt: true
             }
           }
         }
@@ -517,6 +538,10 @@ export async function deleteAlbumReviewCommentAction({
 
   if (!comment) {
     return { ok: false, message: "Diese Notiz wurde nicht gefunden." };
+  }
+
+  if (comment.spread.review.submittedAt) {
+    return { ok: false, message: "Diese Albumprüfung wurde bereits übermittelt." };
   }
 
   await prisma.albumReviewComment.delete({
@@ -544,12 +569,29 @@ export async function approveAlbumReviewSpreadAction({
     },
     select: {
       id: true,
-      reviewId: true
+      reviewId: true,
+      review: {
+        select: {
+          customerId: true,
+          submittedAt: true
+        }
+      },
+      _count: {
+        select: { comments: true }
+      }
     }
   });
 
   if (!spread) {
     return { ok: false, message: "Diese Albumseite wurde nicht gefunden." };
+  }
+
+  if (spread.review.submittedAt) {
+    return { ok: false, message: "Diese Albumprüfung wurde bereits übermittelt." };
+  }
+
+  if (spread._count.comments > 0) {
+    return { ok: false, message: "Entfernen Sie zuerst die Änderungsnotizen, wenn Sie diese Doppelseite freigeben möchten." };
   }
 
   const updatedSpread = await prisma.albumReviewSpread.update({
@@ -564,9 +606,123 @@ export async function approveAlbumReviewSpreadAction({
   });
 
   revalidatePath(`/album/${token}`);
+  revalidatePath(`/admin/clients/${spread.review.customerId}`);
 
   return {
     ok: true,
     approvedAt: updatedSpread.approvedAt?.toISOString() ?? null
+  };
+}
+
+export async function submitAlbumReviewAction({ token }: { token: string }) {
+  await ensureAlbumReviewApprovalSchema();
+  const review = await prisma.albumReview.findUnique({
+    where: { accessToken: token },
+    select: {
+      id: true,
+      title: true,
+      customerId: true,
+      status: true,
+      submittedAt: true,
+      customer: {
+        select: {
+          adminId: true,
+          coupleName: true,
+          preferredLanguage: true
+        }
+      },
+      spreads: {
+        select: {
+          approvedAt: true,
+          _count: {
+            select: { comments: true }
+          }
+        }
+      }
+    }
+  });
+
+  if (!review) {
+    return { ok: false, message: "Diese Albumprüfung wurde nicht gefunden." };
+  }
+
+  const language = normalizeCustomerLanguage(review.customer.preferredLanguage);
+  const total = review.spreads.length;
+  const approvedCount = review.spreads.filter((spread) => Boolean(spread.approvedAt) && spread._count.comments === 0).length;
+  const changesRequestedCount = review.spreads.filter((spread) => spread._count.comments > 0).length;
+  const unresolvedCount = total - approvedCount - changesRequestedCount;
+
+  if (total === 0 || unresolvedCount > 0) {
+    return {
+      ok: false,
+      message:
+        language === "hu"
+          ? `Még ${Math.max(1, unresolvedCount)} oldalpárnál válasszatok: jóváhagyás vagy módosítási megjegyzés.`
+          : `Bitte prüfen Sie noch ${Math.max(1, unresolvedCount)} Doppelseite(n): freigeben oder eine Änderungsnotiz hinzufügen.`
+    };
+  }
+
+  if (review.submittedAt) {
+    return {
+      ok: true,
+      status: review.status,
+      submittedAt: review.submittedAt.toISOString(),
+      total,
+      approvedCount,
+      changesRequestedCount
+    };
+  }
+
+  const submittedAt = new Date();
+  const status = changesRequestedCount > 0 ? "changes_requested" : "approved";
+  const result = await prisma.$transaction(async (transaction) => {
+    await transaction.albumReviewSpread.updateMany({
+      where: {
+        reviewId: review.id,
+        comments: { some: {} }
+      },
+      data: { approvedAt: null }
+    });
+    const updated = await transaction.albumReview.updateMany({
+      where: {
+        id: review.id,
+        submittedAt: null
+      },
+      data: {
+        status,
+        submittedAt
+      }
+    });
+
+    if (updated.count > 0 && review.customer.adminId) {
+      await transaction.adminNotification.create({
+        data: {
+          adminId: review.customer.adminId,
+          type: "album_review_submitted",
+          title: status === "approved" ? "Album jóváhagyva" : "Album módosítások leadva",
+          message: `${review.customer.coupleName}: ${approvedCount}/${total} oldalpár jóváhagyva, ${changesRequestedCount} oldalpár módosítással.`,
+          href: `/admin/clients/${review.customerId}?tab=album&albumMode=upload#album-review-${review.id}`
+        }
+      });
+    }
+
+    return updated.count;
+  });
+
+  const finalSubmittedAt = result > 0 ? submittedAt : (await prisma.albumReview.findUnique({ where: { id: review.id }, select: { submittedAt: true } }))?.submittedAt;
+
+  revalidatePath(`/album/${token}`);
+  revalidatePath(`/admin/clients/${review.customerId}`);
+  revalidatePath("/admin/albums");
+  revalidatePath("/admin/notifications");
+  revalidatePath("/admin");
+
+  return {
+    ok: true,
+    status,
+    submittedAt: (finalSubmittedAt ?? submittedAt).toISOString(),
+    total,
+    approvedCount,
+    changesRequestedCount
   };
 }

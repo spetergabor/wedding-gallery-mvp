@@ -612,6 +612,7 @@ model AlbumReview {
   status      String   @default("draft")
   accessToken String   @unique
   clientEmail String?
+  submittedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -621,6 +622,7 @@ model AlbumReview {
   @@index([customerId])
   @@index([projectId])
   @@index([status])
+  @@index([submittedAt])
   @@index([createdAt])
   @@index([accessToken])
 }

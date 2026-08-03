@@ -38,6 +38,7 @@ const reviewStatusLabels: Record<string, string> = {
   draft: "Előkészítés",
   ready: "Ellenőrzésre kész",
   in_review: "Ügyfél ellenőrzi",
+  changes_requested: "Módosításokat kért",
   approved: "Jóváhagyva",
   archived: "Archivált"
 };
@@ -53,6 +54,7 @@ const reviewStatusClasses: Record<string, string> = {
   draft: "bg-ink/5 text-graphite",
   ready: "bg-brass/10 text-brass",
   in_review: "bg-ink text-white",
+  changes_requested: "bg-amber-50 text-amber-700",
   approved: "bg-sage/12 text-sage",
   archived: "bg-ink/5 text-graphite"
 };
@@ -239,7 +241,9 @@ export function AlbumOverviewDashboard({
             })}
 
             {reviews.map((review) => {
-              const approvedCount = review.spreads.filter((spread) => spread.approvedAt).length;
+              const approvedCount = review.spreads.filter(
+                (spread) => spread.approvedAt && spread.comments.length === 0,
+              ).length;
               const commentCount = review.spreads.reduce((total, spread) => total + spread.comments.length, 0);
               const approvedPercent = review.spreads.length > 0 ? Math.round((approvedCount / review.spreads.length) * 100) : 0;
 

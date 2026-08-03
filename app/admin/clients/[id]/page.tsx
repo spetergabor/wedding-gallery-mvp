@@ -148,6 +148,7 @@ type CustomerProjectOverview = {
   albumReviews: Array<{
     id: string;
     status: string;
+    submittedAt: Date | null;
     createdAt: Date;
     spreads: Array<{
       approvedAt: Date | null;
@@ -1481,6 +1482,7 @@ export default async function AdminClientDetailPage({
             select: {
               id: true,
               status: true,
+              submittedAt: true,
               createdAt: true,
               spreads: {
                 select: {

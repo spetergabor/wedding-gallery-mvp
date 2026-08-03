@@ -30,6 +30,7 @@ type AlbumReview = {
   title: string;
   status: string;
   accessToken: string;
+  submittedAt: Date | null;
   createdAt: Date;
   customer?: {
     id: string;
@@ -56,6 +57,7 @@ const statusLabels: Record<string, string> = {
   draft: "Előkészítés",
   ready: "Ellenőrzésre kész",
   in_review: "Ügyfél ellenőrzi",
+  changes_requested: "Módosításokat kért",
   approved: "Jóváhagyva",
   archived: "Archivált"
 };
@@ -73,7 +75,7 @@ function compareAlbumSpreadFilenames(left: AlbumReview["spreads"][number], right
 }
 
 function displayAlbumSpreadTitle(title: string | null, index: number) {
-  return !title || /^Oldalpár \d+$/i.test(title) ? `Oldalpár ${index + 1}` : title;
+  return !title || /^(Oldalpár|Doppelseite) \d+$/i.test(title) ? `Oldalpár ${index + 1}` : title;
 }
 
 function albumLink(token: string) {
@@ -167,7 +169,10 @@ export function AlbumReviewManager({
           {reviews.map((review) => {
             const orderedSpreads = [...review.spreads].sort(compareAlbumSpreadFilenames);
             const commentCount = orderedSpreads.reduce((total, spread) => total + spread.comments.length, 0);
-            const approvedCount = orderedSpreads.filter((spread) => spread.approvedAt).length;
+            const approvedCount = orderedSpreads.filter(
+              (spread) => spread.approvedAt && spread.comments.length === 0,
+            ).length;
+            const changesRequestedCount = orderedSpreads.filter((spread) => spread.comments.length > 0).length;
             const linkedProject = review.projectId ? projectById.get(review.projectId) : null;
             const reviewCustomerId = review.customerId;
 
@@ -188,6 +193,11 @@ export function AlbumReviewManager({
                           {approvedCount}/{orderedSpreads.length} rendben
                         </span>
                       ) : null}
+                      {changesRequestedCount > 0 ? (
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                          {changesRequestedCount} módosítandó
+                        </span>
+                      ) : null}
                       {linkedProject ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-sage/10 px-2.5 py-1 text-xs font-medium text-sage">
                           <FolderKanban size={13} />
@@ -205,7 +215,10 @@ export function AlbumReviewManager({
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-sm text-graphite/70">Létrehozva: {formatDate(review.createdAt)}</p>
+                    <p className="mt-1 text-sm text-graphite/70">
+                      Létrehozva: {formatDate(review.createdAt)}
+                      {review.submittedAt ? ` · Ügyfél leadta: ${formatDate(review.submittedAt)}` : ""}
+                    </p>
                   </div>
                   <span className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition group-open:border-ink/25">
                     <span className="group-open:hidden">Megnyitás</span>

@@ -68,6 +68,7 @@ export type ProjectWorkflowInvoice = {
 export type ProjectWorkflowAlbumReview = {
   id: string;
   status: string;
+  submittedAt?: Date | null;
   createdAt: Date;
   spreads?: Array<{
     approvedAt: Date | null;
@@ -145,22 +146,26 @@ function getPrimaryGallery(project: ProjectWorkflowProject) {
   return project.galleries.find((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING) ?? project.galleries[0] ?? null;
 }
 
-function openAlbumCommentCount(project: ProjectWorkflowProject) {
-  return (project.albumReviews ?? []).reduce((total, review) => {
-    return total + (review.spreads ?? []).reduce((spreadTotal, spread) => {
-      return spreadTotal + (spread.comments ?? []).filter((comment) => (comment.status ?? "open") === "open").length;
-    }, 0);
+function getLatestAlbumReview(project: ProjectWorkflowProject) {
+  return sortByNewest(project.albumReviews ?? [])[0] ?? null;
+}
+
+function openAlbumCommentCount(review: ProjectWorkflowAlbumReview | null) {
+  if (!review || review.status !== "changes_requested") {
+    return 0;
+  }
+
+  return (review.spreads ?? []).reduce((total, spread) => {
+    return total + (spread.comments ?? []).filter((comment) => (comment.status ?? "open") === "open").length;
   }, 0);
 }
 
-function approvedAlbumSpreadCount(project: ProjectWorkflowProject) {
-  return (project.albumReviews ?? []).reduce((total, review) => {
-    return total + (review.spreads ?? []).filter((spread) => spread.approvedAt).length;
-  }, 0);
+function approvedAlbumSpreadCount(review: ProjectWorkflowAlbumReview | null) {
+  return (review?.spreads ?? []).filter((spread) => spread.approvedAt).length;
 }
 
-function albumSpreadCount(project: ProjectWorkflowProject) {
-  return (project.albumReviews ?? []).reduce((total, review) => total + (review.spreads?.length ?? 0), 0);
+function albumSpreadCount(review: ProjectWorkflowAlbumReview | null) {
+  return review?.spreads?.length ?? 0;
 }
 
 export function getProjectPhaseIndex(project: ProjectWorkflowProject) {
@@ -225,9 +230,10 @@ export function getProjectWorkflowSummary(
   const openInvoices = invoices.filter((invoice) => invoice.status !== "paid" && !invoice.paidAt);
   const overdueInvoice = openInvoices.find((invoice) => invoice.dueDate && invoice.dueDate.getTime() < today.getTime());
   const unsentInvoice = openInvoices.find((invoice) => !invoice.sentAt);
-  const openComments = openAlbumCommentCount(project);
-  const approvedSpreads = approvedAlbumSpreadCount(project);
-  const totalAlbumSpreads = albumSpreadCount(project);
+  const latestAlbumReview = getLatestAlbumReview(project);
+  const openComments = openAlbumCommentCount(latestAlbumReview);
+  const approvedSpreads = approvedAlbumSpreadCount(latestAlbumReview);
+  const totalAlbumSpreads = albumSpreadCount(latestAlbumReview);
   const isFutureEvent = Boolean(project.eventDate && project.eventDate.getTime() >= today.getTime());
 
   if (project.status === "archived") {
@@ -328,7 +334,7 @@ export function getProjectWorkflowSummary(
     }
 
     if (countAlbumReviews(project) > 0) {
-      if (totalAlbumSpreads > 0 && approvedSpreads === totalAlbumSpreads) {
+      if (latestAlbumReview?.status === "approved" || (totalAlbumSpreads > 0 && approvedSpreads === totalAlbumSpreads)) {
         return {
           title: "Album jóváhagyva",
           detail: `${approvedSpreads} oldalpárt jóváhagyott az ügyfél. Ha a rendelés vagy gyártás is rendben van, zárd le a projektet a Készre állítás gombbal.`,

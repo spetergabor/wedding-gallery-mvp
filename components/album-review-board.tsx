@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, MouseEvent, useMemo, useState } from "react";
-import { CheckCircle2, MessageSquare, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle2, CircleAlert, MessageSquare, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import {
   approveAlbumReviewSpreadAction,
   createAlbumReviewCommentAction,
   deleteAlbumReviewCommentAction,
+  submitAlbumReviewAction,
   updateAlbumReviewCommentAction
 } from "@/lib/album-review-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -36,6 +37,11 @@ type DraftComment = {
   y: number;
 };
 
+type ReviewSubmission = {
+  status: string;
+  submittedAt: string;
+};
+
 const ALBUM_REVIEW_COPY = {
   de: {
     saveError: "Die Notiz konnte nicht gespeichert werden.",
@@ -47,6 +53,7 @@ const ALBUM_REVIEW_COPY = {
     spread: (index: number) => `Doppelseite ${index}`,
     notes: "Notizen",
     approved: "Freigegeben",
+    changesRequested: "Änderung angefordert",
     approving: "Speichern...",
     approve: "Diese Seite ist in Ordnung",
     editTitle: "Notiz bearbeiten",
@@ -58,7 +65,20 @@ const ALBUM_REVIEW_COPY = {
     newNote: "Neue Notiz",
     placeholder: "z.B. Bitte dieses Bild gegen Bild 1234 tauschen",
     savePending: "Speichern...",
-    save: "Notiz speichern"
+    save: "Notiz speichern",
+    submitEyebrow: "Prüfung abschließen",
+    submitTitle: "Albumprüfung übermitteln",
+    submitDescription: "Bitte entscheiden Sie bei jeder Doppelseite: freigeben oder eine Änderungsnotiz hinzufügen.",
+    approvedPages: (count: number) => `${count} freigegeben`,
+    changedPages: (count: number) => `${count} mit Änderungswünschen`,
+    unresolvedPages: (count: number) => `${count} noch nicht geprüft`,
+    submitConfirm: "Albumprüfung jetzt verbindlich abschließen und senden? Danach können keine weiteren Änderungen eingetragen werden.",
+    submitPending: "Wird gesendet...",
+    submit: "Prüfung abschließen und senden",
+    submittedApprovedTitle: "Album vollständig freigegeben",
+    submittedChangesTitle: "Änderungswünsche wurden übermittelt",
+    submittedDescription: "Vielen Dank. Ihre Rückmeldung wurde vollständig und verbindlich übermittelt.",
+    submittedAt: "Übermittelt"
   },
   hu: {
     saveError: "A megjegyzést nem sikerült menteni.",
@@ -70,6 +90,7 @@ const ALBUM_REVIEW_COPY = {
     spread: (index: number) => `Oldalpár ${index}`,
     notes: "megjegyzés",
     approved: "Rendben jelölve",
+    changesRequested: "Módosítás kérve",
     approving: "Mentés...",
     approve: "Ez az oldal rendben van",
     editTitle: "Megjegyzés szerkesztése",
@@ -81,18 +102,35 @@ const ALBUM_REVIEW_COPY = {
     newNote: "Új megjegyzés",
     placeholder: "pl. Ezt a képet cseréljük a 1234-es képre",
     savePending: "Mentés...",
-    save: "Megjegyzés mentése"
+    save: "Megjegyzés mentése",
+    submitEyebrow: "Ellenőrzés lezárása",
+    submitTitle: "Albumellenőrzés elküldése",
+    submitDescription: "Minden oldalpárnál válasszatok: jóváhagyás vagy módosítási megjegyzés.",
+    approvedPages: (count: number) => `${count} jóváhagyva`,
+    changedPages: (count: number) => `${count} módosítással`,
+    unresolvedPages: (count: number) => `${count} még nincs ellenőrizve`,
+    submitConfirm: "Biztosan lezárjátok és elkülditek az albumellenőrzést? Utána már nem lehet további módosítást beírni.",
+    submitPending: "Küldés...",
+    submit: "Ellenőrzés lezárása és elküldése",
+    submittedApprovedTitle: "Az album teljesen jóváhagyva",
+    submittedChangesTitle: "A módosítási kéréseket elküldtétek",
+    submittedDescription: "Köszönjük. A teljes visszajelzés sikeresen és véglegesen elküldve.",
+    submittedAt: "Elküldve"
   }
 } as const;
 
 export function AlbumReviewBoard({
   token,
   spreads,
-  language = "de"
+  language = "de",
+  reviewStatus = "in_review",
+  submittedAt = null
 }: {
   token: string;
   spreads: AlbumSpread[];
   language?: CustomerLanguage;
+  reviewStatus?: string;
+  submittedAt?: string | null;
 }) {
   const copy = ALBUM_REVIEW_COPY[language];
   const [comments, setComments] = useState<AlbumComment[]>(() => spreads.flatMap((spread) => spread.comments));
@@ -108,7 +146,12 @@ export function AlbumReviewBoard({
   const [updatingCommentId, setUpdatingCommentId] = useState<string | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [approvingSpreadId, setApprovingSpreadId] = useState<string | null>(null);
+  const [submission, setSubmission] = useState<ReviewSubmission | null>(() =>
+    submittedAt ? { status: reviewStatus, submittedAt } : null
+  );
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const isSubmitted = Boolean(submission?.submittedAt);
   const commentsBySpread = useMemo(() => {
     const grouped = new Map<string, AlbumComment[]>();
 
@@ -118,9 +161,24 @@ export function AlbumReviewBoard({
 
     return grouped;
   }, [comments]);
+  const reviewProgress = useMemo(() => {
+    const approvedCount = spreads.filter(
+      (spread) => Boolean(approvedSpreads[spread.id]) && (commentsBySpread.get(spread.id)?.length ?? 0) === 0
+    ).length;
+    const changesRequestedCount = spreads.filter(
+      (spread) => (commentsBySpread.get(spread.id)?.length ?? 0) > 0
+    ).length;
+
+    return {
+      total: spreads.length,
+      approvedCount,
+      changesRequestedCount,
+      unresolvedCount: spreads.length - approvedCount - changesRequestedCount
+    };
+  }, [approvedSpreads, commentsBySpread, spreads]);
 
   function startComment(spreadId: string, event: MouseEvent<HTMLDivElement>) {
-    if (pending || editingCommentId) {
+    if (isSubmitted || pending || editingCommentId) {
       return;
     }
 
@@ -140,7 +198,7 @@ export function AlbumReviewBoard({
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!draft) {
+    if (isSubmitted || !draft) {
       return;
     }
 
@@ -169,7 +227,7 @@ export function AlbumReviewBoard({
   }
 
   function startEditComment(comment: AlbumComment) {
-    if (pending || updatingCommentId) {
+    if (isSubmitted || pending || updatingCommentId) {
       return;
     }
 
@@ -182,6 +240,10 @@ export function AlbumReviewBoard({
 
   async function saveCommentEdit(event: FormEvent<HTMLFormElement>, commentId: string) {
     event.preventDefault();
+
+    if (isSubmitted) {
+      return;
+    }
 
     if (!editingText.trim()) {
       setError(copy.emptyNote);
@@ -211,7 +273,7 @@ export function AlbumReviewBoard({
   }
 
   async function deleteComment(commentId: string) {
-    if (pending || updatingCommentId || deletingCommentId) {
+    if (isSubmitted || pending || updatingCommentId || deletingCommentId) {
       return;
     }
 
@@ -242,7 +304,7 @@ export function AlbumReviewBoard({
   }
 
   async function approveSpread(spreadId: string) {
-    if (pending || approvingSpreadId) {
+    if (isSubmitted || pending || approvingSpreadId) {
       return;
     }
 
@@ -261,6 +323,32 @@ export function AlbumReviewBoard({
     setApprovingSpreadId(null);
   }
 
+  async function submitReview() {
+    if (isSubmitted || submitting || reviewProgress.unresolvedCount > 0) {
+      return;
+    }
+
+    if (!window.confirm(copy.submitConfirm)) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    const result = await submitAlbumReviewAction({ token });
+
+    if (!result.ok || !result.submittedAt || !result.status) {
+      setError(result.message ?? copy.saveError);
+      setSubmitting(false);
+      return;
+    }
+
+    setDraft(null);
+    setEditingCommentId(null);
+    setSelectedCommentId(null);
+    setSubmission({ status: result.status, submittedAt: result.submittedAt });
+    setSubmitting(false);
+  }
+
   return (
     <div>
       {error ? (
@@ -272,6 +360,7 @@ export function AlbumReviewBoard({
           const spreadComments = commentsBySpread.get(spread.id) ?? [];
           const draftForSpread = draft?.spreadId === spread.id ? draft : null;
           const approvedAt = approvedSpreads[spread.id];
+          const hasChangeRequest = spreadComments.length > 0;
 
           return (
             <section key={spread.id} className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
@@ -280,7 +369,12 @@ export function AlbumReviewBoard({
                   <p className="font-semibold text-ink">{spread.title ?? copy.spread(spread.sortOrder)}</p>
                   <p className="mt-1 text-sm text-graphite/70">{spreadComments.length} {copy.notes}</p>
                 </div>
-                {approvedAt ? (
+                {hasChangeRequest ? (
+                  <span className="inline-flex w-fit items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
+                    <CircleAlert size={16} />
+                    {copy.changesRequested}
+                  </span>
+                ) : approvedAt ? (
                   <span className="inline-flex w-fit items-center gap-2 rounded-md bg-brass/10 px-3 py-2 text-sm font-medium text-brass">
                     <CheckCircle2 size={16} />
                     {copy.approved}
@@ -289,7 +383,7 @@ export function AlbumReviewBoard({
                   <button
                     type="button"
                     onClick={() => approveSpread(spread.id)}
-                    disabled={approvingSpreadId === spread.id}
+                    disabled={isSubmitted || approvingSpreadId === spread.id}
                     className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-3 text-sm font-medium text-brass transition hover:bg-brass/15 disabled:opacity-60"
                   >
                     <CheckCircle2 size={16} />
@@ -299,7 +393,7 @@ export function AlbumReviewBoard({
               </div>
 
               <div
-                className="relative cursor-crosshair bg-mist"
+                className={`relative bg-mist ${isSubmitted ? "cursor-default" : "cursor-crosshair"}`}
                 onClick={(event) => startComment(spread.id, event)}
               >
                 <img src={spread.imageUrl} alt={spread.title ?? spread.filename} className="block h-auto w-full" />
@@ -368,7 +462,7 @@ export function AlbumReviewBoard({
                             <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-white text-xs text-ink">{index + 1}</span>
                             <span className={isSelected ? "" : "line-clamp-1"}>{comment.text}</span>
                           </span>
-                          {isSelected ? (
+                          {isSelected && !isSubmitted ? (
                             <span className="mt-2 flex flex-wrap gap-1.5">
                               <button
                                 type="button"
@@ -401,7 +495,7 @@ export function AlbumReviewBoard({
                   );
                 })}
 
-                {draftForSpread ? (
+                {draftForSpread && !isSubmitted ? (
                   <form
                     onClick={(event) => event.stopPropagation()}
                     onSubmit={saveDraft}
@@ -442,6 +536,59 @@ export function AlbumReviewBoard({
           );
         })}
       </div>
+
+      <section className={`mt-8 overflow-hidden rounded-lg border shadow-soft ${isSubmitted ? "border-brass/25 bg-brass/[0.06]" : "border-ink/10 bg-white"}`}>
+        <div className="p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <span className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full ${isSubmitted ? "bg-brass text-white" : "bg-ink text-white"}`}>
+              {isSubmitted ? <CheckCircle2 size={22} /> : <Send size={20} />}
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">{copy.submitEyebrow}</p>
+              <h2 className="mt-1 text-xl font-semibold text-ink">
+                {isSubmitted
+                  ? submission?.status === "approved"
+                    ? copy.submittedApprovedTitle
+                    : copy.submittedChangesTitle
+                  : copy.submitTitle}
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-graphite/70">
+                {isSubmitted ? copy.submittedDescription : copy.submitDescription}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-md bg-sage/10 px-4 py-3">
+              <p className="text-sm font-semibold text-sage">{copy.approvedPages(reviewProgress.approvedCount)}</p>
+            </div>
+            <div className="rounded-md bg-amber-50 px-4 py-3">
+              <p className="text-sm font-semibold text-amber-700">{copy.changedPages(reviewProgress.changesRequestedCount)}</p>
+            </div>
+            <div className={`rounded-md px-4 py-3 ${reviewProgress.unresolvedCount > 0 ? "bg-red-50" : "bg-ink/5"}`}>
+              <p className={`text-sm font-semibold ${reviewProgress.unresolvedCount > 0 ? "text-red-700" : "text-graphite"}`}>
+                {copy.unresolvedPages(reviewProgress.unresolvedCount)}
+              </p>
+            </div>
+          </div>
+
+          {isSubmitted && submission ? (
+            <p className="mt-5 text-sm font-medium text-graphite/70">
+              {copy.submittedAt}: {new Date(submission.submittedAt).toLocaleString(language === "hu" ? "hu-HU" : "de-AT", { dateStyle: "medium", timeStyle: "short" })}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={submitReview}
+              disabled={submitting || reviewProgress.unresolvedCount > 0}
+              className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 py-3 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
+            >
+              {submitting ? <span className="size-4 animate-spin rounded-full border-2 border-white/35 border-t-white" /> : <Send size={16} />}
+              {submitting ? copy.submitPending : copy.submit}
+            </button>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

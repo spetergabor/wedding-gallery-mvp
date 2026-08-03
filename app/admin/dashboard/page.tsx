@@ -1170,7 +1170,14 @@ export default async function AdminDashboardPage() {
   const staleZipCutoff = new Date(Date.now() - 15 * 60 * 1000);
   const contractWhere = { customer: adminOwnedWhere(admin) };
   const invoiceWhere = { customer: adminOwnedWhere(admin) };
-  const albumCommentWhere = { spread: { review: { customer: adminOwnedWhere(admin) } } };
+  const albumCommentWhere = {
+    spread: {
+      review: {
+        status: "changes_requested",
+        customer: adminOwnedWhere(admin)
+      }
+    }
+  };
   const downloadPackageWhere = { gallery: adminOwnedWhere(admin) };
 
   const [
@@ -1493,6 +1500,7 @@ export default async function AdminDashboardPage() {
       where: {
         approvedAt: { gte: calendarStart, lt: calendarEnd },
         review: {
+          status: { in: ["approved", "changes_requested"] },
           customer: adminOwnedWhere(admin)
         }
       },
