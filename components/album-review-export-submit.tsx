@@ -136,7 +136,7 @@ export function AlbumReviewExportSubmit({
         type="submit"
         title="Album ellenőrző létrehozása"
         className="h-10 px-3"
-        disabled={disabled || exportIsActive}
+        disabled={disabled || pending}
         onClick={(event) => {
           if (!window.confirm(confirmationMessage)) {
             event.preventDefault();
@@ -146,7 +146,7 @@ export function AlbumReviewExportSubmit({
           submissionStartedAtRef.current = Date.now();
           setProgress(null);
           setElapsedSeconds(0);
-          setIsExporting(true);
+          window.setTimeout(() => setIsExporting(true), 0);
         }}
       >
         {exportIsActive ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
