@@ -434,6 +434,7 @@ export function AlbumSpreadSlotEditor({
   const slotFrameDragStateRef = useRef<SlotFrameDragState | null>(null);
   const pendingSlotFrameUndoRef = useRef<SlotFrameUndoState | null>(null);
   const slotFrameChangedRef = useRef(false);
+  const optionResizeModifierRef = useRef(false);
   const slotFramePointerMoveHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const slotFramePointerUpHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
@@ -475,7 +476,35 @@ export function AlbumSpreadSlotEditor({
   }, [selectedTextItem?.color, selectedTextItem?.fontFamily, selectedTextItem?.fontSize, selectedTextItem?.id, selectedTextItem?.lineHeight, selectedTextItem?.text]);
 
   useEffect(() => {
+    function isOptionKey(event: globalThis.KeyboardEvent) {
+      return event.key === "Alt" || event.code === "AltLeft" || event.code === "AltRight";
+    }
+
+    function handleOptionKeyDown(event: globalThis.KeyboardEvent) {
+      if (isOptionKey(event)) {
+        optionResizeModifierRef.current = true;
+      }
+    }
+
+    function handleOptionKeyUp(event: globalThis.KeyboardEvent) {
+      if (isOptionKey(event)) {
+        optionResizeModifierRef.current = false;
+      }
+    }
+
+    function resetOptionKey() {
+      optionResizeModifierRef.current = false;
+    }
+
+    window.addEventListener("keydown", handleOptionKeyDown, true);
+    window.addEventListener("keyup", handleOptionKeyUp, true);
+    window.addEventListener("blur", resetOptionKey);
+
     return () => {
+      window.removeEventListener("keydown", handleOptionKeyDown, true);
+      window.removeEventListener("keyup", handleOptionKeyUp, true);
+      window.removeEventListener("blur", resetOptionKey);
+
       if (slotFramePointerMoveHandlerRef.current) {
         window.removeEventListener("pointermove", slotFramePointerMoveHandlerRef.current);
       }
@@ -766,6 +795,7 @@ export function AlbumSpreadSlotEditor({
 
     event.preventDefault();
     event.stopPropagation();
+    optionResizeModifierRef.current = event.altKey || optionResizeModifierRef.current;
     selectSlot(slotIndex);
     endSlotFrameDrag();
     pendingSlotFrameUndoRef.current = {
@@ -793,7 +823,7 @@ export function AlbumSpreadSlotEditor({
 
     const handleMove = (nativeEvent: globalThis.PointerEvent) => {
       nativeEvent.preventDefault();
-      applySlotFrameDrag(nativeEvent.clientX, nativeEvent.clientY, nativeEvent.altKey);
+      applySlotFrameDrag(nativeEvent.clientX, nativeEvent.clientY, nativeEvent.altKey || optionResizeModifierRef.current);
     };
     const handleEnd = () => endSlotFrameDrag();
 
@@ -959,7 +989,7 @@ export function AlbumSpreadSlotEditor({
             type="button"
             onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "resize", handle.corner)}
             className={`absolute z-40 inline-flex size-5 items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/20 transition hover:bg-ink hover:text-white ${handle.className}`}
-            title={`${handle.label} · Alt: középpontból méretezés`}
+            title={`${handle.label} · ⌥ Option / Alt: középpontból méretezés`}
             aria-label={handle.label}
           >
             <Maximize2 size={10} />
@@ -1197,7 +1227,7 @@ export function AlbumSpreadSlotEditor({
               {hasChanges ? "Nem mentett módosítások vannak. A fejléc Mentés gombja minden oldalpárt egyszerre ment." : "Képet húzással pozicionálsz a sloton belül."}
             </p>
             <p className="mt-1 text-xs leading-5 text-graphite/60">
-              <kbd className="rounded border border-ink/15 bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink">Alt</kbd> + sarokhúzás: méretezés a slot középpontjából.
+              <kbd className="rounded border border-ink/15 bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink">⌥ Option / Alt</kbd> + sarokhúzás: méretezés a slot középpontjából.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
