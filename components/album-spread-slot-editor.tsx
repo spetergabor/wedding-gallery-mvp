@@ -315,71 +315,43 @@ function getResizedSlotAxis(
   };
 }
 
-function stopCenteredFrameSizeAtBarriers(
-  rawSize: number,
-  centerPosition: number,
-  startSize: number,
-  barriers: number[],
-  getReleasePercent: (barrier: number) => number
-) {
-  if (rawSize === startSize) {
-    return rawSize;
-  }
-
-  const direction = rawSize > startSize ? 1 : -1;
-  const resizePoints = [
-    {
-      start: centerPosition - startSize / 2,
-      raw: centerPosition - rawSize / 2,
-      toSize: (stoppedPoint: number) => (centerPosition - stoppedPoint) * 2
-    },
-    {
-      start: centerPosition + startSize / 2,
-      raw: centerPosition + rawSize / 2,
-      toSize: (stoppedPoint: number) => (stoppedPoint - centerPosition) * 2
-    }
-  ];
-  const stoppedSizes = resizePoints.map((point) => point.toSize(stopEdgeAtBarrier(point.start, point.raw, barriers, getReleasePercent)));
-  const stoppedOnPath = stoppedSizes.filter((size) =>
-    direction > 0 ? size >= startSize && size <= rawSize : size <= startSize && size >= rawSize
+function getProportionallyResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number): SlotFrame {
+  const horizontalDirection = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "bottom-left" ? -1 : 1;
+  const verticalDirection = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "top-right" ? -1 : 1;
+  const horizontalScaleDelta = (horizontalDirection * deltaX * 2) / Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startWidth);
+  const verticalScaleDelta = (verticalDirection * deltaY * 2) / Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, dragState.startHeight);
+  const dominantScaleDelta = Math.abs(horizontalScaleDelta) >= Math.abs(verticalScaleDelta) ? horizontalScaleDelta : verticalScaleDelta;
+  const centerX = dragState.startX + dragState.startWidth / 2;
+  const centerY = dragState.startY + dragState.startHeight / 2;
+  const minimumScale = Math.max(
+    MIN_SLOT_FRAME_SIZE_PERCENT / dragState.startWidth,
+    MIN_SLOT_FRAME_SIZE_PERCENT / dragState.startHeight
   );
-
-  if (stoppedOnPath.length === 0) {
-    return rawSize;
-  }
-
-  return direction > 0 ? Math.min(...stoppedOnPath) : Math.max(...stoppedOnPath);
-}
-
-function getCenteredResizedSlotAxis(
-  startPosition: number,
-  startSize: number,
-  delta: number,
-  edge: "start" | "end",
-  barriers: number[],
-  getReleasePercent: (barrier: number) => number
-) {
-  const centerPosition = startPosition + startSize / 2;
-  const maximumSize = Math.min(centerPosition, 100 - centerPosition) * 2;
-  const rawSize = Math.min(
-    maximumSize,
-    Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, startSize + (edge === "start" ? -delta * 2 : delta * 2))
+  const maximumScale = Math.min(
+    (Math.min(centerX, 100 - centerX) * 2) / dragState.startWidth,
+    (Math.min(centerY, 100 - centerY) * 2) / dragState.startHeight
   );
-  const blockedSize = stopCenteredFrameSizeAtBarriers(rawSize, centerPosition, startSize, barriers, getReleasePercent);
-  const size = Math.min(maximumSize, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, blockedSize));
+  const scale = Math.min(maximumScale, Math.max(minimumScale, 1 + dominantScaleDelta));
+  const width = dragState.startWidth * scale;
+  const height = dragState.startHeight * scale;
 
   return {
-    position: centerPosition - size / 2,
-    size
+    x: centerX - width / 2,
+    y: centerY - height / 2,
+    width,
+    height
   };
 }
 
-function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, resizeFromCenter = false): SlotFrame {
+function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, resizeProportionally = false): SlotFrame {
+  if (resizeProportionally) {
+    return getProportionallyResizedSlotFrame(dragState, deltaX, deltaY);
+  }
+
   const horizontalEdge = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "bottom-left" ? "start" : "end";
   const verticalEdge = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "top-right" ? "start" : "end";
-  const resizeAxis = resizeFromCenter ? getCenteredResizedSlotAxis : getResizedSlotAxis;
-  const horizontal = resizeAxis(dragState.startX, dragState.startWidth, deltaX, horizontalEdge, SLOT_VERTICAL_BARRIERS, getSlotVerticalBarrierRelease);
-  const vertical = resizeAxis(dragState.startY, dragState.startHeight, deltaY, verticalEdge, SLOT_HORIZONTAL_BARRIERS, getSlotPageCenterBarrierRelease);
+  const horizontal = getResizedSlotAxis(dragState.startX, dragState.startWidth, deltaX, horizontalEdge, SLOT_VERTICAL_BARRIERS, getSlotVerticalBarrierRelease);
+  const vertical = getResizedSlotAxis(dragState.startY, dragState.startHeight, deltaY, verticalEdge, SLOT_HORIZONTAL_BARRIERS, getSlotPageCenterBarrierRelease);
 
   return {
     x: horizontal.position,
@@ -648,7 +620,7 @@ export function AlbumSpreadSlotEditor({
     );
   }
 
-  function applySlotFrameDrag(clientX: number, clientY: number, resizeFromCenter = false) {
+  function applySlotFrameDrag(clientX: number, clientY: number, resizeProportionally = false) {
     const dragState = slotFrameDragStateRef.current;
 
     if (!dragState) {
@@ -657,7 +629,7 @@ export function AlbumSpreadSlotEditor({
 
     const deltaX = ((clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
     const deltaY = ((clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
-    const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY, resizeFromCenter);
+    const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY, resizeProportionally);
     const movedFrame = getMovedSlotFrame(dragState, deltaX, deltaY, dragState.startWidth, dragState.startHeight);
     const activeFrame = dragState.mode === "move" ? movedFrame : nextFrame;
     slotFrameChangedRef.current =
@@ -713,7 +685,7 @@ export function AlbumSpreadSlotEditor({
         };
       }
 
-      const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY, resizeFromCenter);
+      const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY, resizeProportionally);
 
       return {
         ...frames,
@@ -989,7 +961,7 @@ export function AlbumSpreadSlotEditor({
             type="button"
             onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "resize", handle.corner)}
             className={`absolute z-40 inline-flex size-5 items-center justify-center rounded-full bg-white text-ink shadow ring-1 ring-ink/20 transition hover:bg-ink hover:text-white ${handle.className}`}
-            title={`${handle.label} · ⌥ Option / Alt: középpontból méretezés`}
+            title={`${handle.label} · ⌥ Option / Alt: méretarányos méretezés`}
             aria-label={handle.label}
           >
             <Maximize2 size={10} />
@@ -1227,7 +1199,7 @@ export function AlbumSpreadSlotEditor({
               {hasChanges ? "Nem mentett módosítások vannak. A fejléc Mentés gombja minden oldalpárt egyszerre ment." : "Képet húzással pozicionálsz a sloton belül."}
             </p>
             <p className="mt-1 text-xs leading-5 text-graphite/60">
-              <kbd className="rounded border border-ink/15 bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink">⌥ Option / Alt</kbd> + sarokhúzás: méretezés a slot középpontjából.
+              <kbd className="rounded border border-ink/15 bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink">⌥ Option / Alt</kbd> + sarokhúzás: arányos kicsinyítés vagy nagyítás, torzítás nélkül.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
