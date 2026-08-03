@@ -10,8 +10,14 @@ function compareAlbumSpreadFilenames(left: { filename: string; sortOrder: number
   return left.filename.localeCompare(right.filename, "hu", { numeric: true, sensitivity: "base" }) || left.sortOrder - right.sortOrder;
 }
 
-function displayAlbumSpreadTitle(title: string | null, index: number) {
-  return !title || /^Oldalpár \d+$/i.test(title) ? `Oldalpár ${index + 1}` : title;
+function displayAlbumSpreadTitle(title: string | null, index: number, language: ReturnType<typeof normalizeCustomerLanguage>) {
+  const isAutomaticTitle = !title || /^(Oldalpár|Doppelseite) \d+$/i.test(title);
+
+  if (!isAutomaticTitle) {
+    return title;
+  }
+
+  return language === "hu" ? `Oldalpár ${index + 1}` : `Doppelseite ${index + 1}`;
 }
 
 export default async function AlbumReviewPage({
@@ -60,9 +66,10 @@ export default async function AlbumReviewPage({
     });
   }
 
+  const language = normalizeCustomerLanguage(review.customer.preferredLanguage);
   const spreads = [...review.spreads].sort(compareAlbumSpreadFilenames).map((spread, index) => ({
     id: spread.id,
-    title: displayAlbumSpreadTitle(spread.title, index),
+    title: displayAlbumSpreadTitle(spread.title, index, language),
     filename: spread.filename,
     imageUrl: spread.imageUrl,
     sortOrder: index + 1,
@@ -72,7 +79,6 @@ export default async function AlbumReviewPage({
       createdAt: comment.createdAt.toISOString()
     }))
   }));
-  const language = normalizeCustomerLanguage(review.customer.preferredLanguage);
   const copy =
     language === "hu"
       ? {
