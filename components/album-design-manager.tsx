@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, FolderKanban, LayoutTemplate, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, FolderKanban, LayoutTemplate, Plus, Trash2 } from "lucide-react";
+import { AlbumReviewExportSubmit } from "@/components/album-review-export-submit";
 import { AlbumDesignWorkbench } from "@/components/album-design-workbench";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -344,6 +345,7 @@ export function AlbumDesignManager({
                   ? `Meglévő galéria · ${sourcePhotos.length} kép`
                   : "Hiányzó forrás";
             const openByDefault = design.id === selectedDesign?.id;
+            const reviewExportSpreadCount = design.spreads.filter((spread) => spread.items.length > 0 || spread.textItems.length > 0).length;
 
             return (
               <details key={design.id} name="album-design-projects" open={openByDefault} className="group rounded-lg border border-ink/10 bg-paper shadow-sm">
@@ -446,19 +448,16 @@ export function AlbumDesignManager({
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {design.spreads.length > 0 ? (
                       <form action={exportAlbumDesignToReviewAction.bind(null, customerId, design.id)}>
-                        <ConfirmSubmitButton
-                          title="Album ellenőrző létrehozása"
-                          message={
+                        <AlbumReviewExportSubmit
+                          designId={design.id}
+                          spreadCount={reviewExportSpreadCount}
+                          confirmationMessage={
                             design.customerId
                               ? "Létrehozunk egy új album ellenőrzőt az albumterv JPG oldalpárjaiból. Mehet?"
                               : "Az albumtervet előbb ügyfélhez kell rendelni."
                           }
-                          className="h-10 px-3"
                           disabled={!design.customerId}
-                        >
-                          <Send size={15} />
-                          Ellenőrzőbe küldés
-                        </ConfirmSubmitButton>
+                        />
                       </form>
                     ) : null}
                     <form action={deleteAlbumDesignAction.bind(null, customerId, design.id)}>

@@ -1063,6 +1063,16 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
   });
   const uploadedObjectKeys: string[] = [];
 
+  await prisma.albumDesign.update({
+    where: { id: albumDesign.id },
+    data: {
+      reviewExportStatus: "processing",
+      reviewExportTotal: spreads.length,
+      reviewExportCompleted: 0,
+      reviewExportStartedAt: new Date()
+    }
+  });
+
   try {
     const reviewSpreads = [];
 
@@ -1081,6 +1091,11 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
         contentType: "image/jpeg"
       });
       uploadedObjectKeys.push(r2Key);
+
+      await prisma.albumDesign.update({
+        where: { id: albumDesign.id },
+        data: { reviewExportCompleted: index + 1 }
+      });
 
       reviewSpreads.push({
         filename,
@@ -1104,6 +1119,14 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
         }
       }
     });
+
+    await prisma.albumDesign.update({
+      where: { id: albumDesign.id },
+      data: {
+        reviewExportStatus: "complete",
+        reviewExportCompleted: spreads.length
+      }
+    });
   } catch (error) {
     console.error("Album design export failed", {
       customerId,
@@ -1111,6 +1134,10 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
       error
     });
 
+    await prisma.albumDesign.update({
+      where: { id: albumDesign.id },
+      data: { reviewExportStatus: "failed" }
+    }).catch(() => undefined);
     await prisma.albumReview.delete({ where: { id: review.id } }).catch(() => undefined);
     await Promise.all(uploadedObjectKeys.map((r2Key) => deletePhotoObject(r2Key)));
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=export-failed"));
