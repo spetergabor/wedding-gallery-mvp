@@ -1257,11 +1257,19 @@ export async function saveAlbumDesignSpreadSlotDraftAction(customerId: string | 
   redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1", spread.id)));
 }
 
-export async function saveAlbumDesignSpreadDraftsAction(customerId: string | null, designId: string, formData: FormData) {
+type AlbumDesignSpreadDraftSaveErrorCode = "favorite-list" | "missing" | "photo-count" | "invalid-photos";
+
+class AlbumDesignSpreadDraftSaveError extends Error {
+  constructor(readonly code: AlbumDesignSpreadDraftSaveErrorCode) {
+    super(`Album design spread draft save failed: ${code}`);
+  }
+}
+
+async function persistAlbumDesignSpreadDrafts(customerId: string | null, designId: string, formData: FormData) {
   const { design } = await requireAlbumDesignAccess(customerId, designId);
 
   if (!design.favoriteListId && !design.sourceGalleryId) {
-    redirect(albumDesignRedirectPath(customerId, "albumDesignError=favorite-list"));
+    throw new AlbumDesignSpreadDraftSaveError("favorite-list");
   }
 
   const draftSpreadIds = [
@@ -1271,7 +1279,10 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
   ];
 
   if (draftSpreadIds.length === 0) {
-    redirect(albumDesignRedirectPath(customerId));
+    return {
+      designId: design.id,
+      savedSpreadIds: []
+    };
   }
 
   const spreads = await prisma.albumDesignSpread.findMany({
@@ -1286,7 +1297,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
   });
 
   if (spreads.length !== draftSpreadIds.length) {
-    redirect(albumDesignRedirectPath(customerId, "albumDesignError=missing"));
+    throw new AlbumDesignSpreadDraftSaveError("missing");
   }
 
   const spreadDrafts = spreads.map((spread) => {
@@ -1309,7 +1320,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
     const textItems = getAlbumTextItemDrafts(formData, spread.id);
 
     if ((photoIds.length === 0 && textItems.length === 0) || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
-      redirect(albumDesignRedirectPath(customerId, "albumDesignError=photo-count"));
+      throw new AlbumDesignSpreadDraftSaveError("photo-count");
     }
 
     return {
@@ -1331,7 +1342,7 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
   const validPhotoIds = await findValidDesignPhotoIds(design, uniquePhotoIds);
 
   if (uniquePhotoIds.some((photoId) => !validPhotoIds.has(photoId))) {
-    redirect(albumDesignRedirectPath(customerId, "albumDesignError=invalid-photos"));
+    throw new AlbumDesignSpreadDraftSaveError("invalid-photos");
   }
 
   await prisma.$transaction(
@@ -1353,7 +1364,42 @@ export async function saveAlbumDesignSpreadDraftsAction(customerId: string | nul
   );
 
   revalidateAlbumDesignPaths(customerId);
-  redirect(albumDesignRedirectPath(customerId, albumDesignEditorRedirectQuery(design.id, "albumSpreadSlotUpdated=1", draftSpreadIds.at(-1) ?? null)));
+
+  return {
+    designId: design.id,
+    savedSpreadIds: draftSpreadIds
+  };
+}
+
+export async function saveAlbumDesignSpreadDraftsAction(customerId: string | null, designId: string, formData: FormData) {
+  let result: Awaited<ReturnType<typeof persistAlbumDesignSpreadDrafts>>;
+
+  try {
+    result = await persistAlbumDesignSpreadDrafts(customerId, designId, formData);
+  } catch (error) {
+    if (error instanceof AlbumDesignSpreadDraftSaveError) {
+      redirect(albumDesignRedirectPath(customerId, `albumDesignError=${error.code}`));
+    }
+
+    throw error;
+  }
+
+  if (result.savedSpreadIds.length === 0) {
+    redirect(albumDesignRedirectPath(customerId));
+  }
+
+  redirect(
+    albumDesignRedirectPath(
+      customerId,
+      albumDesignEditorRedirectQuery(result.designId, "albumSpreadSlotUpdated=1", result.savedSpreadIds.at(-1) ?? null)
+    )
+  );
+}
+
+export async function saveAlbumDesignSpreadDraftsInlineAction(customerId: string | null, designId: string, formData: FormData) {
+  const result = await persistAlbumDesignSpreadDrafts(customerId, designId, formData);
+
+  return { savedSpreadIds: result.savedSpreadIds };
 }
 
 export async function deleteAlbumDesignAction(customerId: string | null, designId: string) {

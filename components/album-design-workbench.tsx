@@ -13,6 +13,7 @@ import {
   regenerateAlbumDesignSpreadLayoutAction,
   reorderAlbumDesignSpreadsInlineAction,
   saveAlbumDesignSpreadDraftsAction,
+  saveAlbumDesignSpreadDraftsInlineAction,
   updateAlbumDesignSpreadLayoutOnlyAction
 } from "@/lib/album-design-actions";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
@@ -255,11 +256,13 @@ function AlbumLayoutRadioGrid({ defaultLayoutKey, className = "max-h-72 overflow
 function SidebarSpreadCreateForm({
   isCreating,
   errorMessage,
-  onCreateSpread
+  onCreateSpread,
+  pendingLabel = "Létrehozás..."
 }: {
   isCreating: boolean;
   errorMessage: string | null;
   onCreateSpread: () => void;
+  pendingLabel?: string;
 }) {
   return (
     <div className="mt-3">
@@ -270,7 +273,7 @@ function SidebarSpreadCreateForm({
         className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-dashed border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Plus size={16} />
-        {isCreating ? "Létrehozás..." : "Oldalpár hozzáadása"}
+        {isCreating ? pendingLabel : "Oldalpár hozzáadása"}
       </button>
       {errorMessage ? <p className="mt-2 text-xs leading-5 text-red-600">{errorMessage}</p> : null}
     </div>
@@ -326,6 +329,8 @@ export function AlbumDesignWorkbench({
   const [spreadOrderError, setSpreadOrderError] = useState<string | null>(null);
   const [createSpreadError, setCreateSpreadError] = useState<string | null>(null);
   const [isCreatingSpread, setIsCreatingSpread] = useState(false);
+  const [isSavingBeforeCreate, setIsSavingBeforeCreate] = useState(false);
+  const saveAllFormRef = useRef<HTMLFormElement | null>(null);
   const workbenchZoomRef = useRef(workbenchZoom);
   const workbenchScrollRef = useRef<HTMLElement | null>(null);
   const originalSignaturesBySpread = useMemo(
@@ -782,6 +787,91 @@ export function AlbumDesignWorkbench({
     setSelectedTextItemForSpread(spreadId, null);
   }
 
+  function openCreateSpreadModalWithAutosave() {
+    if (isCreatingSpread || isSavingBeforeCreate) {
+      return;
+    }
+
+    setCreateSpreadError(null);
+
+    if (changedSpreadIds.length === 0) {
+      setIsCreateLayoutModalOpen(true);
+      return;
+    }
+
+    const saveForm = saveAllFormRef.current;
+
+    if (!saveForm) {
+      setCreateSpreadError("Nem sikerült elindítani az automatikus mentést. Próbáld újra.");
+      return;
+    }
+
+    const spreadIdsToSave = [...changedSpreadIds];
+    const savedDrafts = new Map(
+      spreadIdsToSave.map((spreadId) => [
+        spreadId,
+        {
+          items: [...(draftItemsBySpread[spreadId] ?? [])],
+          textItems: [...(draftTextItemsBySpread[spreadId] ?? [])]
+        }
+      ])
+    );
+    const formData = new FormData(saveForm);
+
+    setIsSavingBeforeCreate(true);
+    void (async () => {
+      try {
+        await saveAlbumDesignSpreadDraftsInlineAction(customerId, designId, formData);
+        setLocalSpreads((current) =>
+          current.map((spread) => {
+            const savedDraft = savedDrafts.get(spread.id);
+
+            return savedDraft
+              ? {
+                  ...spread,
+                  items: savedDraft.items,
+                  textItems: savedDraft.textItems
+                }
+              : spread;
+          })
+        );
+        setDraftItemsBySpread((current) => {
+          const next = { ...current };
+
+          for (const [spreadId, savedDraft] of savedDrafts) {
+            next[spreadId] = savedDraft.items;
+          }
+
+          return next;
+        });
+        setDraftTextItemsBySpread((current) => {
+          const next = { ...current };
+
+          for (const [spreadId, savedDraft] of savedDrafts) {
+            next[spreadId] = savedDraft.textItems;
+          }
+
+          return next;
+        });
+        setDraftSlotFramesBySpread((current) => {
+          const next = { ...current };
+
+          for (const spreadId of spreadIdsToSave) {
+            delete next[spreadId];
+          }
+
+          return next;
+        });
+        setIsCreateLayoutModalOpen(true);
+      } catch (error) {
+        console.error("Failed to autosave album spreads before creating a spread", error);
+        setCreateSpreadError("Nem sikerült az automatikus mentés. Az oldalpár hozzáadása előtt próbáld újra.");
+      } finally {
+        setIsSavingBeforeCreate(false);
+      }
+    })();
+  }
+
   const createInlineSpread = useCallback((layoutKey: string) => {
     if (isCreatingSpread) {
       return;
@@ -1017,7 +1107,7 @@ export function AlbumDesignWorkbench({
                       <ZoomIn size={15} />
                     </button>
                   </div>
-                  <form action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
+                  <form ref={saveAllFormRef} action={saveAlbumDesignSpreadDraftsAction.bind(null, customerId, designId)}>
                     {changedSpreadIds.map((spreadId) => (
                       <SpreadDraftInputs
                         key={spreadId}
@@ -1030,7 +1120,7 @@ export function AlbumDesignWorkbench({
                       variant="secondary"
                       className="!h-9 !px-3 border-white/20 bg-white text-sm text-ink shadow-none hover:bg-white/90 disabled:bg-white/60"
                       pendingLabel="Minden módosítás mentése..."
-                      disabled={changedSpreadIds.length === 0}
+                      disabled={changedSpreadIds.length === 0 || isSavingBeforeCreate}
                       title={changedSpreadIds.length > 0 ? `${changedSpreadIds.length} módosított oldalpár mentése` : "Minden módosítás el van mentve"}
                     >
                       <Save size={14} />
@@ -1124,12 +1214,10 @@ export function AlbumDesignWorkbench({
                 {isReorderingSpreads ? <p className="mt-2 px-2 text-xs text-graphite/55">Sorrend mentése...</p> : null}
                 {spreadOrderError ? <p className="mt-2 px-2 text-xs leading-5 text-red-600">{spreadOrderError}</p> : null}
                 <SidebarSpreadCreateForm
-                  isCreating={isCreatingSpread}
+                  isCreating={isCreatingSpread || isSavingBeforeCreate}
                   errorMessage={createSpreadError}
-                  onCreateSpread={() => {
-                    setCreateSpreadError(null);
-                    setIsCreateLayoutModalOpen(true);
-                  }}
+                  onCreateSpread={openCreateSpreadModalWithAutosave}
+                  pendingLabel={isSavingBeforeCreate ? "Automatikus mentés..." : "Létrehozás..."}
                 />
               </aside>
 
@@ -1190,12 +1278,10 @@ export function AlbumDesignWorkbench({
                       </p>
                       <div className="mx-auto mt-4 max-w-sm lg:hidden">
                         <SidebarSpreadCreateForm
-                          isCreating={isCreatingSpread}
+                          isCreating={isCreatingSpread || isSavingBeforeCreate}
                           errorMessage={createSpreadError}
-                          onCreateSpread={() => {
-                            setCreateSpreadError(null);
-                            setIsCreateLayoutModalOpen(true);
-                          }}
+                          onCreateSpread={openCreateSpreadModalWithAutosave}
+                          pendingLabel={isSavingBeforeCreate ? "Automatikus mentés..." : "Létrehozás..."}
                         />
                       </div>
                       <p className="mt-4 hidden text-sm text-graphite/60 lg:block">
