@@ -331,6 +331,8 @@ export function AlbumDesignWorkbench({
   const [isCreatingSpread, setIsCreatingSpread] = useState(false);
   const [isSavingBeforeCreate, setIsSavingBeforeCreate] = useState(false);
   const saveAllFormRef = useRef<HTMLFormElement | null>(null);
+  const photoTrayScrollRef = useRef<HTMLDivElement | null>(null);
+  const photoTrayScrollLeftRef = useRef(0);
   const workbenchZoomRef = useRef(workbenchZoom);
   const workbenchScrollRef = useRef<HTMLElement | null>(null);
   const originalSignaturesBySpread = useMemo(
@@ -663,6 +665,8 @@ export function AlbumDesignWorkbench({
       return;
     }
 
+    const preservedPhotoTrayScrollLeft = photoTrayScrollRef.current?.scrollLeft ?? photoTrayScrollLeftRef.current;
+    photoTrayScrollLeftRef.current = preservedPhotoTrayScrollLeft;
     setActiveSpreadAndSlot(targetSpread.id, slotIndex);
     setDraftItemsBySpread((current) => ({
       ...current,
@@ -698,6 +702,18 @@ export function AlbumDesignWorkbench({
         return nextItems.sort((left, right) => left.slotIndex - right.slotIndex);
       })()
     }));
+
+    window.requestAnimationFrame(() => {
+      if (photoTrayScrollRef.current) {
+        photoTrayScrollRef.current.scrollLeft = preservedPhotoTrayScrollLeft;
+      }
+
+      window.requestAnimationFrame(() => {
+        if (photoTrayScrollRef.current) {
+          photoTrayScrollRef.current.scrollLeft = preservedPhotoTrayScrollLeft;
+        }
+      });
+    });
   }
 
   function replaceActiveSlotPhoto(photo: FavoritePhoto) {
@@ -1530,7 +1546,13 @@ export function AlbumDesignWorkbench({
                 </div>
               </div>
 
-              <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+              <div
+                ref={photoTrayScrollRef}
+                onScroll={(event) => {
+                  photoTrayScrollLeftRef.current = event.currentTarget.scrollLeft;
+                }}
+                className="mt-3 flex gap-3 overflow-x-auto pb-2 [overflow-anchor:none]"
+              >
                 {filteredPhotos.map((photo) => {
                   const isCurrent = activeSlotItem?.photo.id === photo.id;
                   const isUsed = usedPhotoIdSet.has(photo.id);
@@ -1547,13 +1569,14 @@ export function AlbumDesignWorkbench({
 
                   return (
                     <button
-                      key={`global-tray-${activeSpread?.id ?? "none"}-${activeSlotIndex}-${photo.id}`}
+                      key={photo.id}
                       type="button"
                       draggable={Boolean(activeSpread)}
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = "copy";
                         event.dataTransfer.setData("application/x-spetly-album-photo-id", photo.id);
                         event.dataTransfer.setData("text/plain", photo.id);
+                        photoTrayScrollLeftRef.current = photoTrayScrollRef.current?.scrollLeft ?? photoTrayScrollLeftRef.current;
                         setDraggedPhotoId(photo.id);
                       }}
                       onDragEnd={() => setDraggedPhotoId(null)}
