@@ -614,6 +614,56 @@ export async function approveAlbumReviewSpreadAction({
   };
 }
 
+export async function revokeAlbumReviewSpreadApprovalAction({
+  token,
+  spreadId
+}: {
+  token: string;
+  spreadId: string;
+}) {
+  await ensureAlbumReviewApprovalSchema();
+  const spread = await prisma.albumReviewSpread.findFirst({
+    where: {
+      id: spreadId,
+      review: { accessToken: token }
+    },
+    select: {
+      id: true,
+      reviewId: true,
+      review: {
+        select: {
+          customerId: true,
+          submittedAt: true
+        }
+      }
+    }
+  });
+
+  if (!spread) {
+    return { ok: false, message: "Diese Albumseite wurde nicht gefunden." };
+  }
+
+  if (spread.review.submittedAt) {
+    return { ok: false, message: "Diese Albumprüfung wurde bereits übermittelt." };
+  }
+
+  await prisma.$transaction([
+    prisma.albumReviewSpread.update({
+      where: { id: spread.id },
+      data: { approvedAt: null }
+    }),
+    prisma.albumReview.update({
+      where: { id: spread.reviewId },
+      data: { status: "in_review" }
+    })
+  ]);
+
+  revalidatePath(`/album/${token}`);
+  revalidatePath(`/admin/clients/${spread.review.customerId}`);
+
+  return { ok: true, spreadId: spread.id };
+}
+
 export async function submitAlbumReviewAction({ token }: { token: string }) {
   await ensureAlbumReviewApprovalSchema();
   const review = await prisma.albumReview.findUnique({

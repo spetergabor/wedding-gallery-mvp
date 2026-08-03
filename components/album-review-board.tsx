@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, MouseEvent, useMemo, useState } from "react";
-import { CheckCircle2, CircleAlert, MessageSquare, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { CheckCircle2, CircleAlert, MessageSquare, Pencil, Plus, Send, Trash2, Undo2, X } from "lucide-react";
 import {
   approveAlbumReviewSpreadAction,
   createAlbumReviewCommentAction,
   deleteAlbumReviewCommentAction,
+  revokeAlbumReviewSpreadApprovalAction,
   submitAlbumReviewAction,
   updateAlbumReviewCommentAction
 } from "@/lib/album-review-actions";
@@ -50,12 +51,15 @@ const ALBUM_REVIEW_COPY = {
     deleteConfirm: "Diese Notiz wirklich löschen?",
     deleteError: "Die Notiz konnte nicht gelöscht werden.",
     approveError: "Die Freigabe konnte nicht gespeichert werden.",
+    revokeApprovalError: "Die Freigabe konnte nicht zurückgenommen werden.",
     spread: (index: number) => `Doppelseite ${index}`,
     notes: "Notizen",
     approved: "Freigegeben",
     changesRequested: "Änderung angefordert",
     approving: "Speichern...",
     approve: "Diese Seite ist in Ordnung",
+    revokingApproval: "Wird zurückgenommen...",
+    revokeApproval: "Freigabe zurücknehmen",
     editTitle: "Notiz bearbeiten",
     updatePending: "Speichern...",
     update: "Notiz aktualisieren",
@@ -87,12 +91,15 @@ const ALBUM_REVIEW_COPY = {
     deleteConfirm: "Biztosan törlitek ezt a megjegyzést?",
     deleteError: "A megjegyzést nem sikerült törölni.",
     approveError: "Az oldalpár jóváhagyását nem sikerült menteni.",
+    revokeApprovalError: "Az oldalpár jóváhagyását nem sikerült visszavonni.",
     spread: (index: number) => `Oldalpár ${index}`,
     notes: "megjegyzés",
     approved: "Rendben jelölve",
     changesRequested: "Módosítás kérve",
     approving: "Mentés...",
     approve: "Ez az oldal rendben van",
+    revokingApproval: "Visszavonás...",
+    revokeApproval: "Jóváhagyás visszavonása",
     editTitle: "Megjegyzés szerkesztése",
     updatePending: "Mentés...",
     update: "Megjegyzés frissítése",
@@ -146,6 +153,7 @@ export function AlbumReviewBoard({
   const [updatingCommentId, setUpdatingCommentId] = useState<string | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [approvingSpreadId, setApprovingSpreadId] = useState<string | null>(null);
+  const [revokingSpreadId, setRevokingSpreadId] = useState<string | null>(null);
   const [submission, setSubmission] = useState<ReviewSubmission | null>(() =>
     submittedAt ? { status: reviewStatus, submittedAt } : null
   );
@@ -304,7 +312,7 @@ export function AlbumReviewBoard({
   }
 
   async function approveSpread(spreadId: string) {
-    if (isSubmitted || pending || approvingSpreadId) {
+    if (isSubmitted || pending || approvingSpreadId || revokingSpreadId) {
       return;
     }
 
@@ -321,6 +329,26 @@ export function AlbumReviewBoard({
 
     setApprovedSpreads((current) => ({ ...current, [spreadId]: result.approvedAt }));
     setApprovingSpreadId(null);
+  }
+
+  async function revokeSpreadApproval(spreadId: string) {
+    if (isSubmitted || pending || approvingSpreadId || revokingSpreadId) {
+      return;
+    }
+
+    setRevokingSpreadId(spreadId);
+    setError("");
+
+    const result = await revokeAlbumReviewSpreadApprovalAction({ token, spreadId });
+
+    if (!result.ok) {
+      setError(result.message ?? copy.revokeApprovalError);
+      setRevokingSpreadId(null);
+      return;
+    }
+
+    setApprovedSpreads((current) => ({ ...current, [spreadId]: null }));
+    setRevokingSpreadId(null);
   }
 
   async function submitReview() {
@@ -375,15 +403,28 @@ export function AlbumReviewBoard({
                     {copy.changesRequested}
                   </span>
                 ) : approvedAt ? (
-                  <span className="inline-flex w-fit items-center gap-2 rounded-md bg-brass/10 px-3 py-2 text-sm font-medium text-brass">
-                    <CheckCircle2 size={16} />
-                    {copy.approved}
-                  </span>
+                  <div className="flex w-fit flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-md bg-brass/10 px-3 py-2 text-sm font-medium text-brass">
+                      <CheckCircle2 size={16} />
+                      {copy.approved}
+                    </span>
+                    {!isSubmitted ? (
+                      <button
+                        type="button"
+                        onClick={() => revokeSpreadApproval(spread.id)}
+                        disabled={revokingSpreadId === spread.id || Boolean(approvingSpreadId)}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-graphite transition hover:border-ink/30 hover:text-ink disabled:opacity-60"
+                      >
+                        <Undo2 size={15} />
+                        {revokingSpreadId === spread.id ? copy.revokingApproval : copy.revokeApproval}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : (
                   <button
                     type="button"
                     onClick={() => approveSpread(spread.id)}
-                    disabled={isSubmitted || approvingSpreadId === spread.id}
+                    disabled={isSubmitted || approvingSpreadId === spread.id || Boolean(revokingSpreadId)}
                     className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-3 text-sm font-medium text-brass transition hover:bg-brass/15 disabled:opacity-60"
                   >
                     <CheckCircle2 size={16} />
