@@ -88,6 +88,14 @@ type SlotFrameDragState = {
   startHeight: number;
   canvasWidth: number;
   canvasHeight: number;
+  snapTargetFrames: SlotFrame[];
+  snapToleranceX: number;
+  snapToleranceY: number;
+};
+
+type SlotAlignmentGuides = {
+  vertical: number[];
+  horizontal: number[];
 };
 
 type SlotFrameUndoState = {
@@ -108,6 +116,8 @@ const SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT = 4;
 const SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT = 1.6;
 const SLOT_BARRIER_EPSILON = 0.001;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
+const SLOT_ALIGNMENT_SNAP_TOLERANCE_PX = 10;
+const EMPTY_SLOT_ALIGNMENT_GUIDES: SlotAlignmentGuides = { vertical: [], horizontal: [] };
 const SLOT_RESIZE_HANDLES: Array<{
   corner: SlotResizeCorner;
   className: string;
@@ -361,6 +371,228 @@ function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, delt
   };
 }
 
+function getFrameAxisPoints(position: number, size: number) {
+  return [position, position + size / 2, position + size];
+}
+
+function getSlotSnapTargetPoints(frames: SlotFrame[], axis: "horizontal" | "vertical") {
+  const points = frames.flatMap((frame) =>
+    axis === "horizontal" ? getFrameAxisPoints(frame.x, frame.width) : getFrameAxisPoints(frame.y, frame.height)
+  );
+
+  return [...new Set(points.map((point) => Number(point.toFixed(6))))];
+}
+
+function findClosestMovedAxisSnap({
+  sourcePoints,
+  targetPoints,
+  tolerance,
+  position,
+  maximumPosition
+}: {
+  sourcePoints: number[];
+  targetPoints: number[];
+  tolerance: number;
+  position: number;
+  maximumPosition: number;
+}) {
+  let closest: { distance: number; offset: number; guide: number } | null = null;
+
+  for (const sourcePoint of sourcePoints) {
+    for (const targetPoint of targetPoints) {
+      const offset = targetPoint - sourcePoint;
+      const distance = Math.abs(offset);
+      const nextPosition = position + offset;
+
+      if (distance > tolerance || nextPosition < -SLOT_BARRIER_EPSILON || nextPosition > maximumPosition + SLOT_BARRIER_EPSILON) {
+        continue;
+      }
+
+      if (!closest || distance < closest.distance) {
+        closest = { distance, offset, guide: targetPoint };
+      }
+    }
+  }
+
+  return closest;
+}
+
+function snapMovedSlotFrame(frame: SlotFrame, dragState: SlotFrameDragState) {
+  const verticalTargets = getSlotSnapTargetPoints(dragState.snapTargetFrames, "horizontal");
+  const horizontalTargets = getSlotSnapTargetPoints(dragState.snapTargetFrames, "vertical");
+  const horizontalSnap = findClosestMovedAxisSnap({
+    sourcePoints: getFrameAxisPoints(frame.x, frame.width),
+    targetPoints: verticalTargets,
+    tolerance: dragState.snapToleranceX,
+    position: frame.x,
+    maximumPosition: 100 - frame.width
+  });
+  const verticalSnap = findClosestMovedAxisSnap({
+    sourcePoints: getFrameAxisPoints(frame.y, frame.height),
+    targetPoints: horizontalTargets,
+    tolerance: dragState.snapToleranceY,
+    position: frame.y,
+    maximumPosition: 100 - frame.height
+  });
+
+  return {
+    frame: {
+      ...frame,
+      x: horizontalSnap ? frame.x + horizontalSnap.offset : frame.x,
+      y: verticalSnap ? frame.y + verticalSnap.offset : frame.y
+    },
+    guides: {
+      vertical: horizontalSnap ? [horizontalSnap.guide] : [],
+      horizontal: verticalSnap ? [verticalSnap.guide] : []
+    }
+  };
+}
+
+function findClosestResizeTarget(value: number, targets: number[], tolerance: number, isValid: (target: number) => boolean) {
+  let closest: { distance: number; target: number } | null = null;
+
+  for (const target of targets) {
+    const distance = Math.abs(target - value);
+
+    if (distance > tolerance || !isValid(target)) {
+      continue;
+    }
+
+    if (!closest || distance < closest.distance) {
+      closest = { distance, target };
+    }
+  }
+
+  return closest?.target ?? null;
+}
+
+function snapFreelyResizedSlotFrame(frame: SlotFrame, dragState: SlotFrameDragState) {
+  const verticalTargets = getSlotSnapTargetPoints(dragState.snapTargetFrames, "horizontal");
+  const horizontalTargets = getSlotSnapTargetPoints(dragState.snapTargetFrames, "vertical");
+  const resizesFromLeft = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "bottom-left";
+  const resizesFromTop = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "top-right";
+  const fixedRight = frame.x + frame.width;
+  const fixedBottom = frame.y + frame.height;
+  const horizontalEdge = resizesFromLeft ? frame.x : fixedRight;
+  const verticalEdge = resizesFromTop ? frame.y : fixedBottom;
+  const snappedHorizontalEdge = findClosestResizeTarget(
+    horizontalEdge,
+    verticalTargets,
+    dragState.snapToleranceX,
+    (target) => (resizesFromLeft ? target >= 0 && target <= fixedRight - MIN_SLOT_FRAME_SIZE_PERCENT : target >= frame.x + MIN_SLOT_FRAME_SIZE_PERCENT && target <= 100)
+  );
+  const snappedVerticalEdge = findClosestResizeTarget(
+    verticalEdge,
+    horizontalTargets,
+    dragState.snapToleranceY,
+    (target) => (resizesFromTop ? target >= 0 && target <= fixedBottom - MIN_SLOT_FRAME_SIZE_PERCENT : target >= frame.y + MIN_SLOT_FRAME_SIZE_PERCENT && target <= 100)
+  );
+  const nextFrame = { ...frame };
+
+  if (snappedHorizontalEdge !== null) {
+    if (resizesFromLeft) {
+      nextFrame.x = snappedHorizontalEdge;
+      nextFrame.width = fixedRight - snappedHorizontalEdge;
+    } else {
+      nextFrame.width = snappedHorizontalEdge - frame.x;
+    }
+  }
+
+  if (snappedVerticalEdge !== null) {
+    if (resizesFromTop) {
+      nextFrame.y = snappedVerticalEdge;
+      nextFrame.height = fixedBottom - snappedVerticalEdge;
+    } else {
+      nextFrame.height = snappedVerticalEdge - frame.y;
+    }
+  }
+
+  return {
+    frame: nextFrame,
+    guides: {
+      vertical: snappedHorizontalEdge === null ? [] : [snappedHorizontalEdge],
+      horizontal: snappedVerticalEdge === null ? [] : [snappedVerticalEdge]
+    }
+  };
+}
+
+function snapProportionallyResizedSlotFrame(frame: SlotFrame, dragState: SlotFrameDragState) {
+  const centerX = dragState.startX + dragState.startWidth / 2;
+  const centerY = dragState.startY + dragState.startHeight / 2;
+  const verticalTargets = getSlotSnapTargetPoints(dragState.snapTargetFrames, "horizontal");
+  const horizontalTargets = getSlotSnapTargetPoints(dragState.snapTargetFrames, "vertical");
+  const candidates: Array<{ distance: number; scale: number; axis: "horizontal" | "vertical"; guide: number }> = [];
+
+  for (const target of verticalTargets) {
+    const sourceEdge = target < centerX ? frame.x : frame.x + frame.width;
+    const distance = Math.abs(target - sourceEdge);
+    const scale = (Math.abs(target - centerX) * 2) / dragState.startWidth;
+
+    if (distance <= dragState.snapToleranceX) {
+      candidates.push({ distance, scale, axis: "vertical", guide: target });
+    }
+  }
+
+  for (const target of horizontalTargets) {
+    const sourceEdge = target < centerY ? frame.y : frame.y + frame.height;
+    const distance = Math.abs(target - sourceEdge);
+    const scale = (Math.abs(target - centerY) * 2) / dragState.startHeight;
+
+    if (distance <= dragState.snapToleranceY) {
+      candidates.push({ distance, scale, axis: "horizontal", guide: target });
+    }
+  }
+
+  const snappedCandidate = candidates
+    .map((candidate) => {
+      const width = dragState.startWidth * candidate.scale;
+      const height = dragState.startHeight * candidate.scale;
+      const candidateFrame = {
+        x: centerX - width / 2,
+        y: centerY - height / 2,
+        width,
+        height
+      };
+      const isValid =
+        width >= MIN_SLOT_FRAME_SIZE_PERCENT &&
+        height >= MIN_SLOT_FRAME_SIZE_PERCENT &&
+        candidateFrame.x >= 0 &&
+        candidateFrame.y >= 0 &&
+        candidateFrame.x + width <= 100 &&
+        candidateFrame.y + height <= 100;
+
+      return isValid ? { ...candidate, frame: candidateFrame } : null;
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+    .sort((left, right) => left.distance - right.distance)[0];
+
+  if (!snappedCandidate) {
+    return { frame, guides: EMPTY_SLOT_ALIGNMENT_GUIDES };
+  }
+
+  return {
+    frame: snappedCandidate.frame,
+    guides: {
+      vertical: snappedCandidate.axis === "vertical" ? [snappedCandidate.guide] : [],
+      horizontal: snappedCandidate.axis === "horizontal" ? [snappedCandidate.guide] : []
+    }
+  };
+}
+
+function snapSlotFrame(frame: SlotFrame, dragState: SlotFrameDragState, resizeProportionally: boolean) {
+  if (dragState.snapTargetFrames.length === 0) {
+    return { frame, guides: EMPTY_SLOT_ALIGNMENT_GUIDES };
+  }
+
+  if (dragState.mode === "move") {
+    return snapMovedSlotFrame(frame, dragState);
+  }
+
+  return resizeProportionally
+    ? snapProportionallyResizedSlotFrame(frame, dragState)
+    : snapFreelyResizedSlotFrame(frame, dragState);
+}
+
 export function AlbumSpreadSlotEditor({
   spread,
   draftItems,
@@ -410,6 +642,7 @@ export function AlbumSpreadSlotEditor({
   const slotFramePointerMoveHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const slotFramePointerUpHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
+  const [slotAlignmentGuides, setSlotAlignmentGuides] = useState<SlotAlignmentGuides>(EMPTY_SLOT_ALIGNMENT_GUIDES);
   const [lastSlotFrameUndo, setLastSlotFrameUndo] = useState<SlotFrameUndoState | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
@@ -629,9 +862,13 @@ export function AlbumSpreadSlotEditor({
 
     const deltaX = ((clientX - dragState.startClientX) / Math.max(1, dragState.canvasWidth)) * 100;
     const deltaY = ((clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
-    const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY, resizeProportionally);
-    const movedFrame = getMovedSlotFrame(dragState, deltaX, deltaY, dragState.startWidth, dragState.startHeight);
-    const activeFrame = dragState.mode === "move" ? movedFrame : nextFrame;
+    const baseFrame =
+      dragState.mode === "move"
+        ? getMovedSlotFrame(dragState, deltaX, deltaY, dragState.startWidth, dragState.startHeight)
+        : getResizedSlotFrame(dragState, deltaX, deltaY, resizeProportionally);
+    const snappedFrame = snapSlotFrame(baseFrame, dragState, resizeProportionally);
+    const activeFrame = snappedFrame.frame;
+    setSlotAlignmentGuides(snappedFrame.guides);
     slotFrameChangedRef.current =
       Math.abs(activeFrame.x - dragState.startX) > SLOT_BARRIER_EPSILON ||
       Math.abs(activeFrame.y - dragState.startY) > SLOT_BARRIER_EPSILON ||
@@ -644,22 +881,12 @@ export function AlbumSpreadSlotEditor({
           return item;
         }
 
-        if (dragState.mode === "move") {
-          const nextFrame = getMovedSlotFrame(dragState, deltaX, deltaY, item.width, item.height);
-
-          return {
-            ...item,
-            x: nextFrame.x,
-            y: nextFrame.y
-          };
-        }
-
         return {
           ...item,
-          x: nextFrame.x,
-          y: nextFrame.y,
-          width: nextFrame.width,
-          height: nextFrame.height
+          x: activeFrame.x,
+          y: activeFrame.y,
+          width: dragState.mode === "move" ? item.width : activeFrame.width,
+          height: dragState.mode === "move" ? item.height : activeFrame.height
         };
       })
     );
@@ -672,29 +899,14 @@ export function AlbumSpreadSlotEditor({
         height: dragState.startHeight
       };
 
-      if (dragState.mode === "move") {
-        const nextFrame = getMovedSlotFrame(dragState, deltaX, deltaY, currentFrame.width, currentFrame.height);
-
-        return {
-          ...frames,
-          [dragState.slotIndex]: {
-            ...currentFrame,
-            x: nextFrame.x,
-            y: nextFrame.y
-          }
-        };
-      }
-
-      const nextFrame = getResizedSlotFrame(dragState, deltaX, deltaY, resizeProportionally);
-
       return {
         ...frames,
         [dragState.slotIndex]: {
           ...currentFrame,
-          x: nextFrame.x,
-          y: nextFrame.y,
-          width: nextFrame.width,
-          height: nextFrame.height
+          x: activeFrame.x,
+          y: activeFrame.y,
+          width: dragState.mode === "move" ? currentFrame.width : activeFrame.width,
+          height: dragState.mode === "move" ? currentFrame.height : activeFrame.height
         }
       };
     });
@@ -735,6 +947,7 @@ export function AlbumSpreadSlotEditor({
     slotFrameDragStateRef.current = null;
     pendingSlotFrameUndoRef.current = null;
     slotFrameChangedRef.current = false;
+    setSlotAlignmentGuides(EMPTY_SLOT_ALIGNMENT_GUIDES);
 
     if (slotFramePointerMoveHandlerRef.current) {
       window.removeEventListener("pointermove", slotFramePointerMoveHandlerRef.current);
@@ -779,6 +992,14 @@ export function AlbumSpreadSlotEditor({
         height: frame.height
       }
     };
+    const snapTargetFrames = template.slots.flatMap((_, targetSlotIndex) => {
+      if (targetSlotIndex === slotIndex) {
+        return [];
+      }
+
+      const targetItem = draftItems.find((item) => item.slotIndex === targetSlotIndex);
+      return [getSlotFrame(targetSlotIndex, targetItem)];
+    });
     slotFrameDragStateRef.current = {
       slotIndex,
       mode,
@@ -790,7 +1011,10 @@ export function AlbumSpreadSlotEditor({
       startWidth: frame.width,
       startHeight: frame.height,
       canvasWidth: bounds.width,
-      canvasHeight: bounds.height
+      canvasHeight: bounds.height,
+      snapTargetFrames,
+      snapToleranceX: (SLOT_ALIGNMENT_SNAP_TOLERANCE_PX / Math.max(1, bounds.width)) * 100,
+      snapToleranceY: (SLOT_ALIGNMENT_SNAP_TOLERANCE_PX / Math.max(1, bounds.height)) * 100
     };
 
     const handleMove = (nativeEvent: globalThis.PointerEvent) => {
@@ -1022,6 +1246,24 @@ export function AlbumSpreadSlotEditor({
             aria-hidden="true"
             className="pointer-events-none absolute left-0 right-0 top-1/2 z-20 h-px -translate-y-1/2 bg-ink/15"
           />
+          {slotAlignmentGuides.vertical.map((position) => (
+            <div
+              key={`slot-vertical-guide-${position}`}
+              data-slot-alignment-guide="vertical"
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 top-0 z-[60] w-px -translate-x-1/2 bg-brass shadow-[0_0_0_1px_rgba(255,255,255,0.85)]"
+              style={{ left: `${position}%` }}
+            />
+          ))}
+          {slotAlignmentGuides.horizontal.map((position) => (
+            <div
+              key={`slot-horizontal-guide-${position}`}
+              data-slot-alignment-guide="horizontal"
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 right-0 z-[60] h-px -translate-y-1/2 bg-brass shadow-[0_0_0_1px_rgba(255,255,255,0.85)]"
+              style={{ top: `${position}%` }}
+            />
+          ))}
           {template.slots.map((slot, slotIndex) => {
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
             const isSelected = slotIndex === selectedSlotIndex;
