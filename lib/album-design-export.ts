@@ -61,8 +61,33 @@ export type AlbumDesignSpreadExportData = {
 
 export const ALBUM_DESIGN_EXPORT_WIDTH = 7200;
 export const ALBUM_DESIGN_EXPORT_HEIGHT = 3600;
+export const ALBUM_DESIGN_REVIEW_WIDTH = 3600;
+export const ALBUM_DESIGN_REVIEW_HEIGHT = 1800;
 const ALBUM_DESIGN_EXPORT_JPEG_QUALITY = 95;
 const ALBUM_DESIGN_TEXT_EXPORT_SCALE = 250;
+
+type AlbumDesignSpreadRenderOptions = {
+  width?: number;
+  height?: number;
+  jpegQuality?: number;
+  mozjpeg?: boolean;
+};
+
+type ResolvedAlbumDesignSpreadRenderOptions = {
+  width: number;
+  height: number;
+  jpegQuality: number;
+  mozjpeg: boolean;
+};
+
+function resolveAlbumDesignSpreadRenderOptions(options: AlbumDesignSpreadRenderOptions = {}): ResolvedAlbumDesignSpreadRenderOptions {
+  return {
+    width: Math.max(1, Math.round(options.width ?? ALBUM_DESIGN_EXPORT_WIDTH)),
+    height: Math.max(1, Math.round(options.height ?? ALBUM_DESIGN_EXPORT_HEIGHT)),
+    jpegQuality: Math.min(100, Math.max(1, Math.round(options.jpegQuality ?? ALBUM_DESIGN_EXPORT_JPEG_QUALITY))),
+    mozjpeg: options.mozjpeg ?? true
+  };
+}
 
 const ALBUM_DESIGN_TEXT_FONT_FILES: Record<string, string> = {
   playfair: "playfair-display-600.ttf",
@@ -455,36 +480,44 @@ async function renderCroppedPhotoBuffer({
   width,
   height,
   cropX,
-  cropY
+  cropY,
+  jpegQuality,
+  mozjpeg
 }: {
   photoBuffer: Buffer;
   width: number;
   height: number;
   cropX: number;
   cropY: number;
+  jpegQuality: number;
+  mozjpeg: boolean;
 }) {
-  const orientedBuffer = await sharp(photoBuffer, { failOn: "none" }).rotate().toBuffer();
-  const metadata = await sharp(orientedBuffer, { failOn: "none" }).metadata();
+  const metadata = await sharp(photoBuffer, { failOn: "none" }).metadata();
+  const swapsDimensions = metadata.orientation !== undefined && metadata.orientation >= 5 && metadata.orientation <= 8;
+  const sourceWidth = swapsDimensions ? metadata.height : metadata.width;
+  const sourceHeight = swapsDimensions ? metadata.width : metadata.height;
 
-  if (!metadata.width || !metadata.height) {
-    return sharp(orientedBuffer, { failOn: "none" })
+  if (!sourceWidth || !sourceHeight) {
+    return sharp(photoBuffer, { failOn: "none" })
+      .rotate()
       .resize(width, height, { fit: "cover", position: "centre" })
-      .jpeg({ quality: ALBUM_DESIGN_EXPORT_JPEG_QUALITY, mozjpeg: true })
+      .jpeg({ quality: jpegQuality, mozjpeg })
       .toBuffer();
   }
 
-  const scale = Math.max(width / metadata.width, height / metadata.height);
-  const resizedWidth = Math.max(width, Math.ceil(metadata.width * scale));
-  const resizedHeight = Math.max(height, Math.ceil(metadata.height * scale));
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const resizedWidth = Math.max(width, Math.ceil(sourceWidth * scale));
+  const resizedHeight = Math.max(height, Math.ceil(sourceHeight * scale));
   const maxLeft = Math.max(0, resizedWidth - width);
   const maxTop = Math.max(0, resizedHeight - height);
   const left = Math.min(maxLeft, Math.max(0, Math.round(maxLeft * (clampCropPosition(cropX) / 100))));
   const top = Math.min(maxTop, Math.max(0, Math.round(maxTop * (clampCropPosition(cropY) / 100))));
 
-  return sharp(orientedBuffer, { failOn: "none" })
+  return sharp(photoBuffer, { failOn: "none" })
+    .rotate()
     .resize(resizedWidth, resizedHeight, { fit: "fill" })
     .extract({ left, top, width, height })
-    .jpeg({ quality: ALBUM_DESIGN_EXPORT_JPEG_QUALITY, mozjpeg: true })
+    .jpeg({ quality: jpegQuality, mozjpeg })
     .toBuffer();
 }
 
@@ -555,13 +588,16 @@ function escapePangoMarkup(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-async function renderTextItemBuffer(item: AlbumDesignSpreadExportData["textItems"][number]) {
-  const width = Math.max(1, Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH));
-  const height = Math.max(1, Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT));
+async function renderTextItemBuffer(
+  item: AlbumDesignSpreadExportData["textItems"][number],
+  renderOptions: ResolvedAlbumDesignSpreadRenderOptions
+) {
+  const width = Math.max(1, Math.round((item.width / 100) * renderOptions.width));
+  const height = Math.max(1, Math.round((item.height / 100) * renderOptions.height));
   const font = loadAlbumTextFont(item.fontFamily);
   const align = normalizeTextAlign(item.textAlign);
   const normalizedFontKey = normalizeAlbumTextFont(item.fontFamily);
-  const baseFontSize = Math.max(16, Math.round((item.fontSize / ALBUM_DESIGN_TEXT_EXPORT_SCALE) * ALBUM_DESIGN_EXPORT_HEIGHT));
+  const baseFontSize = Math.max(8, Math.round((item.fontSize / ALBUM_DESIGN_TEXT_EXPORT_SCALE) * renderOptions.height));
   const lineHeightRatio = Math.min(2.5, Math.max(0.8, item.lineHeight));
   const paddingX = Math.min(width * 0.08, Math.max(12, baseFontSize * 0.18));
   const paddingY = Math.min(height * 0.16, Math.max(12, baseFontSize * 0.14));
@@ -586,19 +622,20 @@ async function renderTextItemBuffer(item: AlbumDesignSpreadExportData["textItems
     .toBuffer({ resolveWithObject: true });
   const renderedWidth = rendered.info.width;
   const renderedHeight = rendered.info.height;
-  const boxLeft = Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH);
-  const boxTop = Math.round((item.y / 100) * ALBUM_DESIGN_EXPORT_HEIGHT);
+  const boxLeft = Math.round((item.x / 100) * renderOptions.width);
+  const boxTop = Math.round((item.y / 100) * renderOptions.height);
   const horizontalOffset = align === "left" ? paddingX : align === "right" ? width - paddingX - renderedWidth : (width - renderedWidth) / 2;
 
   return {
     input: rendered.data,
-    left: Math.min(ALBUM_DESIGN_EXPORT_WIDTH - renderedWidth, Math.max(0, Math.round(boxLeft + horizontalOffset))),
-    top: Math.min(ALBUM_DESIGN_EXPORT_HEIGHT - renderedHeight, Math.max(0, Math.round(boxTop + paddingY)))
+    left: Math.min(renderOptions.width - renderedWidth, Math.max(0, Math.round(boxLeft + horizontalOffset))),
+    top: Math.min(renderOptions.height - renderedHeight, Math.max(0, Math.round(boxTop + paddingY)))
   };
 }
 
-export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExportData) {
-  const slotInset = getAlbumLayoutExportSlotInsetPx(spread.layoutKey);
+export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExportData, options: AlbumDesignSpreadRenderOptions = {}) {
+  const renderOptions = resolveAlbumDesignSpreadRenderOptions(options);
+  const slotInset = Math.round(getAlbumLayoutExportSlotInsetPx(spread.layoutKey) * (renderOptions.width / ALBUM_DESIGN_EXPORT_WIDTH));
   const photoComposites = await Promise.all(
     spread.items.map(async (item) => {
       const photoR2Key = item.photo.r2Key || getR2KeyFromPublicUrl(item.photo.imageUrl) || getR2KeyFromPublicUrl(item.photo.previewUrl);
@@ -606,8 +643,8 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
         r2Key: photoR2Key,
         publicUrl: item.photo.imageUrl || item.photo.previewUrl
       });
-      const slotWidth = Math.round((item.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH);
-      const slotHeight = Math.round((item.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT);
+      const slotWidth = Math.round((item.width / 100) * renderOptions.width);
+      const slotHeight = Math.round((item.height / 100) * renderOptions.height);
       const edgeInsets = getAlbumSlotEdgeInsetsPx(item, slotInset);
       const width = Math.max(1, slotWidth - edgeInsets.left - edgeInsets.right);
       const height = Math.max(1, slotHeight - edgeInsets.top - edgeInsets.bottom);
@@ -616,28 +653,30 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
         width,
         height,
         cropX: item.cropX,
-        cropY: item.cropY
+        cropY: item.cropY,
+        jpegQuality: renderOptions.jpegQuality,
+        mozjpeg: renderOptions.mozjpeg
       });
 
       return {
         input,
-        left: Math.round((item.x / 100) * ALBUM_DESIGN_EXPORT_WIDTH) + edgeInsets.left,
-        top: Math.round((item.y / 100) * ALBUM_DESIGN_EXPORT_HEIGHT) + edgeInsets.top
+        left: Math.round((item.x / 100) * renderOptions.width) + edgeInsets.left,
+        top: Math.round((item.y / 100) * renderOptions.height) + edgeInsets.top
       };
     })
   );
-  const textComposites = await Promise.all(spread.textItems.map(renderTextItemBuffer));
+  const textComposites = await Promise.all(spread.textItems.map((item) => renderTextItemBuffer(item, renderOptions)));
 
   return sharp({
     create: {
-      width: ALBUM_DESIGN_EXPORT_WIDTH,
-      height: ALBUM_DESIGN_EXPORT_HEIGHT,
+      width: renderOptions.width,
+      height: renderOptions.height,
       channels: 3,
       background: ALBUM_SPREAD_BACKGROUND
     }
   })
     .composite([...photoComposites, ...textComposites])
-    .jpeg({ quality: ALBUM_DESIGN_EXPORT_JPEG_QUALITY, mozjpeg: true })
+    .jpeg({ quality: renderOptions.jpegQuality, mozjpeg: renderOptions.mozjpeg })
     .toBuffer();
 }
 

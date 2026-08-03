@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { adminOwnedWhere, albumDesignAccessWhere, customerAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import {
-  ALBUM_DESIGN_EXPORT_HEIGHT,
-  ALBUM_DESIGN_EXPORT_WIDTH,
+  ALBUM_DESIGN_REVIEW_HEIGHT,
+  ALBUM_DESIGN_REVIEW_WIDTH,
   albumDesignSpreadExportFilename,
   renderAlbumDesignSpreadJpeg,
   type AlbumDesignSpreadExportData
@@ -252,6 +252,8 @@ function createAlbumAccessToken() {
 function createAlbumSourceGallerySlug() {
   return `album-source-${randomBytes(10).toString("hex")}`;
 }
+
+const ALBUM_REVIEW_EXPORT_CONCURRENCY = 2;
 
 function albumDesignRedirectPath(customerId: string | null | undefined, query = "") {
   const basePath = customerId ? `/admin/clients/${customerId}?tab=album&albumMode=editor` : "/admin/albums";
@@ -1041,6 +1043,8 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=customer"));
   }
 
+  const albumDesignCustomerId = albumDesign.customerId;
+
   const spreads = albumDesign.spreads.filter((spread) => spread.items.length > 0 || spread.textItems.length > 0) satisfies AlbumDesignSpreadExportData[];
 
   if (spreads.length === 0) {
@@ -1049,7 +1053,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
 
   const review = await prisma.albumReview.create({
     data: {
-      customerId: albumDesign.customerId,
+      customerId: albumDesignCustomerId,
       projectId: albumDesign.projectId,
       title: `${albumDesign.title} ellenőrző`,
       status: "ready",
@@ -1074,39 +1078,73 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
   });
 
   try {
-    const reviewSpreads = [];
+    const reviewSpreads: Array<{
+      filename: string;
+      title: string;
+      r2Key: string;
+      imageUrl: string;
+      fileSize: number;
+      imageWidth: number;
+      imageHeight: number;
+      sortOrder: number;
+    }> = new Array(spreads.length);
 
-    for (const [index, spread] of spreads.entries()) {
-      const jpegBuffer = await renderAlbumDesignSpreadJpeg(spread);
-      const filename = albumDesignSpreadExportFilename(spread);
-      const r2Key = createAlbumReviewSpreadObjectKey({
-        customerId: albumDesign.customerId,
-        reviewId: review.id,
-        originalFilename: filename
-      });
+    for (let batchStart = 0; batchStart < spreads.length; batchStart += ALBUM_REVIEW_EXPORT_CONCURRENCY) {
+      const batch = spreads.slice(batchStart, batchStart + ALBUM_REVIEW_EXPORT_CONCURRENCY);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (spread, batchIndex) => {
+          const index = batchStart + batchIndex;
+          const jpegBuffer = await renderAlbumDesignSpreadJpeg(spread, {
+            width: ALBUM_DESIGN_REVIEW_WIDTH,
+            height: ALBUM_DESIGN_REVIEW_HEIGHT,
+            jpegQuality: 90,
+            mozjpeg: false
+          });
+          const filename = albumDesignSpreadExportFilename(spread);
+          const r2Key = createAlbumReviewSpreadObjectKey({
+            customerId: albumDesignCustomerId,
+            reviewId: review.id,
+            originalFilename: filename
+          });
 
-      await savePhotoObject({
-        r2Key,
-        bytes: jpegBuffer,
-        contentType: "image/jpeg"
-      });
-      uploadedObjectKeys.push(r2Key);
+          await savePhotoObject({
+            r2Key,
+            bytes: jpegBuffer,
+            contentType: "image/jpeg"
+          });
+          uploadedObjectKeys.push(r2Key);
 
-      await prisma.albumDesign.update({
-        where: { id: albumDesign.id },
-        data: { reviewExportCompleted: index + 1 }
-      });
+          await prisma.albumDesign.update({
+            where: { id: albumDesign.id },
+            data: { reviewExportCompleted: { increment: 1 } }
+          });
 
-      reviewSpreads.push({
-        filename,
-        title: spread.title ?? `Oldalpár ${spread.sortOrder}`,
-        r2Key,
-        imageUrl: getPhotoPublicUrl(r2Key),
-        fileSize: jpegBuffer.length,
-        imageWidth: ALBUM_DESIGN_EXPORT_WIDTH,
-        imageHeight: ALBUM_DESIGN_EXPORT_HEIGHT,
-        sortOrder: index + 1
-      });
+          return {
+            index,
+            reviewSpread: {
+              filename,
+              title: spread.title ?? `Oldalpár ${spread.sortOrder}`,
+              r2Key,
+              imageUrl: getPhotoPublicUrl(r2Key),
+              fileSize: jpegBuffer.length,
+              imageWidth: ALBUM_DESIGN_REVIEW_WIDTH,
+              imageHeight: ALBUM_DESIGN_REVIEW_HEIGHT,
+              sortOrder: index + 1
+            }
+          };
+        })
+      );
+      const failedResult = batchResults.find((result): result is PromiseRejectedResult => result.status === "rejected");
+
+      if (failedResult) {
+        throw failedResult.reason;
+      }
+
+      for (const result of batchResults) {
+        if (result.status === "fulfilled") {
+          reviewSpreads[result.value.index] = result.value.reviewSpread;
+        }
+      }
     }
 
     await prisma.albumReview.update({
