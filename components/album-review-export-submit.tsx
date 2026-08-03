@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, Send } from "lucide-react";
+import { CheckCircle2, LoaderCircle, Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/button";
@@ -37,18 +37,23 @@ export function AlbumReviewExportSubmit({
   disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
+  const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState<ReviewExportProgress | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const submissionStartedAtRef = useRef(0);
+  const exportIsActive = isExporting || pending;
 
   useEffect(() => {
-    if (!pending) {
+    if (!exportIsActive) {
       setProgress(null);
       setElapsedSeconds(0);
+      submissionStartedAtRef.current = 0;
       return;
     }
 
-    submissionStartedAtRef.current = Date.now();
+    if (!submissionStartedAtRef.current) {
+      submissionStartedAtRef.current = Date.now();
+    }
     let cancelled = false;
 
     const updateElapsed = () => {
@@ -67,11 +72,22 @@ export function AlbumReviewExportSubmit({
         }
 
         const nextProgress = (await response.json()) as ReviewExportProgress;
-        const serverStartedAt = nextProgress.startedAt ? new Date(nextProgress.startedAt).getTime() : 0;
+        setProgress((current) => {
+          if (nextProgress.status === "processing") {
+            return nextProgress;
+          }
 
-        if (serverStartedAt && serverStartedAt >= submissionStartedAtRef.current - 5000) {
-          setProgress(nextProgress);
-        }
+          const serverStartedAt = nextProgress.startedAt ? new Date(nextProgress.startedAt).getTime() : 0;
+          const belongsToCurrentExport =
+            (current?.startedAt && current.startedAt === nextProgress.startedAt) ||
+            (serverStartedAt > 0 && serverStartedAt >= submissionStartedAtRef.current - 60_000);
+
+          if (belongsToCurrentExport) {
+            return nextProgress;
+          }
+
+          return current;
+        });
       } catch {
         // A szerveroldali művelet tovább fut; a következő lekérés újrapróbálja.
       }
@@ -87,7 +103,17 @@ export function AlbumReviewExportSubmit({
       window.clearInterval(elapsedTimer);
       window.clearInterval(progressTimer);
     };
-  }, [designId, pending]);
+  }, [designId, exportIsActive]);
+
+  useEffect(() => {
+    if (!isExporting || pending || !["complete", "failed"].includes(progress?.status ?? "")) {
+      return;
+    }
+
+    const completionTimer = window.setTimeout(() => setIsExporting(false), 1400);
+
+    return () => window.clearTimeout(completionTimer);
+  }, [isExporting, pending, progress?.status]);
 
   const total = Math.max(1, progress?.total || spreadCount || 1);
   const completed = Math.min(total, Math.max(0, progress?.completed ?? 0));
@@ -110,28 +136,38 @@ export function AlbumReviewExportSubmit({
         type="submit"
         title="Album ellenőrző létrehozása"
         className="h-10 px-3"
-        disabled={disabled || pending}
+        disabled={disabled || exportIsActive}
         onClick={(event) => {
           if (!window.confirm(confirmationMessage)) {
             event.preventDefault();
+            return;
           }
+
+          submissionStartedAtRef.current = Date.now();
+          setProgress(null);
+          setElapsedSeconds(0);
+          setIsExporting(true);
         }}
       >
-        {pending ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
-        {pending ? "Ellenőrző készül..." : "Ellenőrzőbe küldés"}
+        {exportIsActive ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}
+        {exportIsActive ? "Ellenőrző készül..." : "Ellenőrzőbe küldés"}
       </Button>
 
-      {pending ? (
+      {exportIsActive ? (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-ink/65 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby={`review-export-title-${designId}`}>
           <div className="w-full max-w-lg rounded-lg border border-white/15 bg-white p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
             <div className="flex items-start gap-4">
               <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-ink text-white">
-                <LoaderCircle size={22} className="animate-spin" />
+                {progress?.status === "complete" ? <CheckCircle2 size={22} /> : <LoaderCircle size={22} className="animate-spin" />}
               </span>
               <div className="min-w-0">
                 <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">JPG-k generálása és feltöltése</p>
-                <h3 id={`review-export-title-${designId}`} className="mt-1 text-xl font-semibold text-ink">Az ellenőrző készül</h3>
-                <p className="mt-1 text-sm leading-6 text-graphite/65">Ne zárd be ezt az ablakot a feldolgozás végéig.</p>
+                <h3 id={`review-export-title-${designId}`} className="mt-1 text-xl font-semibold text-ink">
+                  {progress?.status === "complete" ? "Az ellenőrző elkészült" : "Az ellenőrző készül"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-graphite/65">
+                  {progress?.status === "complete" ? "A kész ellenőrző betöltése..." : "Ne zárd be ezt az ablakot a feldolgozás végéig."}
+                </p>
               </div>
             </div>
 
