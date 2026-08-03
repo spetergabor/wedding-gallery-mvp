@@ -265,7 +265,7 @@ function SidebarSpreadCreateForm({
   pendingLabel?: string;
 }) {
   return (
-    <div className="mt-3">
+    <div className="mt-3 shrink-0">
       <button
         type="button"
         onClick={onCreateSpread}
@@ -1159,9 +1159,9 @@ export function AlbumDesignWorkbench({
             </header>
 
             <div className="grid min-h-0 flex-1 bg-[#e8e7e2] lg:grid-cols-[230px_minmax(0,1fr)]">
-              <aside className="hidden min-h-0 border-r border-ink/10 bg-white/80 p-3 lg:block">
-                <p className="px-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Oldalpárok</p>
-                <div className="mt-3 max-h-[calc(100dvh-270px)] space-y-2 overflow-auto pr-1">
+              <aside className="hidden min-h-0 overflow-hidden border-r border-ink/10 bg-white/80 p-3 lg:flex lg:flex-col">
+                <p className="shrink-0 px-2 text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Oldalpárok</p>
+                <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-1 pr-1">
                   {orderedSpreads.map((spread) => {
                     const isActive = spread.id === activeSpread?.id;
                     const template = getTemplate(spread.layoutKey);
