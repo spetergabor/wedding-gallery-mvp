@@ -59,9 +59,11 @@ export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
     key: "two-pages",
     name: "Bal és jobb oldal",
     photoCount: 2,
+    previewSlotInsetPx: 0,
+    exportSlotInsetPx: 0,
     slots: [
-      { x: 0, y: 0, width: 50, height: 100 },
-      { x: 50, y: 0, width: 50, height: 100 }
+      { x: 0, y: 0, width: 49.5, height: 100 },
+      { x: 50.5, y: 0, width: 49.5, height: 100 }
     ]
   },
   {
