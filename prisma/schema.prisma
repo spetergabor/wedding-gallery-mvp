@@ -846,6 +846,8 @@ model Gallery {
   galleryTitleFont String @default("playfair")
   galleryBodyFont String @default("inter")
   galleryTitleSize Int    @default(96)
+  showGalleryLogo Boolean @default(true)
+  galleryLogoSize Int?
   classicGradientIntensity Int @default(100)
   showContactBox Boolean @default(true)
   deliveryMode String   @default("free_download")

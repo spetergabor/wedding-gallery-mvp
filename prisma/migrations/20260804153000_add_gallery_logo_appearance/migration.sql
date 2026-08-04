@@ -1,0 +1,3 @@
+ALTER TABLE "Gallery"
+ADD COLUMN "showGalleryLogo" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN "galleryLogoSize" INTEGER;

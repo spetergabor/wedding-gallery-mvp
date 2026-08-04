@@ -34,6 +34,7 @@ import {
   normalizeClassicGradientIntensity,
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
+  normalizeGalleryLogoSize,
   normalizeGalleryTitleSize
 } from "@/lib/gallery-appearance";
 
@@ -187,10 +188,17 @@ export default async function PublicGalleryPage({
     null;
   const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
   const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage ?? flags.lang);
-  const logoHeight = Math.min(140, Math.max(32, settings?.logoHeight ?? 80));
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
   const galleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
+  const defaultGalleryLogoSize =
+    galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER
+      ? Math.min(62, settings?.logoHeight ?? 80)
+      : galleryDesign === GALLERY_DESIGN_COVER_STICKY
+        ? Math.min(88, settings?.logoHeight ?? 80)
+        : settings?.logoHeight ?? 80;
+  const galleryLogoSize = normalizeGalleryLogoSize(gallery.galleryLogoSize, defaultGalleryLogoSize);
+  const showGalleryLogo = gallery.showGalleryLogo;
   const stickyToolbarDesign =
     galleryDesign === GALLERY_DESIGN_COVER_STICKY || galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER;
   const heroTextColor = galleryTextColorOrDefault(
@@ -425,21 +433,23 @@ export default async function PublicGalleryPage({
           <div className="relative mx-auto flex min-h-screen w-full max-w-[1600px] flex-col justify-end px-5 pb-8 pt-24 sm:px-8 sm:pb-10 lg:px-10">
             <div className="grid gap-8 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:items-end" style={{ color: heroTextColor }}>
               <div className="order-2 min-w-0 sm:order-1">
-                {settings?.logoUrl ? (
-                  <Image
-                    src={settings.logoUrl}
-                    alt={settings.businessName || "Logo"}
-                    width={150}
-                    height={70}
-                    unoptimized
-                    className="mb-3 h-auto w-auto max-w-[160px] object-contain drop-shadow-[0_8px_22px_rgba(0,0,0,0.45)]"
-                    style={{ maxHeight: `${Math.min(62, logoHeight)}px` }}
-                  />
-                ) : (
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] drop-shadow-[0_6px_20px_rgba(0,0,0,0.45)]">
-                    {settings?.businessName || "SPETLY"}
-                  </p>
-                )}
+                {showGalleryLogo ? (
+                  settings?.logoUrl ? (
+                    <Image
+                      src={settings.logoUrl}
+                      alt={settings.businessName || "Logo"}
+                      width={280}
+                      height={140}
+                      unoptimized
+                      className="mb-3 w-auto object-contain drop-shadow-[0_8px_22px_rgba(0,0,0,0.45)]"
+                      style={{ height: `${galleryLogoSize}px`, maxWidth: "min(70vw, 420px)" }}
+                    />
+                  ) : (
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] drop-shadow-[0_6px_20px_rgba(0,0,0,0.45)]">
+                      {settings?.businessName || "SPETLY"}
+                    </p>
+                  )
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-85">
                   {settings?.instagramUrl ? <span>Instagram</span> : null}
                   {settings?.facebookUrl ? <span>Facebook</span> : null}
@@ -495,18 +505,20 @@ export default async function PublicGalleryPage({
           <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(17,17,17,0.10),rgba(17,17,17,0.20)_46%,rgba(17,17,17,0.58))]" />
           <div className="relative mx-auto flex min-h-[56svh] w-full max-w-7xl items-end px-5 pb-9 pt-24 sm:min-h-[64vh] sm:pb-11 lg:min-h-[70vh] lg:px-8 lg:pb-14">
             <div className="max-w-4xl" style={{ color: heroTextColor }}>
-              {settings?.logoUrl ? (
-                <Image
-                  src={settings.logoUrl}
-                  alt={settings.businessName || "Logo"}
-                  width={180}
-                  height={84}
-                  unoptimized
-                  className="mb-5 w-auto object-contain drop-shadow"
-                  style={{ height: `${Math.min(88, logoHeight)}px`, maxWidth: "min(58vw, 240px)" }}
-                />
-              ) : settings?.businessName ? (
-                <p className="mb-3 text-xs font-semibold uppercase opacity-80 sm:text-sm">{settings.businessName}</p>
+              {showGalleryLogo ? (
+                settings?.logoUrl ? (
+                  <Image
+                    src={settings.logoUrl}
+                    alt={settings.businessName || "Logo"}
+                    width={280}
+                    height={140}
+                    unoptimized
+                    className="mb-5 w-auto object-contain drop-shadow"
+                    style={{ height: `${galleryLogoSize}px`, maxWidth: "min(70vw, 420px)" }}
+                  />
+                ) : settings?.businessName ? (
+                  <p className="mb-3 text-xs font-semibold uppercase opacity-80 sm:text-sm">{settings.businessName}</p>
+                ) : null
               ) : null}
               <p className="text-xs font-semibold uppercase opacity-75 sm:text-sm">{heroMeta}</p>
               <h1
@@ -555,20 +567,22 @@ export default async function PublicGalleryPage({
         />
         <div className="relative mx-auto flex min-h-[92vh] w-full max-w-5xl flex-col items-center justify-end px-5 pb-16 pt-32 text-center lg:pb-20">
           <div className="flex w-full flex-col items-center" style={{ color: heroTextColor }}>
-            {settings?.logoUrl ? (
-              <Image
-                src={settings.logoUrl}
-                alt={settings.businessName || "Logo"}
-                width={190}
-                height={90}
-                unoptimized
-                className="mb-5 w-auto object-contain"
-                style={{ height: `${logoHeight}px`, maxWidth: "min(70vw, 320px)" }}
-              />
-            ) : settings?.businessName ? (
-              <p className="mb-5 text-lg tracking-[0.18em] opacity-75">
-                {settings.businessName}
-              </p>
+            {showGalleryLogo ? (
+              settings?.logoUrl ? (
+                <Image
+                  src={settings.logoUrl}
+                  alt={settings.businessName || "Logo"}
+                  width={280}
+                  height={140}
+                  unoptimized
+                  className="mb-5 w-auto object-contain"
+                  style={{ height: `${galleryLogoSize}px`, maxWidth: "min(70vw, 420px)" }}
+                />
+              ) : settings?.businessName ? (
+                <p className="mb-5 text-lg tracking-[0.18em] opacity-75">
+                  {settings.businessName}
+                </p>
+              ) : null
             ) : null}
             <h1
               className="font-semibold leading-tight"

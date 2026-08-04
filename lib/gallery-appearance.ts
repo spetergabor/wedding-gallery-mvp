@@ -120,6 +120,10 @@ export function normalizeGalleryTitleSize(value: unknown, fallback = 96) {
   return normalizePixelValue(value, fallback, 48, 128);
 }
 
+export function normalizeGalleryLogoSize(value: unknown, fallback = 80) {
+  return normalizePixelValue(value, normalizePixelValue(fallback, 80, 32, 140), 32, 140);
+}
+
 export function galleryHeroTitleSizeClamp(size: number) {
   const safeSize = normalizeGalleryTitleSize(size);
   const mobileSize = Math.max(44, Math.round(safeSize * 0.54));

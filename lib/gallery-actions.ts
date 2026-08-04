@@ -47,6 +47,7 @@ import { createLightroomUploadToken, hashLightroomUploadToken } from "@/lib/ligh
 import {
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
+  normalizeGalleryLogoSize,
   normalizeClassicGradientIntensity,
   normalizeGalleryBackgroundColor,
   normalizeGalleryBodyFont,
@@ -156,7 +157,16 @@ async function requireGalleryAccess(galleryId: string) {
   const admin = await requireAdmin();
   const gallery = await prisma.gallery.findFirst({
     where: galleryAccessWhere(admin, galleryId),
-    select: { id: true, slug: true, galleryMode: true, proofingStatus: true, clientEmail: true, clientAccessToken: true }
+    select: {
+      id: true,
+      slug: true,
+      galleryMode: true,
+      proofingStatus: true,
+      clientEmail: true,
+      clientAccessToken: true,
+      showGalleryLogo: true,
+      galleryLogoSize: true
+    }
   });
 
   if (!gallery) {
@@ -3374,6 +3384,13 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
   const galleryTitleFont = normalizeGalleryTitleFont(formString(formData, "galleryTitleFont"));
   const galleryBodyFont = normalizeGalleryBodyFont(formString(formData, "galleryBodyFont"));
   const galleryTitleSize = normalizeGalleryTitleSize(formString(formData, "galleryTitleSize"));
+  const showGalleryLogoValues = formData.getAll("showGalleryLogo");
+  const showGalleryLogo = showGalleryLogoValues.length > 0
+    ? showGalleryLogoValues.includes("on")
+    : gallery.showGalleryLogo;
+  const galleryLogoSize = formData.has("galleryLogoSize")
+    ? normalizeGalleryLogoSize(formString(formData, "galleryLogoSize"))
+    : gallery.galleryLogoSize;
   const classicGradientIntensity = normalizeClassicGradientIntensity(formString(formData, "classicGradientIntensity"));
   const showContactBox = formData.get("showContactBox") === "on";
 
@@ -3388,6 +3405,8 @@ export async function updateGalleryDesignAction(galleryId: string, formData: For
       galleryTitleFont,
       galleryBodyFont,
       galleryTitleSize,
+      showGalleryLogo,
+      galleryLogoSize,
       classicGradientIntensity,
       showContactBox,
       publicGridGap,

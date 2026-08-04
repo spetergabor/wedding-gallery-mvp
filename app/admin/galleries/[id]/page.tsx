@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Camera, Check, Columns3, CreditCard, Download, ExternalLink, Heart, KeyRound, Landmark, Mail, Palette, Plus, Share2, UserRound } from "lucide-react";
+import { Camera, Check, Columns3, CreditCard, Download, ExternalLink, Heart, ImageIcon, KeyRound, Landmark, Mail, Palette, Plus, Share2, UserRound } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -57,6 +57,7 @@ import {
   normalizeClassicGradientIntensity,
   normalizeGalleryGridGap,
   normalizeGalleryImageRadius,
+  normalizeGalleryLogoSize,
   normalizeGalleryTitleSize
 } from "@/lib/gallery-appearance";
 import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUsesPayment } from "@/lib/gallery-delivery";
@@ -383,7 +384,10 @@ export default async function GalleryDetailPage({
         select: {
           siteSettings: {
             select: {
-              publicSubdomain: true
+              publicSubdomain: true,
+              businessName: true,
+              logoUrl: true,
+              logoHeight: true
             }
           }
         }
@@ -485,6 +489,16 @@ export default async function GalleryDetailPage({
   const selectedGalleryTitleFont = galleryTitleFontDefinition(gallery.galleryTitleFont);
   const selectedGalleryBodyFont = galleryBodyFontDefinition(gallery.galleryBodyFont);
   const selectedGalleryTitleSize = normalizeGalleryTitleSize(gallery.galleryTitleSize);
+  const defaultGalleryLogoSize =
+    selectedGalleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER
+      ? Math.min(62, gallery.admin.siteSettings?.logoHeight ?? 80)
+      : selectedGalleryDesign === GALLERY_DESIGN_COVER_STICKY
+        ? Math.min(88, gallery.admin.siteSettings?.logoHeight ?? 80)
+        : gallery.admin.siteSettings?.logoHeight ?? 80;
+  const selectedGalleryLogoSize = normalizeGalleryLogoSize(
+    gallery.galleryLogoSize,
+    defaultGalleryLogoSize
+  );
   const previewTitleSize = Math.max(24, Math.round(selectedGalleryTitleSize * 0.34));
   const selectedClassicGradientIntensity = normalizeClassicGradientIntensity(gallery.classicGradientIntensity);
   const selectedPublicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
@@ -1453,6 +1467,48 @@ export default async function GalleryDetailPage({
                         <span className="text-sm font-medium text-graphite">px</span>
                       </div>
                     </label>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-ink/10 bg-white p-3 lg:col-span-2">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] lg:items-center">
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        <ImageIcon size={16} />
+                        Galéria logó
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-graphite/70">
+                        Kapcsold ki vagy be a márkabeállításokban feltöltött logót, és add meg a magasságát. Minden galériastílusnál érvényes.
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px] sm:items-end">
+                      <label className="flex h-11 items-center justify-between gap-3 rounded-md border border-ink/15 bg-white px-3 text-sm font-semibold text-ink">
+                        <span>Megjelenik</span>
+                        <input
+                          type="checkbox"
+                          name="showGalleryLogo"
+                          value="on"
+                          defaultChecked={gallery.showGalleryLogo}
+                          className="size-4 accent-ink"
+                        />
+                        <input type="hidden" name="showGalleryLogo" value="off" />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-graphite/55">Méret</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            name="galleryLogoSize"
+                            min={32}
+                            max={140}
+                            step={4}
+                            defaultValue={selectedGalleryLogoSize}
+                            className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                          />
+                          <span className="text-sm font-medium text-graphite">px</span>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
