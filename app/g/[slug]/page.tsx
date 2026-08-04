@@ -403,7 +403,10 @@ export default async function PublicGalleryPage({
         thumbnailUrl: photo.thumbnailUrl,
         previewUrl: photo.previewUrl,
         imageWidth: photo.imageWidth,
-        imageHeight: photo.imageHeight
+        imageHeight: photo.imageHeight,
+        guestName: photo.guestName,
+        processingStatus: photo.processingStatus,
+        createdAt: photo.createdAt.toISOString()
       }))}
     />
   ) : null;

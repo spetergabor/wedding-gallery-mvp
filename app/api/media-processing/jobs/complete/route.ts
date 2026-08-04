@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       id: true,
       galleryId: true,
       photoId: true,
+      guestUploadId: true,
       status: true,
       gallery: {
         select: { slug: true }
@@ -56,25 +57,39 @@ export async function POST(request: Request) {
   if (body.status === "failed") {
     const message = (body.errorMessage || "Media processing failed.").slice(0, 500);
 
-    await prisma.$transaction([
-      prisma.mediaProcessingJob.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.mediaProcessingJob.update({
         where: { id: job.id },
         data: {
           status: "failed",
           errorMessage: message,
           completedAt: new Date()
         }
-      }),
-      prisma.photo.update({
-        where: { id: job.photoId },
-        data: {
-          processingStatus: "failed",
-          processingError: message
-        }
-      })
-    ]);
+      });
+
+      if (job.photoId) {
+        await tx.photo.update({
+          where: { id: job.photoId },
+          data: {
+            processingStatus: "failed",
+            processingError: message
+          }
+        });
+      } else if (job.guestUploadId) {
+        await tx.galleryGuestUpload.update({
+          where: { id: job.guestUploadId },
+          data: {
+            processingStatus: "failed",
+            processingError: message,
+            processingCompletedAt: new Date()
+          }
+        });
+      }
+    });
 
     revalidatePath(`/admin/galleries/${job.galleryId}`);
+    revalidatePath(`/admin/guest-galleries/${job.galleryId}`);
+    revalidatePath(`/g/${job.gallery.slug}`);
 
     return NextResponse.json({ ok: true });
   }
@@ -82,30 +97,41 @@ export async function POST(request: Request) {
   const imageWidth = Number.isFinite(body.imageWidth) ? Math.max(0, Math.floor(body.imageWidth ?? 0)) : undefined;
   const imageHeight = Number.isFinite(body.imageHeight) ? Math.max(0, Math.floor(body.imageHeight ?? 0)) : undefined;
 
-  await prisma.$transaction([
-    prisma.mediaProcessingJob.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaProcessingJob.update({
       where: { id: job.id },
       data: {
         status: "completed",
         errorMessage: null,
         completedAt: new Date()
       }
-    }),
-    prisma.photo.update({
-      where: { id: job.photoId },
-      data: {
-        ...(body.thumbnailUrl ? { thumbnailUrl: body.thumbnailUrl } : {}),
-        ...(body.previewUrl ? { previewUrl: body.previewUrl } : {}),
-        ...(imageWidth !== undefined ? { imageWidth } : {}),
-        ...(imageHeight !== undefined ? { imageHeight } : {}),
-        processingStatus: "ready",
-        processingError: null,
-        processingCompletedAt: new Date()
-      }
-    })
-  ]);
+    });
+
+    const processedData = {
+      ...(body.thumbnailUrl ? { thumbnailUrl: body.thumbnailUrl } : {}),
+      ...(body.previewUrl ? { previewUrl: body.previewUrl } : {}),
+      ...(imageWidth !== undefined ? { imageWidth } : {}),
+      ...(imageHeight !== undefined ? { imageHeight } : {}),
+      processingStatus: "ready",
+      processingError: null,
+      processingCompletedAt: new Date()
+    };
+
+    if (job.photoId) {
+      await tx.photo.update({
+        where: { id: job.photoId },
+        data: processedData
+      });
+    } else if (job.guestUploadId) {
+      await tx.galleryGuestUpload.update({
+        where: { id: job.guestUploadId },
+        data: processedData
+      });
+    }
+  });
 
   revalidatePath(`/admin/galleries/${job.galleryId}`);
+  revalidatePath(`/admin/guest-galleries/${job.galleryId}`);
   revalidatePath(`/g/${job.gallery.slug}`);
   revalidatePath(`/client/${job.gallery.slug}`);
 

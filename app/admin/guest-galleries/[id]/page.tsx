@@ -88,6 +88,9 @@ export default async function GuestGalleryDetailPage({
   });
   const visibleCount = gallery.guestUploads.filter((photo) => photo.status === "visible").length;
   const hiddenCount = gallery.guestUploads.filter((photo) => photo.status === "hidden").length;
+  const pendingReviewCount = gallery.guestUploads.filter((photo) => photo.status === "pending_review").length;
+  const processingCount = gallery.guestUploads.filter((photo) => photo.processingStatus === "pending" || photo.processingStatus === "processing").length;
+  const capacityPercent = Math.min(100, Math.round((gallery.guestUploads.length / gallery.guestUploadLimit) * 100));
 
   return (
     <AdminShell>
@@ -177,6 +180,35 @@ export default async function GuestGalleryDetailPage({
             </label>
           </div>
 
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Új képek megjelenése</span>
+              <select
+                name="guestUploadModerationMode"
+                defaultValue={gallery.guestUploadModerationMode}
+                className={fieldClass}
+              >
+                <option value="automatic">Azonnal, automatikusan</option>
+                <option value="approval">Csak jóváhagyás után</option>
+              </select>
+              <span className="block text-xs leading-5 text-graphite/60">Jóváhagyás esetén a vendég feltöltése nem jelenik meg rögtön.</span>
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-graphite">Galéria képlimitje</span>
+              <input
+                name="guestUploadLimit"
+                type="number"
+                min={20}
+                max={5000}
+                step={10}
+                defaultValue={gallery.guestUploadLimit}
+                className={fieldClass}
+              />
+              <span className="block text-xs leading-5 text-graphite/60">Legalább 20, legfeljebb 5000 vendégfotó.</span>
+            </label>
+          </div>
+
           <div className="mt-6 flex justify-end border-t border-ink/10 pt-5">
             <FormSubmitButton pendingLabel="Mentés...">Beállítások mentése</FormSubmitButton>
           </div>
@@ -215,7 +247,7 @@ export default async function GuestGalleryDetailPage({
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Moderálás</p>
             <h2 className="mt-1 text-xl font-semibold text-ink">Vendégfeltöltések</h2>
             <p className="mt-2 text-sm text-graphite/65">
-              {visibleCount} látható · {hiddenCount} elrejtett · {gallery.guestUploads.length} összesen
+              {visibleCount} látható · {pendingReviewCount} jóváhagyásra vár · {hiddenCount} elrejtett
             </p>
           </div>
           <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${gallery.guestUploadsEnabled ? "bg-sage/10 text-sage" : "bg-ink/5 text-graphite"}`}>
@@ -223,14 +255,28 @@ export default async function GuestGalleryDetailPage({
           </span>
         </div>
 
+        <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
+          <div className="flex items-center justify-between gap-4 text-xs font-medium text-graphite/70">
+            <span>Kapacitás</span>
+            <span>{gallery.guestUploads.length} / {gallery.guestUploadLimit} kép{processingCount > 0 ? ` · ${processingCount} feldolgozás alatt` : ""}</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10">
+            <div className="h-full rounded-full bg-sage transition-[width]" style={{ width: `${capacityPercent}%` }} />
+          </div>
+        </div>
+
         {gallery.guestUploads.length > 0 ? (
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {gallery.guestUploads.map((photo) => {
               const visible = photo.status === "visible";
+              const pendingReview = photo.status === "pending_review";
               const canModerate = photo.status !== "pending";
+              const identity = photo.guestName || photo.email || "Névtelen vendég";
+              const statusLabel = visible ? "Látható" : pendingReview ? "Jóváhagyásra vár" : photo.status === "pending" ? "Feltöltés alatt" : "Elrejtve";
+              const statusClass = visible ? "bg-sage text-white" : pendingReview ? "bg-brass text-white" : photo.status === "pending" ? "bg-graphite text-white" : "bg-ink/75 text-white";
 
               return (
-                <article key={photo.id} className={`overflow-hidden rounded-md border bg-paper ${visible ? "border-ink/10" : "border-amber-200 opacity-75"}`}>
+                <article key={photo.id} className={`overflow-hidden rounded-md border bg-paper ${visible ? "border-ink/10" : pendingReview ? "border-brass/40" : "border-amber-200 opacity-75"}`}>
                   <div className="relative aspect-square overflow-hidden bg-mist">
                     {photo.imageUrl ? (
                       <Image
@@ -242,13 +288,19 @@ export default async function GuestGalleryDetailPage({
                         sizes="(min-width: 1280px) 20vw, (min-width: 768px) 25vw, 50vw"
                       />
                     ) : null}
-                    <span className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold ${visible ? "bg-sage text-white" : photo.status === "pending" ? "bg-brass text-white" : "bg-ink/75 text-white"}`}>
-                      {visible ? "Látható" : photo.status === "pending" ? "Feltöltés alatt" : "Elrejtve"}
+                    <span className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass}`}>
+                      {statusLabel}
                     </span>
+                    {photo.processingStatus === "failed" ? (
+                      <span className="absolute bottom-2 right-2 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white">Feldolgozási hiba</span>
+                    ) : photo.processingStatus !== "ready" && photo.status !== "pending" ? (
+                      <span className="absolute bottom-2 right-2 rounded-full bg-ink/75 px-2 py-1 text-[10px] font-semibold text-white">Előnézet készül</span>
+                    ) : null}
                   </div>
                   <div className="p-3">
                     <p className="truncate text-xs font-semibold text-ink" title={photo.filename}>{photo.filename}</p>
-                    <p className="mt-1 truncate text-[11px] text-graphite/55" title={photo.email}>{photo.email}</p>
+                    <p className="mt-1 truncate text-[11px] text-graphite/55" title={identity}>{identity}</p>
+                    {photo.guestName && photo.email ? <p className="mt-1 truncate text-[11px] text-graphite/45" title={photo.email}>{photo.email}</p> : null}
                     <p className="mt-1 text-[11px] text-graphite/55">{formatFileSize(photo.fileSize)}</p>
                     {canModerate ? (
                       <form action={setGuestPhotoVisibilityAction.bind(null, gallery.id, photo.id, !visible)} className="mt-3">
@@ -257,7 +309,7 @@ export default async function GuestGalleryDetailPage({
                           className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-2 text-xs font-medium text-ink transition hover:bg-ink/5"
                         >
                           {visible ? <EyeOff size={14} /> : <Eye size={14} />}
-                          {visible ? "Elrejtés" : "Megjelenítés"}
+                          {visible ? "Elrejtés" : pendingReview ? "Jóváhagyás" : "Megjelenítés"}
                         </button>
                       </form>
                     ) : null}

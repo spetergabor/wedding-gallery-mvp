@@ -21,7 +21,8 @@ type MediaProcessingPayload = {
 type ClaimedMediaJob = {
   id: string;
   galleryId: string;
-  photoId: string;
+  photoId: string | null;
+  guestUploadId: string | null;
   mediaType: string;
   sourceR2Key: string;
   thumbnailR2Key: string | null;
@@ -33,7 +34,12 @@ type ClaimedMediaJob = {
     filename: string;
     r2Key: string;
     imageUrl: string;
-  };
+  } | null;
+  guestUpload: {
+    filename: string;
+    r2Key: string;
+    imageUrl: string;
+  } | null;
 };
 
 function readPositiveInteger(value: string | undefined, fallback: number, minimum: number) {
@@ -64,23 +70,35 @@ function isTriggerMediaWorkerEnabled() {
 async function markMediaJobFailed(job: ClaimedMediaJob, error: unknown) {
   const message = error instanceof Error ? error.message : "Media processing failed.";
 
-  await prisma.$transaction([
-    prisma.mediaProcessingJob.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaProcessingJob.update({
       where: { id: job.id },
       data: {
         status: "failed",
         errorMessage: message.slice(0, 500),
         completedAt: new Date()
       }
-    }),
-    prisma.photo.update({
-      where: { id: job.photoId },
-      data: {
-        processingStatus: "failed",
-        processingError: message.slice(0, 500)
-      }
-    })
-  ]);
+    });
+
+    if (job.photoId) {
+      await tx.photo.update({
+        where: { id: job.photoId },
+        data: {
+          processingStatus: "failed",
+          processingError: message.slice(0, 500)
+        }
+      });
+    } else if (job.guestUploadId) {
+      await tx.galleryGuestUpload.update({
+        where: { id: job.guestUploadId },
+        data: {
+          processingStatus: "failed",
+          processingError: message.slice(0, 500),
+          processingCompletedAt: new Date()
+        }
+      });
+    }
+  });
 }
 
 async function claimMediaProcessingJobs({ galleryId, limit }: { galleryId?: string; limit: number }) {
@@ -103,6 +121,7 @@ async function claimMediaProcessingJobs({ galleryId, limit }: { galleryId?: stri
       id: true,
       galleryId: true,
       photoId: true,
+      guestUploadId: true,
       mediaType: true,
       sourceR2Key: true,
       thumbnailR2Key: true,
@@ -113,6 +132,13 @@ async function claimMediaProcessingJobs({ galleryId, limit }: { galleryId?: stri
         }
       },
       photo: {
+        select: {
+          filename: true,
+          r2Key: true,
+          imageUrl: true
+        }
+      },
+      guestUpload: {
         select: {
           filename: true,
           r2Key: true,
@@ -148,13 +174,23 @@ async function claimMediaProcessingJobs({ galleryId, limit }: { galleryId?: stri
       continue;
     }
 
-    await prisma.photo.update({
-      where: { id: job.photoId },
-      data: {
-        processingStatus: "processing",
-        processingError: null
-      }
-    });
+    if (job.photoId) {
+      await prisma.photo.update({
+        where: { id: job.photoId },
+        data: {
+          processingStatus: "processing",
+          processingError: null
+        }
+      });
+    } else if (job.guestUploadId) {
+      await prisma.galleryGuestUpload.update({
+        where: { id: job.guestUploadId },
+        data: {
+          processingStatus: "processing",
+          processingError: null
+        }
+      });
+    }
 
     claimedJobs.push(job);
   }
@@ -163,7 +199,13 @@ async function claimMediaProcessingJobs({ galleryId, limit }: { galleryId?: stri
 }
 
 async function processImageMediaJob(job: ClaimedMediaJob) {
-  const sourceR2Key = job.sourceR2Key || job.photo.r2Key;
+  const asset = job.photo ?? job.guestUpload;
+
+  if (!asset) {
+    throw new Error("Missing photo or guest upload for image processing.");
+  }
+
+  const sourceR2Key = job.sourceR2Key || asset.r2Key;
 
   if (!sourceR2Key) {
     throw new Error("Missing source R2 key for image processing.");
@@ -173,19 +215,19 @@ async function processImageMediaJob(job: ClaimedMediaJob) {
     job.thumbnailR2Key ??
     createPhotoVariantObjectKey({
       gallerySlug: job.gallery.slug,
-      originalFilename: job.photo.filename,
+      originalFilename: asset.filename,
       variant: "thumbnail"
     });
   const previewR2Key =
     job.previewR2Key ??
     createPhotoVariantObjectKey({
       gallerySlug: job.gallery.slug,
-      originalFilename: job.photo.filename,
+      originalFilename: asset.filename,
       variant: "preview"
     });
   const sourceBuffer = await loadPhotoObjectBuffer({
     r2Key: sourceR2Key,
-    publicUrl: job.photo.imageUrl
+    publicUrl: asset.imageUrl
   });
   const image = sharp(sourceBuffer, { failOn: "none" }).rotate();
   const thumbnailBuffer = await image
@@ -225,8 +267,8 @@ async function processImageMediaJob(job: ClaimedMediaJob) {
   const thumbnailUrl = getPhotoPublicUrl(thumbnailR2Key);
   const previewUrl = getPhotoPublicUrl(previewR2Key);
 
-  await prisma.$transaction([
-    prisma.mediaProcessingJob.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaProcessingJob.update({
       where: { id: job.id },
       data: {
         status: "completed",
@@ -235,20 +277,31 @@ async function processImageMediaJob(job: ClaimedMediaJob) {
         errorMessage: null,
         completedAt: new Date()
       }
-    }),
-    prisma.photo.update({
-      where: { id: job.photoId },
-      data: {
-        thumbnailUrl,
-        previewUrl,
-        imageWidth: previewOutput.info.width,
-        imageHeight: previewOutput.info.height,
-        processingStatus: "ready",
-        processingError: null,
-        processingCompletedAt: new Date()
-      }
-    })
-  ]);
+    });
+
+    const completedAt = new Date();
+    const processedData = {
+      thumbnailUrl,
+      previewUrl,
+      imageWidth: previewOutput.info.width,
+      imageHeight: previewOutput.info.height,
+      processingStatus: "ready",
+      processingError: null,
+      processingCompletedAt: completedAt
+    };
+
+    if (job.photoId) {
+      await tx.photo.update({
+        where: { id: job.photoId },
+        data: processedData
+      });
+    } else if (job.guestUploadId) {
+      await tx.galleryGuestUpload.update({
+        where: { id: job.guestUploadId },
+        data: processedData
+      });
+    }
+  });
 }
 
 export async function processMediaProcessingJobs({
@@ -277,6 +330,12 @@ export async function processMediaProcessingJobs({
 
   for (const galleryIdToRevalidate of new Set(jobs.map((job) => job.galleryId))) {
     safeRevalidatePath(`/admin/galleries/${galleryIdToRevalidate}`);
+    safeRevalidatePath(`/admin/guest-galleries/${galleryIdToRevalidate}`);
+  }
+
+  for (const slugToRevalidate of new Set(jobs.map((job) => job.gallery.slug))) {
+    safeRevalidatePath(`/g/${slugToRevalidate}`);
+    safeRevalidatePath(`/client/${slugToRevalidate}`);
   }
 
   return results;

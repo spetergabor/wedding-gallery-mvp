@@ -21,7 +21,7 @@ type MediaProcessingPhoto = {
 
 type MediaProcessingJob = {
   id: string;
-  photoId: string;
+  photoId: string | null;
   status: string;
   attempts: number;
   errorMessage: string | null;
@@ -138,7 +138,9 @@ export function MediaProcessingStatus({
   const now = Date.now();
   const imagePhotos = photos.filter((photo) => photo.mediaType !== "video");
   const imagePhotoIds = new Set(imagePhotos.map((photo) => photo.id));
-  const imageJobs = jobs.filter((job) => imagePhotoIds.has(job.photoId));
+  const imageJobs = jobs.filter(
+    (job): job is MediaProcessingJob & { photoId: string } => Boolean(job.photoId) && imagePhotoIds.has(job.photoId!)
+  );
   const latestJobByPhotoId = new Map<string, MediaProcessingJob>();
 
   for (const job of imageJobs) {

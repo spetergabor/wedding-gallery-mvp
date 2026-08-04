@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ImagePlus, Loader2, Mail, UploadCloud, X } from "lucide-react";
+import { ChangeEvent, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, ImagePlus, Loader2, Mail, RefreshCw, UploadCloud, UserRound, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
   completeGuestUploadsAction,
-  createGuestUploadTargetsAction
+  createGuestUploadTargetsAction,
+  getGuestGalleryPhotosAction
 } from "@/lib/guest-upload-actions";
 import type { CustomerLanguage } from "@/lib/customer-language";
 
@@ -18,6 +19,9 @@ type GuestPhoto = {
   previewUrl: string;
   imageWidth: number;
   imageHeight: number;
+  guestName: string | null;
+  processingStatus: string;
+  createdAt: string;
 };
 
 type GuestUploadFile = {
@@ -40,8 +44,9 @@ const COPY = {
     empty: "Noch keine Gästefotos hochgeladen.",
     openUpload: "Fotos hochladen",
     uploadTitle: "Eigene Fotos hochladen",
-    uploadText: "Teile deine Lieblingsmomente mit dem Paar. Deine Fotos erscheinen nach dem Upload in diesem separaten Bereich.",
-    email: "E-Mail-Adresse",
+    uploadText: "Teile deine Lieblingsmomente mit dem Paar. Name und E-Mail-Adresse sind freiwillig.",
+    name: "Dein Name (optional)",
+    email: "E-Mail-Adresse (optional)",
     choose: "Fotos auswählen",
     dropTitle: "Fotos hierher ziehen",
     dropText: "oder klicken, um Bilder auszuwählen",
@@ -50,6 +55,9 @@ const COPY = {
     cancel: "Schließen",
     selected: (count: number) => `${count} ${count === 1 ? "Foto" : "Fotos"} ausgewählt`,
     success: (count: number) => `${count} ${count === 1 ? "Foto wurde" : "Fotos wurden"} hochgeladen.`,
+    approvalSuccess: (count: number) => `${count} ${count === 1 ? "Foto wartet" : "Fotos warten"} auf Freigabe.`,
+    live: "Wird automatisch aktualisiert",
+    processing: "Vorschau wird erstellt",
     emailError: "Bitte gib eine gültige E-Mail-Adresse ein.",
     fileError: "Bitte wähle JPG, PNG, WebP, HEIC oder HEIF Bilder bis 25 MB aus.",
     uploadError: "Der Upload ist fehlgeschlagen. Bitte versuche es erneut."
@@ -60,8 +68,9 @@ const COPY = {
     empty: "Még nincs feltöltött vendégfotó.",
     openUpload: "Képek feltöltése",
     uploadTitle: "Saját képek feltöltése",
-    uploadText: "Oszd meg a kedvenc pillanataidat a párral. A képeid feltöltés után ebben a külön blokkban jelennek meg.",
-    email: "E-mail cím",
+    uploadText: "Oszd meg a kedvenc pillanataidat a párral. A név és az e-mail cím megadása nem kötelező.",
+    name: "Neved (opcionális)",
+    email: "E-mail cím (opcionális)",
     choose: "Képek kiválasztása",
     dropTitle: "Húzd ide a képeket",
     dropText: "vagy kattints a kiválasztáshoz",
@@ -70,6 +79,9 @@ const COPY = {
     cancel: "Bezárás",
     selected: (count: number) => `${count} kép kiválasztva`,
     success: (count: number) => `${count} kép feltöltve.`,
+    approvalSuccess: (count: number) => `${count} kép jóváhagyásra vár.`,
+    live: "Automatikusan frissül",
+    processing: "Előnézet készül",
     emailError: "Adj meg egy érvényes email címet.",
     fileError: "JPG, PNG, WebP, HEIC vagy HEIF képeket válassz, maximum 25 MB méretben.",
     uploadError: "A feltöltés nem sikerült. Próbáld újra."
@@ -122,9 +134,12 @@ export function GuestPhotoUpload({
 }) {
   const copy = COPY[language];
   const inputRef = useRef<HTMLInputElement>(null);
+  const guestKeyRef = useRef("");
+  const refreshInFlightRef = useRef(false);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [files, setFiles] = useState<GuestUploadFile[]>([]);
-  const [photos] = useState(initialPhotos);
+  const [photos, setPhotos] = useState(initialPhotos);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -133,6 +148,65 @@ export function GuestPhotoUpload({
   const completedCount = files.filter((file) => file.status === "done").length;
   const selectedCount = files.length;
   const visiblePhotos = useMemo(() => photos.filter((photo) => photo.imageUrl), [photos]);
+
+  const refreshPhotos = useCallback(async () => {
+    if (refreshInFlightRef.current || document.visibilityState === "hidden") {
+      return;
+    }
+
+    refreshInFlightRef.current = true;
+
+    try {
+      const result = await getGuestGalleryPhotosAction(galleryId);
+
+      if (result.ok) {
+        setPhotos(result.photos);
+      }
+    } finally {
+      refreshInFlightRef.current = false;
+    }
+  }, [galleryId]);
+
+  const getOrCreateGuestKey = useCallback(() => {
+    if (guestKeyRef.current) {
+      return guestKeyRef.current;
+    }
+
+    const storageKey = `spetly:guest-key:${galleryId}`;
+    const generatedKey = typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replaceAll("-", "")
+      : `${createClientId()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    try {
+      guestKeyRef.current = window.localStorage.getItem(storageKey) || generatedKey;
+      window.localStorage.setItem(storageKey, guestKeyRef.current);
+    } catch {
+      guestKeyRef.current = generatedKey;
+    }
+
+    return guestKeyRef.current;
+  }, [galleryId]);
+
+  useEffect(() => {
+    setPhotos(initialPhotos);
+  }, [initialPhotos]);
+
+  useEffect(() => {
+    getOrCreateGuestKey();
+    const intervalId = window.setInterval(() => void refreshPhotos(), 8000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPhotos();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [getOrCreateGuestKey, refreshPhotos]);
 
   useEffect(() => {
     if (!uploadsEnabled) {
@@ -199,7 +273,7 @@ export function GuestPhotoUpload({
   async function uploadFiles() {
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (!isValidEmail(normalizedEmail)) {
+    if (normalizedEmail && !isValidEmail(normalizedEmail)) {
       setError(copy.emailError);
       return;
     }
@@ -213,9 +287,14 @@ export function GuestPhotoUpload({
     setSuccess("");
 
     try {
+      const identity = {
+        guestKey: getOrCreateGuestKey(),
+        name: name.trim(),
+        email: normalizedEmail
+      };
       const targetResult = await createGuestUploadTargetsAction(
         galleryId,
-        normalizedEmail,
+        identity,
         files.map((item) => ({
           clientId: item.clientId,
           filename: item.file.name,
@@ -258,18 +337,21 @@ export function GuestPhotoUpload({
         setFiles((items) => items.map((item) => item.clientId === target.clientId ? { ...item, status: "done" } : item));
       }
 
-      const completeResult = await completeGuestUploadsAction(galleryId, normalizedEmail, completedR2Keys);
+      const completeResult = await completeGuestUploadsAction(galleryId, identity, completedR2Keys);
 
       if (!completeResult.ok) {
         throw new Error(completeResult.message ?? copy.uploadError);
       }
 
-      setSuccess(copy.success(completeResult.completedCount ?? completedR2Keys.length));
+      const completed = completeResult.completedCount ?? completedR2Keys.length;
+      setSuccess(completeResult.awaitingApproval ? copy.approvalSuccess(completed) : copy.success(completed));
       setFiles([]);
       if (inputRef.current) {
         inputRef.current.value = "";
       }
-      window.location.reload();
+      if (!completeResult.awaitingApproval) {
+        await refreshPhotos();
+      }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : copy.uploadError);
     } finally {
@@ -281,7 +363,11 @@ export function GuestPhotoUpload({
     <section id="guest-photos" className="mt-14 scroll-mt-32 space-y-5" aria-labelledby="guest-photos-title">
       <div className="flex flex-col gap-4 border-b border-ink/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">{copy.count(visiblePhotos.length)}</p>
+          <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">
+            {copy.count(visiblePhotos.length)}
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1 normal-case tracking-normal"><RefreshCw size={11} /> {copy.live}</span>
+          </p>
           <h2 id="guest-photos-title" className="font-playfair mt-1 text-3xl font-semibold text-ink md:text-4xl">
             {copy.title}
           </h2>
@@ -297,20 +383,28 @@ export function GuestPhotoUpload({
       {visiblePhotos.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visiblePhotos.map((photo) => (
-            <div key={photo.id} className="overflow-hidden rounded-md bg-mist">
-              {photo.imageWidth > 0 && photo.imageHeight > 0 ? (
-                <Image
-                  src={previewUrl(photo)}
-                  alt={photo.filename}
-                  width={photo.imageWidth}
-                  height={photo.imageHeight}
-                  unoptimized
-                  className="block h-auto w-full"
-                  sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                />
-              ) : (
-                <img src={previewUrl(photo)} alt={photo.filename} loading="lazy" className="block h-auto w-full" />
-              )}
+            <div key={photo.id} className="group relative overflow-hidden rounded-md bg-mist">
+              <div className="relative">
+                {photo.imageWidth > 0 && photo.imageHeight > 0 ? (
+                  <Image
+                    src={previewUrl(photo)}
+                    alt={photo.filename}
+                    width={photo.imageWidth}
+                    height={photo.imageHeight}
+                    unoptimized
+                    className="block h-auto w-full"
+                    sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                  />
+                ) : (
+                  <img src={previewUrl(photo)} alt={photo.filename} loading="lazy" className="block h-auto w-full" />
+                )}
+                {photo.processingStatus !== "ready" ? (
+                  <span className="absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-full bg-ink/75 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
+                    <Loader2 size={11} className="animate-spin" /> {copy.processing}
+                  </span>
+                ) : null}
+              </div>
+              {photo.guestName ? <p className="truncate px-3 py-2 text-xs font-medium text-graphite">{photo.guestName}</p> : null}
             </div>
           ))}
         </div>
@@ -346,6 +440,20 @@ export function GuestPhotoUpload({
             <p className="mt-3 text-sm leading-6 text-graphite/70">{copy.uploadText}</p>
 
             <div className="mt-5 space-y-4">
+              <label className="block space-y-2">
+                <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                  <UserRound size={15} />
+                  {copy.name}
+                </span>
+                <input
+                  type="text"
+                  value={name}
+                  maxLength={80}
+                  onChange={(event) => setName(event.target.value)}
+                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50"
+                />
+              </label>
+
               <label className="block space-y-2">
                 <span className="flex items-center gap-2 text-sm font-medium text-graphite">
                   <Mail size={15} />

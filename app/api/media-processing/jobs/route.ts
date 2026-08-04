@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       id: true,
       galleryId: true,
       photoId: true,
+      guestUploadId: true,
       mediaType: true,
       sourceR2Key: true,
       thumbnailR2Key: true,
@@ -56,6 +57,14 @@ export async function POST(request: Request) {
       posterR2Key: true,
       attempts: true,
       photo: {
+        select: {
+          filename: true,
+          imageUrl: true,
+          thumbnailUrl: true,
+          previewUrl: true
+        }
+      },
+      guestUpload: {
         select: {
           filename: true,
           imageUrl: true,
@@ -79,17 +88,36 @@ export async function POST(request: Request) {
       }
     });
 
-    await prisma.photo.updateMany({
-      where: { id: { in: jobs.map((job) => job.photoId) } },
-      data: {
-        processingStatus: "processing",
-        processingError: null
-      }
-    });
+    const photoIds = jobs.flatMap((job) => job.photoId ? [job.photoId] : []);
+    const guestUploadIds = jobs.flatMap((job) => job.guestUploadId ? [job.guestUploadId] : []);
+
+    if (photoIds.length > 0) {
+      await prisma.photo.updateMany({
+        where: { id: { in: photoIds } },
+        data: {
+          processingStatus: "processing",
+          processingError: null
+        }
+      });
+    }
+
+    if (guestUploadIds.length > 0) {
+      await prisma.galleryGuestUpload.updateMany({
+        where: { id: { in: guestUploadIds } },
+        data: {
+          processingStatus: "processing",
+          processingError: null
+        }
+      });
+    }
   }
 
   return NextResponse.json({
     ok: true,
-    jobs
+    jobs: jobs.map((job) => ({
+      ...job,
+      assetType: job.guestUploadId ? "guest_upload" : "photo",
+      photo: job.photo ?? job.guestUpload
+    }))
   });
 }

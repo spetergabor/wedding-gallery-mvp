@@ -859,6 +859,8 @@ model Gallery {
   proofingStatusUpdatedAt DateTime?
   downloadsEnabled Boolean @default(true)
   guestUploadsEnabled Boolean @default(false)
+  guestUploadModerationMode String @default("automatic")
+  guestUploadLimit Int @default(1000)
   lightroomUploadsEnabled Boolean @default(false)
   lightroomUploadTokenHash String? @unique
   lightroomUploadTokenCreatedAt DateTime?
@@ -907,7 +909,9 @@ model Gallery {
 model GalleryGuestUpload {
   id           String   @id @default(cuid())
   galleryId    String
-  email        String
+  email        String?
+  guestName    String?
+  guestKey     String?
   filename     String
   r2Key        String
   imageUrl     String
@@ -918,12 +922,19 @@ model GalleryGuestUpload {
   imageWidth   Int      @default(0)
   imageHeight  Int      @default(0)
   status       String   @default("visible")
+  processingStatus String @default("ready")
+  processingError String?
+  processingRequestedAt DateTime?
+  processingCompletedAt DateTime?
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  processingJobs MediaProcessingJob[]
 
   @@index([galleryId])
   @@index([galleryId, status])
   @@index([email])
+  @@index([guestKey])
+  @@index([processingStatus])
   @@index([createdAt])
   @@index([r2Key])
 }
@@ -1020,7 +1031,8 @@ model Photo {
 model MediaProcessingJob {
   id           String   @id @default(cuid())
   galleryId    String
-  photoId      String
+  photoId      String?
+  guestUploadId String?
   mediaType    String
   status       String   @default("pending")
   sourceR2Key  String
@@ -1034,10 +1046,12 @@ model MediaProcessingJob {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  photo        Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photo        Photo?   @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  guestUpload  GalleryGuestUpload? @relation(fields: [guestUploadId], references: [id], onDelete: Cascade)
 
   @@index([galleryId])
   @@index([photoId])
+  @@index([guestUploadId])
   @@index([status])
   @@index([createdAt])
   @@index([claimedAt])

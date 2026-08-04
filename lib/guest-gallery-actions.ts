@@ -32,6 +32,15 @@ function createGuestGallerySlug(title: string) {
   return `${base}-${randomBytes(3).toString("hex")}`;
 }
 
+function normalizeModerationMode(value: string) {
+  return value === "approval" ? "approval" : "automatic";
+}
+
+function normalizeGuestUploadLimit(value: string, fallback = 1000) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.min(5000, Math.max(20, parsed)) : fallback;
+}
+
 async function requireGuestGallery(galleryId: string) {
   const admin = await requireAdmin();
   const gallery = await prisma.gallery.findFirst({
@@ -98,6 +107,8 @@ export async function createGuestGalleryAction(formData: FormData) {
         deliveryMode: GALLERY_DELIVERY_VIEW_ONLY,
         downloadsEnabled: false,
         guestUploadsEnabled: true,
+        guestUploadModerationMode: "automatic",
+        guestUploadLimit: 1000,
         showContactBox: false,
         publicColumnCount: 2,
         clientEmail: customer?.primaryEmail.toLowerCase() ?? null,
@@ -123,6 +134,8 @@ export async function updateGuestGalleryAction(galleryId: string, formData: Form
   const eventDate = formDate(formData, "eventDate");
   const isActive = formData.get("isActive") === "on";
   const guestUploadsEnabled = formData.get("guestUploadsEnabled") === "on";
+  const guestUploadModerationMode = normalizeModerationMode(formString(formData, "guestUploadModerationMode"));
+  const guestUploadLimit = normalizeGuestUploadLimit(formString(formData, "guestUploadLimit"));
 
   if (!title) {
     redirect(`/admin/guest-galleries/${gallery.id}?error=missing`);
@@ -135,7 +148,9 @@ export async function updateGuestGalleryAction(galleryId: string, formData: Form
       password: password || null,
       eventDate,
       isActive,
-      guestUploadsEnabled
+      guestUploadsEnabled,
+      guestUploadModerationMode,
+      guestUploadLimit
     }
   });
 

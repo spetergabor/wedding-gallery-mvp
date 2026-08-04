@@ -169,7 +169,9 @@ The compose file uses a two-hour `stop_grace_period` so Docker updates do not ki
 
 Heavy image derivative generation runs in the Trigger.dev `media-processing` task. New uploads create rows in
 `MediaProcessingJob`, and the app dispatches a deduplicated Trigger run as photos are saved. The worker reads originals
-from R2, writes lightweight thumbnail and preview JPG files back to R2, then marks each photo `ready`.
+from R2, writes lightweight thumbnail and preview JPG files back to R2, then marks each photo `ready`. This same queue
+also processes guest-gallery uploads; those jobs have `assetType: "guest_upload"`, a `guestUploadId`, and expose the
+guest upload through the response's compatible `photo` field.
 
 The legacy HTTP worker API is still available for external workers. A worker can claim jobs from:
 
