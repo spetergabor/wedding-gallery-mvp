@@ -188,6 +188,7 @@ export async function completeGuestUploadsAction(
   });
 
   revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath(`/admin/guest-galleries/${gallery.id}`);
 
   return {
     ok: true,

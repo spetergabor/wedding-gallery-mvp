@@ -10,6 +10,7 @@ import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
   PROOFING_STATUS_DELIVERED,
+  GALLERY_MODE_GUEST,
   isProofingGallery
 } from "@/lib/proofing";
 import { canViewGallery, getPaidGalleryPurchaseDownloadState, unlockGalleryAction } from "@/lib/public-actions";
@@ -406,6 +407,77 @@ export default async function PublicGalleryPage({
       }))}
     />
   ) : null;
+
+  if (gallery.galleryMode === GALLERY_MODE_GUEST) {
+    return (
+      <main className="min-h-screen" style={galleryBodyStyle}>
+        <GalleryViewTracker galleryId={gallery.id} />
+        <header className="relative overflow-hidden border-b border-ink/10 px-5 pb-14 pt-10 sm:pb-20 sm:pt-14">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-70"
+            style={{
+              background: `radial-gradient(circle at 15% 15%, ${rgbaFromHex(heroTextColor, 0.08)}, transparent 36%), radial-gradient(circle at 85% 35%, ${rgbaFromHex(heroTextColor, 0.06)}, transparent 34%)`
+            }}
+          />
+          <div className="relative mx-auto flex w-full max-w-5xl flex-col items-center text-center" style={{ color: heroTextColor }}>
+            {showGalleryLogo ? (
+              settings?.logoUrl ? (
+                <Image
+                  src={settings.logoUrl}
+                  alt={settings.businessName || "Logo"}
+                  width={280}
+                  height={140}
+                  unoptimized
+                  className="w-auto object-contain"
+                  style={{ height: `${galleryLogoSize}px`, maxWidth: "min(70vw, 420px)" }}
+                />
+              ) : settings?.businessName ? (
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] opacity-70">{settings.businessName}</p>
+              ) : null
+            ) : null}
+
+            <p className="mt-8 text-xs font-semibold uppercase tracking-[0.2em] opacity-60">
+              {language === "hu" ? "Közös vendéggaléria" : "Gemeinsame Gästegalerie"}
+            </p>
+            <h1
+              className="mt-3 max-w-[14ch] font-semibold leading-[0.98]"
+              style={{ ...heroTitleStyle, fontSize: galleryHeroTitleSizeClamp(Math.min(heroTitleSize, 88)) }}
+            >
+              {gallery.title}
+            </h1>
+            <p className="mt-4 text-base opacity-65 sm:text-lg">{heroMeta}</p>
+            <p className="mt-6 max-w-xl text-sm leading-6 opacity-70 sm:text-base">
+              {language === "hu"
+                ? "Oszd meg az eseményen készített saját fotóidat, és nézd meg a vendégek közös pillanatait."
+                : "Teile deine eigenen Fotos vom Fest und entdecke die gemeinsamen Momente aller Gäste."}
+            </p>
+            {gallery.guestUploadsEnabled ? (
+              <GuestPhotoUploadButton
+                label={language === "hu" ? "Saját képek feltöltése" : "Eigene Fotos hochladen"}
+                className="mt-7 min-w-56"
+              />
+            ) : (
+              <span className="mt-7 inline-flex rounded-full bg-ink/5 px-4 py-2 text-sm font-medium opacity-70">
+                {language === "hu" ? "A feltöltés lezárult" : "Der Upload ist geschlossen"}
+              </span>
+            )}
+          </div>
+        </header>
+
+        <section className="mx-auto w-full max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
+          {guestPhotoSection ?? (
+            <div className="mt-12 rounded-lg border border-ink/10 bg-white px-5 py-12 text-center text-sm text-graphite/65 shadow-soft">
+              {language === "hu" ? "Még nincs megosztott vendégfotó." : "Noch wurden keine Gästefotos geteilt."}
+            </div>
+          )}
+        </section>
+
+        <footer className="border-t border-ink/10 px-5 py-8 text-center text-xs text-graphite/55">
+          {settings?.businessName || "Spetly"}
+        </footer>
+      </main>
+    );
+  }
 
   if (galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER) {
     return (

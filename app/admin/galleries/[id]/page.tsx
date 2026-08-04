@@ -64,6 +64,7 @@ import { galleryDeliveryAllowsDownloads, galleryDeliveryLabel, galleryDeliveryUs
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import {
   GALLERY_MODE_ALBUM_SOURCE,
+  GALLERY_MODE_GUEST,
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
   defaultPhotoDeliveryStageForGalleryMode,
@@ -397,6 +398,10 @@ export default async function GalleryDetailPage({
 
   if (!gallery) {
     notFound();
+  }
+
+  if (gallery.galleryMode === GALLERY_MODE_GUEST) {
+    redirect(`/admin/guest-galleries/${gallery.id}`);
   }
 
   if (gallery.galleryMode === GALLERY_MODE_ALBUM_SOURCE) {

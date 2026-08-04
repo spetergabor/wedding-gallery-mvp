@@ -23,6 +23,7 @@ import { adminOwnedWhere, galleryAccessWhere, galleryPhotoAccessWhere, notificat
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   GALLERY_MODE_FULL,
+  GALLERY_MODE_GUEST,
   GALLERY_MODE_PROOFING,
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
@@ -1163,7 +1164,11 @@ export async function createGalleryAction(formData: FormData) {
 }
 
 export async function updateGalleryAction(id: string, formData: FormData) {
-  const { admin } = await requireGalleryAccess(id);
+  const { admin, gallery } = await requireGalleryAccess(id);
+
+  if (gallery.galleryMode === GALLERY_MODE_GUEST) {
+    redirect(`/admin/guest-galleries/${gallery.id}`);
+  }
 
   const customerId = formString(formData, "customerId");
   const projectId = formString(formData, "projectId");

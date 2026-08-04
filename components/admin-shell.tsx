@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   Plus,
+  QrCode,
   Settings,
   ShieldCheck,
   Users,
@@ -354,6 +355,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <Camera size={17} />
             {copy.galleries}
           </Link>
+          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/guest-galleries">
+            <QrCode size={17} />
+            {copy.guestGalleries}
+          </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/albums">
             <Images size={17} />
             {copy.albumEditor}
@@ -503,6 +508,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
                     <Camera size={17} />
                     {copy.galleries}
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/guest-galleries">
+                    <QrCode size={17} />
+                    {copy.guestGalleries}
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/albums">
                     <Images size={17} />

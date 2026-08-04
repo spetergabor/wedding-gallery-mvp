@@ -12,7 +12,7 @@ import { customerTypeLabel } from "@/lib/customer-options";
 import { publicGalleryUrl } from "@/lib/email";
 import { toggleGalleryActiveFromListAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
-import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
+import { GALLERY_MODE_ALBUM_SOURCE, GALLERY_MODE_GUEST } from "@/lib/proofing";
 
 export default async function AdminGalleriesPage({
   searchParams
@@ -23,7 +23,7 @@ export default async function AdminGalleriesPage({
   const flags = await searchParams;
   const galleryWhere = {
     ...adminOwnedWhere(admin),
-    galleryMode: { not: GALLERY_MODE_ALBUM_SOURCE }
+    galleryMode: { notIn: [GALLERY_MODE_ALBUM_SOURCE, GALLERY_MODE_GUEST] }
   };
   const workspaceAdminId = ownerAdminId(admin);
 
