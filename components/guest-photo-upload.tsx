@@ -83,7 +83,7 @@ const COPY = {
     empty: "Noch keine Gästefotos hochgeladen.",
     openUpload: "Fotos hochladen",
     uploadTitle: "Eigene Fotos hochladen",
-    uploadText: "Teile deine Lieblingsmomente mit dem Paar. Name und E-Mail-Adresse sind freiwillig.",
+    uploadText: "Teile deine Lieblingsmomente mit dem Paar. Nach der Auswahl startet der Upload automatisch. Name und E-Mail-Adresse sind freiwillig.",
     name: "Dein Name (optional)",
     email: "E-Mail-Adresse (optional)",
     library: "Fotomediathek",
@@ -132,7 +132,7 @@ const COPY = {
     empty: "Még nincs feltöltött vendégfotó.",
     openUpload: "Képek feltöltése",
     uploadTitle: "Saját képek feltöltése",
-    uploadText: "Oszd meg a kedvenc pillanataidat a párral. A név és az e-mail cím megadása nem kötelező.",
+    uploadText: "Oszd meg a kedvenc pillanataidat a párral. A kiválasztás után a feltöltés automatikusan elindul. A név és az e-mail cím megadása nem kötelező.",
     name: "Neved (opcionális)",
     email: "E-mail cím (opcionális)",
     library: "Fotótár",
@@ -409,6 +409,7 @@ export function GuestPhotoUpload({
   const [queueHydrated, setQueueHydrated] = useState(false);
   const [queuePersistenceAvailable, setQueuePersistenceAvailable] = useState(true);
   const [resumeRequest, setResumeRequest] = useState(0);
+  const [automaticUploadRequest, setAutomaticUploadRequest] = useState(0);
   const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -794,6 +795,10 @@ export function GuestPhotoUpload({
 
     prepareInFlightRef.current = false;
     setIsPreparing(false);
+
+    if (pendingFiles.length > 0) {
+      setAutomaticUploadRequest((request) => request + 1);
+    }
   }
 
   function handleFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -983,6 +988,28 @@ export function GuestPhotoUpload({
       setIsUploading(false);
     }
   }
+
+  useEffect(() => {
+    if (automaticUploadRequest === 0 || isUploading || isPreparing) {
+      return;
+    }
+
+    const queuedIds = files
+      .filter((file) => file.status === "queued" && Boolean(file.contentHash))
+      .map((file) => file.clientId);
+
+    if (queuedIds.length === 0) {
+      setAutomaticUploadRequest(0);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setAutomaticUploadRequest(0);
+      void uploadFiles(queuedIds);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [automaticUploadRequest, files, isPreparing, isUploading]);
 
   useEffect(() => {
     if (!queueHydrated || !isOnline || isUploading || isPreparing || resumeRequest === 0) {
@@ -1370,10 +1397,16 @@ export function GuestPhotoUpload({
                 <Button type="button" variant="secondary" onClick={() => setIsUploadOpen(false)} disabled={isUploading}>
                   {copy.cancel}
                 </Button>
-                <Button type="button" onClick={() => void uploadFiles()} disabled={isUploading || isPreparing || actionableCount === 0}>
-                  {isUploading || isPreparing ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={16} />}
-                  {isPreparing ? copy.hashing : isUploading ? copy.uploading : retryableCount > 0 ? copy.continueUpload : copy.upload}
-                </Button>
+                {isPreparing || isUploading ? (
+                  <span className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-paper px-4 text-sm font-semibold text-graphite">
+                    <Loader2 className="animate-spin" size={16} />
+                    {isPreparing ? copy.hashing : copy.uploading}
+                  </span>
+                ) : retryableCount > 0 || (actionableCount > 0 && Boolean(error)) ? (
+                  <Button type="button" onClick={() => void uploadFiles()}>
+                    <RotateCcw size={16} /> {copy.continueUpload}
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>
