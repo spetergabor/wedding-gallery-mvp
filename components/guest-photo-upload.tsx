@@ -1434,3 +1434,32 @@ export function GuestPhotoUploadButton({
     </Button>
   );
 }
+
+export function FloatingGuestPhotoUploadButton({ label }: { label: string }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const updateVisibility = () => setVisible(window.scrollY > Math.min(520, window.innerHeight * 0.65));
+    updateVisibility();
+    window.addEventListener("scroll", updateVisibility, { passive: true });
+    window.addEventListener("resize", updateVisibility);
+
+    return () => {
+      window.removeEventListener("scroll", updateVisibility);
+      window.removeEventListener("resize", updateVisibility);
+    };
+  }, []);
+
+  return (
+    <Button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(OPEN_GUEST_UPLOAD_EVENT))}
+      aria-hidden={!visible}
+      tabIndex={visible ? 0 : -1}
+      className={`fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-4 z-40 h-12 rounded-full px-5 shadow-[0_12px_36px_rgba(17,17,17,0.28)] transition duration-200 sm:bottom-6 sm:right-6 ${visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`}
+    >
+      <UploadCloud size={18} />
+      {label}
+    </Button>
+  );
+}

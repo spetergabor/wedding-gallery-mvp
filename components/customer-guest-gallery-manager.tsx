@@ -3,9 +3,10 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Eye, EyeOff, ExternalLink, Loader2, RefreshCw, RotateCcw, Search, Trash2, X } from "lucide-react";
+import { Check, Download, Eye, EyeOff, ExternalLink, FileArchive, Loader2, Mail, RefreshCw, RotateCcw, Search, Trash2, X } from "lucide-react";
 import {
   getCustomerGuestGalleryPhotosPageAction,
+  queueCustomerGuestGalleryZipAction,
   updateCustomerGuestPhotosAction
 } from "@/lib/customer-guest-gallery-actions";
 import type {
@@ -17,6 +18,25 @@ import type {
 
 type StatusCounts = Record<CustomerGuestPhotoStatusFilter, number>;
 type Operation = "approve" | "hide" | "trash" | "restore" | "delete";
+
+export type CustomerGuestGalleryZipState = {
+  kind: "all" | "selection";
+  active: boolean;
+  ready: boolean;
+  failed: boolean;
+  stale: boolean;
+  photoCount: number;
+  processedCount: number;
+  progress: number;
+  errorMessage: string | null;
+  links: Array<{
+    id: string;
+    href: string;
+    partIndex: number;
+    partCount: number;
+    fileSize: number;
+  }>;
+};
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) {
@@ -37,7 +57,9 @@ export function CustomerGuestGalleryManager({
   initialPhotos,
   initialNextCursor,
   initialTotalCount,
-  statusCounts
+  statusCounts,
+  zipState,
+  emailNotificationAvailable
 }: {
   galleryId: string;
   language: string;
@@ -45,6 +67,8 @@ export function CustomerGuestGalleryManager({
   initialNextCursor: CustomerGuestPhotoCursor | null;
   initialTotalCount: number;
   statusCounts: StatusCounts;
+  zipState: CustomerGuestGalleryZipState | null;
+  emailNotificationAvailable: boolean;
 }) {
   const german = language !== "hu";
   const router = useRouter();
@@ -66,6 +90,7 @@ export function CustomerGuestGalleryManager({
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isZipPending, startZipTransition] = useTransition();
 
   const filters = useMemo<CustomerGuestPhotoFilters>(() => ({
     search: debouncedSearch,
@@ -97,6 +122,13 @@ export function CustomerGuestGalleryManager({
       ];
 
   useEffect(() => setCounts(statusCounts), [statusCounts]);
+
+  useEffect(() => {
+    if (!zipState?.active) return;
+
+    const intervalId = window.setInterval(() => router.refresh(), 4000);
+    return () => window.clearInterval(intervalId);
+  }, [router, zipState?.active]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -224,6 +256,41 @@ export function CustomerGuestGalleryManager({
     });
   }
 
+  function queueZip(kind: "all" | "selection") {
+    if (isZipPending || zipState?.active || (kind === "selection" && selectedCount === 0)) return;
+
+    setNotice(null);
+    startZipTransition(async () => {
+      try {
+        const result = await queueCustomerGuestGalleryZipAction(
+          galleryId,
+          kind === "selection" ? [...selectedIds] : []
+        );
+
+        if (!result.ok) {
+          setNotice({
+            type: "error",
+            message: german ? "Das ZIP konnte nicht gestartet werden." : "A ZIP készítését nem sikerült elindítani."
+          });
+          return;
+        }
+
+        setNotice({
+          type: "success",
+          message: result.status === "completed"
+            ? (german ? "Das ZIP ist bereit." : "A ZIP már letölthető.")
+            : (german ? "Das ZIP wird im Hintergrund erstellt." : "A ZIP a háttérben készül.")
+        });
+        router.refresh();
+      } catch {
+        setNotice({
+          type: "error",
+          message: german ? "Das ZIP konnte nicht gestartet werden." : "A ZIP készítését nem sikerült elindítani."
+        });
+      }
+    });
+  }
+
   function photoStatus(photo: CustomerGuestPhoto) {
     if (photo.customerDeletedAt) return german ? "Im Papierkorb" : "Lomtárban";
     if (photo.status === "visible") return german ? "Sichtbar" : "Látható";
@@ -233,6 +300,87 @@ export function CustomerGuestGalleryManager({
 
   return (
     <div className="mt-6">
+      <section className="mb-6 rounded-lg border border-ink/10 bg-white p-4 shadow-soft sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-paper text-graphite"><FileArchive size={18} /></span>
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{german ? "Originalfotos herunterladen" : "Eredeti fotók letöltése"}</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-graphite/65">
+                {german
+                  ? "Ladet alle Gästefotos oder nur eure markierte Auswahl als ZIP herunter. Große Galerien werden automatisch in mehrere Teile aufgeteilt."
+                  : "Töltsétek le az összes vendégfotót vagy csak a kijelölteket ZIP-ben. A nagy galériákat automatikusan több részre bontjuk."}
+              </p>
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-graphite/55">
+                <Mail size={13} />
+                {emailNotificationAvailable
+                  ? (german ? "Sobald das ZIP fertig ist, bekommt ihr zusätzlich eine E-Mail." : "Amint elkészül a ZIP, e-mailben is értesítést kaptok.")
+                  : (german ? "Der fertige Download erscheint automatisch hier." : "Az elkészült letöltés automatikusan megjelenik itt.")}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
+            <button
+              type="button"
+              onClick={() => queueZip("all")}
+              disabled={isZipPending || Boolean(zipState?.active) || totalCount === 0}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isZipPending ? <Loader2 size={15} className="animate-spin" /> : <FileArchive size={15} />}
+              {german ? "Alle als ZIP" : "Összes kép ZIP-ben"}
+            </button>
+            <button
+              type="button"
+              onClick={() => queueZip("selection")}
+              disabled={isZipPending || Boolean(zipState?.active) || selectedCount === 0}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Download size={15} />
+              {german ? `Auswahl (${selectedCount})` : `Kijelöltek (${selectedCount})`}
+            </button>
+          </div>
+        </div>
+
+        {zipState ? (
+          <div className={`mt-4 rounded-md border p-4 ${zipState.failed ? "border-red-200 bg-red-50" : "border-ink/10 bg-paper"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="font-semibold text-ink">
+                {zipState.ready
+                  ? (german ? "ZIP ist fertig" : "A ZIP elkészült")
+                  : zipState.failed
+                    ? (german ? "ZIP-Erstellung fehlgeschlagen" : "A ZIP készítése sikertelen")
+                    : zipState.stale
+                      ? (german ? "Die Fotos haben sich geändert" : "A fotók megváltoztak")
+                      : (german ? "ZIP wird erstellt" : "A ZIP készül")}
+                <span className="ml-2 font-normal text-graphite/55">· {zipState.kind === "selection" ? (german ? "Auswahl" : "Kijelöltek") : (german ? "Alle Fotos" : "Összes kép")}</span>
+              </span>
+              <span className="text-graphite/60">{zipState.progress}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10">
+              <div className={`h-full rounded-full transition-all ${zipState.failed ? "bg-red-600" : "bg-sage"}`} style={{ width: `${zipState.progress}%` }} />
+            </div>
+            <p className={`mt-2 text-xs ${zipState.failed ? "text-red-700" : "text-graphite/60"}`}>
+              {zipState.stale
+                ? (german ? "Erstellt bitte ein neues ZIP für den aktuellen Stand." : "Készítsetek új ZIP-et az aktuális képekből.")
+                : zipState.errorMessage || `${zipState.processedCount}/${zipState.photoCount} ${german ? "Fotos verarbeitet" : "fotó feldolgozva"}`}
+            </p>
+            {zipState.ready ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {zipState.links.map((link) => (
+                  <a key={link.id} href={link.href} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-semibold text-white hover:bg-graphite">
+                    <Download size={15} />
+                    {link.partCount > 1
+                      ? `ZIP ${link.partIndex + 1}/${link.partCount}`
+                      : (german ? "ZIP herunterladen" : "ZIP letöltése")}
+                    {link.fileSize > 0 ? ` · ${formatFileSize(link.fileSize)}` : ""}
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
       <div className="flex flex-wrap gap-2" aria-label={german ? "Nach Status filtern" : "Szűrés állapot szerint"}>
         {statusFilters.map((filter) => (
           <button
@@ -274,6 +422,12 @@ export function CustomerGuestGalleryManager({
           <span className="text-xs text-graphite/60">{photos.length} / {totalCount}{selectedCount ? ` · ${selectedCount} ${german ? "ausgewählt" : "kijelölve"}` : ""}</span>
         </div>
         <div className="flex flex-wrap gap-2">
+          {selectedCount && status !== "trash" ? (
+            <button type="button" onClick={() => queueZip("selection")} disabled={isZipPending || Boolean(zipState?.active)} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-xs font-semibold text-white disabled:opacity-40">
+              {isZipPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              {german ? "Auswahl als ZIP" : "Kijelöltek ZIP-ben"}
+            </button>
+          ) : null}
           {status === "trash" ? (
             <>
               <button type="button" onClick={() => runOperation("restore")} disabled={!selectedCount || isPending} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-sage px-3 text-xs font-semibold text-white disabled:opacity-40"><RotateCcw size={14} /> {german ? "Wiederherstellen" : "Visszaállítás"}</button>

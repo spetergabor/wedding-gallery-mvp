@@ -9,6 +9,7 @@ import {
   GUEST_UPLOAD_DOWNLOAD_SCOPE,
   ensureDownloadPackageAccessToken,
   favoriteListIdFromScope,
+  guestUploadSelectionDownloadScope,
   isGuestUploadDownloadScope,
   isFavoriteDownloadScope,
   publicDownloadQualityFromScope,
@@ -796,16 +797,29 @@ export async function preparePublicGalleryZipPackages(
   };
 }
 
-export async function prepareGuestGalleryZipPackages(galleryId: string) {
+export async function prepareGuestGalleryZipPackages(
+  galleryId: string,
+  options: { photoIds?: string[] } = {}
+) {
+  const requestedPhotoIds = [...new Set(options.photoIds?.filter(Boolean) ?? [])];
+  const selectedPhotoIds = requestedPhotoIds.length > 0 ? requestedPhotoIds : null;
+  const scope = selectedPhotoIds
+    ? guestUploadSelectionDownloadScope(selectedPhotoIds)
+    : GUEST_UPLOAD_DOWNLOAD_SCOPE;
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
     select: {
       id: true,
       galleryMode: true,
       guestUploads: {
-        where: { status: { in: ["visible", "hidden", "pending_review"] }, customerDeletedAt: null },
+        where: {
+          status: { in: ["visible", "hidden", "pending_review"] },
+          customerDeletedAt: null,
+          ...(selectedPhotoIds ? { id: { in: selectedPhotoIds } } : {})
+        },
         orderBy: { createdAt: "asc" },
         select: {
+          id: true,
           createdAt: true,
           fileSize: true,
           mediaType: true
@@ -829,7 +843,7 @@ export async function prepareGuestGalleryZipPackages(galleryId: string) {
   const completedPackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId,
-      scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+      scope,
       status: "completed",
       photoCount: gallery.guestUploads.length,
       downloadUrl: { not: null },
@@ -869,7 +883,7 @@ export async function prepareGuestGalleryZipPackages(galleryId: string) {
   const activePackages = await prisma.galleryDownloadPackage.findMany({
     where: {
       galleryId,
-      scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+      scope,
       status: { in: ["pending", "processing"] },
       photoCount: gallery.guestUploads.length
     },
@@ -924,13 +938,16 @@ export async function prepareGuestGalleryZipPackages(galleryId: string) {
       prisma.galleryDownloadPackage.create({
         data: {
           galleryId,
-          scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+          scope,
           status: "pending",
           photoCount: gallery.guestUploads.length,
           partIndex,
           partCount,
-          photoOffset: range.offset,
+          photoOffset: selectedPhotoIds ? 0 : range.offset,
           photoLimit: range.limit,
+          photoIds: selectedPhotoIds
+            ? gallery.guestUploads.slice(range.offset, range.offset + range.limit).map((upload) => upload.id)
+            : undefined,
           groupId
         },
         select: {
@@ -1130,6 +1147,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
       partCount: true,
       photoOffset: true,
       photoLimit: true,
+      photoIds: true,
       groupId: true
     }
   });
@@ -1150,6 +1168,14 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
   const quality = publicDownloadQualityFromScope(downloadPackage.scope);
   const favoriteListId = favoriteListIdFromScope(downloadPackage.scope);
   const guestUploadScope = isGuestUploadDownloadScope(downloadPackage.scope);
+  const selectedGuestPhotoIds = Array.isArray(downloadPackage.photoIds)
+    ? downloadPackage.photoIds.filter((value): value is string => typeof value === "string" && Boolean(value))
+    : [];
+  const guestUploadWhere: Prisma.GalleryGuestUploadWhereInput = {
+    status: { in: ["visible", "hidden", "pending_review"] },
+    customerDeletedAt: null,
+    ...(selectedGuestPhotoIds.length > 0 ? { id: { in: selectedGuestPhotoIds } } : {})
+  };
 
   const gallery = await prisma.gallery.findUnique({
     where: { id: payload.galleryId },
@@ -1189,7 +1215,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         }
       },
       guestUploads: {
-        where: { status: { in: ["visible", "hidden", "pending_review"] }, customerDeletedAt: null },
+        where: guestUploadWhere,
         orderBy: { createdAt: "asc" },
         skip: downloadPackage.photoOffset,
         take: downloadPackage.photoLimit ?? undefined,
@@ -1336,7 +1362,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     const zippedPhotoIds = zipPhotos.map((photo) => photo.id);
     const currentVisiblePhotoIds = guestUploadScope
       ? await prisma.galleryGuestUpload.findMany({
-          where: { galleryId: gallery.id, status: { in: ["visible", "hidden", "pending_review"] }, customerDeletedAt: null },
+          where: { galleryId: gallery.id, ...guestUploadWhere },
           orderBy: { createdAt: "asc" },
           skip: downloadPackage.photoOffset,
           take: downloadPackage.photoLimit ?? undefined,
@@ -1419,6 +1445,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
 
     safeRevalidatePath(`/admin/galleries/${gallery.id}`);
     safeRevalidatePath(`/admin/guest-galleries/${gallery.id}`);
+    safeRevalidatePath(`/portal/account/guest-galleries/${gallery.id}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.";
 

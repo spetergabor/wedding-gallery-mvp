@@ -4,6 +4,10 @@ import { ArrowLeft, ExternalLink, Images } from "lucide-react";
 import { CustomerAccountShell } from "@/components/customer-account-shell";
 import { CustomerGuestGalleryManager } from "@/components/customer-guest-gallery-manager";
 import {
+  GUEST_UPLOAD_DOWNLOAD_SCOPE,
+  ensureDownloadPackageAccessToken
+} from "@/lib/download-packages";
+import {
   CUSTOMER_GUEST_PHOTO_PAGE_SIZE,
   serializeCustomerGuestPhoto,
   type CustomerGuestPhotoStatusFilter
@@ -30,6 +34,24 @@ export default async function CustomerGuestGalleryPage({
       id: true,
       title: true,
       slug: true,
+      downloadPackages: {
+        where: { scope: { startsWith: GUEST_UPLOAD_DOWNLOAD_SCOPE } },
+        orderBy: [{ updatedAt: "desc" }, { partIndex: "asc" }],
+        take: 30,
+        select: {
+          id: true,
+          scope: true,
+          status: true,
+          photoCount: true,
+          partIndex: true,
+          partCount: true,
+          groupId: true,
+          fileSize: true,
+          processedCount: true,
+          errorMessage: true,
+          downloadUrl: true
+        }
+      },
       guestUploads: {
         where: { customerDeletedAt: null, status: { not: "pending" } },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -76,6 +98,46 @@ export default async function CustomerGuestGalleryPage({
   const initialNextCursor = gallery.guestUploads.length > CUSTOMER_GUEST_PHOTO_PAGE_SIZE && lastPhoto
     ? { createdAt: lastPhoto.createdAt.toISOString(), id: lastPhoto.id }
     : null;
+  const latestZipPackage = gallery.downloadPackages[0] ?? null;
+  const latestZipGroupKey = latestZipPackage ? latestZipPackage.groupId ?? latestZipPackage.id : null;
+  const latestZipPackages = latestZipGroupKey
+    ? gallery.downloadPackages
+        .filter((downloadPackage) => (downloadPackage.groupId ?? downloadPackage.id) === latestZipGroupKey)
+        .sort((a, b) => a.partIndex - b.partIndex)
+    : [];
+  const zipActive = latestZipPackages.some((downloadPackage) => ["pending", "processing"].includes(downloadPackage.status));
+  const zipReady = latestZipPackages.length > 0 && latestZipPackages.every((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl);
+  const zipFailed = latestZipPackages.some((downloadPackage) => downloadPackage.status === "failed");
+  const zipStale = latestZipPackages.some((downloadPackage) => downloadPackage.status === "stale");
+  const zipPhotoCount = latestZipPackage?.photoCount ?? 0;
+  const zipProcessedCount = Math.min(
+    zipPhotoCount,
+    latestZipPackages.reduce((sum, downloadPackage) => sum + downloadPackage.processedCount, 0)
+  );
+  const zipLinks = zipReady
+    ? await Promise.all(latestZipPackages.map(async (downloadPackage) => {
+        const access = await ensureDownloadPackageAccessToken(downloadPackage.id);
+        return {
+          id: downloadPackage.id,
+          href: `/download/${access.token}`,
+          partIndex: downloadPackage.partIndex,
+          partCount: downloadPackage.partCount,
+          fileSize: Number(downloadPackage.fileSize)
+        };
+      }))
+    : [];
+  const zipState = latestZipPackage ? {
+    kind: latestZipPackage.scope === GUEST_UPLOAD_DOWNLOAD_SCOPE ? "all" as const : "selection" as const,
+    active: zipActive,
+    ready: zipReady,
+    failed: zipFailed,
+    stale: zipStale,
+    photoCount: zipPhotoCount,
+    processedCount: zipStale ? 0 : zipProcessedCount,
+    progress: zipStale ? 0 : zipPhotoCount > 0 ? Math.min(100, Math.round((zipProcessedCount / zipPhotoCount) * 100)) : 0,
+    errorMessage: latestZipPackages.find((downloadPackage) => downloadPackage.errorMessage)?.errorMessage ?? null,
+    links: zipLinks
+  } : null;
 
   return (
     <CustomerAccountShell coupleName={customer.coupleName} displayName={session.account.displayName} language={customer.preferredLanguage}>
@@ -105,6 +167,8 @@ export default async function CustomerGuestGalleryPage({
           initialNextCursor={initialNextCursor}
           initialTotalCount={activeCount}
           statusCounts={statusCounts}
+          zipState={zipState}
+          emailNotificationAvailable={Boolean(session.account.email || session.account.loginIdentifier.includes("@"))}
         />
       </div>
     </CustomerAccountShell>

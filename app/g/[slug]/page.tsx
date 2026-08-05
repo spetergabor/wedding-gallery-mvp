@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { Facebook, Instagram, Lock, Mail, Music2, Phone, Youtube, type LucideIcon } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
-import { GuestPhotoUpload, GuestPhotoUploadButton } from "@/components/guest-photo-upload";
+import { FloatingGuestPhotoUploadButton, GuestPhotoUpload, GuestPhotoUploadButton } from "@/components/guest-photo-upload";
 import { PublicGallery } from "@/components/public-gallery";
 import { SocialShareButtons } from "@/components/social-share-buttons";
 import { prisma } from "@/lib/prisma";
@@ -512,6 +512,10 @@ export default async function PublicGalleryPage({
             </div>
           )}
         </section>
+
+        {gallery.guestUploadsEnabled ? (
+          <FloatingGuestPhotoUploadButton label={language === "hu" ? "Képek feltöltése" : "Fotos hochladen"} />
+        ) : null}
 
         <footer className="border-t border-ink/10 px-5 py-8 text-center text-xs text-graphite/55">
           {settings?.businessName || "Spetly"}

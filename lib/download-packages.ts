@@ -1,10 +1,11 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { type GalleryDownloadQuality } from "@/lib/download-quality";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 
 export const PUBLIC_DOWNLOAD_SCOPE = "public";
 export const GUEST_UPLOAD_DOWNLOAD_SCOPE = "guest_uploads";
+export const GUEST_UPLOAD_SELECTION_DOWNLOAD_SCOPE_PREFIX = "guest_uploads:selection:";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE_V2 = "public_web_v2";
 export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web_v3";
@@ -43,7 +44,16 @@ export function isFavoriteDownloadScope(scope: string | null | undefined) {
 }
 
 export function isGuestUploadDownloadScope(scope: string | null | undefined) {
-  return scope === GUEST_UPLOAD_DOWNLOAD_SCOPE;
+  return scope === GUEST_UPLOAD_DOWNLOAD_SCOPE || Boolean(scope?.startsWith(GUEST_UPLOAD_SELECTION_DOWNLOAD_SCOPE_PREFIX));
+}
+
+export function guestUploadSelectionDownloadScope(photoIds: string[]) {
+  const digest = createHash("sha256")
+    .update([...new Set(photoIds)].sort().join("\n"))
+    .digest("hex")
+    .slice(0, 24);
+
+  return `${GUEST_UPLOAD_SELECTION_DOWNLOAD_SCOPE_PREFIX}${digest}`;
 }
 
 function createDownloadToken() {
@@ -143,7 +153,10 @@ export async function invalidateGuestGalleryDownloadPackages(galleryId: string) 
   await prisma.galleryDownloadPackage.updateMany({
     where: {
       galleryId,
-      scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+      OR: [
+        { scope: GUEST_UPLOAD_DOWNLOAD_SCOPE },
+        { scope: { startsWith: GUEST_UPLOAD_SELECTION_DOWNLOAD_SCOPE_PREFIX } }
+      ],
       status: { in: ["pending", "processing", "completed", "failed"] }
     },
     data: {

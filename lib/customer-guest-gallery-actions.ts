@@ -14,6 +14,11 @@ import {
 } from "@/lib/customer-guest-gallery";
 import { requireCustomerPortalSession } from "@/lib/customer-portal-auth";
 import { invalidateGuestGalleryDownloadPackages } from "@/lib/download-packages";
+import {
+  kickGalleryZipJobs,
+  prepareGuestGalleryZipPackages,
+  sendGalleryDownloadLinksForPackages
+} from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_GUEST } from "@/lib/proofing";
 import { deletePhotoObject, getR2KeyFromPublicUrl } from "@/lib/storage";
@@ -96,6 +101,77 @@ export async function getCustomerGuestGalleryPhotosPageAction(
     nextCursor: hasMore && lastPhoto ? { createdAt: lastPhoto.createdAt.toISOString(), id: lastPhoto.id } : null,
     totalCount,
     revision: access.gallery.guestGalleryRevision
+  };
+}
+
+export async function queueCustomerGuestGalleryZipAction(
+  galleryId: string,
+  uploadIds: string[] = []
+) {
+  const access = await requireCustomerGuestGallery(galleryId);
+
+  if (!access) {
+    return { ok: false as const, reason: "not-found" as const };
+  }
+
+  const selectedIds = [...new Set(
+    (Array.isArray(uploadIds) ? uploadIds : [])
+      .filter((id): id is string => typeof id === "string" && Boolean(id))
+  )].slice(0, 5000);
+  const result = await prepareGuestGalleryZipPackages(access.gallery.id, {
+    photoIds: selectedIds.length > 0 ? selectedIds : undefined
+  });
+
+  if (!result.ok) {
+    return { ok: false as const, reason: result.reason };
+  }
+
+  const packageIds = result.packages.map((downloadPackage) => downloadPackage.id);
+  await prisma.galleryDownloadPackage.updateMany({
+    where: { id: { in: packageIds } },
+    data: { updatedAt: new Date() }
+  });
+
+  const downloadEmail = access.session.account.email
+    || (access.session.account.loginIdentifier.includes("@")
+      ? access.session.account.loginIdentifier
+      : null);
+
+  if (downloadEmail) {
+    await prisma.galleryDownload.createMany({
+      data: result.packages.map((downloadPackage) => ({
+        galleryId: access.gallery.id,
+        packageId: downloadPackage.id,
+        email: downloadEmail,
+        status: "waiting"
+      }))
+    });
+  }
+
+  const runJobs = async () => {
+    if (result.payloads.length > 0) {
+      await kickGalleryZipJobs(result.payloads);
+    } else if (result.cached && downloadEmail) {
+      await sendGalleryDownloadLinksForPackages(packageIds);
+    }
+  };
+
+  if (result.payloads.length > 0 || (result.cached && downloadEmail)) {
+    try {
+      after(runJobs);
+    } catch {
+      void runJobs().catch(() => undefined);
+    }
+  }
+
+  revalidatePath(`/portal/account/guest-galleries/${access.gallery.id}`);
+  revalidatePath(`/admin/guest-galleries/${access.gallery.id}`);
+
+  return {
+    ok: true as const,
+    status: result.cached ? "completed" as const : result.status,
+    selectedCount: selectedIds.length,
+    emailNotification: Boolean(downloadEmail)
   };
 }
 
