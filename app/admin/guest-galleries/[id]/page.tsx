@@ -123,7 +123,7 @@ export default async function GuestGalleryDetailPage({
     siteSettings?.publicSubdomain
   );
   const guestUrl = `${publicUrl}#guest-photos`;
-  const [qrCodeDataUrl, statusGroups, processingGroups, uploadingCount] = await Promise.all([
+  const [qrCodeDataUrl, qrCodePrintDataUrl, qrCodeTransparentDataUrl, statusGroups, processingGroups, uploadingCount] = await Promise.all([
     QRCode.toDataURL(guestUrl, {
       errorCorrectionLevel: "M",
       margin: 2,
@@ -131,6 +131,24 @@ export default async function GuestGalleryDetailPage({
       color: {
         dark: "#111111",
         light: "#ffffff"
+      }
+    }),
+    QRCode.toDataURL(guestUrl, {
+      errorCorrectionLevel: "M",
+      margin: 4,
+      width: 1600,
+      color: {
+        dark: "#111111",
+        light: "#ffffff"
+      }
+    }),
+    QRCode.toDataURL(guestUrl, {
+      errorCorrectionLevel: "M",
+      margin: 4,
+      width: 1600,
+      color: {
+        dark: "#111111",
+        light: "#00000000"
       }
     }),
     prisma.galleryGuestUpload.groupBy({
@@ -379,11 +397,18 @@ export default async function GuestGalleryDetailPage({
           <div className="mt-4 grid gap-2">
             <CopyLinkButton url={guestUrl} label="Vendéglink másolása" className="w-full" />
             <a
-              href={qrCodeDataUrl}
+              href={qrCodePrintDataUrl}
               download={`${gallery.slug}-qr.png`}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:bg-paper"
             >
-              <Download size={16} /> QR-kód letöltése
+              <Download size={16} /> PNG · fehér háttér
+            </a>
+            <a
+              href={qrCodeTransparentDataUrl}
+              download={`${gallery.slug}-qr-transparent.png`}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:bg-paper"
+            >
+              <Download size={16} /> PNG · átlátszó háttér
             </a>
             <Link
               href={`/admin/guest-galleries/${gallery.id}/print`}
@@ -392,6 +417,9 @@ export default async function GuestGalleryDetailPage({
               Nyomtatható kártya
             </Link>
           </div>
+          <p className="mt-3 text-left text-[11px] leading-5 text-graphite/55">
+            Mindkét PNG 1600 × 1600 px. Egyedi dizájnnál a QR körül hagyj világos, üres területet a biztos beolvasáshoz.
+          </p>
         </aside>
       </div>
 
