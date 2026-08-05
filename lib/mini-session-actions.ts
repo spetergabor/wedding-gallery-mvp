@@ -445,6 +445,7 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
   const admin = await requireAdmin();
   const workspaceAdminId = ownerAdminId(admin);
   const todayDate = miniSessionDateKey(new Date());
+  const blockMode = formString(formData, "blockMode") === "time-slot" ? "time-slot" : "full-day";
   const submittedDateKeys = normalizedCalendarDateKeys(formString(formData, "selectedDates"))
     .filter((date) => date >= todayDate);
 
@@ -459,6 +460,46 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
     redirect("/admin/mini-sessions?tab=calendar&calendarError=missing");
   }
 
+  if (blockMode === "time-slot") {
+    const date = submittedDateKeys.length === 1 ? submittedDateKeys[0] : null;
+    const startTime = formString(formData, "startTime");
+    const endTime = formString(formData, "endTime");
+    const validTime = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const startsAt = date && validTime.test(startTime) ? parseMiniSessionLocalDateTime(date, startTime) : null;
+    const endsAt = date && validTime.test(endTime) ? parseMiniSessionLocalDateTime(date, endTime) : null;
+
+    if (!startsAt || !endsAt || endsAt <= startsAt) {
+      redirect("/admin/mini-sessions?tab=calendar&calendarError=invalid-time");
+    }
+
+    const coveringBlock = await prisma.adminCalendarBlock.findFirst({
+      where: {
+        adminId: workspaceAdminId,
+        startsAt: { lte: startsAt },
+        endsAt: { gte: endsAt }
+      },
+      select: { id: true }
+    });
+
+    if (coveringBlock) {
+      redirect("/admin/mini-sessions?tab=calendar&calendarError=already-blocked");
+    }
+
+    await prisma.adminCalendarBlock.create({
+      data: {
+        adminId: workspaceAdminId,
+        title: "Nem foglalható idősáv",
+        startsAt,
+        endsAt,
+        notes: null
+      }
+    });
+
+    revalidatePath("/admin/mini-sessions");
+    revalidatePath("/mini-session/[slug]", "page");
+    redirect("/admin/mini-sessions?tab=calendar&calendarBlocked=1");
+  }
+
   const existingBlocks = await prisma.adminCalendarBlock.findMany({
     where: {
       adminId: workspaceAdminId,
@@ -469,7 +510,7 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
   });
   const availableDateKeys = submittedDateKeys.filter((date) => {
     const range = fullCalendarDayRange(date);
-    return Boolean(range && !existingBlocks.some((block) => block.startsAt < range.endsAt && block.endsAt > range.startsAt));
+    return Boolean(range && !existingBlocks.some((block) => block.startsAt <= range.startsAt && block.endsAt >= range.endsAt));
   });
   const groups = groupConsecutiveCalendarDates(availableDateKeys);
 

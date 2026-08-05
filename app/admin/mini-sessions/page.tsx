@@ -60,7 +60,8 @@ import {
   MINI_SESSION_LANGUAGES,
   MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
   MINI_SESSION_WEEKDAYS,
-  miniSessionDateKey
+  miniSessionDateKey,
+  miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
@@ -698,7 +699,8 @@ export default async function AdminMiniSessionsPage({
         {flags.error === "cover_size" ? <Alert title="A borítókép túl nagy." variant="error">Maximum 12 MB-os képet tölts fel.</Alert> : null}
         {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
         {flags.calendarError === "missing" ? <Alert title="Hibás naptár tiltás." variant="error">Jelölj ki legalább egy jövőbeni napot a naptárban.</Alert> : null}
-        {flags.calendarError === "already-blocked" ? <Alert title="Ezek a napok már tiltva vannak." variant="error">Válassz másik napot, vagy töröld a meglévő tiltást a listából.</Alert> : null}
+        {flags.calendarError === "already-blocked" ? <Alert title="Ez az időszak már tiltva van." variant="error">Válassz másik napot vagy idősávot, illetve töröld a meglévő tiltást a listából.</Alert> : null}
+        {flags.calendarError === "invalid-time" ? <Alert title="Hibás idősáv." variant="error">A záró időpontnak később kell lennie a kezdő időpontnál.</Alert> : null}
         {flags.bookingStatusError ? <Alert title="A foglalás állapota nem módosítható." variant="error">Törölt vagy blokkolt időpontnál nem lehet ezt az állapotot beállítani.</Alert> : null}
         {flags.bookingStatusUpdated ? <Alert title="Foglalás állapota frissítve." variant="success" /> : null}
         {flags.deleted ? <Alert title="Foglaló törölve." variant="success" /> : null}
@@ -1274,7 +1276,9 @@ export default async function AdminMiniSessionsPage({
                   id: block.id,
                   title: block.title,
                   startDate: miniSessionDateKey(block.startsAt),
-                  endDate: miniSessionDateKey(block.endsAt)
+                  endDate: miniSessionDateKey(block.endsAt),
+                  startTime: miniSessionTimeInput(block.startsAt),
+                  endTime: miniSessionTimeInput(block.endsAt)
                 }))}
               />
 
