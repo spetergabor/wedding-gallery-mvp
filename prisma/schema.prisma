@@ -916,6 +916,7 @@ model GalleryGuestUpload {
   email        String?
   guestName    String?
   guestKey     String?
+  contentHash  String?
   filename     String
   r2Key        String
   imageUrl     String
@@ -938,6 +939,7 @@ model GalleryGuestUpload {
   @@index([galleryId, status])
   @@index([email])
   @@index([guestKey])
+  @@unique([galleryId, contentHash])
   @@index([processingStatus])
   @@index([createdAt])
   @@index([r2Key])

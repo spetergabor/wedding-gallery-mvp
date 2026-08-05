@@ -2,7 +2,20 @@
 
 import Image from "next/image";
 import { ChangeEvent, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ImagePlus, Loader2, Mail, RefreshCw, UploadCloud, UserRound, X } from "lucide-react";
+import {
+  Camera,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ImagePlus,
+  Loader2,
+  Mail,
+  RefreshCw,
+  RotateCcw,
+  UploadCloud,
+  UserRound,
+  X
+} from "lucide-react";
 import { Button } from "@/components/button";
 import {
   completeGuestUploadsAction,
@@ -24,16 +37,30 @@ type GuestPhoto = {
   createdAt: string;
 };
 
+type GuestUploadStatus = "hashing" | "queued" | "uploading" | "done" | "failed" | "duplicate";
+
 type GuestUploadFile = {
   clientId: string;
   file: File;
+  contentType: string;
+  contentHash: string;
   imageWidth: number;
   imageHeight: number;
-  status: "queued" | "uploading" | "done" | "failed";
+  status: GuestUploadStatus;
+  progress: number;
+  error?: string;
+};
+
+type UploadTarget = {
+  clientId: string;
+  filename: string;
+  r2Key: string;
+  uploadUrl: string;
 };
 
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const PARALLEL_UPLOADS = 4;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const OPEN_GUEST_UPLOAD_EVENT = "spetly:open-guest-photo-upload";
 
@@ -47,20 +74,37 @@ const COPY = {
     uploadText: "Teile deine Lieblingsmomente mit dem Paar. Name und E-Mail-Adresse sind freiwillig.",
     name: "Dein Name (optional)",
     email: "E-Mail-Adresse (optional)",
-    choose: "Fotos auswählen",
+    library: "Fotomediathek",
+    camera: "Kamera",
     dropTitle: "Fotos hierher ziehen",
-    dropText: "oder klicken, um Bilder auszuwählen",
+    dropText: "Bis zu 20 Fotos, vier werden gleichzeitig hochgeladen",
     upload: "Hochladen",
+    continueUpload: "Upload fortsetzen",
     uploading: "Wird hochgeladen...",
     cancel: "Schließen",
     selected: (count: number) => `${count} ${count === 1 ? "Foto" : "Fotos"} ausgewählt`,
     success: (count: number) => `${count} ${count === 1 ? "Foto wurde" : "Fotos wurden"} hochgeladen.`,
     approvalSuccess: (count: number) => `${count} ${count === 1 ? "Foto wartet" : "Fotos warten"} auf Freigabe.`,
+    duplicateSuccess: (count: number) => `${count} ${count === 1 ? "Duplikat wurde" : "Duplikate wurden"} übersprungen.`,
+    partialError: (count: number) => `${count} ${count === 1 ? "Foto konnte" : "Fotos konnten"} nicht hochgeladen werden. Versuche nur diese erneut.`,
     live: "Wird automatisch aktualisiert",
     processing: "Vorschau wird erstellt",
+    hashing: "Wird geprüft",
+    queued: "Bereit",
+    fileUploading: "Wird hochgeladen",
+    done: "Fertig",
+    failed: "Fehlgeschlagen",
+    duplicate: "Bereits vorhanden",
+    retry: "Erneut versuchen",
+    remove: "Entfernen",
     emailError: "Bitte gib eine gültige E-Mail-Adresse ein.",
     fileError: "Bitte wähle JPG, PNG, WebP, HEIC oder HEIF Bilder bis 25 MB aus.",
-    uploadError: "Der Upload ist fehlgeschlagen. Bitte versuche es erneut."
+    hashError: "Dieses Foto konnte nicht geprüft werden.",
+    uploadError: "Der Upload ist fehlgeschlagen. Bitte versuche es erneut.",
+    openPhoto: "Foto im Vollbild öffnen",
+    previousPhoto: "Vorheriges Foto",
+    nextPhoto: "Nächstes Foto",
+    closeViewer: "Vollbild schließen"
   },
   hu: {
     title: "Vendégfotók",
@@ -71,20 +115,37 @@ const COPY = {
     uploadText: "Oszd meg a kedvenc pillanataidat a párral. A név és az e-mail cím megadása nem kötelező.",
     name: "Neved (opcionális)",
     email: "E-mail cím (opcionális)",
-    choose: "Képek kiválasztása",
+    library: "Fotótár",
+    camera: "Kamera",
     dropTitle: "Húzd ide a képeket",
-    dropText: "vagy kattints a kiválasztáshoz",
+    dropText: "Legfeljebb 20 kép, egyszerre négy töltődik fel",
     upload: "Feltöltés",
+    continueUpload: "Feltöltés folytatása",
     uploading: "Feltöltés...",
     cancel: "Bezárás",
     selected: (count: number) => `${count} kép kiválasztva`,
     success: (count: number) => `${count} kép feltöltve.`,
     approvalSuccess: (count: number) => `${count} kép jóváhagyásra vár.`,
+    duplicateSuccess: (count: number) => `${count} duplikált kép kihagyva.`,
+    partialError: (count: number) => `${count} kép feltöltése megszakadt. Csak ezeket próbáld újra.`,
     live: "Automatikusan frissül",
     processing: "Előnézet készül",
+    hashing: "Ellenőrzés",
+    queued: "Feltöltésre kész",
+    fileUploading: "Feltöltés",
+    done: "Kész",
+    failed: "Megszakadt",
+    duplicate: "Már szerepel",
+    retry: "Újrapróbálás",
+    remove: "Eltávolítás",
     emailError: "Adj meg egy érvényes email címet.",
     fileError: "JPG, PNG, WebP, HEIC vagy HEIF képeket válassz, maximum 25 MB méretben.",
-    uploadError: "A feltöltés nem sikerült. Próbáld újra."
+    hashError: "A kép ellenőrzése nem sikerült.",
+    uploadError: "A feltöltés nem sikerült. Próbáld újra.",
+    openPhoto: "Kép megnyitása teljes képernyőn",
+    previousPhoto: "Előző kép",
+    nextPhoto: "Következő kép",
+    closeViewer: "Teljes képernyő bezárása"
   }
 } as const;
 
@@ -100,8 +161,40 @@ function previewUrl(photo: GuestPhoto) {
   return photo.thumbnailUrl || photo.previewUrl || photo.imageUrl;
 }
 
-function readImageSize(file: File) {
-  if (file.type === "image/heic" || file.type === "image/heif") {
+function fullscreenUrl(photo: GuestPhoto) {
+  return photo.previewUrl || photo.imageUrl || photo.thumbnailUrl;
+}
+
+function formatFileSize(bytes: number) {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+}
+
+function getContentType(file: File) {
+  if (ALLOWED_TYPES.has(file.type)) {
+    return file.type;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  return extension === "jpg" || extension === "jpeg"
+    ? "image/jpeg"
+    : extension === "png"
+      ? "image/png"
+      : extension === "webp"
+        ? "image/webp"
+        : extension === "heic"
+          ? "image/heic"
+          : extension === "heif"
+            ? "image/heif"
+            : "";
+}
+
+async function hashFile(file: File) {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function readImageSize(file: File, contentType: string) {
+  if (contentType === "image/heic" || contentType === "image/heif") {
     return Promise.resolve({ width: 0, height: 0 });
   }
 
@@ -121,6 +214,51 @@ function readImageSize(file: File) {
   });
 }
 
+function uploadFileWithProgress(
+  file: File,
+  contentType: string,
+  target: UploadTarget,
+  onProgress: (progress: number) => void
+) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", target.uploadUrl);
+    request.timeout = 5 * 60 * 1000;
+    request.setRequestHeader("Content-Type", contentType);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`HTTP ${request.status}`));
+      }
+    };
+    request.onerror = () => reject(new Error("network-error"));
+    request.ontimeout = () => reject(new Error("timeout"));
+    request.onabort = () => reject(new Error("aborted"));
+    request.send(file);
+  });
+}
+
+async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const item = items[nextIndex];
+      nextIndex += 1;
+      await worker(item);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runWorker()));
+}
+
 export function GuestPhotoUpload({
   galleryId,
   language,
@@ -136,21 +274,33 @@ export function GuestPhotoUpload({
 }) {
   const copy = COPY[language];
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const guestKeyRef = useRef("");
   const revisionRef = useRef(initialRevision);
   const refreshInFlightRef = useRef(false);
+  const prepareInFlightRef = useRef(false);
+  const touchStartXRef = useRef<number | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [files, setFiles] = useState<GuestUploadFile[]>([]);
   const [photos, setPhotos] = useState(initialPhotos);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const completedCount = files.filter((file) => file.status === "done").length;
   const selectedCount = files.length;
+  const resolvedCount = files.filter((file) => file.status === "done" || file.status === "duplicate").length;
+  const retryableCount = files.filter((file) => file.status === "failed").length;
+  const actionableCount = files.filter((file) => file.status === "queued" || file.status === "failed").length;
   const visiblePhotos = useMemo(() => photos.filter((photo) => photo.imageUrl), [photos]);
+  const activePhoto = activePhotoIndex === null ? null : visiblePhotos[activePhotoIndex] ?? null;
+
+  const updateFile = useCallback((clientId: string, update: Partial<GuestUploadFile>) => {
+    setFiles((items) => items.map((item) => item.clientId === clientId ? { ...item, ...update } : item));
+  }, []);
 
   const refreshPhotos = useCallback(async () => {
     if (refreshInFlightRef.current || document.visibilityState === "hidden") {
@@ -206,7 +356,6 @@ export function GuestPhotoUpload({
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
     return () => {
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -223,40 +372,94 @@ export function GuestPhotoUpload({
     }
 
     window.addEventListener(OPEN_GUEST_UPLOAD_EVENT, openUploadDialog);
-
     return () => window.removeEventListener(OPEN_GUEST_UPLOAD_EVENT, openUploadDialog);
   }, [uploadsEnabled]);
 
+  useEffect(() => {
+    if (activePhotoIndex === null) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActivePhotoIndex(null);
+      } else if (event.key === "ArrowLeft") {
+        setActivePhotoIndex((index) => index === null ? null : (index - 1 + visiblePhotos.length) % visiblePhotos.length);
+      } else if (event.key === "ArrowRight") {
+        setActivePhotoIndex((index) => index === null ? null : (index + 1) % visiblePhotos.length);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activePhotoIndex, visiblePhotos.length]);
+
   async function prepareFiles(selectedFiles: File[]) {
-    const limitedFiles = selectedFiles.slice(0, MAX_FILES);
+    if (prepareInFlightRef.current || isUploading) {
+      return;
+    }
+
+    prepareInFlightRef.current = true;
+    setIsPreparing(true);
     setError("");
     setSuccess("");
 
-    const validFiles = limitedFiles.filter((file) => ALLOWED_TYPES.has(file.type) && file.size > 0 && file.size <= MAX_FILE_BYTES);
+    const retainedFiles = files.filter((file) => file.status !== "done" && file.status !== "duplicate");
+    const limitedFiles = selectedFiles.slice(0, Math.max(0, MAX_FILES - retainedFiles.length));
+    const validFiles = limitedFiles
+      .map((file) => ({ file, contentType: getContentType(file) }))
+      .filter(({ file, contentType }) => Boolean(contentType) && file.size > 0 && file.size <= MAX_FILE_BYTES);
 
-    if (validFiles.length !== limitedFiles.length) {
+    if (validFiles.length !== selectedFiles.length) {
       setError(copy.fileError);
     }
 
-    const nextFiles = await Promise.all(
-      validFiles.map(async (file) => {
-        const dimensions = await readImageSize(file);
+    const pendingFiles: GuestUploadFile[] = validFiles.map(({ file, contentType }) => ({
+      clientId: createClientId(),
+      file,
+      contentType,
+      contentHash: "",
+      imageWidth: 0,
+      imageHeight: 0,
+      status: "hashing",
+      progress: 0
+    }));
+    setFiles([...retainedFiles, ...pendingFiles]);
+    const knownHashes = new Set(retainedFiles.map((file) => file.contentHash).filter(Boolean));
 
-        return {
-          clientId: createClientId(),
-          file,
+    for (const pending of pendingFiles) {
+      try {
+        const [contentHash, dimensions] = await Promise.all([
+          hashFile(pending.file),
+          readImageSize(pending.file, pending.contentType)
+        ]);
+        const isDuplicate = knownHashes.has(contentHash);
+        knownHashes.add(contentHash);
+        updateFile(pending.clientId, {
+          contentHash,
           imageWidth: dimensions.width,
           imageHeight: dimensions.height,
-          status: "queued" as const
-        };
-      })
-    );
+          status: isDuplicate ? "duplicate" : "queued",
+          progress: isDuplicate ? 100 : 0
+        });
+      } catch {
+        updateFile(pending.clientId, { status: "failed", error: copy.hashError });
+      }
+    }
 
-    setFiles(nextFiles);
+    prepareInFlightRef.current = false;
+    setIsPreparing(false);
   }
 
-  async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
-    await prepareFiles(Array.from(event.target.files ?? []));
+  function handleFiles(event: ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    void prepareFiles(selectedFiles);
   }
 
   function handleDragOver(event: DragEvent<HTMLDivElement>) {
@@ -275,7 +478,7 @@ export function GuestPhotoUpload({
     void prepareFiles(Array.from(event.dataTransfer.files ?? []));
   }
 
-  async function uploadFiles() {
+  async function uploadFiles(onlyClientIds?: string[]) {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (normalizedEmail && !isValidEmail(normalizedEmail)) {
@@ -283,13 +486,21 @@ export function GuestPhotoUpload({
       return;
     }
 
-    if (files.length === 0 || isUploading) {
+    const allowedIds = onlyClientIds ? new Set(onlyClientIds) : null;
+    const uploadableFiles = files.filter((item) =>
+      (!allowedIds || allowedIds.has(item.clientId)) &&
+      (item.status === "queued" || item.status === "failed") &&
+      Boolean(item.contentHash)
+    );
+
+    if (uploadableFiles.length === 0 || isUploading || isPreparing) {
       return;
     }
 
     setIsUploading(true);
     setError("");
     setSuccess("");
+    uploadableFiles.forEach((item) => updateFile(item.clientId, { status: "queued", progress: 0, error: undefined }));
 
     try {
       const identity = {
@@ -300,11 +511,12 @@ export function GuestPhotoUpload({
       const targetResult = await createGuestUploadTargetsAction(
         galleryId,
         identity,
-        files.map((item) => ({
+        uploadableFiles.map((item) => ({
           clientId: item.clientId,
           filename: item.file.name,
-          contentType: item.file.type,
+          contentType: item.contentType,
           fileSize: item.file.size,
+          contentHash: item.contentHash,
           imageWidth: item.imageWidth,
           imageHeight: item.imageHeight
         }))
@@ -314,47 +526,65 @@ export function GuestPhotoUpload({
         throw new Error(targetResult.message ?? copy.uploadError);
       }
 
-      const completedR2Keys: string[] = [];
+      const duplicateIds = new Set((targetResult.duplicates ?? []).map((item) => item.clientId));
+      duplicateIds.forEach((clientId) => updateFile(clientId, { status: "duplicate", progress: 100, error: undefined }));
 
-      for (const target of targetResult.targets) {
-        const current = files.find((item) => item.clientId === target.clientId);
+      const fileById = new Map(uploadableFiles.map((item) => [item.clientId, item]));
+      const completedTargets: UploadTarget[] = [];
+      let failedCount = 0;
 
+      await runWithConcurrency(targetResult.targets, PARALLEL_UPLOADS, async (target) => {
+        const current = fileById.get(target.clientId);
         if (!current) {
-          continue;
+          return;
         }
 
-        setFiles((items) => items.map((item) => item.clientId === target.clientId ? { ...item, status: "uploading" } : item));
+        updateFile(target.clientId, { status: "uploading", progress: 0, error: undefined });
 
-        const response = await fetch(target.uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": current.file.type || "application/octet-stream"
-          },
-          body: current.file
-        });
+        try {
+          await uploadFileWithProgress(current.file, current.contentType, target, (progress) => {
+            updateFile(target.clientId, { progress });
+          });
+          completedTargets.push(target);
+          updateFile(target.clientId, { status: "done", progress: 100 });
+        } catch {
+          failedCount += 1;
+          updateFile(target.clientId, { status: "failed", error: copy.uploadError });
+        }
+      });
 
-        if (!response.ok) {
-          setFiles((items) => items.map((item) => item.clientId === target.clientId ? { ...item, status: "failed" } : item));
-          throw new Error(copy.uploadError);
+      let uploadedCount = 0;
+      let awaitingApproval = false;
+
+      if (completedTargets.length > 0) {
+        const completeResult = await completeGuestUploadsAction(
+          galleryId,
+          identity,
+          completedTargets.map((target) => target.r2Key)
+        );
+
+        if (!completeResult.ok) {
+          completedTargets.forEach((target) => updateFile(target.clientId, { status: "failed", error: completeResult.message ?? copy.uploadError }));
+          throw new Error(completeResult.message ?? copy.uploadError);
         }
 
-        completedR2Keys.push(target.r2Key);
-        setFiles((items) => items.map((item) => item.clientId === target.clientId ? { ...item, status: "done" } : item));
+        uploadedCount = completeResult.completedCount ?? completedTargets.length;
+        awaitingApproval = Boolean(completeResult.awaitingApproval);
       }
 
-      const completeResult = await completeGuestUploadsAction(galleryId, identity, completedR2Keys);
-
-      if (!completeResult.ok) {
-        throw new Error(completeResult.message ?? copy.uploadError);
+      const messages: string[] = [];
+      if (uploadedCount > 0) {
+        messages.push(awaitingApproval ? copy.approvalSuccess(uploadedCount) : copy.success(uploadedCount));
       }
-
-      const completed = completeResult.completedCount ?? completedR2Keys.length;
-      setSuccess(completeResult.awaitingApproval ? copy.approvalSuccess(completed) : copy.success(completed));
-      setFiles([]);
-      if (inputRef.current) {
-        inputRef.current.value = "";
+      if (duplicateIds.size > 0) {
+        messages.push(copy.duplicateSuccess(duplicateIds.size));
       }
-      if (!completeResult.awaitingApproval) {
+      setSuccess(messages.join(" "));
+
+      if (failedCount > 0) {
+        setError(copy.partialError(failedCount));
+      }
+      if (uploadedCount > 0 && !awaitingApproval) {
         await refreshPhotos();
       }
     } catch (uploadError) {
@@ -362,6 +592,24 @@ export function GuestPhotoUpload({
     } finally {
       setIsUploading(false);
     }
+  }
+
+  function statusLabel(status: GuestUploadStatus) {
+    return status === "hashing"
+      ? copy.hashing
+      : status === "queued"
+        ? copy.queued
+        : status === "uploading"
+          ? copy.fileUploading
+          : status === "done"
+            ? copy.done
+            : status === "duplicate"
+              ? copy.duplicate
+              : copy.failed;
+  }
+
+  function moveLightbox(direction: -1 | 1) {
+    setActivePhotoIndex((index) => index === null ? null : (index + direction + visiblePhotos.length) % visiblePhotos.length);
   }
 
   return (
@@ -380,16 +628,22 @@ export function GuestPhotoUpload({
         {uploadsEnabled ? (
           <Button type="button" onClick={() => setIsUploadOpen(true)} className="w-full sm:w-auto">
             <UploadCloud size={16} />
-            {copy.openUpload}
+            {retryableCount > 0 ? copy.continueUpload : copy.openUpload}
           </Button>
         ) : null}
       </div>
 
       {visiblePhotos.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {visiblePhotos.map((photo) => (
-            <div key={photo.id} className="group relative overflow-hidden rounded-md bg-mist">
-              <div className="relative">
+          {visiblePhotos.map((photo, index) => (
+            <button
+              key={photo.id}
+              type="button"
+              onClick={() => setActivePhotoIndex(index)}
+              className="group relative overflow-hidden rounded-md bg-mist text-left outline-none ring-ink/30 transition focus-visible:ring-2"
+              aria-label={`${copy.openPhoto}: ${photo.filename}`}
+            >
+              <div className="relative overflow-hidden">
                 {photo.imageWidth > 0 && photo.imageHeight > 0 ? (
                   <Image
                     src={previewUrl(photo)}
@@ -397,11 +651,11 @@ export function GuestPhotoUpload({
                     width={photo.imageWidth}
                     height={photo.imageHeight}
                     unoptimized
-                    className="block h-auto w-full"
+                    className="block h-auto w-full transition duration-300 group-hover:scale-[1.02]"
                     sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
                   />
                 ) : (
-                  <img src={previewUrl(photo)} alt={photo.filename} loading="lazy" className="block h-auto w-full" />
+                  <img src={previewUrl(photo)} alt={photo.filename} loading="lazy" className="block h-auto w-full transition duration-300 group-hover:scale-[1.02]" />
                 )}
                 {photo.processingStatus !== "ready" ? (
                   <span className="absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-full bg-ink/75 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
@@ -410,32 +664,92 @@ export function GuestPhotoUpload({
                 ) : null}
               </div>
               {photo.guestName ? <p className="truncate px-3 py-2 text-xs font-medium text-graphite">{photo.guestName}</p> : null}
-            </div>
+            </button>
           ))}
         </div>
       ) : (
         <p className="rounded-lg border border-ink/10 bg-white px-5 py-8 text-center text-sm text-graphite/70 shadow-soft">{copy.empty}</p>
       )}
 
+      {activePhoto ? (
+        <div
+          className="fixed inset-0 z-[70] flex touch-pan-y items-center justify-center bg-black/95"
+          role="dialog"
+          aria-modal="true"
+          aria-label={copy.openPhoto}
+          onTouchStart={(event) => { touchStartXRef.current = event.touches[0]?.clientX ?? null; }}
+          onTouchEnd={(event) => {
+            const startX = touchStartXRef.current;
+            const endX = event.changedTouches[0]?.clientX;
+            touchStartXRef.current = null;
+            if (startX !== null && endX !== undefined && Math.abs(endX - startX) > 50) {
+              moveLightbox(endX < startX ? 1 : -1);
+            }
+          }}
+        >
+          <div className="absolute inset-4 sm:inset-8">
+            <Image
+              src={fullscreenUrl(activePhoto)}
+              alt={activePhoto.filename}
+              fill
+              unoptimized
+              priority
+              className="object-contain"
+              sizes="100vw"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setActivePhotoIndex(null)}
+            className="absolute right-4 top-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20"
+            aria-label={copy.closeViewer}
+          >
+            <X size={22} />
+          </button>
+          {visiblePhotos.length > 1 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => moveLightbox(-1)}
+                className="absolute left-3 top-1/2 z-10 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20 sm:left-6"
+                aria-label={copy.previousPhoto}
+              >
+                <ChevronLeft size={28} />
+              </button>
+              <button
+                type="button"
+                onClick={() => moveLightbox(1)}
+                className="absolute right-3 top-1/2 z-10 inline-flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20 sm:right-6"
+                aria-label={copy.nextPhoto}
+              >
+                <ChevronRight size={28} />
+              </button>
+            </>
+          ) : null}
+          <div className="absolute bottom-4 left-1/2 z-10 max-w-[70vw] -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-center text-xs text-white/85 backdrop-blur">
+            {(activePhotoIndex ?? 0) + 1} / {visiblePhotos.length}{activePhoto.guestName ? ` · ${activePhoto.guestName}` : ""}
+          </div>
+        </div>
+      ) : null}
+
       {uploadsEnabled && isUploadOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/45 p-3 backdrop-blur-sm sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="guest-upload-title"
         >
-          <div className="w-full max-w-xl rounded-lg bg-white p-5 shadow-2xl">
+          <div className="max-h-[94dvh] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">{copy.title}</p>
-                <h3 id="guest-upload-title" className="mt-1 text-2xl font-semibold text-ink">
-                  {copy.uploadTitle}
-                </h3>
+                <h3 id="guest-upload-title" className="mt-1 text-2xl font-semibold text-ink">{copy.uploadTitle}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsUploadOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
+                disabled={isUploading}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label={copy.cancel}
               >
                 <X size={18} />
@@ -445,41 +759,63 @@ export function GuestPhotoUpload({
             <p className="mt-3 text-sm leading-6 text-graphite/70">{copy.uploadText}</p>
 
             <div className="mt-5 space-y-4">
-              <label className="block space-y-2">
-                <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                  <UserRound size={15} />
-                  {copy.name}
-                </span>
-                <input
-                  type="text"
-                  value={name}
-                  maxLength={80}
-                  onChange={(event) => setName(event.target.value)}
-                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50"
-                />
-              </label>
-
-              <label className="block space-y-2">
-                <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                  <Mail size={15} />
-                  {copy.email}
-                </span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50"
-                />
-              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="flex items-center gap-2 text-sm font-medium text-graphite"><UserRound size={15} />{copy.name}</span>
+                  <input
+                    type="text"
+                    value={name}
+                    maxLength={80}
+                    onChange={(event) => setName(event.target.value)}
+                    className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50"
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="flex items-center gap-2 text-sm font-medium text-graphite"><Mail size={15} />{copy.email}</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-ink outline-none transition focus:border-ink/50"
+                  />
+                </label>
+              </div>
 
               <input
                 ref={inputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                accept="image/*,.heic,.heif"
                 multiple
                 className="hidden"
-                onChange={(event) => void handleFiles(event)}
+                onChange={handleFiles}
               />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleFiles}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={isUploading || isPreparing}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-semibold text-ink transition hover:bg-paper disabled:opacity-50"
+                >
+                  <Camera size={18} /> {copy.camera}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => inputRef.current?.click()}
+                  disabled={isUploading || isPreparing}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-semibold text-ink transition hover:bg-paper disabled:opacity-50"
+                >
+                  <ImagePlus size={18} /> {copy.library}
+                </button>
+              </div>
 
               <div
                 role="button"
@@ -494,25 +830,76 @@ export function GuestPhotoUpload({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-5 py-8 text-center transition ${
+                className={`hidden min-h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-5 py-6 text-center transition sm:flex ${
                   isDragging ? "border-ink bg-paper" : "border-ink/20 bg-paper/60 hover:border-ink/35 hover:bg-paper"
                 }`}
               >
-                <ImagePlus size={26} className="text-graphite" />
-                <p className="mt-3 text-sm font-semibold text-ink">{copy.dropTitle}</p>
+                <UploadCloud size={24} className="text-graphite" />
+                <p className="mt-2 text-sm font-semibold text-ink">{copy.dropTitle}</p>
                 <p className="mt-1 text-xs text-graphite/65">{copy.dropText}</p>
               </div>
 
               {selectedCount > 0 ? (
-                <p className="text-xs font-medium text-graphite/70">
-                  {copy.selected(selectedCount)}
-                  {isUploading ? ` · ${completedCount}/${selectedCount}` : ""}
-                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3 text-xs font-medium text-graphite/70">
+                    <span>{copy.selected(selectedCount)}</span>
+                    <span>{resolvedCount}/{selectedCount}</span>
+                  </div>
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {files.map((item) => (
+                      <div key={item.clientId} className="rounded-md border border-ink/10 bg-paper/55 px-3 py-2.5">
+                        <div className="flex items-start gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="truncate text-xs font-semibold text-ink" title={item.file.name}>{item.file.name}</p>
+                              <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${
+                                item.status === "failed" ? "text-red-600" : item.status === "done" ? "text-sage" : "text-graphite/65"
+                              }`}>
+                                {statusLabel(item.status)}{item.status === "uploading" ? ` ${item.progress}%` : ""}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-[10px] text-graphite/55">{formatFileSize(item.file.size)}</p>
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/10">
+                              <div
+                                className={`h-full rounded-full transition-[width] duration-200 ${
+                                  item.status === "failed" ? "bg-red-500" : item.status === "duplicate" ? "bg-brass" : "bg-sage"
+                                }`}
+                                style={{ width: `${item.status === "hashing" ? 12 : item.progress}%` }}
+                              />
+                            </div>
+                            {item.error ? <p className="mt-1.5 text-[11px] text-red-600">{item.error}</p> : null}
+                          </div>
+                          {item.status === "failed" && item.contentHash ? (
+                            <button
+                              type="button"
+                              onClick={() => void uploadFiles([item.clientId])}
+                              disabled={isUploading || isPreparing}
+                              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-ink/15 bg-white px-2 text-[11px] font-semibold text-ink disabled:opacity-40"
+                              aria-label={`${copy.retry}: ${item.file.name}`}
+                            >
+                              <RotateCcw size={12} /> {copy.retry}
+                            </button>
+                          ) : item.status === "queued" || (item.status === "failed" && !item.contentHash) ? (
+                            <button
+                              type="button"
+                              onClick={() => setFiles((items) => items.filter((file) => file.clientId !== item.clientId))}
+                              disabled={isUploading || isPreparing}
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white text-graphite disabled:opacity-40"
+                              aria-label={`${copy.remove}: ${item.file.name}`}
+                            >
+                              <X size={13} />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : null}
+
               {success ? (
                 <p className="flex items-center gap-2 rounded-md border border-sage/20 bg-sage/10 px-3 py-2 text-sm font-medium text-sage">
-                  <CheckCircle2 size={16} />
-                  {success}
+                  <CheckCircle2 size={16} /> {success}
                 </p>
               ) : null}
               {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -521,9 +908,9 @@ export function GuestPhotoUpload({
                 <Button type="button" variant="secondary" onClick={() => setIsUploadOpen(false)} disabled={isUploading}>
                   {copy.cancel}
                 </Button>
-                <Button type="button" onClick={() => void uploadFiles()} disabled={isUploading || files.length === 0}>
-                  {isUploading ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={16} />}
-                  {isUploading ? copy.uploading : copy.upload}
+                <Button type="button" onClick={() => void uploadFiles()} disabled={isUploading || isPreparing || actionableCount === 0}>
+                  {isUploading || isPreparing ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={16} />}
+                  {isPreparing ? copy.hashing : isUploading ? copy.uploading : retryableCount > 0 ? copy.continueUpload : copy.upload}
                 </Button>
               </div>
             </div>

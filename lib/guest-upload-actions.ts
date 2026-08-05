@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { Prisma } from "@prisma/client";
 import { invalidateGuestGalleryDownloadPackages } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,7 @@ type GuestUploadInput = {
   filename: string;
   contentType: string;
   fileSize: number;
+  contentHash: string;
   imageWidth?: number;
   imageHeight?: number;
 };
@@ -32,6 +34,11 @@ type GuestUploadTarget = {
   filename: string;
   r2Key: string;
   uploadUrl: string;
+};
+
+type GuestUploadDuplicate = {
+  clientId: string;
+  filename: string;
 };
 
 type GuestIdentityInput = {
@@ -65,11 +72,21 @@ function normalizeDimension(value: number | undefined) {
   return Number.isFinite(value) && value && value > 0 ? Math.round(value) : 0;
 }
 
+function normalizeContentHash(value: string | null | undefined) {
+  const hash = (value ?? "").trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(hash) ? hash : "";
+}
+
 export async function createGuestUploadTargetsAction(
   galleryId: string,
   identity: GuestIdentityInput,
   uploads: GuestUploadInput[]
-): Promise<{ ok: boolean; message?: string; targets?: GuestUploadTarget[] }> {
+): Promise<{
+  ok: boolean;
+  message?: string;
+  targets?: GuestUploadTarget[];
+  duplicates?: GuestUploadDuplicate[];
+}> {
   const guestKey = normalizeGuestKey(identity.guestKey);
   const guestName = normalizeGuestName(identity.name);
   const normalizedEmail = normalizeEmail(identity.email);
@@ -88,8 +105,8 @@ export async function createGuestUploadTargetsAction(
 
   if (
     await isAnyRateLimited([
-      { scope: "guest-upload:prepare", limit: 8, windowSeconds: 10 * 60, identifier: `${galleryId}:${guestKey}` },
-      { scope: "guest-upload:prepare-hour", limit: 24, windowSeconds: 60 * 60, identifier: `${galleryId}:${guestKey}` }
+      { scope: "guest-upload:prepare", limit: 30, windowSeconds: 10 * 60, identifier: `${galleryId}:${guestKey}` },
+      { scope: "guest-upload:prepare-hour", limit: 80, windowSeconds: 60 * 60, identifier: `${galleryId}:${guestKey}` }
     ])
   ) {
     return { ok: false, message: "Túl sok feltöltési próbálkozás történt. Próbáld újra kicsit később." };
@@ -123,19 +140,6 @@ export async function createGuestUploadTargetsAction(
     return { ok: false, message: "A feltöltéshez előbb nyisd meg a galériát a PIN-kóddal." };
   }
 
-  const [galleryUploadCount, guestUploadCount] = await Promise.all([
-    prisma.galleryGuestUpload.count({ where: { galleryId: gallery.id } }),
-    prisma.galleryGuestUpload.count({ where: { galleryId: gallery.id, guestKey } })
-  ]);
-
-  if (galleryUploadCount + uploads.length > gallery.guestUploadLimit) {
-    return { ok: false, message: "A vendéggaléria elérte a beállított képlimitet." };
-  }
-
-  if (guestUploadCount + uploads.length > MAX_GUEST_UPLOADS_PER_GUEST) {
-    return { ok: false, message: `Egy vendég legfeljebb ${MAX_GUEST_UPLOADS_PER_GUEST} képet tölthet fel.` };
-  }
-
   for (const upload of uploads) {
     if (!upload.clientId || !upload.filename) {
       return { ok: false, message: "Hiányos feltöltési adat." };
@@ -148,10 +152,88 @@ export async function createGuestUploadTargetsAction(
     if (!Number.isFinite(upload.fileSize) || upload.fileSize <= 0 || upload.fileSize > MAX_GUEST_UPLOAD_BYTES) {
       return { ok: false, message: "Egy kép legfeljebb 25 MB lehet." };
     }
+
+    if (!normalizeContentHash(upload.contentHash)) {
+      return { ok: false, message: "A kép ellenőrzőösszege hiányzik vagy érvénytelen." };
+    }
   }
 
-  const targets = await Promise.all(
-    uploads.map(async (upload) => {
+  const normalizedUploads = uploads.map((upload) => ({
+    ...upload,
+    filename: normalizeFilename(upload.filename),
+    contentHash: normalizeContentHash(upload.contentHash)
+  }));
+  const existingUploads = await prisma.galleryGuestUpload.findMany({
+    where: {
+      galleryId: gallery.id,
+      contentHash: { in: normalizedUploads.map((upload) => upload.contentHash) }
+    },
+    select: {
+      contentHash: true,
+      filename: true,
+      guestKey: true,
+      r2Key: true,
+      status: true
+    }
+  });
+  const existingByHash = new Map(
+    existingUploads
+      .filter((upload): upload is typeof upload & { contentHash: string } => Boolean(upload.contentHash))
+      .map((upload) => [upload.contentHash, upload])
+  );
+  const seenHashes = new Set<string>();
+  const duplicates: GuestUploadDuplicate[] = [];
+  const resumableUploads: Array<{ upload: (typeof normalizedUploads)[number]; r2Key: string }> = [];
+  const newUploads: typeof normalizedUploads = [];
+
+  for (const upload of normalizedUploads) {
+    if (seenHashes.has(upload.contentHash)) {
+      duplicates.push({ clientId: upload.clientId, filename: upload.filename });
+      continue;
+    }
+
+    seenHashes.add(upload.contentHash);
+    const existing = existingByHash.get(upload.contentHash);
+
+    if (!existing) {
+      newUploads.push(upload);
+    } else if (existing.guestKey === guestKey && existing.status === "pending") {
+      resumableUploads.push({ upload, r2Key: existing.r2Key });
+    } else {
+      duplicates.push({ clientId: upload.clientId, filename: upload.filename });
+    }
+  }
+
+  const [galleryUploadCount, guestUploadCount] = await Promise.all([
+    prisma.galleryGuestUpload.count({ where: { galleryId: gallery.id } }),
+    prisma.galleryGuestUpload.count({ where: { galleryId: gallery.id, guestKey } })
+  ]);
+
+  if (galleryUploadCount + newUploads.length > gallery.guestUploadLimit) {
+    return { ok: false, message: "A vendéggaléria elérte a beállított képlimitet." };
+  }
+
+  if (guestUploadCount + newUploads.length > MAX_GUEST_UPLOADS_PER_GUEST) {
+    return { ok: false, message: `Egy vendég legfeljebb ${MAX_GUEST_UPLOADS_PER_GUEST} képet tölthet fel.` };
+  }
+
+  const targets: GuestUploadTarget[] = [];
+
+  for (const resumable of resumableUploads) {
+    const uploadUrl = await createPresignedPhotoUploadUrl({
+      r2Key: resumable.r2Key,
+      contentType: resumable.upload.contentType
+    });
+    targets.push({
+      clientId: resumable.upload.clientId,
+      filename: resumable.upload.filename,
+      r2Key: resumable.r2Key,
+      uploadUrl
+    });
+  }
+
+  for (const upload of newUploads) {
+    try {
       const filename = normalizeFilename(upload.filename);
       const r2Key = createGuestPhotoObjectKey({
         gallerySlug: gallery.slug,
@@ -168,6 +250,7 @@ export async function createGuestUploadTargetsAction(
           email: normalizedEmail || null,
           guestName: guestName || null,
           guestKey,
+          contentHash: upload.contentHash,
           filename,
           r2Key,
           imageUrl: getPhotoPublicUrl(r2Key),
@@ -182,16 +265,44 @@ export async function createGuestUploadTargetsAction(
         }
       });
 
-      return {
+      targets.push({
         clientId: upload.clientId,
         filename,
         r2Key,
         uploadUrl
-      };
-    })
-  );
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+        throw error;
+      }
 
-  return { ok: true, targets };
+      const existing = await prisma.galleryGuestUpload.findUnique({
+        where: {
+          galleryId_contentHash: {
+            galleryId: gallery.id,
+            contentHash: upload.contentHash
+          }
+        },
+        select: { guestKey: true, r2Key: true, status: true }
+      });
+
+      if (existing?.guestKey === guestKey && existing.status === "pending") {
+        targets.push({
+          clientId: upload.clientId,
+          filename: upload.filename,
+          r2Key: existing.r2Key,
+          uploadUrl: await createPresignedPhotoUploadUrl({
+            r2Key: existing.r2Key,
+            contentType: upload.contentType
+          })
+        });
+      } else {
+        duplicates.push({ clientId: upload.clientId, filename: upload.filename });
+      }
+    }
+  }
+
+  return { ok: true, targets, duplicates };
 }
 
 export async function completeGuestUploadsAction(
