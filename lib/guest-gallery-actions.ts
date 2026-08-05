@@ -420,7 +420,10 @@ export async function bulkUpdateGuestPhotosAction(
         where: selectedWhere,
         data: {
           status: operation === "approve" ? "visible" : "hidden",
-          visibleAt: operation === "approve" ? new Date() : null
+          visibleAt: operation === "approve" ? new Date() : null,
+          customerDeletedAt: null,
+          customerDeletedByAccountId: null,
+          statusBeforeCustomerDelete: null
         }
       });
 

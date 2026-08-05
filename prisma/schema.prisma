@@ -353,6 +353,7 @@ model Customer {
   albumDesigns   AlbumDesign[]
   portalImages   CustomerPortalImage[]
   vendors        CustomerVendor[]
+  portalAccounts CustomerPortalAccount[]
 
   @@index([adminId])
   @@index([customerType])
@@ -454,6 +455,41 @@ model CustomerVendor {
 
   @@index([customerId])
   @@index([role])
+}
+
+model CustomerPortalAccount {
+  id                    String   @id @default(cuid())
+  customerId            String
+  loginIdentifier       String   @unique
+  email                 String?
+  displayName           String?
+  passwordHash          String
+  status                String   @default("active")
+  mustChangePassword    Boolean  @default(true)
+  passwordChangedAt     DateTime?
+  lastLoginAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  customer              Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sessions              CustomerPortalSession[]
+  deletedGuestUploads   GalleryGuestUpload[] @relation("CustomerDeletedGuestUploads")
+
+  @@index([customerId])
+  @@index([customerId, status])
+  @@index([email])
+}
+
+model CustomerPortalSession {
+  id          String   @id @default(cuid())
+  accountId   String
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  account     CustomerPortalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
 }
 
 model Lead {
@@ -932,14 +968,20 @@ model GalleryGuestUpload {
   processingRequestedAt DateTime?
   processingCompletedAt DateTime?
   visibleAt    DateTime?
+  customerDeletedAt DateTime?
+  customerDeletedByAccountId String?
+  statusBeforeCustomerDelete String?
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   processingJobs MediaProcessingJob[]
+  customerDeletedByAccount CustomerPortalAccount? @relation("CustomerDeletedGuestUploads", fields: [customerDeletedByAccountId], references: [id], onDelete: SetNull)
 
   @@index([galleryId])
   @@index([galleryId, status])
   @@index([galleryId, status, visibleAt, id])
   @@index([galleryId, createdAt, id])
+  @@index([galleryId, customerDeletedAt, createdAt, id])
+  @@index([customerDeletedByAccountId])
   @@index([email])
   @@index([guestKey])
   @@unique([galleryId, contentHash])

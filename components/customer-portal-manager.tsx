@@ -1,5 +1,6 @@
 import { AlertCircle, Building2, CheckCircle2, ExternalLink, FileText, Globe2, ImageIcon, PlusCircle, Users } from "lucide-react";
 import { CopyLinkButton } from "@/components/copy-link-button";
+import { CustomerPortalAccessManager } from "@/components/customer-portal-access-manager";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ensureCustomerPortalAction } from "@/lib/customer-portal-actions";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -63,6 +64,18 @@ type PortalCustomer = {
     signedFileUrl: string | null;
     accessToken: string | null;
   }>;
+  portalAccounts: Array<{
+    id: string;
+    loginIdentifier: string;
+    email: string | null;
+    displayName: string | null;
+    status: string;
+    mustChangePassword: boolean;
+    passwordChangedAt: Date | null;
+    lastLoginAt: Date | null;
+    createdAt: Date;
+    _count: { sessions: number };
+  }>;
 };
 
 function formatDate(date: Date | null) {
@@ -105,10 +118,12 @@ function InfoItem({ label, value: itemValue }: { label: string; value: string })
 
 export function CustomerPortalManager({
   customer,
-  portalUrl
+  portalUrl,
+  loginUrl
 }: {
   customer: PortalCustomer;
   portalUrl: string | null;
+  loginUrl: string;
 }) {
   const isWeddingCouple = customer.customerType === "wedding_couple";
   const visibleContracts = customer.contracts.filter(
@@ -185,6 +200,25 @@ export function CustomerPortalManager({
           <p className="mt-2 break-all text-sm font-medium text-ink">{portalUrl}</p>
         </div>
       ) : null}
+
+      <CustomerPortalAccessManager
+        customerId={customer.id}
+        coupleName={customer.coupleName}
+        primaryEmail={customer.primaryEmail}
+        loginUrl={loginUrl}
+        accounts={customer.portalAccounts.map((account) => ({
+          id: account.id,
+          loginIdentifier: account.loginIdentifier,
+          email: account.email,
+          displayName: account.displayName,
+          status: account.status,
+          mustChangePassword: account.mustChangePassword,
+          passwordChangedAt: account.passwordChangedAt?.toISOString() ?? null,
+          lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
+          createdAt: account.createdAt.toISOString(),
+          activeSessionCount: account._count.sessions
+        }))}
+      />
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <InfoItem label="Kitöltöttség" value={`${completedItems}/8 fontos pont`} />

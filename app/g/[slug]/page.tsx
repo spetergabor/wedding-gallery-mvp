@@ -123,13 +123,13 @@ export default async function PublicGalleryPage({
         }
       },
       guestUploads: {
-        where: { status: "visible" },
+        where: { status: "visible", customerDeletedAt: null },
         orderBy: [{ visibleAt: "asc" }, { id: "asc" }],
         take: GUEST_PHOTO_INITIAL_PAGE_SIZE + 1
       },
       _count: {
         select: {
-          guestUploads: { where: { status: "visible" } }
+          guestUploads: { where: { status: "visible", customerDeletedAt: null } }
         }
       },
       customer: {
@@ -361,7 +361,7 @@ export default async function PublicGalleryPage({
 
   const latestGuestPhoto = hasMoreInitialGuestPhotos
     ? await prisma.galleryGuestUpload.findFirst({
-        where: { galleryId: gallery.id, status: "visible", visibleAt: { not: null } },
+        where: { galleryId: gallery.id, status: "visible", customerDeletedAt: null, visibleAt: { not: null } },
         orderBy: [{ visibleAt: "desc" }, { id: "desc" }],
         select: { id: true, visibleAt: true, createdAt: true }
       })

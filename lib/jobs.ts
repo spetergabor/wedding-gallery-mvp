@@ -803,7 +803,7 @@ export async function prepareGuestGalleryZipPackages(galleryId: string) {
       id: true,
       galleryMode: true,
       guestUploads: {
-        where: { status: { in: ["visible", "hidden", "pending_review"] } },
+        where: { status: { in: ["visible", "hidden", "pending_review"] }, customerDeletedAt: null },
         orderBy: { createdAt: "asc" },
         select: {
           createdAt: true,
@@ -1189,7 +1189,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         }
       },
       guestUploads: {
-        where: { status: { in: ["visible", "hidden", "pending_review"] } },
+        where: { status: { in: ["visible", "hidden", "pending_review"] }, customerDeletedAt: null },
         orderBy: { createdAt: "asc" },
         skip: downloadPackage.photoOffset,
         take: downloadPackage.photoLimit ?? undefined,
@@ -1336,7 +1336,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     const zippedPhotoIds = zipPhotos.map((photo) => photo.id);
     const currentVisiblePhotoIds = guestUploadScope
       ? await prisma.galleryGuestUpload.findMany({
-          where: { galleryId: gallery.id, status: { in: ["visible", "hidden", "pending_review"] } },
+          where: { galleryId: gallery.id, status: { in: ["visible", "hidden", "pending_review"] }, customerDeletedAt: null },
           orderBy: { createdAt: "asc" },
           skip: downloadPackage.photoOffset,
           take: downloadPackage.photoLimit ?? undefined,

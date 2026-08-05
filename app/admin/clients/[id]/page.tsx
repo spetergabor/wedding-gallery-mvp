@@ -45,7 +45,7 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel, isClosedCustomerTaskStatus } from "@/lib/customer-task-options";
 import { CUSTOMER_STATUSES, customerStatusDisplayLabel, customerStatusLabel, customerTypeLabelForLanguage, normalizeCustomerStatus } from "@/lib/customer-options";
-import { customerPortalUrl } from "@/lib/email";
+import { appPublicBaseUrl, customerPortalUrl } from "@/lib/email";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { getProjectWorkflowSummary } from "@/lib/project-workflow";
 import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
@@ -1283,6 +1283,8 @@ export default async function AdminClientDetailPage({
     invoiceError?: string;
     portalCreated?: string;
     portalError?: string;
+    portalAccount?: string;
+    portalAccountError?: string;
     edit?: string;
     projectCreated?: string;
     projectDeleted?: string;
@@ -1373,6 +1375,25 @@ export default async function AdminClientDetailPage({
       weddingStyleNotes: true,
       importantPeopleNotes: true,
       portalNotes: true,
+      portalAccounts: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          loginIdentifier: true,
+          email: true,
+          displayName: true,
+          status: true,
+          mustChangePassword: true,
+          passwordChangedAt: true,
+          lastLoginAt: true,
+          createdAt: true,
+          _count: {
+            select: {
+              sessions: { where: { expiresAt: { gt: new Date() } } }
+            }
+          }
+        }
+      },
       status: true,
       tags: true,
       notes: true,
@@ -1724,6 +1745,7 @@ export default async function AdminClientDetailPage({
   const nextProjectWorkflow = nextProject ? projectWorkflowSummaries.get(nextProject.id) : null;
   const publicSubdomain = customer.admin.siteSettings?.publicSubdomain ?? null;
   const portalUrl = customer.portalToken ? customerPortalUrl(customer.portalToken, publicSubdomain) : null;
+  const portalLoginUrl = `${appPublicBaseUrl(publicSubdomain)}/portal/login`;
 
   return (
     <AdminShell>
@@ -1819,6 +1841,15 @@ export default async function AdminClientDetailPage({
         {flags.invoiceStatusUpdated ? <Alert title="Számla státusz frissítve." variant="success" /> : null}
         {flags.portalCreated ? <Alert title="Ügyfélportál létrehozva." variant="success" /> : null}
         {flags.portalError === "type" ? <Alert title="Ügyfélportál csak esküvős párnál elérhető." variant="error" /> : null}
+        {flags.portalAccount === "created" ? <Alert title="A pár-admin hozzáférés létrejött." variant="success" /> : null}
+        {flags.portalAccount === "updated" ? <Alert title="A pár-admin hozzáférés adatai elmentve." variant="success" /> : null}
+        {flags.portalAccount === "enabled" ? <Alert title="A pár-admin hozzáférés engedélyezve." variant="success" /> : null}
+        {flags.portalAccount === "disabled" ? <Alert title="A pár-admin hozzáférés letiltva, az aktív munkamenetek megszűntek." variant="success" /> : null}
+        {flags.portalAccountError === "taken" ? <Alert title="Ez az e-mail vagy felhasználónév már használatban van." variant="error" /> : null}
+        {flags.portalAccountError === "identifier" ? <Alert title="Adj meg érvényes e-mail-címet vagy legalább 3 karakteres felhasználónevet." variant="error" /> : null}
+        {flags.portalAccountError === "password" ? <Alert title="Az ideiglenes jelszó legalább 10 karakter legyen." variant="error" /> : null}
+        {flags.portalAccountError === "missing" ? <Alert title="A pár-admin hozzáférés nem található." variant="error" /> : null}
+        {flags.portalAccountError === "customer" ? <Alert title="Pár-admin hozzáférés csak esküvős párhoz készíthető." variant="error" /> : null}
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
         {flags.albumDeleted ? <Alert title="Album ellenőrző törölve." variant="success" /> : null}
@@ -2358,7 +2389,7 @@ export default async function AdminClientDetailPage({
       </div>
 
       <div data-customer-tab-panel="portal" hidden={activeTab !== "portal"}>
-        <CustomerPortalManager customer={customer} portalUrl={portalUrl} />
+        <CustomerPortalManager customer={customer} portalUrl={portalUrl} loginUrl={portalLoginUrl} />
       </div>
 
       <div data-customer-tab-panel="details" hidden={activeTab !== "details"}>

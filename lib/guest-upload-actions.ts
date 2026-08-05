@@ -489,6 +489,7 @@ export async function getGuestGalleryPhotosPageAction(
       where: {
         galleryId: gallery.id,
         status: "visible",
+        customerDeletedAt: null,
         visibleAt: { not: null },
         ...(normalizedCursor
           ? {
@@ -516,7 +517,7 @@ export async function getGuestGalleryPhotosPageAction(
       }
     }),
     prisma.galleryGuestUpload.count({
-      where: { galleryId: gallery.id, status: "visible" }
+      where: { galleryId: gallery.id, status: "visible", customerDeletedAt: null }
     })
   ]);
   const hasMore = rows.length > GUEST_PHOTO_PAGE_SIZE;
@@ -577,6 +578,7 @@ export async function getGuestGalleryPhotoUpdatesAction(
       where: {
         galleryId: gallery.id,
         status: "visible",
+        customerDeletedAt: null,
         visibleAt: { not: null },
         ...(normalizedCursor
           ? {
@@ -604,14 +606,15 @@ export async function getGuestGalleryPhotoUpdatesAction(
       }
     }),
     prisma.galleryGuestUpload.count({
-      where: { galleryId: gallery.id, status: "visible" }
+      where: { galleryId: gallery.id, status: "visible", customerDeletedAt: null }
     }),
     uniqueLoadedIds.length > 0
       ? prisma.galleryGuestUpload.findMany({
           where: {
             galleryId: gallery.id,
             id: { in: uniqueLoadedIds },
-            status: "visible"
+            status: "visible",
+            customerDeletedAt: null
           },
           select: { id: true }
         })
