@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, ExternalLink, Plus, QrCode, UploadCloud } from "lucide-react";
+import { Archive, CalendarDays, ExternalLink, Plus, QrCode, UploadCloud } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
@@ -94,6 +94,8 @@ export default async function GuestGalleriesPage({
       ) : (
         <section className="grid gap-4 xl:grid-cols-2">
           {galleries.map((gallery) => {
+            const archived = Boolean(gallery.guestGalleryArchivedAt) || Boolean(gallery.guestGalleryExpiresAt && gallery.guestGalleryExpiresAt <= new Date());
+            const currentlyActive = gallery.isActive && !archived;
             const publicUrl = publicGalleryUrl(
               gallery.slug,
               gallery.customer?.preferredLanguage,
@@ -110,12 +112,15 @@ export default async function GuestGalleriesPage({
                       </span>
                       <div className="min-w-0">
                         <h2 className="truncate text-xl font-semibold text-ink">{gallery.title}</h2>
-                        <p className="mt-1 truncate text-sm text-graphite/65">/g/{gallery.slug}</p>
+                        <p className="mt-1 flex items-center gap-2 truncate text-sm text-graphite/65">
+                          /g/{gallery.slug}
+                          {archived ? <span className="inline-flex items-center gap-1 rounded-full bg-ink/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"><Archive size={10} /> Archivált</span> : null}
+                        </p>
                       </div>
                     </div>
                   </Link>
-                  <form action={toggleGuestGalleryActiveAction.bind(null, gallery.id, !gallery.isActive)}>
-                    <GalleryActiveSwitch initialIsActive={gallery.isActive} title={gallery.title} />
+                  <form action={toggleGuestGalleryActiveAction.bind(null, gallery.id, !currentlyActive)}>
+                    <GalleryActiveSwitch initialIsActive={currentlyActive} title={gallery.title} />
                   </form>
                 </div>
 
@@ -143,13 +148,13 @@ export default async function GuestGalleriesPage({
                     Kezelés és QR-kód
                   </ButtonLink>
                   <a
-                    href={publicUrl}
+                    href={archived ? `/admin/guest-galleries/${gallery.id}` : publicUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-4 text-sm font-medium text-ink transition hover:bg-paper sm:w-auto"
                   >
-                    <ExternalLink size={16} />
-                    Megnyitás
+                    {archived ? <Archive size={16} /> : <ExternalLink size={16} />}
+                    {archived ? "Archivált" : "Megnyitás"}
                   </a>
                 </div>
               </article>

@@ -6,8 +6,10 @@ import { ZipArchive } from "archiver";
 import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
 import {
+  GUEST_UPLOAD_DOWNLOAD_SCOPE,
   ensureDownloadPackageAccessToken,
   favoriteListIdFromScope,
+  isGuestUploadDownloadScope,
   isFavoriteDownloadScope,
   publicDownloadQualityFromScope,
   publicDownloadScopeForQuality
@@ -30,7 +32,7 @@ import {
   getR2KeyFromPublicUrl,
   savePhotoStream
 } from "@/lib/storage";
-import { PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
+import { GALLERY_MODE_GUEST, PHOTO_DELIVERY_STAGE_FINAL, PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 
 export const ZIP_GENERATION_JOB = "zip_generation";
@@ -672,7 +674,7 @@ export async function preparePublicGalleryZipPackages(
       r2Key: { not: null },
       generatedAt: latestPhotoCreatedAt ? { gte: latestPhotoCreatedAt } : undefined
     },
-    orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { generatedAt: "desc" }],
+    orderBy: [{ generatedAt: "desc" }, { partIndex: "asc" }],
     select: {
       id: true,
       status: true,
@@ -709,7 +711,7 @@ export async function preparePublicGalleryZipPackages(
       status: { in: ["pending", "processing"] },
       photoCount: gallery.photos.length
     },
-    orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { createdAt: "desc" }],
+    orderBy: [{ createdAt: "desc" }, { partIndex: "asc" }],
     select: {
       id: true,
       status: true,
@@ -788,6 +790,172 @@ export async function preparePublicGalleryZipPackages(
   return {
     ok: true,
     status: "pending",
+    cached: false,
+    packages: createdPackages,
+    payloads
+  };
+}
+
+export async function prepareGuestGalleryZipPackages(galleryId: string) {
+  const gallery = await prisma.gallery.findUnique({
+    where: { id: galleryId },
+    select: {
+      id: true,
+      galleryMode: true,
+      guestUploads: {
+        where: { status: { in: ["visible", "hidden", "pending_review"] } },
+        orderBy: { createdAt: "asc" },
+        select: {
+          createdAt: true,
+          fileSize: true,
+          mediaType: true
+        }
+      }
+    }
+  });
+
+  if (!gallery || gallery.galleryMode !== GALLERY_MODE_GUEST) {
+    return { ok: false as const, reason: "not-found" as const, packages: [], payloads: [] };
+  }
+
+  if (gallery.guestUploads.length === 0) {
+    return { ok: false as const, reason: "no-photos" as const, packages: [], payloads: [] };
+  }
+
+  const latestUploadCreatedAt = gallery.guestUploads.reduce<Date | null>(
+    (latest, upload) => !latest || upload.createdAt > latest ? upload.createdAt : latest,
+    null
+  );
+  const completedPackages = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      galleryId,
+      scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+      status: "completed",
+      photoCount: gallery.guestUploads.length,
+      downloadUrl: { not: null },
+      r2Key: { not: null },
+      generatedAt: latestUploadCreatedAt ? { gte: latestUploadCreatedAt } : undefined
+    },
+    orderBy: [{ generatedAt: "desc" }, { partIndex: "asc" }],
+    select: {
+      id: true,
+      status: true,
+      downloadUrl: true,
+      scope: true,
+      groupId: true,
+      partIndex: true,
+      partCount: true
+    }
+  });
+  const completedGroups = new Map<string, typeof completedPackages>();
+
+  for (const downloadPackage of completedPackages) {
+    const key = downloadPackage.groupId ?? downloadPackage.id;
+    completedGroups.set(key, [...(completedGroups.get(key) ?? []), downloadPackage]);
+  }
+
+  const completePackages = Array.from(completedGroups.values()).find(isCompletePackageSet);
+
+  if (completePackages) {
+    return {
+      ok: true as const,
+      status: "completed" as const,
+      cached: true,
+      packages: completePackages,
+      payloads: []
+    };
+  }
+
+  const activePackages = await prisma.galleryDownloadPackage.findMany({
+    where: {
+      galleryId,
+      scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+      status: { in: ["pending", "processing"] },
+      photoCount: gallery.guestUploads.length
+    },
+    orderBy: [{ createdAt: "desc" }, { partIndex: "asc" }],
+    select: {
+      id: true,
+      status: true,
+      downloadUrl: true,
+      scope: true,
+      groupId: true,
+      partIndex: true,
+      partCount: true,
+      updatedAt: true
+    }
+  });
+
+  if (activePackages.length > 0) {
+    const latestGroupKey = activePackages[0].groupId ?? activePackages[0].id;
+    const latestGroupPackages = activePackages.filter(
+      (downloadPackage) => (downloadPackage.groupId ?? downloadPackage.id) === latestGroupKey
+    );
+    const now = Date.now();
+    const packagesToKick = latestGroupPackages.filter(
+      (downloadPackage) =>
+        downloadPackage.status === "pending" ||
+        (downloadPackage.status === "processing" && now - downloadPackage.updatedAt.getTime() > STALE_ZIP_PROCESSING_MS)
+    );
+    const payloads = await Promise.all(
+      packagesToKick.map(async (downloadPackage) => ({
+        galleryId,
+        packageId: downloadPackage.id,
+        jobId: (await enqueueGalleryZipJob({ galleryId, packageId: downloadPackage.id })).id
+      }))
+    );
+
+    return {
+      ok: true as const,
+      status: latestGroupPackages.some((downloadPackage) => downloadPackage.status === "processing")
+        ? "processing" as const
+        : "pending" as const,
+      cached: false,
+      packages: latestGroupPackages,
+      payloads
+    };
+  }
+
+  const ranges = createZipPartRanges(gallery.guestUploads, "original");
+  const partCount = ranges.length;
+  const groupId = partCount > 1 ? randomUUID() : null;
+  const createdPackages = await prisma.$transaction(
+    ranges.map((range, partIndex) =>
+      prisma.galleryDownloadPackage.create({
+        data: {
+          galleryId,
+          scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+          status: "pending",
+          photoCount: gallery.guestUploads.length,
+          partIndex,
+          partCount,
+          photoOffset: range.offset,
+          photoLimit: range.limit,
+          groupId
+        },
+        select: {
+          id: true,
+          status: true,
+          downloadUrl: true,
+          scope: true,
+          groupId: true,
+          partIndex: true,
+          partCount: true
+        }
+      })
+    )
+  );
+  const payloads = await Promise.all(
+    createdPackages.map(async (downloadPackage) => ({
+      galleryId,
+      packageId: downloadPackage.id,
+      jobId: (await enqueueGalleryZipJob({ galleryId, packageId: downloadPackage.id })).id
+    }))
+  );
+
+  return {
+    ok: true as const,
+    status: "pending" as const,
     cached: false,
     packages: createdPackages,
     payloads
@@ -981,6 +1149,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
   const downloadPackageId = downloadPackage.id;
   const quality = publicDownloadQualityFromScope(downloadPackage.scope);
   const favoriteListId = favoriteListIdFromScope(downloadPackage.scope);
+  const guestUploadScope = isGuestUploadDownloadScope(downloadPackage.scope);
 
   const gallery = await prisma.gallery.findUnique({
     where: { id: payload.galleryId },
@@ -1018,6 +1187,21 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
           fileSize: true,
           mediaType: true
         }
+      },
+      guestUploads: {
+        where: { status: { in: ["visible", "hidden", "pending_review"] } },
+        orderBy: { createdAt: "asc" },
+        skip: downloadPackage.photoOffset,
+        take: downloadPackage.photoLimit ?? undefined,
+        select: {
+          id: true,
+          filename: true,
+          imageUrl: true,
+          previewUrl: true,
+          r2Key: true,
+          fileSize: true,
+          mediaType: true
+        }
       }
     }
   });
@@ -1026,22 +1210,24 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     throw new Error("Diese Galerie wurde nicht gefunden.");
   }
 
-  if (!isPaidDownloadScope(downloadPackage.scope) && (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))) {
+  if (!guestUploadScope && !isPaidDownloadScope(downloadPackage.scope) && (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))) {
     throw new Error("Downloads sind für diese Galerie derzeit deaktiviert.");
   }
 
-  if (isProofingGallery(gallery.galleryMode) && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED) {
+  if (!guestUploadScope && isProofingGallery(gallery.galleryMode) && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED) {
     throw new Error("Die finalen Fotos sind noch nicht freigegeben.");
   }
 
-  const zipPhotos: ZipPhoto[] = favoriteListId
-    ? await findFavoriteZipPhotos({
-        galleryId: gallery.id,
-        listId: favoriteListId,
-        offset: downloadPackage.photoOffset,
-        limit: downloadPackage.photoLimit
-      })
-    : gallery.photos;
+  const zipPhotos: ZipPhoto[] = guestUploadScope
+    ? gallery.guestUploads
+    : favoriteListId
+      ? await findFavoriteZipPhotos({
+          galleryId: gallery.id,
+          listId: favoriteListId,
+          offset: downloadPackage.photoOffset,
+          limit: downloadPackage.photoLimit
+        })
+      : gallery.photos;
 
   if (zipPhotos.length === 0) {
     throw new Error("Diese Galerie enthält noch keine Fotos.");
@@ -1148,20 +1334,28 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
 
     const generatedAt = new Date();
     const zippedPhotoIds = zipPhotos.map((photo) => photo.id);
-    const currentVisiblePhotoIds = favoriteListId
-      ? (await findFavoriteZipPhotos({
-          galleryId: gallery.id,
-          listId: favoriteListId,
-          offset: downloadPackage.photoOffset,
-          limit: downloadPackage.photoLimit
-        })).map((photo) => ({ id: photo.id }))
-      : await prisma.photo.findMany({
-          where: { galleryId: gallery.id, isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    const currentVisiblePhotoIds = guestUploadScope
+      ? await prisma.galleryGuestUpload.findMany({
+          where: { galleryId: gallery.id, status: { in: ["visible", "hidden", "pending_review"] } },
+          orderBy: { createdAt: "asc" },
           skip: downloadPackage.photoOffset,
           take: downloadPackage.photoLimit ?? undefined,
           select: { id: true }
-        });
+        })
+      : favoriteListId
+        ? (await findFavoriteZipPhotos({
+            galleryId: gallery.id,
+            listId: favoriteListId,
+            offset: downloadPackage.photoOffset,
+            limit: downloadPackage.photoLimit
+          })).map((photo) => ({ id: photo.id }))
+        : await prisma.photo.findMany({
+            where: { galleryId: gallery.id, isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            skip: downloadPackage.photoOffset,
+            take: downloadPackage.photoLimit ?? undefined,
+            select: { id: true }
+          });
     const publicPhotoListChanged =
       zippedPhotoIds.length !== currentVisiblePhotoIds.length ||
       zippedPhotoIds.some((photoId, index) => photoId !== currentVisiblePhotoIds[index]?.id);
@@ -1172,7 +1366,9 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         where: { id: downloadPackage.id },
         data: {
           status: "stale",
-          errorMessage: favoriteListId
+          errorMessage: guestUploadScope
+            ? "A vendégfotók listája megváltozott ZIP készítés közben."
+            : favoriteListId
             ? "A kedvenc lista megváltozott ZIP készítés közben."
             : "A publikus képlista megváltozott ZIP készítés közben."
         }
@@ -1206,7 +1402,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
         keepGroupId: downloadPackage.groupId
       });
 
-      if (!isFavoriteDownloadScope(downloadPackage.scope)) {
+      if (!isFavoriteDownloadScope(downloadPackage.scope) && !guestUploadScope) {
         await notifyGalleryZipReady({
           galleryId: gallery.id,
           adminId: gallery.adminId,
@@ -1222,6 +1418,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     }
 
     safeRevalidatePath(`/admin/galleries/${gallery.id}`);
+    safeRevalidatePath(`/admin/guest-galleries/${gallery.id}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Die ZIP-Datei konnte nicht erstellt werden.";
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
+import { invalidateGuestGalleryDownloadPackages } from "@/lib/download-packages";
 import { kickGalleryMediaProcessing } from "@/lib/media-processing";
 import { prisma } from "@/lib/prisma";
 import { canViewGallery } from "@/lib/public-actions";
@@ -102,11 +103,19 @@ export async function createGuestUploadTargetsAction(
       password: true,
       isActive: true,
       guestUploadsEnabled: true,
-      guestUploadLimit: true
+      guestUploadLimit: true,
+      guestGalleryExpiresAt: true,
+      guestGalleryArchivedAt: true
     }
   });
 
-  if (!gallery || !gallery.isActive || !gallery.guestUploadsEnabled) {
+  if (
+    !gallery ||
+    !gallery.isActive ||
+    !gallery.guestUploadsEnabled ||
+    gallery.guestGalleryArchivedAt ||
+    (gallery.guestGalleryExpiresAt && gallery.guestGalleryExpiresAt <= new Date())
+  ) {
     return { ok: false, message: "Ebben a galériában a vendégfotó feltöltés nem aktív." };
   }
 
@@ -205,11 +214,19 @@ export async function completeGuestUploadsAction(
       password: true,
       isActive: true,
       guestUploadsEnabled: true,
-      guestUploadModerationMode: true
+      guestUploadModerationMode: true,
+      guestGalleryExpiresAt: true,
+      guestGalleryArchivedAt: true
     }
   });
 
-  if (!gallery || !gallery.isActive || !gallery.guestUploadsEnabled) {
+  if (
+    !gallery ||
+    !gallery.isActive ||
+    !gallery.guestUploadsEnabled ||
+    gallery.guestGalleryArchivedAt ||
+    (gallery.guestGalleryExpiresAt && gallery.guestGalleryExpiresAt <= new Date())
+  ) {
     return { ok: false, message: "Ebben a galériában a vendégfotó feltöltés nem aktív." };
   }
 
@@ -257,8 +274,13 @@ export async function completeGuestUploadsAction(
         status: "pending",
         sourceR2Key: upload.r2Key
       }))
+    }),
+    prisma.gallery.update({
+      where: { id: gallery.id },
+      data: { guestGalleryRevision: { increment: 1 } }
     })
   ]);
+  await invalidateGuestGalleryDownloadPackages(gallery.id);
 
   revalidatePath(`/g/${gallery.slug}`);
   revalidatePath(`/admin/guest-galleries/${gallery.id}`);
@@ -278,19 +300,36 @@ export async function completeGuestUploadsAction(
   };
 }
 
-export async function getGuestGalleryPhotosAction(galleryId: string) {
+export async function getGuestGalleryPhotosAction(galleryId: string, knownRevision?: number) {
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
     select: {
       id: true,
       slug: true,
       password: true,
-      isActive: true
+      isActive: true,
+      guestGalleryExpiresAt: true,
+      guestGalleryArchivedAt: true,
+      guestGalleryRevision: true
     }
   });
 
-  if (!gallery?.isActive || !(await canViewGallery(gallery.slug, gallery.password))) {
+  if (
+    !gallery?.isActive ||
+    gallery.guestGalleryArchivedAt ||
+    (gallery.guestGalleryExpiresAt && gallery.guestGalleryExpiresAt <= new Date()) ||
+    !(await canViewGallery(gallery.slug, gallery.password))
+  ) {
     return { ok: false as const, photos: [] };
+  }
+
+  if (Number.isInteger(knownRevision) && knownRevision === gallery.guestGalleryRevision) {
+    return {
+      ok: true as const,
+      unchanged: true as const,
+      revision: gallery.guestGalleryRevision,
+      photos: []
+    };
   }
 
   const photos = await prisma.galleryGuestUpload.findMany({
@@ -299,7 +338,7 @@ export async function getGuestGalleryPhotosAction(galleryId: string) {
       status: "visible"
     },
     orderBy: { createdAt: "asc" },
-    take: 1000,
+    take: 5000,
     select: {
       id: true,
       filename: true,
@@ -316,6 +355,8 @@ export async function getGuestGalleryPhotosAction(galleryId: string) {
 
   return {
     ok: true as const,
+    unchanged: false as const,
+    revision: gallery.guestGalleryRevision,
     photos: photos.map((photo) => ({
       ...photo,
       createdAt: photo.createdAt.toISOString()

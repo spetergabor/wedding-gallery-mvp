@@ -84,6 +84,10 @@ export async function POST(request: Request) {
             processingCompletedAt: new Date()
           }
         });
+        await tx.gallery.update({
+          where: { id: job.galleryId },
+          data: { guestGalleryRevision: { increment: 1 } }
+        });
       }
     });
 
@@ -126,6 +130,10 @@ export async function POST(request: Request) {
       await tx.galleryGuestUpload.update({
         where: { id: job.guestUploadId },
         data: processedData
+      });
+      await tx.gallery.update({
+        where: { id: job.galleryId },
+        data: { guestGalleryRevision: { increment: 1 } }
       });
     }
   });

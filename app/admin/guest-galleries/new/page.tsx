@@ -97,6 +97,14 @@ export default async function NewGuestGalleryPage({
                 className={fieldClass}
               />
             </label>
+
+            <label className="block space-y-2 sm:col-span-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                <CalendarDays size={15} /> Automatikus archiválás (opcionális)
+              </span>
+              <input name="guestGalleryExpiresAt" type="date" className={fieldClass} />
+              <span className="block text-xs leading-5 text-graphite/60">A kiválasztott nap végén a publikus oldal és az új feltöltések automatikusan lezárnak.</span>
+            </label>
           </div>
 
           <div className="mt-6 rounded-md border border-sage/20 bg-sage/10 p-4">

@@ -1,15 +1,22 @@
-import Image from "next/image";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { CalendarDays, Download, ExternalLink, Eye, EyeOff, KeyRound, QrCode, UploadCloud } from "lucide-react";
+import { Archive, CalendarDays, Download, ExternalLink, FileArchive, KeyRound, QrCode, RotateCcw, UploadCloud } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { GuestGalleryPhotoManager } from "@/components/guest-gallery-photo-manager";
+import { ZipStatusAutoRefresh } from "@/components/zip-status-auto-refresh";
 import { galleryAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { GUEST_UPLOAD_DOWNLOAD_SCOPE, ensureDownloadPackageAccessToken } from "@/lib/download-packages";
 import { publicGalleryUrl } from "@/lib/email";
-import { setGuestPhotoVisibilityAction, updateGuestGalleryAction } from "@/lib/guest-gallery-actions";
+import {
+  archiveGuestGalleryAction,
+  queueGuestGalleryZipAction,
+  restoreGuestGalleryAction,
+  updateGuestGalleryAction
+} from "@/lib/guest-gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_GUEST } from "@/lib/proofing";
 
@@ -20,12 +27,18 @@ function dateInputValue(date: Date | null) {
   return date?.toISOString().slice(0, 10) ?? "";
 }
 
-function formatFileSize(bytes: number) {
-  if (bytes < 1024 * 1024) {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+function formatFileSize(bytes: number | bigint) {
+  const value = Number(bytes);
+
+  if (value < 1024 * 1024) {
+    return `${Math.max(1, Math.round(value / 1024))} KB`;
   }
 
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (value >= 1024 * 1024 * 1024) {
+    return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default async function GuestGalleryDetailPage({
@@ -33,7 +46,7 @@ export default async function GuestGalleryDetailPage({
   searchParams
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string; saved?: string; photo?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; saved?: string; photo?: string; error?: string; zip?: string; archive?: string }>;
 }) {
   const admin = await requireAdmin();
   const { id } = await params;
@@ -54,6 +67,11 @@ export default async function GuestGalleryDetailPage({
         },
         guestUploads: {
           orderBy: { createdAt: "desc" }
+        },
+        downloadPackages: {
+          where: { scope: GUEST_UPLOAD_DOWNLOAD_SCOPE },
+          orderBy: [{ createdAt: "desc" }, { partIndex: "asc" }],
+          take: 30
         }
       }
     }),
@@ -87,10 +105,32 @@ export default async function GuestGalleryDetailPage({
     }
   });
   const visibleCount = gallery.guestUploads.filter((photo) => photo.status === "visible").length;
+  const galleryArchived = Boolean(gallery.guestGalleryArchivedAt) || Boolean(gallery.guestGalleryExpiresAt && gallery.guestGalleryExpiresAt <= new Date());
   const hiddenCount = gallery.guestUploads.filter((photo) => photo.status === "hidden").length;
   const pendingReviewCount = gallery.guestUploads.filter((photo) => photo.status === "pending_review").length;
   const processingCount = gallery.guestUploads.filter((photo) => photo.processingStatus === "pending" || photo.processingStatus === "processing").length;
   const capacityPercent = Math.min(100, Math.round((gallery.guestUploads.length / gallery.guestUploadLimit) * 100));
+  const latestZipPackage = gallery.downloadPackages[0] ?? null;
+  const latestZipGroupKey = latestZipPackage ? latestZipPackage.groupId ?? latestZipPackage.id : null;
+  const latestZipPackages = latestZipGroupKey
+    ? gallery.downloadPackages
+        .filter((downloadPackage) => (downloadPackage.groupId ?? downloadPackage.id) === latestZipGroupKey)
+        .sort((a, b) => a.partIndex - b.partIndex)
+    : [];
+  const zipActive = latestZipPackages.some((downloadPackage) => downloadPackage.status === "pending" || downloadPackage.status === "processing");
+  const zipReady = latestZipPackages.length > 0 && latestZipPackages.every((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl);
+  const zipFailed = latestZipPackages.some((downloadPackage) => downloadPackage.status === "failed");
+  const zipProcessedCount = latestZipPackages.reduce((sum, downloadPackage) => sum + downloadPackage.processedCount, 0);
+  const zipPhotoCount = latestZipPackage?.photoCount ?? gallery.guestUploads.filter((photo) => photo.status !== "pending").length;
+  const zipProgress = zipReady ? 100 : zipPhotoCount > 0 ? Math.min(99, Math.round((zipProcessedCount / zipPhotoCount) * 100)) : 0;
+  const zipDownloadLinks = new Map(
+    zipReady
+      ? await Promise.all(latestZipPackages.map(async (downloadPackage) => {
+          const access = await ensureDownloadPackageAccessToken(downloadPackage.id);
+          return [downloadPackage.id, `/download/${access.token}`] as const;
+        }))
+      : []
+  );
 
   return (
     <AdminShell>
@@ -103,14 +143,20 @@ export default async function GuestGalleryDetailPage({
           <h1 className="mt-2 text-3xl font-semibold text-ink">{gallery.title}</h1>
           <p className="mt-2 text-sm text-graphite/65">{gallery.customer?.coupleName ?? "Nincs ügyfélhez kapcsolva"}</p>
         </div>
-        <a
-          href={publicUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
-        >
-          <ExternalLink size={16} /> Publikus galéria
-        </a>
+        {!galleryArchived && gallery.isActive ? (
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+          >
+            <ExternalLink size={16} /> Publikus galéria
+          </a>
+        ) : (
+          <span className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink/10 px-4 text-sm font-medium text-graphite">
+            <Archive size={16} /> Archivált galéria
+          </span>
+        )}
       </div>
 
       <div className="mb-5 space-y-3">
@@ -118,6 +164,12 @@ export default async function GuestGalleryDetailPage({
         {flags.saved ? <Alert title="A vendéggaléria beállításai elmentve." variant="success" /> : null}
         {flags.photo === "hidden" ? <Alert title="A kép elrejtve a vendégek elől." variant="success" /> : null}
         {flags.photo === "shown" ? <Alert title="A kép ismét látható a vendéggalériában." variant="success" /> : null}
+        {flags.zip === "queued" ? <Alert title="A vendégfotók ZIP-feldolgozása elindult." variant="success" /> : null}
+        {flags.zip === "already-running" ? <Alert title="A ZIP-feldolgozás már folyamatban van." variant="info" /> : null}
+        {flags.zip === "already-ready" ? <Alert title="A vendégfotók ZIP-je már letölthető." variant="success" /> : null}
+        {flags.zip === "no-photos" ? <Alert title="Nincs ZIP-be tehető vendégfotó." variant="error" /> : null}
+        {flags.archive === "done" ? <Alert title="A vendéggaléria archiválva és lezárva." variant="success" /> : null}
+        {flags.archive === "restored" ? <Alert title="A vendéggaléria visszaállítva és újra megnyitva." variant="success" /> : null}
         {flags.error === "missing" ? <Alert title="A galéria neve kötelező." variant="error" /> : null}
         {flags.error === "photo" ? <Alert title="A kiválasztott vendégfotó nem található." variant="error" /> : null}
       </div>
@@ -156,11 +208,24 @@ export default async function GuestGalleryDetailPage({
                 className={fieldClass}
               />
             </label>
+
+            <label className="block space-y-2 sm:col-span-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                <CalendarDays size={15} /> Automatikus archiválás
+              </span>
+              <input
+                name="guestGalleryExpiresAt"
+                type="date"
+                defaultValue={dateInputValue(gallery.guestGalleryExpiresAt)}
+                className={fieldClass}
+              />
+              <span className="block text-xs leading-5 text-graphite/60">A megadott nap végén a galéria bezár és a vendégfeltöltés kikapcsol.</span>
+            </label>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper p-4">
-              <input name="isActive" type="checkbox" defaultChecked={gallery.isActive} className="mt-1 size-4 accent-ink" />
+              <input name="isActive" type="checkbox" defaultChecked={gallery.isActive && !galleryArchived} disabled={galleryArchived} className="mt-1 size-4 accent-ink disabled:opacity-40" />
               <span>
                 <span className="text-sm font-semibold text-ink">Galéria aktív</span>
                 <span className="mt-1 block text-xs leading-5 text-graphite/65">Kikapcsolva a publikus link nem nyitható meg.</span>
@@ -171,7 +236,8 @@ export default async function GuestGalleryDetailPage({
                 name="guestUploadsEnabled"
                 type="checkbox"
                 defaultChecked={gallery.guestUploadsEnabled}
-                className="mt-1 size-4 accent-ink"
+                disabled={galleryArchived}
+                className="mt-1 size-4 accent-ink disabled:opacity-40"
               />
               <span>
                 <span className="text-sm font-semibold text-ink">Új feltöltések engedélyezve</span>
@@ -241,6 +307,73 @@ export default async function GuestGalleryDetailPage({
         </aside>
       </div>
 
+      <section className="mt-6 grid gap-6 xl:grid-cols-2">
+        <div className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Eredeti fájlok</p>
+              <h2 className="mt-1 text-xl font-semibold text-ink">Vendégfotók ZIP-letöltése</h2>
+              <p className="mt-2 text-sm leading-6 text-graphite/65">Az összes befejezett vendégfeltöltés eredeti fájlja, szükség esetén több ZIP-részben.</p>
+            </div>
+            <ZipStatusAutoRefresh enabled={zipActive} />
+          </div>
+
+          <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium text-ink">
+                {zipReady ? "ZIP elkészült" : zipActive ? "ZIP készül" : zipFailed ? "A ZIP készítése hibára futott" : "Még nincs kész ZIP"}
+              </span>
+              <span className="text-graphite/60">{zipProgress}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10">
+              <div className={`h-full rounded-full ${zipFailed ? "bg-red-600" : "bg-sage"}`} style={{ width: `${zipProgress}%` }} />
+            </div>
+            {latestZipPackages.some((downloadPackage) => downloadPackage.errorMessage) ? (
+              <p className="mt-3 text-xs text-red-700">{latestZipPackages.find((downloadPackage) => downloadPackage.errorMessage)?.errorMessage}</p>
+            ) : (
+              <p className="mt-3 text-xs text-graphite/60">{zipProcessedCount}/{zipPhotoCount} kép feldolgozva</p>
+            )}
+          </div>
+
+          {zipReady ? (
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {latestZipPackages.map((downloadPackage) => (
+                <a
+                  key={downloadPackage.id}
+                  href={zipDownloadLinks.get(downloadPackage.id) ?? downloadPackage.downloadUrl!}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+                >
+                  <Download size={16} /> ZIP {downloadPackage.partCount > 1 ? `${downloadPackage.partIndex + 1}/${downloadPackage.partCount}` : "letöltése"}
+                  {downloadPackage.fileSize > 0 ? ` · ${formatFileSize(downloadPackage.fileSize)}` : ""}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <form action={queueGuestGalleryZipAction.bind(null, gallery.id)} className="mt-4">
+              <FormSubmitButton disabled={zipActive || zipPhotoCount === 0} pendingLabel="Indítás...">
+                <FileArchive size={16} /> {zipFailed ? "ZIP újraindítása" : "Eredeti ZIP elkészítése"}
+              </FormSubmitButton>
+            </form>
+          )}
+        </div>
+
+        <div className={`rounded-lg border p-5 shadow-soft sm:p-6 ${galleryArchived ? "border-ink/10 bg-paper" : "border-red-200 bg-white"}`}>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Életciklus</p>
+          <h2 className="mt-1 text-xl font-semibold text-ink">{galleryArchived ? "Galéria archiválva" : "Esemény lezárása"}</h2>
+          <p className="mt-2 text-sm leading-6 text-graphite/65">
+            {galleryArchived
+              ? "A publikus oldal és a feltöltés nem érhető el. A képek és a ZIP-ek megmaradtak."
+              : "Az archiválás azonnal bezárja a publikus oldalt és letiltja az új feltöltéseket, de nem töröl semmit."}
+          </p>
+          <form action={(galleryArchived ? restoreGuestGalleryAction : archiveGuestGalleryAction).bind(null, gallery.id)} className="mt-5">
+            <FormSubmitButton variant={galleryArchived ? "secondary" : "danger"} pendingLabel={galleryArchived ? "Visszaállítás..." : "Archiválás..."}>
+              {galleryArchived ? <RotateCcw size={16} /> : <Archive size={16} />}
+              {galleryArchived ? "Galéria visszaállítása" : "Galéria archiválása most"}
+            </FormSubmitButton>
+          </form>
+        </div>
+      </section>
+
       <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
@@ -265,66 +398,22 @@ export default async function GuestGalleryDetailPage({
           </div>
         </div>
 
-        {gallery.guestUploads.length > 0 ? (
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {gallery.guestUploads.map((photo) => {
-              const visible = photo.status === "visible";
-              const pendingReview = photo.status === "pending_review";
-              const canModerate = photo.status !== "pending";
-              const identity = photo.guestName || photo.email || "Névtelen vendég";
-              const statusLabel = visible ? "Látható" : pendingReview ? "Jóváhagyásra vár" : photo.status === "pending" ? "Feltöltés alatt" : "Elrejtve";
-              const statusClass = visible ? "bg-sage text-white" : pendingReview ? "bg-brass text-white" : photo.status === "pending" ? "bg-graphite text-white" : "bg-ink/75 text-white";
-
-              return (
-                <article key={photo.id} className={`overflow-hidden rounded-md border bg-paper ${visible ? "border-ink/10" : pendingReview ? "border-brass/40" : "border-amber-200 opacity-75"}`}>
-                  <div className="relative aspect-square overflow-hidden bg-mist">
-                    {photo.imageUrl ? (
-                      <Image
-                        src={photo.thumbnailUrl || photo.previewUrl || photo.imageUrl}
-                        alt={photo.filename}
-                        fill
-                        unoptimized
-                        className="object-cover"
-                        sizes="(min-width: 1280px) 20vw, (min-width: 768px) 25vw, 50vw"
-                      />
-                    ) : null}
-                    <span className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-semibold ${statusClass}`}>
-                      {statusLabel}
-                    </span>
-                    {photo.processingStatus === "failed" ? (
-                      <span className="absolute bottom-2 right-2 rounded-full bg-red-700 px-2 py-1 text-[10px] font-semibold text-white">Feldolgozási hiba</span>
-                    ) : photo.processingStatus !== "ready" && photo.status !== "pending" ? (
-                      <span className="absolute bottom-2 right-2 rounded-full bg-ink/75 px-2 py-1 text-[10px] font-semibold text-white">Előnézet készül</span>
-                    ) : null}
-                  </div>
-                  <div className="p-3">
-                    <p className="truncate text-xs font-semibold text-ink" title={photo.filename}>{photo.filename}</p>
-                    <p className="mt-1 truncate text-[11px] text-graphite/55" title={identity}>{identity}</p>
-                    {photo.guestName && photo.email ? <p className="mt-1 truncate text-[11px] text-graphite/45" title={photo.email}>{photo.email}</p> : null}
-                    <p className="mt-1 text-[11px] text-graphite/55">{formatFileSize(photo.fileSize)}</p>
-                    {canModerate ? (
-                      <form action={setGuestPhotoVisibilityAction.bind(null, gallery.id, photo.id, !visible)} className="mt-3">
-                        <button
-                          type="submit"
-                          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-2 text-xs font-medium text-ink transition hover:bg-ink/5"
-                        >
-                          {visible ? <EyeOff size={14} /> : <Eye size={14} />}
-                          {visible ? "Elrejtés" : pendingReview ? "Jóváhagyás" : "Megjelenítés"}
-                        </button>
-                      </form>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-5 py-12 text-center">
-            <UploadCloud className="mx-auto text-graphite/40" size={24} />
-            <p className="mt-3 text-sm font-medium text-ink">Még nincs vendégfeltöltés</p>
-            <p className="mt-1 text-xs text-graphite/60">Oszd meg a QR-kódot vagy a vendéglinket az első képekhez.</p>
-          </div>
-        )}
+        <GuestGalleryPhotoManager
+          galleryId={gallery.id}
+          initialPhotos={gallery.guestUploads.map((photo) => ({
+            id: photo.id,
+            filename: photo.filename,
+            email: photo.email,
+            guestName: photo.guestName,
+            imageUrl: photo.imageUrl,
+            thumbnailUrl: photo.thumbnailUrl,
+            previewUrl: photo.previewUrl,
+            fileSize: photo.fileSize,
+            status: photo.status,
+            processingStatus: photo.processingStatus,
+            createdAt: photo.createdAt.toISOString()
+          }))}
+        />
       </section>
     </AdminShell>
   );

@@ -173,6 +173,11 @@ from R2, writes lightweight thumbnail and preview JPG files back to R2, then mar
 also processes guest-gallery uploads; those jobs have `assetType: "guest_upload"`, a `guestUploadId`, and expose the
 guest upload through the response's compatible `photo` field.
 
+Guest-gallery original ZIP files use the same `zip_generation` queue and ZIP worker as normal gallery downloads,
+with the `guest_uploads` package scope. Keep the configured ZIP worker running before offering large guest galleries.
+The daily `/api/jobs/process` cron also archives guest galleries whose configured expiration date has passed; public
+access and new uploads are blocked immediately at expiration even before the maintenance run updates the stored state.
+
 The legacy HTTP worker API is still available for external workers. A worker can claim jobs from:
 
 ```text

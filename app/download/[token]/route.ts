@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
 import { PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { galleryZipFileName } from "@/lib/jobs";
-import { publicDownloadQualityFromScope } from "@/lib/download-packages";
+import { isGuestUploadDownloadScope, publicDownloadQualityFromScope } from "@/lib/download-packages";
 import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { isPaidPurchaseScope } from "@/lib/gallery-sales-shared";
 
@@ -57,6 +57,7 @@ export async function GET(
   }
 
   if (
+    !isGuestUploadDownloadScope(downloadPackage.scope) &&
     !isPaidPurchaseScope(downloadPackage.scope) &&
     (!downloadPackage.gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(downloadPackage.gallery.deliveryMode))
   ) {

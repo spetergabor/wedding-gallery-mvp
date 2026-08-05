@@ -97,6 +97,10 @@ async function markMediaJobFailed(job: ClaimedMediaJob, error: unknown) {
           processingCompletedAt: new Date()
         }
       });
+      await tx.gallery.update({
+        where: { id: job.galleryId },
+        data: { guestGalleryRevision: { increment: 1 } }
+      });
     }
   });
 }
@@ -299,6 +303,10 @@ async function processImageMediaJob(job: ClaimedMediaJob) {
       await tx.galleryGuestUpload.update({
         where: { id: job.guestUploadId },
         data: processedData
+      });
+      await tx.gallery.update({
+        where: { id: job.galleryId },
+        data: { guestGalleryRevision: { increment: 1 } }
       });
     }
   });

@@ -125,16 +125,19 @@ export function GuestPhotoUpload({
   galleryId,
   language,
   initialPhotos,
+  initialRevision,
   uploadsEnabled = true
 }: {
   galleryId: string;
   language: CustomerLanguage;
   initialPhotos: GuestPhoto[];
+  initialRevision: number;
   uploadsEnabled?: boolean;
 }) {
   const copy = COPY[language];
   const inputRef = useRef<HTMLInputElement>(null);
   const guestKeyRef = useRef("");
+  const revisionRef = useRef(initialRevision);
   const refreshInFlightRef = useRef(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -157,9 +160,10 @@ export function GuestPhotoUpload({
     refreshInFlightRef.current = true;
 
     try {
-      const result = await getGuestGalleryPhotosAction(galleryId);
+      const result = await getGuestGalleryPhotosAction(galleryId, revisionRef.current);
 
-      if (result.ok) {
+      if (result.ok && !result.unchanged) {
+        revisionRef.current = result.revision;
         setPhotos(result.photos);
       }
     } finally {
@@ -189,7 +193,8 @@ export function GuestPhotoUpload({
 
   useEffect(() => {
     setPhotos(initialPhotos);
-  }, [initialPhotos]);
+    revisionRef.current = initialRevision;
+  }, [initialPhotos, initialRevision]);
 
   useEffect(() => {
     getOrCreateGuestKey();

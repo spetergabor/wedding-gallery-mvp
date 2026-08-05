@@ -861,6 +861,9 @@ model Gallery {
   guestUploadsEnabled Boolean @default(false)
   guestUploadModerationMode String @default("automatic")
   guestUploadLimit Int @default(1000)
+  guestGalleryExpiresAt DateTime?
+  guestGalleryArchivedAt DateTime?
+  guestGalleryRevision Int @default(0)
   lightroomUploadsEnabled Boolean @default(false)
   lightroomUploadTokenHash String? @unique
   lightroomUploadTokenCreatedAt DateTime?
@@ -904,6 +907,7 @@ model Gallery {
   @@index([deliveryMode])
   @@index([proofingStatus])
   @@index([lightroomUploadsEnabled])
+  @@index([guestGalleryExpiresAt])
 }
 
 model GalleryGuestUpload {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { archiveExpiredGuestGalleries } from "@/lib/guest-gallery-lifecycle";
 import { cleanupStuckGalleryZipWork, isExternalZipWorkerMode, processPendingJobs } from "@/lib/jobs";
 
 export const runtime = "nodejs";
@@ -26,12 +27,14 @@ async function processJobs(request: Request) {
   }
 
   const zipMaintenance = await cleanupStuckGalleryZipWork();
+  const guestGalleryMaintenance = await archiveExpiredGuestGalleries();
 
   if (process.env.ZIP_WORKER_DRIVER === "trigger" || isExternalZipWorkerMode()) {
     return NextResponse.json({
       ok: true,
       skipped: true,
       zipMaintenance,
+      guestGalleryMaintenance,
       message:
         process.env.ZIP_WORKER_DRIVER === "trigger"
           ? "ZIP processing is handled by the external Trigger.dev worker."
@@ -44,6 +47,7 @@ async function processJobs(request: Request) {
   return NextResponse.json({
     ok: true,
     zipMaintenance,
+    guestGalleryMaintenance,
     ...results
   });
 }

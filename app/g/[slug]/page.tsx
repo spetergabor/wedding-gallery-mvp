@@ -17,6 +17,7 @@ import { canViewGallery, getPaidGalleryPurchaseDownloadState, unlockGalleryActio
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
+import { isGuestGalleryExpired } from "@/lib/guest-gallery-lifecycle";
 import {
   GALLERY_PURCHASE_KIND_PHOTOS,
   GALLERY_PURCHASE_PAID,
@@ -129,7 +130,7 @@ export default async function PublicGalleryPage({
     }
   });
 
-  if (!gallery || !gallery.isActive) {
+  if (!gallery || !gallery.isActive || isGuestGalleryExpired(gallery)) {
     notFound();
   }
 
@@ -396,6 +397,7 @@ export default async function PublicGalleryPage({
       galleryId={gallery.id}
       language={language}
       uploadsEnabled={gallery.guestUploadsEnabled}
+      initialRevision={gallery.guestGalleryRevision}
       initialPhotos={gallery.guestUploads.map((photo) => ({
         id: photo.id,
         filename: photo.filename,

@@ -4,6 +4,7 @@ import { type GalleryDownloadQuality } from "@/lib/download-quality";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 
 export const PUBLIC_DOWNLOAD_SCOPE = "public";
+export const GUEST_UPLOAD_DOWNLOAD_SCOPE = "guest_uploads";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE_V2 = "public_web_v2";
 export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web_v3";
@@ -39,6 +40,10 @@ export function favoriteListIdFromScope(scope: string | null | undefined) {
 
 export function isFavoriteDownloadScope(scope: string | null | undefined) {
   return Boolean(favoriteListIdFromScope(scope));
+}
+
+export function isGuestUploadDownloadScope(scope: string | null | undefined) {
+  return scope === GUEST_UPLOAD_DOWNLOAD_SCOPE;
 }
 
 function createDownloadToken() {
@@ -132,4 +137,18 @@ export async function invalidatePublicGalleryDownloadPackages(galleryId: string)
       }
     })
   ]);
+}
+
+export async function invalidateGuestGalleryDownloadPackages(galleryId: string) {
+  await prisma.galleryDownloadPackage.updateMany({
+    where: {
+      galleryId,
+      scope: GUEST_UPLOAD_DOWNLOAD_SCOPE,
+      status: { in: ["pending", "processing", "completed", "failed"] }
+    },
+    data: {
+      status: "stale",
+      errorMessage: "A vendégfotók listája megváltozott, ezért új ZIP szükséges."
+    }
+  });
 }
