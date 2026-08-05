@@ -42,6 +42,7 @@ import {
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_WEEKDAYS,
   isMiniSessionSlotBookable,
+  miniSessionDateKey,
   normalizeBookingWindowDays,
   normalizeMiniSessionMinBookingNoticeMinutes,
   normalizeMiniSessionLanguage,
@@ -399,6 +400,101 @@ export async function createAdminCalendarBlockAction(formData: FormData) {
   revalidatePath("/admin/mini-sessions");
   revalidatePath("/mini-session/[slug]", "page");
   redirect("/admin/mini-sessions?tab=calendar&calendarBlocked=1");
+}
+
+function normalizedCalendarDateKeys(value: string) {
+  return [...new Set(value.split(",").map((date) => date.trim()).filter((date) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const [year, month, day] = date.split("-").map((part) => Number.parseInt(part, 10));
+    return new Date(Date.UTC(year, month - 1, day, 12)).toISOString().slice(0, 10) === date;
+  }))].sort().slice(0, 730);
+}
+
+function calendarDateOrdinal(date: string) {
+  const [year, month, day] = date.split("-").map((part) => Number.parseInt(part, 10));
+  return Date.UTC(year, month - 1, day);
+}
+
+function groupConsecutiveCalendarDates(dateKeys: string[]) {
+  const groups: string[][] = [];
+
+  dateKeys.forEach((date) => {
+    const currentGroup = groups.at(-1);
+    const previousDate = currentGroup?.at(-1);
+
+    if (previousDate && calendarDateOrdinal(date) - calendarDateOrdinal(previousDate) === 24 * 60 * 60 * 1000) {
+      currentGroup!.push(date);
+    } else {
+      groups.push([date]);
+    }
+  });
+
+  return groups;
+}
+
+function fullCalendarDayRange(date: string) {
+  const startsAt = parseMiniSessionLocalDateTime(date, "00:00");
+  const endMinute = parseMiniSessionLocalDateTime(date, "23:59");
+
+  return startsAt && endMinute
+    ? { startsAt, endsAt: new Date(endMinute.getTime() + 59_999) }
+    : null;
+}
+
+export async function createAdminCalendarDaysBlockAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const workspaceAdminId = ownerAdminId(admin);
+  const todayDate = miniSessionDateKey(new Date());
+  const submittedDateKeys = normalizedCalendarDateKeys(formString(formData, "selectedDates"))
+    .filter((date) => date >= todayDate);
+
+  if (submittedDateKeys.length === 0) {
+    redirect("/admin/mini-sessions?tab=calendar&calendarError=missing");
+  }
+
+  const firstRange = fullCalendarDayRange(submittedDateKeys[0]);
+  const lastRange = fullCalendarDayRange(submittedDateKeys.at(-1)!);
+
+  if (!firstRange || !lastRange) {
+    redirect("/admin/mini-sessions?tab=calendar&calendarError=missing");
+  }
+
+  const existingBlocks = await prisma.adminCalendarBlock.findMany({
+    where: {
+      adminId: workspaceAdminId,
+      startsAt: { lte: lastRange.endsAt },
+      endsAt: { gte: firstRange.startsAt }
+    },
+    select: { startsAt: true, endsAt: true }
+  });
+  const availableDateKeys = submittedDateKeys.filter((date) => {
+    const range = fullCalendarDayRange(date);
+    return Boolean(range && !existingBlocks.some((block) => block.startsAt < range.endsAt && block.endsAt > range.startsAt));
+  });
+  const groups = groupConsecutiveCalendarDates(availableDateKeys);
+
+  if (groups.length === 0) {
+    redirect("/admin/mini-sessions?tab=calendar&calendarError=already-blocked");
+  }
+
+  await prisma.adminCalendarBlock.createMany({
+    data: groups.flatMap((group) => {
+      const startsAt = fullCalendarDayRange(group[0])?.startsAt;
+      const endsAt = fullCalendarDayRange(group.at(-1)!)?.endsAt;
+
+      return startsAt && endsAt ? [{
+        adminId: workspaceAdminId,
+        title: group.length === 1 ? "Nem foglalható nap" : "Nem foglalható időszak",
+        startsAt,
+        endsAt,
+        notes: null
+      }] : [];
+    })
+  });
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath("/mini-session/[slug]", "page");
+  redirect(`/admin/mini-sessions?tab=calendar&calendarBlocked=${availableDateKeys.length}`);
 }
 
 export async function deleteAdminCalendarBlockAction(id: string) {

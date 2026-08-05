@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { Alert } from "@/components/alert";
+import { AdminCalendarBlockPicker } from "@/components/admin-calendar-block-picker";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
@@ -33,7 +34,6 @@ import { miniSessionPublicUrl } from "@/lib/email";
 import { miniSessionEmbedCode } from "@/lib/mini-session-embed";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
-  createAdminCalendarBlockAction,
   createMiniSessionAction,
   deleteAdminCalendarBlockAction,
   updateMiniSessionBookingStatusAction
@@ -59,7 +59,8 @@ import {
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_LANGUAGES,
   MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
-  MINI_SESSION_WEEKDAYS
+  MINI_SESSION_WEEKDAYS,
+  miniSessionDateKey
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
@@ -696,7 +697,8 @@ export default async function AdminMiniSessionsPage({
         {flags.error === "cover" ? <Alert title="A borítóképnek képfájlnak kell lennie." variant="error" /> : null}
         {flags.error === "cover_size" ? <Alert title="A borítókép túl nagy." variant="error">Maximum 12 MB-os képet tölts fel.</Alert> : null}
         {flags.error === "cover_upload" ? <Alert title="A borítókép feltöltése nem sikerült." variant="error">Próbáld újra egy kisebb JPG, PNG vagy WebP képpel.</Alert> : null}
-        {flags.calendarError === "missing" ? <Alert title="Hibás naptár tiltás." variant="error">Adj meg érvényes kezdő és záró időpontot.</Alert> : null}
+        {flags.calendarError === "missing" ? <Alert title="Hibás naptár tiltás." variant="error">Jelölj ki legalább egy jövőbeni napot a naptárban.</Alert> : null}
+        {flags.calendarError === "already-blocked" ? <Alert title="Ezek a napok már tiltva vannak." variant="error">Válassz másik napot, vagy töröld a meglévő tiltást a listából.</Alert> : null}
         {flags.bookingStatusError ? <Alert title="A foglalás állapota nem módosítható." variant="error">Törölt vagy blokkolt időpontnál nem lehet ezt az állapotot beállítani.</Alert> : null}
         {flags.bookingStatusUpdated ? <Alert title="Foglalás állapota frissítve." variant="success" /> : null}
         {flags.deleted ? <Alert title="Foglaló törölve." variant="success" /> : null}
@@ -1242,7 +1244,7 @@ export default async function AdminMiniSessionsPage({
                 </p>
               </div>
               <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                {calendarBlocks.length} aktív szabály
+                {activeCalendarBlocks.length} aktív tiltás
               </span>
             </div>
 
@@ -1265,50 +1267,16 @@ export default async function AdminMiniSessionsPage({
               </div>
             </div>
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-              <form action={createAdminCalendarBlockAction} className="grid gap-4 rounded-md border border-ink/10 bg-paper p-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-ink">Új globális tiltás</h3>
-                  <p className="mt-1 text-xs leading-5 text-graphite/60">
-                    Amit itt rögzítesz, minden foglalási oldalból automatikusan kiesik.
-                  </p>
-                </div>
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-graphite">Megnevezés</span>
-                  <input name="title" className={fieldClass} placeholder="pl. Nyaralás, esküvő, zárt nap" />
-                </label>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">Kezdő dátum</span>
-                    <input name="startDate" type="date" required className={fieldClass} />
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">Záró dátum</span>
-                    <input name="endDate" type="date" className={fieldClass} />
-                  </label>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">Mettől</span>
-                    <input name="startTime" type="time" defaultValue="00:00" className={fieldClass} />
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-graphite">Meddig</span>
-                    <input name="endTime" type="time" defaultValue="23:59" className={fieldClass} />
-                  </label>
-                </div>
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-graphite">Megjegyzés</span>
-                  <textarea name="notes" className={textAreaClass} placeholder="Belső megjegyzés, például miért nem foglalható ez az időszak." />
-                </label>
-                <div className="flex flex-col gap-3 border-t border-ink/10 pt-4">
-                  <FormSubmitButton>
-                    <Plus size={15} />
-                    Tiltás hozzáadása
-                  </FormSubmitButton>
-                  <p className="text-xs leading-5 text-graphite/60">Többnapos tiltásnál elég a kezdő és záró dátumot megadni.</p>
-                </div>
-              </form>
+            <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+              <AdminCalendarBlockPicker
+                todayDate={miniSessionDateKey(now)}
+                existingBlocks={calendarBlocks.map((block) => ({
+                  id: block.id,
+                  title: block.title,
+                  startDate: miniSessionDateKey(block.startsAt),
+                  endDate: miniSessionDateKey(block.endsAt)
+                }))}
+              />
 
               <div>
                 <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
