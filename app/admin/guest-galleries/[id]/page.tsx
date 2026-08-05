@@ -1,6 +1,6 @@
 import Link from "next/link";
 import QRCode from "qrcode";
-import { Archive, CalendarDays, Download, ExternalLink, FileArchive, KeyRound, QrCode, RotateCcw, UploadCloud } from "lucide-react";
+import { Archive, CalendarDays, Download, ExternalLink, FileArchive, KeyRound, QrCode, RotateCcw, UploadCloud, UserCog } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { CopyLinkButton } from "@/components/copy-link-button";
@@ -62,6 +62,7 @@ export default async function GuestGalleryDetailPage({
       include: {
         customer: {
           select: {
+            id: true,
             coupleName: true,
             preferredLanguage: true
           }
@@ -186,20 +187,30 @@ export default async function GuestGalleryDetailPage({
           <h1 className="mt-2 text-3xl font-semibold text-ink">{gallery.title}</h1>
           <p className="mt-2 text-sm text-graphite/65">{gallery.customer?.coupleName ?? "Nincs ügyfélhez kapcsolva"}</p>
         </div>
-        {!galleryArchived && gallery.isActive ? (
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
-          >
-            <ExternalLink size={16} /> Publikus galéria
-          </a>
-        ) : (
-          <span className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink/10 px-4 text-sm font-medium text-graphite">
-            <Archive size={16} /> Archivált galéria
-          </span>
-        )}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {gallery.customer ? (
+            <Link
+              href={`/admin/clients/${gallery.customer.id}?tab=portal#par-admin`}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:bg-paper"
+            >
+              <UserCog size={16} /> Pár-admin hozzáférés
+            </Link>
+          ) : null}
+          {!galleryArchived && gallery.isActive ? (
+            <a
+              href={publicUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+            >
+              <ExternalLink size={16} /> Publikus galéria
+            </a>
+          ) : (
+            <span className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink/10 px-4 text-sm font-medium text-graphite">
+              <Archive size={16} /> Archivált galéria
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mb-5 space-y-3">

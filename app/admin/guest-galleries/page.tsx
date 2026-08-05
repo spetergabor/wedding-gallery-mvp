@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, CalendarDays, ExternalLink, Plus, QrCode, UploadCloud } from "lucide-react";
+import { Archive, CalendarDays, ExternalLink, Plus, QrCode, UploadCloud, UserCog } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
@@ -147,6 +147,11 @@ export default async function GuestGalleriesPage({
                   <ButtonLink href={`/admin/guest-galleries/${gallery.id}`} variant="secondary" className="w-full sm:w-auto">
                     Kezelés és QR-kód
                   </ButtonLink>
+                  {gallery.customer ? (
+                    <ButtonLink href={`/admin/clients/${gallery.customer.id}?tab=portal#par-admin`} variant="secondary" className="w-full sm:w-auto">
+                      <UserCog size={16} /> Pár-admin
+                    </ButtonLink>
+                  ) : null}
                   <a
                     href={archived ? `/admin/guest-galleries/${gallery.id}` : publicUrl}
                     target="_blank"

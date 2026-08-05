@@ -179,7 +179,7 @@ export function CustomerPortalAccessManager({
   const [newPassword, setNewPassword] = useState("");
 
   return (
-    <section className="mt-6 rounded-md border border-ink/10 bg-white p-4 sm:p-5">
+    <section id="par-admin" className="mt-6 scroll-mt-6 rounded-md border border-ink/10 bg-white p-4 sm:p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.15em] text-graphite/55">
