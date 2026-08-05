@@ -72,10 +72,11 @@ function cleanupStatus(run: R2CleanupRunSummary | null) {
   const timestamp = run.completedAt ?? run.startedAt ?? run.createdAt;
   const aborted = run.abortedUploads ?? 0;
   const scanned = run.scannedUploads ?? 0;
+  const deletedGuestUploads = run.deletedGuestUploads ?? 0;
 
   return {
     value: statusLabels[run.status] ?? run.status,
-    detail: `${formatDate(timestamp)} · ${aborted.toLocaleString("hu-HU")} abort · ${scanned.toLocaleString("hu-HU")} vizsgált`
+    detail: `${formatDate(timestamp)} · ${aborted.toLocaleString("hu-HU")} abort · ${deletedGuestUploads.toLocaleString("hu-HU")} vendégfeltöltés törölve · ${scanned.toLocaleString("hu-HU")} vizsgált`
   };
 }
 
@@ -111,7 +112,7 @@ export default async function AdminR2StoragePage({
 
       <div className="mb-5 space-y-3">
         <Alert title="Automata R2 cleanup aktív.">
-          Naponta lefut, és megszakítja a 24 óránál régebbi félbemaradt multipart feltöltéseket.
+          Naponta lefut, megszakítja a 24 óránál régebbi multipart feltöltéseket, és törli a 24 óránál régebbi félbehagyott vendégfotókat.
         </Alert>
         {flags.aborted ? <Alert title={`${flags.aborted} félbemaradt feltöltés megszakítva.`} variant="success" /> : null}
         {flags.cors === "1" ? (

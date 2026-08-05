@@ -14,6 +14,7 @@ import {
   RotateCcw,
   UploadCloud,
   UserRound,
+  WifiOff,
   X
 } from "lucide-react";
 import { Button } from "@/components/button";
@@ -23,6 +24,11 @@ import {
   getGuestGalleryPhotosAction
 } from "@/lib/guest-upload-actions";
 import type { CustomerLanguage } from "@/lib/customer-language";
+import {
+  clearGuestUploadQueue,
+  loadGuestUploadQueue,
+  saveGuestUploadQueue
+} from "@/lib/guest-upload-queue";
 
 type GuestPhoto = {
   id: string;
@@ -37,7 +43,7 @@ type GuestPhoto = {
   createdAt: string;
 };
 
-type GuestUploadStatus = "hashing" | "queued" | "uploading" | "done" | "failed" | "duplicate";
+type GuestUploadStatus = "hashing" | "queued" | "waiting" | "uploading" | "done" | "failed" | "duplicate";
 
 type GuestUploadFile = {
   clientId: string;
@@ -61,6 +67,8 @@ type UploadTarget = {
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const PARALLEL_UPLOADS = 4;
+const MAX_AUTOMATIC_UPLOAD_ATTEMPTS = 3;
+const QUEUE_PERSIST_DEBOUNCE_MS = 350;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const OPEN_GUEST_UPLOAD_EVENT = "spetly:open-guest-photo-upload";
 
@@ -92,6 +100,7 @@ const COPY = {
     hashing: "Wird geprüft",
     queued: "Bereit",
     fileUploading: "Wird hochgeladen",
+    waiting: "Wartet auf Verbindung",
     done: "Fertig",
     failed: "Fehlgeschlagen",
     duplicate: "Bereits vorhanden",
@@ -101,6 +110,10 @@ const COPY = {
     fileError: "Bitte wähle JPG, PNG, WebP, HEIC oder HEIF Bilder bis 25 MB aus.",
     hashError: "Dieses Foto konnte nicht geprüft werden.",
     uploadError: "Der Upload ist fehlgeschlagen. Bitte versuche es erneut.",
+    offlineTitle: "Keine Internetverbindung",
+    offlineText: "Die Warteschlange bleibt auf diesem Gerät gespeichert und wird automatisch fortgesetzt, sobald die Verbindung wieder da ist.",
+    restoredQueue: "Der unterbrochene Upload wurde wiederhergestellt und wird automatisch fortgesetzt.",
+    queueStorageError: "Die Upload-Warteschlange kann auf diesem Gerät nicht dauerhaft gespeichert werden.",
     openPhoto: "Foto im Vollbild öffnen",
     previousPhoto: "Vorheriges Foto",
     nextPhoto: "Nächstes Foto",
@@ -133,6 +146,7 @@ const COPY = {
     hashing: "Ellenőrzés",
     queued: "Feltöltésre kész",
     fileUploading: "Feltöltés",
+    waiting: "Kapcsolatra vár",
     done: "Kész",
     failed: "Megszakadt",
     duplicate: "Már szerepel",
@@ -142,6 +156,10 @@ const COPY = {
     fileError: "JPG, PNG, WebP, HEIC vagy HEIF képeket válassz, maximum 25 MB méretben.",
     hashError: "A kép ellenőrzése nem sikerült.",
     uploadError: "A feltöltés nem sikerült. Próbáld újra.",
+    offlineTitle: "Nincs internetkapcsolat",
+    offlineText: "A feltöltési sor ezen az eszközön megmarad, és a kapcsolat visszatérésekor automatikusan folytatódik.",
+    restoredQueue: "A félbemaradt feltöltési sort visszaállítottuk, és automatikusan folytatjuk.",
+    queueStorageError: "A feltöltési sor ezen az eszközön nem tárolható tartósan.",
     openPhoto: "Kép megnyitása teljes képernyőn",
     previousPhoto: "Előző kép",
     nextPhoto: "Következő kép",
@@ -214,6 +232,38 @@ function readImageSize(file: File, contentType: string) {
   });
 }
 
+class GuestUploadRequestError extends Error {
+  retryable: boolean;
+
+  constructor(message: string, retryable: boolean) {
+    super(message);
+    this.name = "GuestUploadRequestError";
+    this.retryable = retryable;
+  }
+}
+
+function browserIsOnline() {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
+function isConnectionError(error: unknown) {
+  if (!browserIsOnline()) {
+    return true;
+  }
+
+  if (error instanceof GuestUploadRequestError) {
+    return error.retryable;
+  }
+
+  return error instanceof Error && /failed to fetch|networkerror|load failed|network request failed/i.test(error.message);
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
 function uploadFileWithProgress(
   file: File,
   contentType: string,
@@ -235,14 +285,47 @@ function uploadFileWithProgress(
         onProgress(100);
         resolve();
       } else {
-        reject(new Error(`HTTP ${request.status}`));
+        reject(new GuestUploadRequestError(`HTTP ${request.status}`, request.status >= 500 || request.status === 408 || request.status === 429));
       }
     };
-    request.onerror = () => reject(new Error("network-error"));
-    request.ontimeout = () => reject(new Error("timeout"));
-    request.onabort = () => reject(new Error("aborted"));
+    request.onerror = () => reject(new GuestUploadRequestError("network-error", true));
+    request.ontimeout = () => reject(new GuestUploadRequestError("timeout", true));
+    request.onabort = () => reject(new GuestUploadRequestError("aborted", false));
     request.send(file);
   });
+}
+
+async function uploadFileWithAutomaticRetry(
+  file: File,
+  contentType: string,
+  target: UploadTarget,
+  onProgress: (progress: number) => void,
+  onRetry: () => void,
+  onAttempt: () => void
+) {
+  let attempt = 0;
+
+  while (attempt < MAX_AUTOMATIC_UPLOAD_ATTEMPTS) {
+    if (!browserIsOnline()) {
+      throw new GuestUploadRequestError("offline", true);
+    }
+
+    try {
+      onAttempt();
+      await uploadFileWithProgress(file, contentType, target, onProgress);
+      return;
+    } catch (error) {
+      attempt += 1;
+      const canRetry = isConnectionError(error) && browserIsOnline() && attempt < MAX_AUTOMATIC_UPLOAD_ATTEMPTS;
+
+      if (!canRetry) {
+        throw error;
+      }
+
+      onRetry();
+      await wait(750 * (2 ** (attempt - 1)));
+    }
+  }
 }
 
 async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
@@ -288,13 +371,17 @@ export function GuestPhotoUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [queueHydrated, setQueueHydrated] = useState(false);
+  const [queuePersistenceAvailable, setQueuePersistenceAvailable] = useState(true);
+  const [resumeRequest, setResumeRequest] = useState(0);
   const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const selectedCount = files.length;
   const resolvedCount = files.filter((file) => file.status === "done" || file.status === "duplicate").length;
-  const retryableCount = files.filter((file) => file.status === "failed").length;
-  const actionableCount = files.filter((file) => file.status === "queued" || file.status === "failed").length;
+  const retryableCount = files.filter((file) => file.status === "failed" || file.status === "waiting").length;
+  const actionableCount = files.filter((file) => file.status === "queued" || file.status === "failed" || file.status === "waiting").length;
   const visiblePhotos = useMemo(() => photos.filter((photo) => photo.imageUrl), [photos]);
   const activePhoto = activePhotoIndex === null ? null : visiblePhotos[activePhotoIndex] ?? null;
 
@@ -345,6 +432,117 @@ export function GuestPhotoUpload({
     setPhotos(initialPhotos);
     revisionRef.current = initialRevision;
   }, [initialPhotos, initialRevision]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setResumeRequest((request) => request + 1);
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    setIsOnline(browserIsOnline());
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!uploadsEnabled) {
+      setQueueHydrated(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    void loadGuestUploadQueue(galleryId)
+      .then((queue) => {
+        if (cancelled || !queue || queue.files.length === 0) {
+          return;
+        }
+
+        const restoredFiles = queue.files
+          .filter((item) => item.contentHash && item.blob instanceof Blob)
+          .slice(0, MAX_FILES)
+          .map<GuestUploadFile>((item) => ({
+            clientId: item.clientId || createClientId(),
+            file: new File([item.blob], item.filename, {
+              type: item.contentType,
+              lastModified: item.lastModified
+            }),
+            contentType: item.contentType,
+            contentHash: item.contentHash,
+            imageWidth: item.imageWidth,
+            imageHeight: item.imageHeight,
+            status: "waiting",
+            progress: 0
+          }));
+
+        if (restoredFiles.length === 0) {
+          return;
+        }
+
+        setName((current) => current || queue.name);
+        setEmail((current) => current || queue.email);
+        setFiles((current) => current.length > 0 ? current : restoredFiles);
+        setIsUploadOpen(true);
+        setSuccess(copy.restoredQueue);
+        setResumeRequest((request) => request + 1);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setQueuePersistenceAvailable(false);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setQueueHydrated(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [copy.restoredQueue, galleryId, uploadsEnabled]);
+
+  useEffect(() => {
+    if (!queueHydrated || !queuePersistenceAvailable) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const pendingFiles = files.filter((file) =>
+        Boolean(file.contentHash) &&
+        file.status !== "done" &&
+        file.status !== "duplicate"
+      );
+      const operation = pendingFiles.length === 0
+        ? clearGuestUploadQueue(galleryId)
+        : saveGuestUploadQueue({
+            galleryId,
+            name,
+            email,
+            updatedAt: Date.now(),
+            files: pendingFiles.map((item) => ({
+              clientId: item.clientId,
+              blob: item.file,
+              filename: item.file.name,
+              lastModified: item.file.lastModified,
+              contentType: item.contentType,
+              contentHash: item.contentHash,
+              imageWidth: item.imageWidth,
+              imageHeight: item.imageHeight
+            }))
+          });
+
+      void operation.catch(() => setQueuePersistenceAvailable(false));
+    }, QUEUE_PERSIST_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [email, files, galleryId, name, queueHydrated, queuePersistenceAvailable]);
 
   useEffect(() => {
     getOrCreateGuestKey();
@@ -489,7 +687,7 @@ export function GuestPhotoUpload({
     const allowedIds = onlyClientIds ? new Set(onlyClientIds) : null;
     const uploadableFiles = files.filter((item) =>
       (!allowedIds || allowedIds.has(item.clientId)) &&
-      (item.status === "queued" || item.status === "failed") &&
+      (item.status === "queued" || item.status === "failed" || item.status === "waiting") &&
       Boolean(item.contentHash)
     );
 
@@ -497,10 +695,46 @@ export function GuestPhotoUpload({
       return;
     }
 
+    if (!browserIsOnline()) {
+      uploadableFiles.forEach((item) => updateFile(item.clientId, { status: "waiting", progress: 0, error: undefined }));
+      setIsOnline(false);
+      setError(copy.offlineText);
+      return;
+    }
+
     setIsUploading(true);
     setError("");
     setSuccess("");
     uploadableFiles.forEach((item) => updateFile(item.clientId, { status: "queued", progress: 0, error: undefined }));
+
+    if (queuePersistenceAvailable) {
+      const pendingFiles = files.filter((file) =>
+        Boolean(file.contentHash) &&
+        file.status !== "done" &&
+        file.status !== "duplicate"
+      );
+
+      try {
+        await saveGuestUploadQueue({
+          galleryId,
+          name,
+          email,
+          updatedAt: Date.now(),
+          files: pendingFiles.map((item) => ({
+            clientId: item.clientId,
+            blob: item.file,
+            filename: item.file.name,
+            lastModified: item.file.lastModified,
+            contentType: item.contentType,
+            contentHash: item.contentHash,
+            imageWidth: item.imageWidth,
+            imageHeight: item.imageHeight
+          }))
+        });
+      } catch {
+        setQueuePersistenceAvailable(false);
+      }
+    }
 
     try {
       const identity = {
@@ -539,17 +773,25 @@ export function GuestPhotoUpload({
           return;
         }
 
-        updateFile(target.clientId, { status: "uploading", progress: 0, error: undefined });
-
         try {
-          await uploadFileWithProgress(current.file, current.contentType, target, (progress) => {
-            updateFile(target.clientId, { progress });
-          });
+          await uploadFileWithAutomaticRetry(
+            current.file,
+            current.contentType,
+            target,
+            (progress) => updateFile(target.clientId, { progress }),
+            () => updateFile(target.clientId, { status: "waiting", progress: 0, error: undefined }),
+            () => updateFile(target.clientId, { status: "uploading", progress: 0, error: undefined })
+          );
           completedTargets.push(target);
           updateFile(target.clientId, { status: "done", progress: 100 });
-        } catch {
+        } catch (uploadError) {
           failedCount += 1;
-          updateFile(target.clientId, { status: "failed", error: copy.uploadError });
+          const waitsForConnection = !browserIsOnline();
+          updateFile(target.clientId, {
+            status: waitsForConnection ? "waiting" : "failed",
+            progress: 0,
+            error: waitsForConnection ? undefined : copy.uploadError
+          });
         }
       });
 
@@ -582,23 +824,49 @@ export function GuestPhotoUpload({
       setSuccess(messages.join(" "));
 
       if (failedCount > 0) {
-        setError(copy.partialError(failedCount));
+        setError(browserIsOnline() ? copy.partialError(failedCount) : copy.offlineText);
       }
       if (uploadedCount > 0 && !awaitingApproval) {
         await refreshPhotos();
       }
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : copy.uploadError);
+      const waitsForConnection = !browserIsOnline();
+      uploadableFiles.forEach((item) => updateFile(item.clientId, {
+        status: waitsForConnection ? "waiting" : "failed",
+        progress: 0,
+        error: waitsForConnection ? undefined : copy.uploadError
+      }));
+      setError(waitsForConnection ? copy.offlineText : uploadError instanceof Error ? uploadError.message : copy.uploadError);
     } finally {
       setIsUploading(false);
     }
   }
+
+  useEffect(() => {
+    if (!queueHydrated || !isOnline || isUploading || isPreparing || resumeRequest === 0) {
+      return;
+    }
+
+    const waitingIds = files.filter((file) => file.status === "waiting").map((file) => file.clientId);
+    if (waitingIds.length === 0) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setResumeRequest(0);
+      void uploadFiles(waitingIds);
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [files, isOnline, isPreparing, isUploading, queueHydrated, resumeRequest]);
 
   function statusLabel(status: GuestUploadStatus) {
     return status === "hashing"
       ? copy.hashing
       : status === "queued"
         ? copy.queued
+        : status === "waiting"
+          ? copy.waiting
         : status === "uploading"
           ? copy.fileUploading
           : status === "done"
@@ -758,6 +1026,22 @@ export function GuestPhotoUpload({
 
             <p className="mt-3 text-sm leading-6 text-graphite/70">{copy.uploadText}</p>
 
+            {!isOnline ? (
+              <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-amber-900">
+                <WifiOff size={18} className="mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">{copy.offlineTitle}</p>
+                  <p className="mt-0.5 text-xs leading-5 text-amber-800">{copy.offlineText}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {!queuePersistenceAvailable ? (
+              <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                {copy.queueStorageError}
+              </p>
+            ) : null}
+
             <div className="mt-5 space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block space-y-2">
@@ -853,7 +1137,13 @@ export function GuestPhotoUpload({
                             <div className="flex items-center justify-between gap-3">
                               <p className="truncate text-xs font-semibold text-ink" title={item.file.name}>{item.file.name}</p>
                               <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${
-                                item.status === "failed" ? "text-red-600" : item.status === "done" ? "text-sage" : "text-graphite/65"
+                                item.status === "failed"
+                                  ? "text-red-600"
+                                  : item.status === "done"
+                                    ? "text-sage"
+                                    : item.status === "waiting"
+                                      ? "text-amber-700"
+                                      : "text-graphite/65"
                               }`}>
                                 {statusLabel(item.status)}{item.status === "uploading" ? ` ${item.progress}%` : ""}
                               </span>
