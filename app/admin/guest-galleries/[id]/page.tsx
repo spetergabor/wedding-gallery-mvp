@@ -11,6 +11,7 @@ import { galleryAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { GUEST_UPLOAD_DOWNLOAD_SCOPE, ensureDownloadPackageAccessToken } from "@/lib/download-packages";
 import { publicGalleryUrl } from "@/lib/email";
+import { ADMIN_GUEST_PHOTO_PAGE_SIZE, serializeGuestGalleryAdminPhoto } from "@/lib/guest-gallery-admin";
 import {
   archiveGuestGalleryAction,
   queueGuestGalleryZipAction,
@@ -66,8 +67,23 @@ export default async function GuestGalleryDetailPage({
           }
         },
         guestUploads: {
-          orderBy: { createdAt: "desc" }
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: ADMIN_GUEST_PHOTO_PAGE_SIZE + 1,
+          select: {
+            id: true,
+            filename: true,
+            email: true,
+            guestName: true,
+            imageUrl: true,
+            thumbnailUrl: true,
+            previewUrl: true,
+            fileSize: true,
+            status: true,
+            processingStatus: true,
+            createdAt: true
+          }
         },
+        _count: { select: { guestUploads: true } },
         downloadPackages: {
           where: { scope: GUEST_UPLOAD_DOWNLOAD_SCOPE },
           orderBy: [{ createdAt: "desc" }, { partIndex: "asc" }],
@@ -95,21 +111,48 @@ export default async function GuestGalleryDetailPage({
     siteSettings?.publicSubdomain
   );
   const guestUrl = `${publicUrl}#guest-photos`;
-  const qrCodeDataUrl = await QRCode.toDataURL(guestUrl, {
-    errorCorrectionLevel: "M",
-    margin: 2,
-    width: 480,
-    color: {
-      dark: "#111111",
-      light: "#ffffff"
-    }
-  });
-  const visibleCount = gallery.guestUploads.filter((photo) => photo.status === "visible").length;
+  const [qrCodeDataUrl, statusGroups, processingGroups, uploadingCount] = await Promise.all([
+    QRCode.toDataURL(guestUrl, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 480,
+      color: {
+        dark: "#111111",
+        light: "#ffffff"
+      }
+    }),
+    prisma.galleryGuestUpload.groupBy({
+      by: ["status"],
+      where: { galleryId: gallery.id },
+      _count: { _all: true }
+    }),
+    prisma.galleryGuestUpload.groupBy({
+      by: ["processingStatus"],
+      where: { galleryId: gallery.id },
+      _count: { _all: true }
+    }),
+    prisma.galleryGuestUpload.count({
+      where: {
+        galleryId: gallery.id,
+        OR: [{ status: "pending" }, { processingStatus: "uploading" }]
+      }
+    })
+  ]);
+  const statusCount = new Map(statusGroups.map((group) => [group.status, group._count._all]));
+  const processingStatusCount = new Map(processingGroups.map((group) => [group.processingStatus, group._count._all]));
+  const totalPhotoCount = gallery._count.guestUploads;
+  const visibleCount = statusCount.get("visible") ?? 0;
   const galleryArchived = Boolean(gallery.guestGalleryArchivedAt) || Boolean(gallery.guestGalleryExpiresAt && gallery.guestGalleryExpiresAt <= new Date());
-  const hiddenCount = gallery.guestUploads.filter((photo) => photo.status === "hidden").length;
-  const pendingReviewCount = gallery.guestUploads.filter((photo) => photo.status === "pending_review").length;
-  const processingCount = gallery.guestUploads.filter((photo) => photo.processingStatus === "pending" || photo.processingStatus === "processing").length;
-  const capacityPercent = Math.min(100, Math.round((gallery.guestUploads.length / gallery.guestUploadLimit) * 100));
+  const hiddenCount = statusCount.get("hidden") ?? 0;
+  const pendingReviewCount = statusCount.get("pending_review") ?? 0;
+  const processingCount = (processingStatusCount.get("pending") ?? 0) + (processingStatusCount.get("processing") ?? 0);
+  const failedCount = processingStatusCount.get("failed") ?? 0;
+  const capacityPercent = Math.min(100, Math.round((totalPhotoCount / gallery.guestUploadLimit) * 100));
+  const initialPhotoRows = gallery.guestUploads.slice(0, ADMIN_GUEST_PHOTO_PAGE_SIZE);
+  const initialLastPhoto = initialPhotoRows.at(-1);
+  const initialNextCursor = gallery.guestUploads.length > ADMIN_GUEST_PHOTO_PAGE_SIZE && initialLastPhoto
+    ? { createdAt: initialLastPhoto.createdAt.toISOString(), id: initialLastPhoto.id }
+    : null;
   const latestZipPackage = gallery.downloadPackages[0] ?? null;
   const latestZipGroupKey = latestZipPackage ? latestZipPackage.groupId ?? latestZipPackage.id : null;
   const latestZipPackages = latestZipGroupKey
@@ -121,7 +164,7 @@ export default async function GuestGalleryDetailPage({
   const zipReady = latestZipPackages.length > 0 && latestZipPackages.every((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl);
   const zipFailed = latestZipPackages.some((downloadPackage) => downloadPackage.status === "failed");
   const zipProcessedCount = latestZipPackages.reduce((sum, downloadPackage) => sum + downloadPackage.processedCount, 0);
-  const zipPhotoCount = latestZipPackage?.photoCount ?? gallery.guestUploads.filter((photo) => photo.status !== "pending").length;
+  const zipPhotoCount = latestZipPackage?.photoCount ?? totalPhotoCount - (statusCount.get("pending") ?? 0);
   const zipProgress = zipReady ? 100 : zipPhotoCount > 0 ? Math.min(99, Math.round((zipProcessedCount / zipPhotoCount) * 100)) : 0;
   const zipDownloadLinks = new Map(
     zipReady
@@ -391,7 +434,7 @@ export default async function GuestGalleryDetailPage({
         <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">
           <div className="flex items-center justify-between gap-4 text-xs font-medium text-graphite/70">
             <span>Kapacitás</span>
-            <span>{gallery.guestUploads.length} / {gallery.guestUploadLimit} kép{processingCount > 0 ? ` · ${processingCount} feldolgozás alatt` : ""}</span>
+            <span>{totalPhotoCount} / {gallery.guestUploadLimit} kép{processingCount > 0 ? ` · ${processingCount} feldolgozás alatt` : ""}</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink/10">
             <div className="h-full rounded-full bg-sage transition-[width]" style={{ width: `${capacityPercent}%` }} />
@@ -400,19 +443,19 @@ export default async function GuestGalleryDetailPage({
 
         <GuestGalleryPhotoManager
           galleryId={gallery.id}
-          initialPhotos={gallery.guestUploads.map((photo) => ({
-            id: photo.id,
-            filename: photo.filename,
-            email: photo.email,
-            guestName: photo.guestName,
-            imageUrl: photo.imageUrl,
-            thumbnailUrl: photo.thumbnailUrl,
-            previewUrl: photo.previewUrl,
-            fileSize: photo.fileSize,
-            status: photo.status,
-            processingStatus: photo.processingStatus,
-            createdAt: photo.createdAt.toISOString()
-          }))}
+          initialPhotos={initialPhotoRows.map(serializeGuestGalleryAdminPhoto)}
+          initialNextCursor={initialNextCursor}
+          initialTotalCount={totalPhotoCount}
+          initialRevision={gallery.guestGalleryRevision}
+          statusCounts={{
+            all: totalPhotoCount,
+            pending_review: pendingReviewCount,
+            visible: visibleCount,
+            hidden: hiddenCount,
+            uploading: uploadingCount,
+            processing: processingCount,
+            failed: failedCount
+          }}
         />
       </section>
     </AdminShell>

@@ -8,6 +8,16 @@ import { redirect } from "next/navigation";
 import { adminOwnedWhere, galleryAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { GALLERY_DELIVERY_VIEW_ONLY } from "@/lib/gallery-delivery";
+import {
+  ADMIN_GUEST_PHOTO_PAGE_SIZE,
+  buildGuestGalleryAdminPhotoWhere,
+  normalizeGuestGalleryAdminCursor,
+  normalizeGuestGalleryAdminFilters,
+  serializeGuestGalleryAdminPhoto,
+  type GuestGalleryAdminPhotoCursor,
+  type GuestGalleryAdminPhotoFilters,
+  type GuestGalleryAdminSelection
+} from "@/lib/guest-gallery-admin";
 import { invalidateGuestGalleryDownloadPackages } from "@/lib/download-packages";
 import { kickGalleryZipJobs, prepareGuestGalleryZipPackages } from "@/lib/jobs";
 import { prisma } from "@/lib/prisma";
@@ -69,7 +79,8 @@ async function requireGuestGallery(galleryId: string) {
       slug: true,
       customerId: true,
       guestGalleryExpiresAt: true,
-      guestGalleryArchivedAt: true
+      guestGalleryArchivedAt: true,
+      guestGalleryRevision: true
     }
   });
 
@@ -246,41 +257,130 @@ export async function setGuestPhotoVisibilityAction(
   redirect(`/admin/guest-galleries/${gallery.id}?photo=${visible ? "shown" : "hidden"}`);
 }
 
+export async function getAdminGuestGalleryPhotosPageAction(
+  galleryId: string,
+  filters: GuestGalleryAdminPhotoFilters,
+  cursor?: GuestGalleryAdminPhotoCursor | null
+) {
+  const { gallery } = await requireGuestGallery(galleryId);
+  const normalizedFilters = normalizeGuestGalleryAdminFilters(filters);
+  const normalizedCursor = normalizeGuestGalleryAdminCursor(cursor);
+  const filteredWhere = buildGuestGalleryAdminPhotoWhere(gallery.id, normalizedFilters);
+  const cursorWhere: Prisma.GalleryGuestUploadWhereInput | null = normalizedCursor
+    ? {
+        OR: [
+          { createdAt: { lt: normalizedCursor.createdAt } },
+          { createdAt: normalizedCursor.createdAt, id: { lt: normalizedCursor.id } }
+        ]
+      }
+    : null;
+  const where = cursorWhere ? { AND: [filteredWhere, cursorWhere] } : filteredWhere;
+
+  const [rows, totalCount] = await Promise.all([
+    prisma.galleryGuestUpload.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: ADMIN_GUEST_PHOTO_PAGE_SIZE + 1,
+      select: {
+        id: true,
+        filename: true,
+        email: true,
+        guestName: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true,
+        fileSize: true,
+        status: true,
+        processingStatus: true,
+        createdAt: true
+      }
+    }),
+    normalizedCursor
+      ? Promise.resolve<number | null>(null)
+      : prisma.galleryGuestUpload.count({ where: filteredWhere })
+  ]);
+  const hasMore = rows.length > ADMIN_GUEST_PHOTO_PAGE_SIZE;
+  const page = rows.slice(0, ADMIN_GUEST_PHOTO_PAGE_SIZE);
+  const lastPhoto = page.at(-1);
+
+  return {
+    ok: true as const,
+    photos: page.map(serializeGuestGalleryAdminPhoto),
+    nextCursor: hasMore && lastPhoto
+      ? { createdAt: lastPhoto.createdAt.toISOString(), id: lastPhoto.id }
+      : null,
+    totalCount,
+    revision: gallery.guestGalleryRevision
+  };
+}
+
+export async function getAdminGuestGalleryRevisionAction(galleryId: string, knownRevision: number) {
+  const { gallery } = await requireGuestGallery(galleryId);
+
+  return {
+    ok: true as const,
+    unchanged: Number.isInteger(knownRevision) && knownRevision === gallery.guestGalleryRevision,
+    revision: gallery.guestGalleryRevision
+  };
+}
+
 export async function bulkUpdateGuestPhotosAction(
   galleryId: string,
-  uploadIds: string[],
+  selection: GuestGalleryAdminSelection,
   operation: "approve" | "hide" | "delete"
 ): Promise<{ ok: boolean; message: string; changedCount: number }> {
   const { gallery } = await requireGuestGallery(galleryId);
-  const ids = [...new Set(uploadIds.filter((id): id is string => typeof id === "string" && Boolean(id)))].slice(0, 5000);
 
   if (!["approve", "hide", "delete"].includes(operation)) {
     return { ok: false, message: "Érvénytelen tömeges művelet.", changedCount: 0 };
   }
 
-  if (ids.length === 0) {
-    return { ok: false, message: "Nincs kijelölt vendégfotó.", changedCount: 0 };
-  }
+  let selectedWhere: Prisma.GalleryGuestUploadWhereInput;
 
-  const uploads = await prisma.galleryGuestUpload.findMany({
-    where: {
-      galleryId: gallery.id,
-      id: { in: ids }
-    },
-    select: {
-      id: true,
-      r2Key: true,
-      imageUrl: true,
-      thumbnailUrl: true,
-      previewUrl: true
+  if (selection?.mode === "filter") {
+    const excludedIds = [...new Set(
+      (Array.isArray(selection.excludedIds) ? selection.excludedIds : [])
+        .filter((id): id is string => typeof id === "string" && Boolean(id))
+    )].slice(0, 5000);
+    selectedWhere = {
+      AND: [
+        buildGuestGalleryAdminPhotoWhere(gallery.id, selection.filters),
+        ...(excludedIds.length > 0 ? [{ id: { notIn: excludedIds } }] : [])
+      ]
+    };
+  } else {
+    const ids = [...new Set(
+      (selection?.mode === "ids" && Array.isArray(selection.ids) ? selection.ids : [])
+        .filter((id): id is string => typeof id === "string" && Boolean(id))
+    )].slice(0, 5000);
+
+    if (ids.length === 0) {
+      return { ok: false, message: "Nincs kijelölt vendégfotó.", changedCount: 0 };
     }
-  });
 
-  if (uploads.length === 0) {
-    return { ok: false, message: "A kijelölt vendégfotók nem találhatók.", changedCount: 0 };
+    selectedWhere = { galleryId: gallery.id, id: { in: ids } };
   }
+
+  let changedCount = 0;
 
   if (operation === "delete") {
+    const uploads = await prisma.galleryGuestUpload.findMany({
+      where: selectedWhere,
+      take: 5000,
+      select: {
+        id: true,
+        r2Key: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true
+      }
+    });
+
+    if (uploads.length === 0) {
+      return { ok: false, message: "A kijelölt vendégfotók nem találhatók.", changedCount: 0 };
+    }
+
+    changedCount = uploads.length;
     await prisma.$transaction([
       prisma.galleryGuestUpload.deleteMany({
         where: { galleryId: gallery.id, id: { in: uploads.map((upload) => upload.id) } }
@@ -301,37 +401,54 @@ export async function bulkUpdateGuestPhotosAction(
       ]).filter((key): key is string => Boolean(key))
     );
 
-    const keys = [...objectKeys];
+    const deleteObjects = async () => {
+      const keys = [...objectKeys];
 
-    for (let offset = 0; offset < keys.length; offset += 25) {
-      await Promise.allSettled(keys.slice(offset, offset + 25).map((key) => deletePhotoObject(key)));
+      for (let offset = 0; offset < keys.length; offset += 100) {
+        await Promise.allSettled(keys.slice(offset, offset + 100).map((key) => deletePhotoObject(key)));
+      }
+    };
+
+    try {
+      after(deleteObjects);
+    } catch {
+      void deleteObjects().catch(() => undefined);
     }
   } else {
-    await prisma.$transaction([
-      prisma.galleryGuestUpload.updateMany({
-        where: { galleryId: gallery.id, id: { in: uploads.map((upload) => upload.id) } },
+    changedCount = await prisma.$transaction(async (transaction) => {
+      const result = await transaction.galleryGuestUpload.updateMany({
+        where: selectedWhere,
         data: {
           status: operation === "approve" ? "visible" : "hidden",
           visibleAt: operation === "approve" ? new Date() : null
         }
-      }),
-      prisma.gallery.update({
-        where: { id: gallery.id },
-        data: { guestGalleryRevision: { increment: 1 } }
-      })
-    ]);
+      });
+
+      if (result.count > 0) {
+        await transaction.gallery.update({
+          where: { id: gallery.id },
+          data: { guestGalleryRevision: { increment: 1 } }
+        });
+      }
+
+      return result.count;
+    });
+
+    if (changedCount === 0) {
+      return { ok: false, message: "A kijelölt vendégfotók nem találhatók.", changedCount: 0 };
+    }
   }
 
   revalidatePath(`/admin/guest-galleries/${gallery.id}`);
   revalidatePath(`/g/${gallery.slug}`);
 
   const message = operation === "delete"
-    ? `${uploads.length} kép véglegesen törölve.`
+    ? `${changedCount} kép véglegesen törölve.`
     : operation === "approve"
-      ? `${uploads.length} kép jóváhagyva.`
-      : `${uploads.length} kép elrejtve.`;
+      ? `${changedCount} kép jóváhagyva.`
+      : `${changedCount} kép elrejtve.`;
 
-  return { ok: true, message, changedCount: uploads.length };
+  return { ok: true, message, changedCount };
 }
 
 export async function queueGuestGalleryZipAction(galleryId: string) {

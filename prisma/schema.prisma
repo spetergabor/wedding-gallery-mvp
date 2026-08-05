@@ -939,6 +939,7 @@ model GalleryGuestUpload {
   @@index([galleryId])
   @@index([galleryId, status])
   @@index([galleryId, status, visibleAt, id])
+  @@index([galleryId, createdAt, id])
   @@index([email])
   @@index([guestKey])
   @@unique([galleryId, contentHash])
