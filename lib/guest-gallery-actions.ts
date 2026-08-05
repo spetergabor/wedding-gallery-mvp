@@ -230,7 +230,10 @@ export async function setGuestPhotoVisibilityAction(
   await prisma.$transaction([
     prisma.galleryGuestUpload.update({
       where: { id: upload.id },
-      data: { status: visible ? "visible" : "hidden" }
+      data: {
+        status: visible ? "visible" : "hidden",
+        visibleAt: visible ? new Date() : null
+      }
     }),
     prisma.gallery.update({
       where: { id: gallery.id },
@@ -307,7 +310,10 @@ export async function bulkUpdateGuestPhotosAction(
     await prisma.$transaction([
       prisma.galleryGuestUpload.updateMany({
         where: { galleryId: gallery.id, id: { in: uploads.map((upload) => upload.id) } },
-        data: { status: operation === "approve" ? "visible" : "hidden" }
+        data: {
+          status: operation === "approve" ? "visible" : "hidden",
+          visibleAt: operation === "approve" ? new Date() : null
+        }
       }),
       prisma.gallery.update({
         where: { id: gallery.id },

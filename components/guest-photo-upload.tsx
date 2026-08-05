@@ -20,8 +20,11 @@ import {
 import { Button } from "@/components/button";
 import {
   completeGuestUploadsAction,
+  getGuestGalleryPhotoUpdatesAction,
+  getGuestGalleryPhotosPageAction,
+  getGuestGalleryRevisionAction,
   createGuestUploadTargetsAction,
-  getGuestGalleryPhotosAction
+  type GuestPhotoCursor
 } from "@/lib/guest-upload-actions";
 import type { CustomerLanguage } from "@/lib/customer-language";
 import {
@@ -40,6 +43,7 @@ type GuestPhoto = {
   imageHeight: number;
   guestName: string | null;
   processingStatus: string;
+  visibleAt: string;
   createdAt: string;
 };
 
@@ -97,6 +101,9 @@ const COPY = {
     partialError: (count: number) => `${count} ${count === 1 ? "Foto konnte" : "Fotos konnten"} nicht hochgeladen werden. Versuche nur diese erneut.`,
     live: "Wird automatisch aktualisiert",
     processing: "Vorschau wird erstellt",
+    loadingMore: "Weitere Fotos werden geladen...",
+    loadMoreError: "Weitere Fotos konnten nicht geladen werden.",
+    retryLoad: "Erneut laden",
     hashing: "Wird geprüft",
     queued: "Bereit",
     fileUploading: "Wird hochgeladen",
@@ -143,6 +150,9 @@ const COPY = {
     partialError: (count: number) => `${count} kép feltöltése megszakadt. Csak ezeket próbáld újra.`,
     live: "Automatikusan frissül",
     processing: "Előnézet készül",
+    loadingMore: "További képek betöltése...",
+    loadMoreError: "A további képeket nem sikerült betölteni.",
+    retryLoad: "Újrapróbálás",
     hashing: "Ellenőrzés",
     queued: "Feltöltésre kész",
     fileUploading: "Feltöltés",
@@ -181,6 +191,16 @@ function previewUrl(photo: GuestPhoto) {
 
 function fullscreenUrl(photo: GuestPhoto) {
   return photo.previewUrl || photo.imageUrl || photo.thumbnailUrl;
+}
+
+function mergeGuestPhotos(current: GuestPhoto[], incoming: GuestPhoto[]) {
+  const photosById = new Map(current.map((photo) => [photo.id, photo]));
+  incoming.forEach((photo) => photosById.set(photo.id, photo));
+
+  return Array.from(photosById.values()).sort((left, right) => {
+    const timeDifference = new Date(left.visibleAt).getTime() - new Date(right.visibleAt).getTime();
+    return timeDifference || left.id.localeCompare(right.id);
+  });
 }
 
 function formatFileSize(bytes: number) {
@@ -347,12 +367,18 @@ export function GuestPhotoUpload({
   language,
   initialPhotos,
   initialRevision,
+  initialTotalCount,
+  initialNextCursor,
+  initialLiveCursor,
   uploadsEnabled = true
 }: {
   galleryId: string;
   language: CustomerLanguage;
   initialPhotos: GuestPhoto[];
   initialRevision: number;
+  initialTotalCount: number;
+  initialNextCursor: GuestPhotoCursor | null;
+  initialLiveCursor: GuestPhotoCursor | null;
   uploadsEnabled?: boolean;
 }) {
   const copy = COPY[language];
@@ -360,13 +386,21 @@ export function GuestPhotoUpload({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const guestKeyRef = useRef("");
   const revisionRef = useRef(initialRevision);
+  const photosRef = useRef(initialPhotos);
+  const liveCursorRef = useRef<GuestPhotoCursor | null>(initialLiveCursor);
   const refreshInFlightRef = useRef(false);
+  const loadMoreInFlightRef = useRef(false);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const prepareInFlightRef = useRef(false);
   const touchStartXRef = useRef<number | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [files, setFiles] = useState<GuestUploadFile[]>([]);
   const [photos, setPhotos] = useState(initialPhotos);
+  const [totalPhotoCount, setTotalPhotoCount] = useState(initialTotalCount);
+  const [nextCursor, setNextCursor] = useState<GuestPhotoCursor | null>(initialNextCursor);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
@@ -397,16 +431,71 @@ export function GuestPhotoUpload({
     refreshInFlightRef.current = true;
 
     try {
-      const result = await getGuestGalleryPhotosAction(galleryId, revisionRef.current);
+      const revisionCheck = await getGuestGalleryRevisionAction(galleryId, revisionRef.current);
+      if (!revisionCheck.ok || revisionCheck.unchanged) {
+        return;
+      }
 
-      if (result.ok && !result.unchanged) {
-        revisionRef.current = result.revision;
-        setPhotos(result.photos);
+      let hasMoreUpdates = true;
+      let updatePageCount = 0;
+
+      while (hasMoreUpdates && updatePageCount < 20) {
+        const result = await getGuestGalleryPhotoUpdatesAction(
+          galleryId,
+          revisionRef.current,
+          liveCursorRef.current,
+          photosRef.current.map((photo) => photo.id)
+        );
+
+        if (!result.ok || result.unchanged) {
+          break;
+        }
+
+        const removedIds = new Set(result.removedPhotoIds);
+        setPhotos((current) => mergeGuestPhotos(
+          current.filter((photo) => !removedIds.has(photo.id)),
+          result.newPhotos
+        ));
+        setTotalPhotoCount(result.totalCount);
+        liveCursorRef.current = result.nextLiveCursor;
+        hasMoreUpdates = result.hasMore;
+        updatePageCount += 1;
+
+        if (!hasMoreUpdates) {
+          revisionRef.current = result.revision;
+        }
       }
     } finally {
       refreshInFlightRef.current = false;
     }
   }, [galleryId]);
+
+  const loadMorePhotos = useCallback(async () => {
+    const cursor = nextCursor;
+    if (!cursor || loadMoreInFlightRef.current) {
+      return;
+    }
+
+    loadMoreInFlightRef.current = true;
+    setIsLoadingMore(true);
+    setLoadMoreError("");
+
+    try {
+      const result = await getGuestGalleryPhotosPageAction(galleryId, cursor);
+      if (!result.ok) {
+        throw new Error(copy.loadMoreError);
+      }
+
+      setPhotos((current) => mergeGuestPhotos(current, result.photos));
+      setNextCursor(result.nextCursor);
+      setTotalPhotoCount(result.totalCount);
+    } catch {
+      setLoadMoreError(copy.loadMoreError);
+    } finally {
+      loadMoreInFlightRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }, [copy.loadMoreError, galleryId, nextCursor]);
 
   const getOrCreateGuestKey = useCallback(() => {
     if (guestKeyRef.current) {
@@ -430,8 +519,35 @@ export function GuestPhotoUpload({
 
   useEffect(() => {
     setPhotos(initialPhotos);
+    photosRef.current = initialPhotos;
     revisionRef.current = initialRevision;
-  }, [initialPhotos, initialRevision]);
+    liveCursorRef.current = initialLiveCursor;
+    setTotalPhotoCount(initialTotalCount);
+    setNextCursor(initialNextCursor);
+  }, [initialLiveCursor, initialNextCursor, initialPhotos, initialRevision, initialTotalCount]);
+
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !nextCursor) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void loadMorePhotos();
+        }
+      },
+      { rootMargin: "700px 0px" }
+    );
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [loadMorePhotos, nextCursor]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -584,9 +700,18 @@ export function GuestPhotoUpload({
       if (event.key === "Escape") {
         setActivePhotoIndex(null);
       } else if (event.key === "ArrowLeft") {
-        setActivePhotoIndex((index) => index === null ? null : (index - 1 + visiblePhotos.length) % visiblePhotos.length);
+        setActivePhotoIndex((index) => index === null ? null : Math.max(0, index - 1));
       } else if (event.key === "ArrowRight") {
-        setActivePhotoIndex((index) => index === null ? null : (index + 1) % visiblePhotos.length);
+        setActivePhotoIndex((index) => {
+          if (index === null) {
+            return null;
+          }
+          if (index >= visiblePhotos.length - 1 && nextCursor) {
+            void loadMorePhotos();
+            return index;
+          }
+          return Math.min(visiblePhotos.length - 1, index + 1);
+        });
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -595,7 +720,24 @@ export function GuestPhotoUpload({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activePhotoIndex, visiblePhotos.length]);
+  }, [activePhotoIndex, loadMorePhotos, nextCursor, visiblePhotos.length]);
+
+  useEffect(() => {
+    if (activePhotoIndex === null) {
+      return;
+    }
+
+    if (nextCursor && activePhotoIndex >= Math.max(0, visiblePhotos.length - 8)) {
+      void loadMorePhotos();
+    }
+
+    visiblePhotos
+      .slice(activePhotoIndex + 1, activePhotoIndex + 3)
+      .forEach((photo) => {
+        const image = new window.Image();
+        image.src = fullscreenUrl(photo);
+      });
+  }, [activePhotoIndex, loadMorePhotos, nextCursor, visiblePhotos]);
 
   async function prepareFiles(selectedFiles: File[]) {
     if (prepareInFlightRef.current || isUploading) {
@@ -877,7 +1019,16 @@ export function GuestPhotoUpload({
   }
 
   function moveLightbox(direction: -1 | 1) {
-    setActivePhotoIndex((index) => index === null ? null : (index + direction + visiblePhotos.length) % visiblePhotos.length);
+    setActivePhotoIndex((index) => {
+      if (index === null) {
+        return null;
+      }
+      if (direction === 1 && index >= visiblePhotos.length - 1 && nextCursor) {
+        void loadMorePhotos();
+        return index;
+      }
+      return Math.max(0, Math.min(visiblePhotos.length - 1, index + direction));
+    });
   }
 
   return (
@@ -885,7 +1036,7 @@ export function GuestPhotoUpload({
       <div className="flex flex-col gap-4 border-b border-ink/10 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-graphite/55">
-            {copy.count(visiblePhotos.length)}
+            {copy.count(totalPhotoCount)}
             <span aria-hidden="true">·</span>
             <span className="inline-flex items-center gap-1 normal-case tracking-normal"><RefreshCw size={11} /> {copy.live}</span>
           </p>
@@ -903,41 +1054,62 @@ export function GuestPhotoUpload({
 
       {visiblePhotos.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {visiblePhotos.map((photo, index) => (
-            <button
-              key={photo.id}
-              type="button"
-              onClick={() => setActivePhotoIndex(index)}
-              className="group relative overflow-hidden rounded-md bg-mist text-left outline-none ring-ink/30 transition focus-visible:ring-2"
-              aria-label={`${copy.openPhoto}: ${photo.filename}`}
-            >
-              <div className="relative overflow-hidden">
-                {photo.imageWidth > 0 && photo.imageHeight > 0 ? (
-                  <Image
-                    src={previewUrl(photo)}
-                    alt={photo.filename}
-                    width={photo.imageWidth}
-                    height={photo.imageHeight}
-                    unoptimized
-                    className="block h-auto w-full transition duration-300 group-hover:scale-[1.02]"
-                    sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                  />
-                ) : (
-                  <img src={previewUrl(photo)} alt={photo.filename} loading="lazy" className="block h-auto w-full transition duration-300 group-hover:scale-[1.02]" />
-                )}
-                {photo.processingStatus !== "ready" ? (
-                  <span className="absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-full bg-ink/75 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
-                    <Loader2 size={11} className="animate-spin" /> {copy.processing}
-                  </span>
-                ) : null}
-              </div>
-              {photo.guestName ? <p className="truncate px-3 py-2 text-xs font-medium text-graphite">{photo.guestName}</p> : null}
-            </button>
-          ))}
+            {visiblePhotos.map((photo, index) => (
+              <button
+                key={photo.id}
+                type="button"
+                onClick={() => setActivePhotoIndex(index)}
+                className="group relative overflow-hidden rounded-md bg-mist text-left outline-none ring-ink/30 transition focus-visible:ring-2"
+                aria-label={`${copy.openPhoto}: ${photo.filename}`}
+              >
+                <div className="relative overflow-hidden">
+                  {photo.imageWidth > 0 && photo.imageHeight > 0 ? (
+                    <Image
+                      src={previewUrl(photo)}
+                      alt={photo.filename}
+                      width={photo.imageWidth}
+                      height={photo.imageHeight}
+                      loading="lazy"
+                      unoptimized
+                      className="block h-auto w-full transition duration-300 group-hover:scale-[1.02]"
+                      sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                    />
+                  ) : (
+                    <img src={previewUrl(photo)} alt={photo.filename} loading="lazy" className="block h-auto w-full transition duration-300 group-hover:scale-[1.02]" />
+                  )}
+                  {photo.processingStatus !== "ready" ? (
+                    <span className="absolute bottom-2 left-2 inline-flex items-center gap-1.5 rounded-full bg-ink/75 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm">
+                      <Loader2 size={11} className="animate-spin" /> {copy.processing}
+                    </span>
+                  ) : null}
+                </div>
+                {photo.guestName ? <p className="truncate px-3 py-2 text-xs font-medium text-graphite">{photo.guestName}</p> : null}
+              </button>
+            ))}
         </div>
       ) : (
-        <p className="rounded-lg border border-ink/10 bg-white px-5 py-8 text-center text-sm text-graphite/70 shadow-soft">{copy.empty}</p>
+        totalPhotoCount === 0 ? (
+          <p className="rounded-lg border border-ink/10 bg-white px-5 py-8 text-center text-sm text-graphite/70 shadow-soft">{copy.empty}</p>
+        ) : null
       )}
+
+      {nextCursor ? (
+        <div ref={loadMoreSentinelRef} className="flex min-h-20 items-center justify-center py-5" aria-live="polite">
+          {loadMoreError ? (
+            <button
+              type="button"
+              onClick={() => void loadMorePhotos()}
+              className="inline-flex items-center gap-2 rounded-md border border-ink/15 bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-paper"
+            >
+              <RotateCcw size={14} /> {copy.retryLoad}
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-2 text-xs font-medium text-graphite/60">
+              <Loader2 size={14} className={isLoadingMore ? "animate-spin" : ""} /> {copy.loadingMore}
+            </span>
+          )}
+        </div>
+      ) : null}
 
       {activePhoto ? (
         <div
@@ -995,7 +1167,7 @@ export function GuestPhotoUpload({
             </>
           ) : null}
           <div className="absolute bottom-4 left-1/2 z-10 max-w-[70vw] -translate-x-1/2 rounded-full bg-black/45 px-4 py-2 text-center text-xs text-white/85 backdrop-blur">
-            {(activePhotoIndex ?? 0) + 1} / {visiblePhotos.length}{activePhoto.guestName ? ` · ${activePhoto.guestName}` : ""}
+            {(activePhotoIndex ?? 0) + 1} / {totalPhotoCount}{activePhoto.guestName ? ` · ${activePhoto.guestName}` : ""}
           </div>
         </div>
       ) : null}

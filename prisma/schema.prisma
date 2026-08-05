@@ -931,12 +931,14 @@ model GalleryGuestUpload {
   processingError String?
   processingRequestedAt DateTime?
   processingCompletedAt DateTime?
+  visibleAt    DateTime?
   createdAt    DateTime @default(now())
   gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
   processingJobs MediaProcessingJob[]
 
   @@index([galleryId])
   @@index([galleryId, status])
+  @@index([galleryId, status, visibleAt, id])
   @@index([email])
   @@index([guestKey])
   @@unique([galleryId, contentHash])

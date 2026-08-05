@@ -370,6 +370,7 @@ export async function completeGuestUploadsAction(
       where: { id: { in: uploads.map((upload) => upload.id) } },
       data: {
         status: awaitingApproval ? "pending_review" : "visible",
+        visibleAt: awaitingApproval ? null : requestedAt,
         processingStatus: "pending",
         processingError: null,
         processingRequestedAt: requestedAt,
@@ -411,7 +412,43 @@ export async function completeGuestUploadsAction(
   };
 }
 
-export async function getGuestGalleryPhotosAction(galleryId: string, knownRevision?: number) {
+const GUEST_PHOTO_PAGE_SIZE = 48;
+
+export type GuestPhotoCursor = {
+  visibleAt: string;
+  id: string;
+};
+
+function normalizePhotoCursor(cursor: GuestPhotoCursor | null | undefined) {
+  if (!cursor?.id || cursor.id.length > 100) {
+    return null;
+  }
+
+  const visibleAt = new Date(cursor.visibleAt);
+  return Number.isNaN(visibleAt.getTime()) ? null : { visibleAt, id: cursor.id };
+}
+
+function serializeGuestPhoto(photo: {
+  id: string;
+  filename: string;
+  imageUrl: string;
+  thumbnailUrl: string;
+  previewUrl: string;
+  imageWidth: number;
+  imageHeight: number;
+  guestName: string | null;
+  processingStatus: string;
+  visibleAt: Date | null;
+  createdAt: Date;
+}) {
+  return {
+    ...photo,
+    visibleAt: (photo.visibleAt ?? photo.createdAt).toISOString(),
+    createdAt: photo.createdAt.toISOString()
+  };
+}
+
+async function getAccessibleGuestGallery(galleryId: string) {
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
     select: {
@@ -431,7 +468,96 @@ export async function getGuestGalleryPhotosAction(galleryId: string, knownRevisi
     (gallery.guestGalleryExpiresAt && gallery.guestGalleryExpiresAt <= new Date()) ||
     !(await canViewGallery(gallery.slug, gallery.password))
   ) {
-    return { ok: false as const, photos: [] };
+    return null;
+  }
+
+  return gallery;
+}
+
+export async function getGuestGalleryPhotosPageAction(
+  galleryId: string,
+  cursor?: GuestPhotoCursor | null
+) {
+  const gallery = await getAccessibleGuestGallery(galleryId);
+  if (!gallery) {
+    return { ok: false as const, photos: [], nextCursor: null, totalCount: 0 };
+  }
+
+  const normalizedCursor = normalizePhotoCursor(cursor);
+  const [rows, totalCount] = await Promise.all([
+    prisma.galleryGuestUpload.findMany({
+      where: {
+        galleryId: gallery.id,
+        status: "visible",
+        visibleAt: { not: null },
+        ...(normalizedCursor
+          ? {
+              OR: [
+                { visibleAt: { gt: normalizedCursor.visibleAt } },
+                { visibleAt: normalizedCursor.visibleAt, id: { gt: normalizedCursor.id } }
+              ]
+            }
+          : {})
+      },
+      orderBy: [{ visibleAt: "asc" }, { id: "asc" }],
+      take: GUEST_PHOTO_PAGE_SIZE + 1,
+      select: {
+        id: true,
+        filename: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true,
+        imageWidth: true,
+        imageHeight: true,
+        guestName: true,
+        processingStatus: true,
+        visibleAt: true,
+        createdAt: true
+      }
+    }),
+    prisma.galleryGuestUpload.count({
+      where: { galleryId: gallery.id, status: "visible" }
+    })
+  ]);
+  const hasMore = rows.length > GUEST_PHOTO_PAGE_SIZE;
+  const page = rows.slice(0, GUEST_PHOTO_PAGE_SIZE);
+  const lastPhoto = page.at(-1);
+
+  return {
+    ok: true as const,
+    photos: page.map(serializeGuestPhoto),
+    nextCursor: hasMore && lastPhoto
+      ? {
+          visibleAt: (lastPhoto.visibleAt ?? lastPhoto.createdAt).toISOString(),
+          id: lastPhoto.id
+        }
+      : null,
+    totalCount
+  };
+}
+
+export async function getGuestGalleryRevisionAction(galleryId: string, knownRevision: number) {
+  const gallery = await getAccessibleGuestGallery(galleryId);
+  if (!gallery) {
+    return { ok: false as const, unchanged: true as const, revision: knownRevision };
+  }
+
+  return {
+    ok: true as const,
+    unchanged: Number.isInteger(knownRevision) && knownRevision === gallery.guestGalleryRevision,
+    revision: gallery.guestGalleryRevision
+  };
+}
+
+export async function getGuestGalleryPhotoUpdatesAction(
+  galleryId: string,
+  knownRevision: number,
+  afterCursor: GuestPhotoCursor | null,
+  loadedPhotoIds: string[]
+) {
+  const gallery = await getAccessibleGuestGallery(galleryId);
+  if (!gallery) {
+    return { ok: false as const, newPhotos: [], removedPhotoIds: [] };
   }
 
   if (Number.isInteger(knownRevision) && knownRevision === gallery.guestGalleryRevision) {
@@ -439,38 +565,76 @@ export async function getGuestGalleryPhotosAction(galleryId: string, knownRevisi
       ok: true as const,
       unchanged: true as const,
       revision: gallery.guestGalleryRevision,
-      photos: []
+      newPhotos: [],
+      removedPhotoIds: []
     };
   }
 
-  const photos = await prisma.galleryGuestUpload.findMany({
-    where: {
-      galleryId: gallery.id,
-      status: "visible"
-    },
-    orderBy: { createdAt: "asc" },
-    take: 5000,
-    select: {
-      id: true,
-      filename: true,
-      imageUrl: true,
-      thumbnailUrl: true,
-      previewUrl: true,
-      imageWidth: true,
-      imageHeight: true,
-      guestName: true,
-      processingStatus: true,
-      createdAt: true
-    }
-  });
+  const normalizedCursor = normalizePhotoCursor(afterCursor);
+  const uniqueLoadedIds = Array.from(new Set(loadedPhotoIds.map((id) => id.trim()).filter(Boolean))).slice(0, 5000);
+  const [rows, totalCount, visibleLoadedRows] = await Promise.all([
+    prisma.galleryGuestUpload.findMany({
+      where: {
+        galleryId: gallery.id,
+        status: "visible",
+        visibleAt: { not: null },
+        ...(normalizedCursor
+          ? {
+              OR: [
+                { visibleAt: { gt: normalizedCursor.visibleAt } },
+                { visibleAt: normalizedCursor.visibleAt, id: { gt: normalizedCursor.id } }
+              ]
+            }
+          : {})
+      },
+      orderBy: [{ visibleAt: "asc" }, { id: "asc" }],
+      take: GUEST_PHOTO_PAGE_SIZE + 1,
+      select: {
+        id: true,
+        filename: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true,
+        imageWidth: true,
+        imageHeight: true,
+        guestName: true,
+        processingStatus: true,
+        visibleAt: true,
+        createdAt: true
+      }
+    }),
+    prisma.galleryGuestUpload.count({
+      where: { galleryId: gallery.id, status: "visible" }
+    }),
+    uniqueLoadedIds.length > 0
+      ? prisma.galleryGuestUpload.findMany({
+          where: {
+            galleryId: gallery.id,
+            id: { in: uniqueLoadedIds },
+            status: "visible"
+          },
+          select: { id: true }
+        })
+      : Promise.resolve([])
+  ]);
+  const hasMore = rows.length > GUEST_PHOTO_PAGE_SIZE;
+  const newRows = rows.slice(0, GUEST_PHOTO_PAGE_SIZE);
+  const lastPhoto = newRows.at(-1);
+  const visibleLoadedIds = new Set(visibleLoadedRows.map((photo) => photo.id));
 
   return {
     ok: true as const,
     unchanged: false as const,
     revision: gallery.guestGalleryRevision,
-    photos: photos.map((photo) => ({
-      ...photo,
-      createdAt: photo.createdAt.toISOString()
-    }))
+    newPhotos: newRows.map(serializeGuestPhoto),
+    removedPhotoIds: uniqueLoadedIds.filter((id) => !visibleLoadedIds.has(id)),
+    nextLiveCursor: lastPhoto
+      ? {
+          visibleAt: (lastPhoto.visibleAt ?? lastPhoto.createdAt).toISOString(),
+          id: lastPhoto.id
+        }
+      : afterCursor,
+    hasMore,
+    totalCount
   };
 }

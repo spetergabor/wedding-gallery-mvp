@@ -40,6 +40,8 @@ import {
   normalizeGalleryTitleSize
 } from "@/lib/gallery-appearance";
 
+const GUEST_PHOTO_INITIAL_PAGE_SIZE = 48;
+
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
     return language === "hu" ? "Privát galéria" : "Private Galerie";
@@ -122,7 +124,13 @@ export default async function PublicGalleryPage({
       },
       guestUploads: {
         where: { status: "visible" },
-        orderBy: { createdAt: "asc" }
+        orderBy: [{ visibleAt: "asc" }, { id: "asc" }],
+        take: GUEST_PHOTO_INITIAL_PAGE_SIZE + 1
+      },
+      _count: {
+        select: {
+          guestUploads: { where: { status: "visible" } }
+        }
       },
       customer: {
         select: { preferredLanguage: true }
@@ -225,13 +233,23 @@ export default async function PublicGalleryPage({
   const classicGradientBackground = `linear-gradient(to bottom, ${rgbaFromHex(galleryBackgroundColor, 0)} 0%, ${rgbaFromHex(galleryBackgroundColor, 0.52)} 34%, ${rgbaFromHex(galleryBackgroundColor, 0.92)} 58%, ${galleryBackgroundColor} 82%, ${galleryBackgroundColor} 100%)`;
   const publicGridGap = normalizeGalleryGridGap(gallery.publicGridGap);
   const publicImageRadius = normalizeGalleryImageRadius(gallery.publicImageRadius);
-  const hasGuestPhotos = gallery.guestUploads.length > 0;
+  const guestPhotoTotalCount = gallery._count.guestUploads;
+  const initialGuestPhotos = gallery.guestUploads.slice(0, GUEST_PHOTO_INITIAL_PAGE_SIZE);
+  const hasMoreInitialGuestPhotos = gallery.guestUploads.length > GUEST_PHOTO_INITIAL_PAGE_SIZE;
+  const initialGuestPhotoLastItem = initialGuestPhotos.at(-1) ?? null;
+  const initialGuestPhotoNextCursor = hasMoreInitialGuestPhotos && initialGuestPhotoLastItem
+    ? {
+        visibleAt: (initialGuestPhotoLastItem.visibleAt ?? initialGuestPhotoLastItem.createdAt).toISOString(),
+        id: initialGuestPhotoLastItem.id
+      }
+    : null;
+  const hasGuestPhotos = guestPhotoTotalCount > 0;
   const showGuestPhotoSection = gallery.guestUploadsEnabled || hasGuestPhotos;
   const guestPhotoAnchorLink = showGuestPhotoSection
     ? {
         href: "#guest-photos",
         label: language === "hu" ? "Vendégfotók" : "Gästefotos",
-        count: gallery.guestUploads.length
+        count: guestPhotoTotalCount
       }
     : null;
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
@@ -341,6 +359,20 @@ export default async function PublicGalleryPage({
     );
   }
 
+  const latestGuestPhoto = hasMoreInitialGuestPhotos
+    ? await prisma.galleryGuestUpload.findFirst({
+        where: { galleryId: gallery.id, status: "visible", visibleAt: { not: null } },
+        orderBy: [{ visibleAt: "desc" }, { id: "desc" }],
+        select: { id: true, visibleAt: true, createdAt: true }
+      })
+    : initialGuestPhotos.at(-1) ?? null;
+  const initialGuestPhotoLiveCursor = latestGuestPhoto
+    ? {
+        visibleAt: (latestGuestPhoto.visibleAt ?? latestGuestPhoto.createdAt).toISOString(),
+        id: latestGuestPhoto.id
+      }
+    : null;
+
   const saleSettings = paidGallery
     ? {
         priceCents: gallery.salePriceCents,
@@ -398,7 +430,10 @@ export default async function PublicGalleryPage({
       language={language}
       uploadsEnabled={gallery.guestUploadsEnabled}
       initialRevision={gallery.guestGalleryRevision}
-      initialPhotos={gallery.guestUploads.map((photo) => ({
+      initialTotalCount={guestPhotoTotalCount}
+      initialNextCursor={initialGuestPhotoNextCursor}
+      initialLiveCursor={initialGuestPhotoLiveCursor}
+      initialPhotos={initialGuestPhotos.map((photo) => ({
         id: photo.id,
         filename: photo.filename,
         imageUrl: photo.imageUrl,
@@ -408,6 +443,7 @@ export default async function PublicGalleryPage({
         imageHeight: photo.imageHeight,
         guestName: photo.guestName,
         processingStatus: photo.processingStatus,
+        visibleAt: (photo.visibleAt ?? photo.createdAt).toISOString(),
         createdAt: photo.createdAt.toISOString()
       }))}
     />
