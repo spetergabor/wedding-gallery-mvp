@@ -472,7 +472,9 @@ model CustomerPortalAccount {
   updatedAt             DateTime @updatedAt
   customer              Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   sessions              CustomerPortalSession[]
+  passwordResetTokens   CustomerPortalPasswordResetToken[]
   deletedGuestUploads   GalleryGuestUpload[] @relation("CustomerDeletedGuestUploads")
+  guestGalleryAuditLogs GuestGalleryAuditLog[]
 
   @@index([customerId])
   @@index([customerId, status])
@@ -490,6 +492,41 @@ model CustomerPortalSession {
 
   @@index([accountId])
   @@index([expiresAt])
+}
+
+model CustomerPortalPasswordResetToken {
+  id        String   @id @default(cuid())
+  accountId String
+  tokenHash String   @unique
+  purpose   String   @default("reset")
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  account   CustomerPortalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model GuestGalleryAuditLog {
+  id          String   @id @default(cuid())
+  galleryId   String
+  accountId   String?
+  actorType   String
+  actorLabel  String
+  action      String
+  photoCount  Int      @default(0)
+  photoIds    String[] @default([])
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  gallery     Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  account     CustomerPortalAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([galleryId, createdAt])
+  @@index([accountId, createdAt])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model Lead {
@@ -931,6 +968,7 @@ model Gallery {
   mediaProcessingJobs MediaProcessingJob[]
   purchases    GalleryPurchase[]
   guestUploads GalleryGuestUpload[]
+  guestAuditLogs GuestGalleryAuditLog[]
   admin        Admin   @relation(fields: [adminId], references: [id], onDelete: Cascade)
   customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   project      CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)

@@ -1842,6 +1842,8 @@ export default async function AdminClientDetailPage({
         {flags.portalCreated ? <Alert title="Ügyfélportál létrehozva." variant="success" /> : null}
         {flags.portalError === "type" ? <Alert title="Ügyfélportál csak esküvős párnál elérhető." variant="error" /> : null}
         {flags.portalAccount === "created" ? <Alert title="A pár-admin hozzáférés létrejött." variant="success" /> : null}
+        {flags.portalAccount === "created-invited" ? <Alert title="A pár-admin hozzáférés létrejött, az aktiváló e-mailt elküldtük." variant="success" /> : null}
+        {flags.portalAccount === "invite-sent" ? <Alert title="A pár-admin meghívót újraküldtük." variant="success" /> : null}
         {flags.portalAccount === "updated" ? <Alert title="A pár-admin hozzáférés adatai elmentve." variant="success" /> : null}
         {flags.portalAccount === "enabled" ? <Alert title="A pár-admin hozzáférés engedélyezve." variant="success" /> : null}
         {flags.portalAccount === "disabled" ? <Alert title="A pár-admin hozzáférés letiltva, az aktív munkamenetek megszűntek." variant="success" /> : null}
@@ -1850,6 +1852,8 @@ export default async function AdminClientDetailPage({
         {flags.portalAccountError === "password" ? <Alert title="Az ideiglenes jelszó legalább 10 karakter legyen." variant="error" /> : null}
         {flags.portalAccountError === "missing" ? <Alert title="A pár-admin hozzáférés nem található." variant="error" /> : null}
         {flags.portalAccountError === "customer" ? <Alert title="Pár-admin hozzáférés csak esküvős párhoz készíthető." variant="error" /> : null}
+        {flags.portalAccountError === "invite-email" ? <Alert title="A meghívóhoz előbb adj meg e-mail-címet a hozzáférésnél." variant="error" /> : null}
+        {flags.portalAccountError === "invite-failed" ? <Alert title="A meghívó e-mail küldése nem sikerült. Ellenőrizd a Resend beállítását." variant="error" /> : null}
         {flags.statusUpdated ? <Alert title="Ügyfél státusz frissítve." variant="success" /> : null}
         {flags.albumCreated ? <Alert title="Album ellenőrző létrehozva." variant="success" /> : null}
         {flags.albumDeleted ? <Alert title="Album ellenőrző törölve." variant="success" /> : null}

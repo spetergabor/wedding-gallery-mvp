@@ -1,19 +1,22 @@
 import Link from "next/link";
 import QRCode from "qrcode";
-import { Archive, CalendarDays, Download, ExternalLink, FileArchive, KeyRound, QrCode, RotateCcw, UploadCloud, UserCog } from "lucide-react";
+import { Archive, CalendarDays, Download, ExternalLink, FileArchive, History, KeyRound, QrCode, RotateCcw, Trash2, UploadCloud, UserCog } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { Alert } from "@/components/alert";
 import { CopyLinkButton } from "@/components/copy-link-button";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { GuestGalleryPhotoManager } from "@/components/guest-gallery-photo-manager";
 import { ZipStatusAutoRefresh } from "@/components/zip-status-auto-refresh";
 import { adminOwnedWhere, galleryAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { APP_TIME_ZONE } from "@/lib/date-format";
 import { GUEST_UPLOAD_DOWNLOAD_SCOPE, ensureDownloadPackageAccessToken } from "@/lib/download-packages";
 import { publicGalleryUrl } from "@/lib/email";
 import { ADMIN_GUEST_PHOTO_PAGE_SIZE, serializeGuestGalleryAdminPhoto } from "@/lib/guest-gallery-admin";
 import {
   archiveGuestGalleryAction,
+  deleteGuestGalleryAction,
   queueGuestGalleryZipAction,
   restoreGuestGalleryAction,
   updateGuestGalleryAction
@@ -40,6 +43,24 @@ function formatFileSize(bytes: number | bigint) {
   }
 
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function guestAuditActionLabel(action: string) {
+  if (action === "approve") return "Jóváhagyás";
+  if (action === "hide") return "Elrejtés";
+  if (action === "trash") return "Lomtárba helyezés";
+  if (action === "restore") return "Visszaállítás";
+  if (action === "delete") return "Végleges törlés";
+  if (action === "trash_auto_delete") return "Automatikus lomtárürítés";
+  return action;
+}
+
+function guestAuditDate(date: Date) {
+  return new Intl.DateTimeFormat("hu-HU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE
+  }).format(date);
 }
 
 export default async function GuestGalleryDetailPage({
@@ -89,6 +110,18 @@ export default async function GuestGalleryDetailPage({
           where: { scope: GUEST_UPLOAD_DOWNLOAD_SCOPE },
           orderBy: [{ createdAt: "desc" }, { partIndex: "asc" }],
           take: 30
+        },
+        guestAuditLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 30,
+          select: {
+            id: true,
+            actorType: true,
+            actorLabel: true,
+            action: true,
+            photoCount: true,
+            createdAt: true
+          }
         }
       }
     }),
@@ -481,13 +514,49 @@ export default async function GuestGalleryDetailPage({
               ? "A publikus oldal és a feltöltés nem érhető el. A képek és a ZIP-ek megmaradtak."
               : "Az archiválás azonnal bezárja a publikus oldalt és letiltja az új feltöltéseket, de nem töröl semmit."}
           </p>
-          <form action={(galleryArchived ? restoreGuestGalleryAction : archiveGuestGalleryAction).bind(null, gallery.id)} className="mt-5">
-            <FormSubmitButton variant={galleryArchived ? "secondary" : "danger"} pendingLabel={galleryArchived ? "Visszaállítás..." : "Archiválás..."}>
-              {galleryArchived ? <RotateCcw size={16} /> : <Archive size={16} />}
-              {galleryArchived ? "Galéria visszaállítása" : "Galéria archiválása most"}
-            </FormSubmitButton>
-          </form>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <form action={(galleryArchived ? restoreGuestGalleryAction : archiveGuestGalleryAction).bind(null, gallery.id)}>
+              <FormSubmitButton variant={galleryArchived ? "secondary" : "danger"} pendingLabel={galleryArchived ? "Visszaállítás..." : "Archiválás..."}>
+                {galleryArchived ? <RotateCcw size={16} /> : <Archive size={16} />}
+                {galleryArchived ? "Galéria visszaállítása" : "Galéria archiválása most"}
+              </FormSubmitButton>
+            </form>
+            <form action={deleteGuestGalleryAction.bind(null, gallery.id)}>
+              <ConfirmSubmitButton
+                variant="danger"
+                message="Biztosan véglegesen törlöd ezt a vendéggalériát? Az összes vendégfotó, előnézet és ZIP-fájl is törlődik. Ez nem vonható vissza."
+              >
+                <Trash2 size={16} /> Végleges törlés
+              </ConfirmSubmitButton>
+            </form>
+          </div>
         </div>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-paper text-graphite"><History size={18} /></span>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">Műveleti napló</p>
+            <h2 className="mt-1 text-xl font-semibold text-ink">Ki mit módosított?</h2>
+            <p className="mt-1 text-sm text-graphite/65">A fotós, a pár-admin és az automatikus lomtárürítés utolsó műveletei.</p>
+          </div>
+        </div>
+        {gallery.guestAuditLogs.length > 0 ? (
+          <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
+            {gallery.guestAuditLogs.map((entry) => (
+              <div key={entry.id} className="flex flex-col justify-between gap-2 px-4 py-3 sm:flex-row sm:items-center">
+                <div>
+                  <p className="text-sm font-semibold text-ink">{guestAuditActionLabel(entry.action)} · {entry.photoCount} kép</p>
+                  <p className="mt-1 text-xs text-graphite/60">{entry.actorLabel}{entry.actorType === "customer_portal" ? " · pár-admin" : entry.actorType === "admin" ? " · fotós/admin" : ""}</p>
+                </div>
+                <time className="text-xs text-graphite/55" dateTime={entry.createdAt.toISOString()}>{guestAuditDate(entry.createdAt)}</time>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-6 text-center text-sm text-graphite/60">Még nincs naplózott moderációs művelet.</p>
+        )}
       </section>
 
       <section className="mt-8 rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">

@@ -28,7 +28,7 @@ function formatDate(date: Date | null) {
 export default async function GuestGalleriesPage({
   searchParams
 }: {
-  searchParams: Promise<{ updated?: string; error?: string }>;
+  searchParams: Promise<{ updated?: string; deleted?: string; error?: string }>;
 }) {
   const admin = await requireAdmin();
   const flags = await searchParams;
@@ -76,6 +76,7 @@ export default async function GuestGalleriesPage({
 
       <div className="mb-5 space-y-3">
         {flags.updated ? <Alert title="A vendéggaléria állapota frissítve." variant="success" /> : null}
+        {flags.deleted ? <Alert title="A vendéggaléria véglegesen törölve, a tárhelyfájlok törlése elindult." variant="success" /> : null}
         {flags.error === "missing" ? <Alert title="A vendéggaléria nem található." variant="error" /> : null}
       </div>
 

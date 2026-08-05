@@ -131,6 +131,16 @@ type AdminPasswordResetEmail = {
   expiresInMinutes: number;
 };
 
+type CustomerPortalAccessEmail = {
+  to: string;
+  coupleName: string;
+  loginIdentifier: string;
+  actionUrl: string;
+  expiresInMinutes: number;
+  purpose: "invite" | "reset";
+  language?: CustomerLanguage;
+};
+
 const CUSTOMER_EMAIL_COPY = {
   de: {
     proofingInvite: {
@@ -538,6 +548,10 @@ export function adminPasswordResetUrl(token: string) {
   return `${appBaseUrl()}/admin/reset-password/${encodeURIComponent(token)}`;
 }
 
+export function customerPortalPasswordUrl(token: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/portal/reset-password/${encodeURIComponent(token)}`;
+}
+
 export function customerPortalUrl(token: string, publicSubdomain?: string | null) {
   return `${appPublicBaseUrl(publicSubdomain)}/portal/${token}`;
 }
@@ -634,6 +648,75 @@ export async function sendAdminPasswordResetEmail(payload: AdminPasswordResetEma
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     throw new Error(`Password reset email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+}
+
+export async function sendCustomerPortalAccessEmail(payload: CustomerPortalAccessEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Customer portal access email skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const german = payload.language !== "hu";
+  const invite = payload.purpose === "invite";
+  const subject = german
+    ? invite ? "Euer Zugang zur Gästegalerie" : "Passwort für den Paarbereich zurücksetzen"
+    : invite ? "Hozzáférés a vendéggalériához" : "Pár-admin jelszó visszaállítása";
+  const heading = subject;
+  const greeting = german ? `Hallo ${payload.coupleName},` : `Kedves ${payload.coupleName}!`;
+  const body = german
+    ? invite
+      ? "Euer Fotograf hat einen geschützten Paarbereich für euch eingerichtet. Dort könnt ihr die zugewiesenen Gästegalerien verwalten."
+      : "Über den folgenden sicheren Link könnt ihr ein neues Passwort für euren Paarbereich festlegen."
+    : invite
+      ? "A fotósotok létrehozta a védett pár-admin hozzáféréseteket, ahol kezelhetitek a hozzátok rendelt vendéggalériákat."
+      : "Az alábbi biztonságos linken új jelszót állíthattok be a pár-admin felülethez.";
+  const cta = german
+    ? invite ? "Zugang aktivieren" : "Neues Passwort festlegen"
+    : invite ? "Hozzáférés aktiválása" : "Új jelszó beállítása";
+  const loginLabel = german ? "Benutzername" : "Belépési név";
+  const expiry = german
+    ? `Der Link ist ${payload.expiresInMinutes} Minuten gültig.`
+    : `A link ${payload.expiresInMinutes} percig érvényes.`;
+  const fallback = german
+    ? "Falls der Button nicht funktioniert, kopiert diesen Link in den Browser:"
+    : "Ha a gomb nem működik, ezt a linket másoljátok a böngészőbe:";
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(heading)}</h1>
+      <p style="margin: 0 0 18px;">${escapeHtml(greeting)}</p>
+      <p style="margin: 0 0 18px;">${escapeHtml(body)}</p>
+      <p style="margin: 0 0 18px;"><strong>${escapeHtml(loginLabel)}:</strong> ${escapeHtml(payload.loginIdentifier)}</p>
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(payload.actionUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(cta)}</a>
+      </p>
+      <p style="margin: 0 0 12px; color: #777; font-size: 13px;">${escapeHtml(expiry)}</p>
+      <p style="margin: 0; color: #777; font-size: 13px;">${escapeHtml(fallback)}<br>${escapeHtml(payload.actionUrl)}</p>
+    </div>
+  `;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from,
+      to: payload.to,
+      subject,
+      html,
+      text: [greeting, "", body, `${loginLabel}: ${payload.loginIdentifier}`, "", `${cta}: ${payload.actionUrl}`, "", expiry].join("\n")
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Customer portal access email failed: ${response.status} ${errorText}`);
   }
 
   return true;

@@ -1071,7 +1071,7 @@ export function GuestPhotoUpload({
             {copy.title}
           </h2>
         </div>
-        {uploadsEnabled ? (
+        {uploadsEnabled && (visiblePhotos.length > 0 || retryableCount > 0) ? (
           <Button type="button" onClick={() => setIsUploadOpen(true)} className="w-full sm:w-auto">
             <UploadCloud size={16} />
             {retryableCount > 0 ? copy.continueUpload : copy.openUpload}

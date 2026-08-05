@@ -133,6 +133,18 @@ export async function updateCustomerGuestPhotosAction(
     }
   });
   let changedCount = 0;
+  const actorLabel = access.session.account.displayName || access.session.account.loginIdentifier;
+  const auditLog = (action: CustomerGuestPhotoOperation, photoIds: string[]) => prisma.guestGalleryAuditLog.create({
+    data: {
+      galleryId: access.gallery.id,
+      accountId: access.session.account.id,
+      actorType: "customer_portal",
+      actorLabel,
+      action,
+      photoCount: photoIds.length,
+      photoIds
+    }
+  });
 
   if (operation === "approve" || operation === "hide") {
     const activeIds = uploads
@@ -151,6 +163,7 @@ export async function updateCustomerGuestPhotosAction(
             statusBeforeCustomerDelete: null
           }
         }),
+        auditLog(operation, activeIds),
         prisma.gallery.update({
           where: { id: access.gallery.id },
           data: { guestGalleryRevision: { increment: 1 } }
@@ -180,6 +193,7 @@ export async function updateCustomerGuestPhotosAction(
             statusBeforeCustomerDelete: status
           }
         })),
+        auditLog("trash", activeUploads.map((upload) => upload.id)),
         prisma.gallery.update({
           where: { id: access.gallery.id },
           data: { guestGalleryRevision: { increment: 1 } }
@@ -213,6 +227,7 @@ export async function updateCustomerGuestPhotosAction(
             statusBeforeCustomerDelete: null
           }
         })),
+        auditLog("restore", trashedUploads.map((upload) => upload.id)),
         prisma.gallery.update({
           where: { id: access.gallery.id },
           data: { guestGalleryRevision: { increment: 1 } }
@@ -229,6 +244,7 @@ export async function updateCustomerGuestPhotosAction(
         prisma.galleryGuestUpload.deleteMany({
           where: { galleryId: access.gallery.id, id: { in: trashedUploads.map((upload) => upload.id) } }
         }),
+        auditLog("delete", trashedUploads.map((upload) => upload.id)),
         prisma.gallery.update({
           where: { id: access.gallery.id },
           data: { guestGalleryRevision: { increment: 1 } }

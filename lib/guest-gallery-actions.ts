@@ -254,7 +254,7 @@ export async function setGuestPhotoVisibilityAction(
   uploadId: string,
   visible: boolean
 ) {
-  const { gallery } = await requireGuestGallery(galleryId);
+  const { admin, gallery } = await requireGuestGallery(galleryId);
   const upload = await prisma.galleryGuestUpload.findFirst({
     where: {
       id: uploadId,
@@ -273,6 +273,17 @@ export async function setGuestPhotoVisibilityAction(
       data: {
         status: visible ? "visible" : "hidden",
         visibleAt: visible ? new Date() : null
+      }
+    }),
+    prisma.guestGalleryAuditLog.create({
+      data: {
+        galleryId: gallery.id,
+        actorType: "admin",
+        actorLabel: admin.name,
+        action: visible ? "approve" : "hide",
+        photoCount: 1,
+        photoIds: [upload.id],
+        metadata: { adminId: admin.id }
       }
     }),
     prisma.gallery.update({
@@ -358,7 +369,7 @@ export async function bulkUpdateGuestPhotosAction(
   selection: GuestGalleryAdminSelection,
   operation: "approve" | "hide" | "delete"
 ): Promise<{ ok: boolean; message: string; changedCount: number }> {
-  const { gallery } = await requireGuestGallery(galleryId);
+  const { admin, gallery } = await requireGuestGallery(galleryId);
 
   if (!["approve", "hide", "delete"].includes(operation)) {
     return { ok: false, message: "Érvénytelen tömeges művelet.", changedCount: 0 };
@@ -414,6 +425,17 @@ export async function bulkUpdateGuestPhotosAction(
       prisma.galleryGuestUpload.deleteMany({
         where: { galleryId: gallery.id, id: { in: uploads.map((upload) => upload.id) } }
       }),
+      prisma.guestGalleryAuditLog.create({
+        data: {
+          galleryId: gallery.id,
+          actorType: "admin",
+          actorLabel: admin.name,
+          action: "delete",
+          photoCount: uploads.length,
+          photoIds: uploads.map((upload) => upload.id),
+          metadata: { adminId: admin.id }
+        }
+      }),
       prisma.gallery.update({
         where: { id: gallery.id },
         data: { guestGalleryRevision: { increment: 1 } }
@@ -457,6 +479,16 @@ export async function bulkUpdateGuestPhotosAction(
       });
 
       if (result.count > 0) {
+        await transaction.guestGalleryAuditLog.create({
+          data: {
+            galleryId: gallery.id,
+            actorType: "admin",
+            actorLabel: admin.name,
+            action: operation,
+            photoCount: result.count,
+            metadata: { adminId: admin.id }
+          }
+        });
         await transaction.gallery.update({
           where: { id: gallery.id },
           data: { guestGalleryRevision: { increment: 1 } }
@@ -539,4 +571,76 @@ export async function restoreGuestGalleryAction(galleryId: string) {
   revalidatePath(`/admin/guest-galleries/${gallery.id}`);
   revalidatePath(`/g/${gallery.slug}`);
   redirect(`/admin/guest-galleries/${gallery.id}?archive=restored`);
+}
+
+export async function deleteGuestGalleryAction(galleryId: string) {
+  const { gallery } = await requireGuestGallery(galleryId);
+  const fullGallery = await prisma.gallery.findUnique({
+    where: { id: gallery.id },
+    select: {
+      id: true,
+      slug: true,
+      customerId: true,
+      guestUploads: {
+        select: {
+          r2Key: true,
+          imageUrl: true,
+          thumbnailUrl: true,
+          previewUrl: true
+        }
+      },
+      photos: {
+        select: {
+          r2Key: true,
+          imageUrl: true,
+          thumbnailUrl: true,
+          previewUrl: true
+        }
+      },
+      downloadPackages: { select: { r2Key: true } }
+    }
+  });
+
+  if (!fullGallery) {
+    redirect("/admin/guest-galleries?error=missing");
+  }
+
+  const objectKeys = new Set([
+    ...fullGallery.guestUploads.flatMap((upload) => [
+      upload.r2Key,
+      getR2KeyFromPublicUrl(upload.imageUrl),
+      getR2KeyFromPublicUrl(upload.thumbnailUrl),
+      getR2KeyFromPublicUrl(upload.previewUrl)
+    ]),
+    ...fullGallery.photos.flatMap((photo) => [
+      photo.r2Key,
+      getR2KeyFromPublicUrl(photo.imageUrl),
+      getR2KeyFromPublicUrl(photo.thumbnailUrl),
+      getR2KeyFromPublicUrl(photo.previewUrl)
+    ]),
+    ...fullGallery.downloadPackages.map((downloadPackage) => downloadPackage.r2Key)
+  ].filter((key): key is string => Boolean(key)));
+
+  await prisma.gallery.delete({ where: { id: fullGallery.id } });
+
+  const deleteObjects = async () => {
+    const keys = [...objectKeys];
+    for (let offset = 0; offset < keys.length; offset += 100) {
+      await Promise.allSettled(keys.slice(offset, offset + 100).map((key) => deletePhotoObject(key)));
+    }
+  };
+
+  try {
+    after(deleteObjects);
+  } catch {
+    void deleteObjects().catch(() => undefined);
+  }
+
+  revalidatePath("/admin/guest-galleries");
+  revalidatePath("/portal/account");
+  if (fullGallery.customerId) {
+    revalidatePath(`/admin/clients/${fullGallery.customerId}`);
+  }
+  revalidatePath(`/g/${fullGallery.slug}`);
+  redirect("/admin/guest-galleries?deleted=1");
 }

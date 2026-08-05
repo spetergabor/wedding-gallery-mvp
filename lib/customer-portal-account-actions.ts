@@ -12,7 +12,9 @@ import {
   normalizeCustomerLoginIdentifier,
   requireCustomerPortalSession
 } from "@/lib/customer-portal-auth";
+import { sendCustomerPortalPasswordEmail } from "@/lib/customer-portal-password";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { passwordResetTokenHash } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 
@@ -119,6 +121,10 @@ export async function saveCustomerPortalAccountAction(
     adminPortalRedirect(customerId, "portalAccountError=identifier");
   }
 
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    adminPortalRedirect(customerId, "portalAccountError=identifier");
+  }
+
   if (!accountId && password.length < 10) {
     adminPortalRedirect(customerId, "portalAccountError=password");
   }
@@ -133,6 +139,8 @@ export async function saveCustomerPortalAccountAction(
   if (accountId && !existingAccount) {
     adminPortalRedirect(customerId, "portalAccountError=missing");
   }
+
+  let savedAccountId = existingAccount?.id ?? null;
 
   try {
     if (existingAccount) {
@@ -160,7 +168,7 @@ export async function saveCustomerPortalAccountAction(
         }
       });
     } else {
-      await prisma.customerPortalAccount.create({
+      const createdAccount = await prisma.customerPortalAccount.create({
         data: {
           customerId: customer.id,
           loginIdentifier,
@@ -168,8 +176,10 @@ export async function saveCustomerPortalAccountAction(
           displayName,
           passwordHash: await hashPassword(password),
           mustChangePassword: true
-        }
+        },
+        select: { id: true }
       });
+      savedAccountId = createdAccount.id;
     }
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -179,8 +189,146 @@ export async function saveCustomerPortalAccountAction(
     throw error;
   }
 
+  const invitationResult = !existingAccount && savedAccountId && email
+    ? await sendCustomerPortalPasswordEmail(savedAccountId, "invite")
+    : null;
+
   revalidatePath(`/admin/clients/${customer.id}`);
-  adminPortalRedirect(customer.id, `portalAccount=${existingAccount ? "updated" : "created"}`);
+  adminPortalRedirect(
+    customer.id,
+    `portalAccount=${existingAccount ? "updated" : invitationResult?.sent ? "created-invited" : "created"}`
+  );
+}
+
+export async function sendCustomerPortalInviteAction(customerId: string, accountId: string) {
+  const admin = await requireAdmin();
+  const account = await prisma.customerPortalAccount.findFirst({
+    where: {
+      id: accountId,
+      customerId,
+      customer: customerAccessWhere(admin, customerId)
+    },
+    select: { id: true, email: true }
+  });
+
+  if (!account) {
+    adminPortalRedirect(customerId, "portalAccountError=missing");
+  }
+
+  if (!account.email) {
+    adminPortalRedirect(customerId, "portalAccountError=invite-email");
+  }
+
+  const result = await sendCustomerPortalPasswordEmail(account.id, "invite");
+  revalidatePath(`/admin/clients/${customerId}`);
+  adminPortalRedirect(customerId, result.sent ? "portalAccount=invite-sent" : "portalAccountError=invite-failed");
+}
+
+export async function requestCustomerPortalPasswordResetAction(formData: FormData) {
+  const email = normalizeCustomerLoginIdentifier(formString(formData, "email"));
+
+  if (
+    await isAnyRateLimited([
+      { scope: "auth:customer-portal-reset:email", limit: 3, windowSeconds: 60 * 60, identifier: email },
+      { scope: "auth:customer-portal-reset:ip", limit: 20, windowSeconds: 60 * 60, identifier: "global" }
+    ])
+  ) {
+    redirect("/portal/forgot-password?error=rate_limit");
+  }
+
+  const account = email
+    ? await prisma.customerPortalAccount.findFirst({
+        where: {
+          status: "active",
+          OR: [{ email }, { loginIdentifier: email }],
+          customer: { customerType: "wedding_couple" }
+        },
+        select: { id: true }
+      })
+    : null;
+
+  if (account) {
+    await sendCustomerPortalPasswordEmail(account.id, "reset");
+  }
+
+  redirect("/portal/forgot-password?sent=1");
+}
+
+function customerPortalResetPath(token: string, error: string) {
+  return `/portal/reset-password/${encodeURIComponent(token)}?error=${error}`;
+}
+
+export async function resetCustomerPortalPasswordAction(formData: FormData) {
+  const token = formString(formData, "token");
+  const password = formString(formData, "password");
+  const confirmation = formString(formData, "passwordConfirmation");
+
+  if (!token) {
+    redirect("/portal/forgot-password?error=invalid");
+  }
+
+  if (await isAnyRateLimited([{ scope: "auth:customer-portal-reset-submit", limit: 8, windowSeconds: 15 * 60, identifier: token.slice(0, 80) }])) {
+    redirect(customerPortalResetPath(token, "rate_limit"));
+  }
+
+  if (password.length < 10) {
+    redirect(customerPortalResetPath(token, "length"));
+  }
+
+  if (password !== confirmation) {
+    redirect(customerPortalResetPath(token, "confirmation"));
+  }
+
+  const now = new Date();
+  const resetToken = await prisma.customerPortalPasswordResetToken.findUnique({
+    where: { tokenHash: passwordResetTokenHash(token) },
+    select: {
+      id: true,
+      accountId: true,
+      expiresAt: true,
+      usedAt: true,
+      account: {
+        select: {
+          status: true,
+          customer: { select: { customerType: true } }
+        }
+      }
+    }
+  });
+
+  if (
+    !resetToken ||
+    resetToken.usedAt ||
+    resetToken.expiresAt <= now ||
+    resetToken.account.status !== "active" ||
+    resetToken.account.customer.customerType !== "wedding_couple"
+  ) {
+    redirect(customerPortalResetPath(token, "invalid"));
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  await prisma.$transaction([
+    prisma.customerPortalAccount.update({
+      where: { id: resetToken.accountId },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        passwordChangedAt: now
+      }
+    }),
+    prisma.customerPortalPasswordResetToken.update({
+      where: { id: resetToken.id },
+      data: { usedAt: now }
+    }),
+    prisma.customerPortalPasswordResetToken.updateMany({
+      where: { accountId: resetToken.accountId, id: { not: resetToken.id }, usedAt: null },
+      data: { usedAt: now }
+    }),
+    prisma.customerPortalSession.deleteMany({ where: { accountId: resetToken.accountId } })
+  ]);
+
+  redirect("/portal/login?reset=success");
 }
 
 export async function setCustomerPortalAccountStatusAction(

@@ -290,7 +290,7 @@ export function CustomerGuestGalleryManager({
         </div>
       </div>
 
-      {status === "trash" ? <p className="mt-3 rounded-md border border-brass/25 bg-brass/10 px-4 py-3 text-sm text-ink">{german ? "Fotos im Papierkorb sind für Gäste unsichtbar. Ihr könnt sie wiederherstellen oder endgültig löschen." : "A lomtárban lévő fotókat a vendégek nem látják. Visszaállíthatók vagy végleg törölhetők."}</p> : null}
+      {status === "trash" ? <p className="mt-3 rounded-md border border-brass/25 bg-brass/10 px-4 py-3 text-sm text-ink">{german ? "Fotos im Papierkorb sind für Gäste unsichtbar. Ihr könnt sie wiederherstellen; nach 30 Tagen werden sie automatisch endgültig gelöscht." : "A lomtárban lévő fotókat a vendégek nem látják. Visszaállíthatók, 30 nap után pedig automatikusan végleg törlődnek."}</p> : null}
       {notice ? <p className={`mt-3 rounded-md border px-3 py-2 text-sm ${notice.type === "success" ? "border-sage/20 bg-sage/10 text-sage" : "border-red-200 bg-red-50 text-red-700"}`}>{notice.message}</p> : null}
       {loadError ? <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p> : null}
 

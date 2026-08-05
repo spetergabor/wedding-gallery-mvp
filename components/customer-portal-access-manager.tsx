@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, KeyRound, RefreshCw, ShieldCheck, UserPlus } from "lucide-react";
+import { Check, Copy, KeyRound, Mail, RefreshCw, ShieldCheck, UserPlus } from "lucide-react";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   saveCustomerPortalAccountAction,
+  sendCustomerPortalInviteAction,
   setCustomerPortalAccountStatusAction
 } from "@/lib/customer-portal-account-actions";
 
@@ -129,11 +130,20 @@ function ExistingAccountForm({ customerId, account }: { customerId: string; acco
           <p className="mt-1 text-sm text-graphite/70">Belépési név: <span className="font-medium text-ink">{account.loginIdentifier}</span></p>
           <p className="mt-1 text-xs text-graphite/55">Utolsó belépés: {formatDate(account.lastLoginAt)} · {account.activeSessionCount} aktív eszköz</p>
         </div>
-        <form action={setCustomerPortalAccountStatusAction.bind(null, customerId, account.id, !active)}>
-          <FormSubmitButton variant="secondary" pendingLabel="Mentés...">
-            {active ? "Hozzáférés letiltása" : "Hozzáférés engedélyezése"}
-          </FormSubmitButton>
-        </form>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {account.email && active ? (
+            <form action={sendCustomerPortalInviteAction.bind(null, customerId, account.id)}>
+              <FormSubmitButton variant="secondary" pendingLabel="Küldés...">
+                <Mail size={15} /> Meghívó újraküldése
+              </FormSubmitButton>
+            </form>
+          ) : null}
+          <form action={setCustomerPortalAccountStatusAction.bind(null, customerId, account.id, !active)}>
+            <FormSubmitButton variant="secondary" pendingLabel="Mentés...">
+              {active ? "Hozzáférés letiltása" : "Hozzáférés engedélyezése"}
+            </FormSubmitButton>
+          </form>
+        </div>
       </div>
 
       <form action={saveCustomerPortalAccountAction.bind(null, customerId, account.id)} className="mt-4 grid gap-3 border-t border-ink/10 pt-4 md:grid-cols-2">

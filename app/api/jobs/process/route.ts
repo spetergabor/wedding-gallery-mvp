@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { archiveExpiredGuestGalleries } from "@/lib/guest-gallery-lifecycle";
+import { archiveExpiredGuestGalleries, cleanupExpiredCustomerGuestTrash } from "@/lib/guest-gallery-lifecycle";
+import { cleanupCustomerPortalPasswordTokens } from "@/lib/customer-portal-password";
 import { cleanupStuckGalleryZipWork, isExternalZipWorkerMode, processPendingJobs } from "@/lib/jobs";
 
 export const runtime = "nodejs";
@@ -27,7 +28,11 @@ async function processJobs(request: Request) {
   }
 
   const zipMaintenance = await cleanupStuckGalleryZipWork();
-  const guestGalleryMaintenance = await archiveExpiredGuestGalleries();
+  const [guestGalleryMaintenance, guestTrashMaintenance, customerPortalTokenMaintenance] = await Promise.all([
+    archiveExpiredGuestGalleries(),
+    cleanupExpiredCustomerGuestTrash(),
+    cleanupCustomerPortalPasswordTokens()
+  ]);
 
   if (process.env.ZIP_WORKER_DRIVER === "trigger" || isExternalZipWorkerMode()) {
     return NextResponse.json({
@@ -35,6 +40,8 @@ async function processJobs(request: Request) {
       skipped: true,
       zipMaintenance,
       guestGalleryMaintenance,
+      guestTrashMaintenance,
+      customerPortalTokenMaintenance,
       message:
         process.env.ZIP_WORKER_DRIVER === "trigger"
           ? "ZIP processing is handled by the external Trigger.dev worker."
@@ -48,6 +55,8 @@ async function processJobs(request: Request) {
     ok: true,
     zipMaintenance,
     guestGalleryMaintenance,
+    guestTrashMaintenance,
+    customerPortalTokenMaintenance,
     ...results
   });
 }
