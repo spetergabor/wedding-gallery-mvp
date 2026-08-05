@@ -19,7 +19,10 @@ export default async function NewGuestGalleryPage({
   const admin = await requireAdmin();
   const flags = await searchParams;
   const customers = await prisma.customer.findMany({
-    where: adminOwnedWhere(admin),
+    where: {
+      ...adminOwnedWhere(admin),
+      customerType: "wedding_couple"
+    },
     orderBy: [{ weddingDate: "desc" }, { updatedAt: "desc" }],
     select: {
       id: true,
@@ -65,7 +68,7 @@ export default async function NewGuestGalleryPage({
 
             <label className="block space-y-2 sm:col-span-2">
               <span className="flex items-center gap-2 text-sm font-medium text-graphite">
-                <UserRound size={15} /> Ügyfél kapcsolása
+                <UserRound size={15} /> Megrendelő pár kapcsolása
               </span>
               <select name="customerId" defaultValue={flags.customerId ?? ""} className={fieldClass}>
                 <option value="">Nincs ügyfélhez kapcsolva</option>

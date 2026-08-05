@@ -107,6 +107,7 @@ export async function createGuestGalleryAction(formData: FormData) {
     ? await prisma.customer.findFirst({
         where: {
           id: customerId,
+          customerType: "wedding_couple",
           ...adminOwnedWhere(admin)
         },
         select: {
@@ -159,8 +160,9 @@ export async function createGuestGalleryAction(formData: FormData) {
 }
 
 export async function updateGuestGalleryAction(galleryId: string, formData: FormData) {
-  const { gallery } = await requireGuestGallery(galleryId);
+  const { admin, gallery } = await requireGuestGallery(galleryId);
   const title = formString(formData, "title");
+  const customerId = formString(formData, "customerId");
   const password = formString(formData, "password");
   const eventDate = formDate(formData, "eventDate");
   const isActive = formData.get("isActive") === "on";
@@ -173,10 +175,30 @@ export async function updateGuestGalleryAction(galleryId: string, formData: Form
     redirect(`/admin/guest-galleries/${gallery.id}?error=missing`);
   }
 
+  const customer = customerId
+    ? await prisma.customer.findFirst({
+        where: {
+          id: customerId,
+          customerType: "wedding_couple",
+          ...adminOwnedWhere(admin)
+        },
+        select: {
+          id: true,
+          primaryEmail: true
+        }
+      })
+    : null;
+
+  if (customerId && !customer) {
+    redirect(`/admin/guest-galleries/${gallery.id}?error=customer`);
+  }
+
   await prisma.gallery.update({
     where: { id: gallery.id },
     data: {
       title,
+      customerId: customer?.id ?? null,
+      clientEmail: customer?.primaryEmail.toLowerCase() ?? null,
       password: password || null,
       eventDate,
       isActive,
@@ -189,6 +211,13 @@ export async function updateGuestGalleryAction(galleryId: string, formData: Form
 
   revalidatePath("/admin/guest-galleries");
   revalidatePath(`/admin/guest-galleries/${gallery.id}`);
+  revalidatePath("/portal/account");
+  if (gallery.customerId) {
+    revalidatePath(`/admin/clients/${gallery.customerId}`);
+  }
+  if (customer?.id) {
+    revalidatePath(`/admin/clients/${customer.id}`);
+  }
   revalidatePath(`/g/${gallery.slug}`);
   redirect(`/admin/guest-galleries/${gallery.id}?saved=1`);
 }

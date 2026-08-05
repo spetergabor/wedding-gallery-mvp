@@ -7,7 +7,7 @@ import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { GuestGalleryPhotoManager } from "@/components/guest-gallery-photo-manager";
 import { ZipStatusAutoRefresh } from "@/components/zip-status-auto-refresh";
-import { galleryAccessWhere, ownerAdminId } from "@/lib/admin-scope";
+import { adminOwnedWhere, galleryAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { GUEST_UPLOAD_DOWNLOAD_SCOPE, ensureDownloadPackageAccessToken } from "@/lib/download-packages";
 import { publicGalleryUrl } from "@/lib/email";
@@ -53,7 +53,7 @@ export default async function GuestGalleryDetailPage({
   const { id } = await params;
   const flags = await searchParams;
   const workspaceAdminId = ownerAdminId(admin);
-  const [gallery, siteSettings] = await Promise.all([
+  const [gallery, siteSettings, customers] = await Promise.all([
     prisma.gallery.findFirst({
       where: {
         ...galleryAccessWhere(admin, id),
@@ -95,6 +95,17 @@ export default async function GuestGalleryDetailPage({
     prisma.siteSettings.findUnique({
       where: { adminId: workspaceAdminId },
       select: { publicSubdomain: true }
+    }),
+    prisma.customer.findMany({
+      where: {
+        ...adminOwnedWhere(admin),
+        customerType: "wedding_couple"
+      },
+      orderBy: [{ weddingDate: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        coupleName: true
+      }
     })
   ]);
 
@@ -195,7 +206,14 @@ export default async function GuestGalleryDetailPage({
             >
               <UserCog size={16} /> Pár-admin hozzáférés
             </Link>
-          ) : null}
+          ) : (
+            <a
+              href="#megrendelo-par"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-brass/30 bg-brass/10 px-4 text-sm font-semibold text-ink transition hover:bg-brass/15"
+            >
+              <UserCog size={16} /> Pár hozzárendelése
+            </a>
+          )}
           {!galleryArchived && gallery.isActive ? (
             <a
               href={publicUrl}
@@ -225,6 +243,7 @@ export default async function GuestGalleryDetailPage({
         {flags.archive === "done" ? <Alert title="A vendéggaléria archiválva és lezárva." variant="success" /> : null}
         {flags.archive === "restored" ? <Alert title="A vendéggaléria visszaállítva és újra megnyitva." variant="success" /> : null}
         {flags.error === "missing" ? <Alert title="A galéria neve kötelező." variant="error" /> : null}
+        {flags.error === "customer" ? <Alert title="A kiválasztott esküvős pár nem található." variant="error" /> : null}
         {flags.error === "photo" ? <Alert title="A kiválasztott vendégfotó nem található." variant="error" /> : null}
       </div>
 
@@ -239,6 +258,21 @@ export default async function GuestGalleryDetailPage({
             <label className="block space-y-2 sm:col-span-2">
               <span className="text-sm font-medium text-graphite">Galéria neve</span>
               <input name="title" type="text" required defaultValue={gallery.title} className={fieldClass} />
+            </label>
+
+            <label id="megrendelo-par" className="block scroll-mt-6 space-y-2 sm:col-span-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                <UserCog size={15} /> Megrendelő pár
+              </span>
+              <select name="customerId" defaultValue={gallery.customer?.id ?? ""} className={fieldClass}>
+                <option value="">Nincs ügyfélhez kapcsolva</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>{customer.coupleName}</option>
+                ))}
+              </select>
+              <span className="block text-xs leading-5 text-graphite/60">
+                A hozzárendelés után itt jelenik meg a Pár-admin hozzáférés gomb, és a pár csak ezt a galériát tudja kezelni.
+              </span>
             </label>
 
             <label className="block space-y-2">
