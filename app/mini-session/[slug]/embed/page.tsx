@@ -108,7 +108,7 @@ export default async function MiniSessionEmbedPage({
   const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(session.slug, flags.calendar, publicSubdomain) : null;
 
   return (
-    <main className="min-h-screen bg-paper text-ink">
+    <main className="min-h-screen bg-transparent text-ink">
       <section className="mx-auto max-w-2xl p-4 sm:p-5">
         <div className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
           <header className="border-b border-ink/10 bg-white p-5 text-center">
