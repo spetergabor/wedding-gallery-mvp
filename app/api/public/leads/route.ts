@@ -198,6 +198,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
   const lastName = readFirst(fields, ["last_name", "lastname", "nachname", "vezeteknev", "vezetéknév"]);
   const brideName = readFirst(fields, [
     "bride_name",
+    "name2",
     "braut_name",
     "name_der_braut",
     "name_braut",
@@ -207,6 +208,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
   ]);
   const groomName = readFirst(fields, [
     "groom_name",
+    "field_529e117",
     "bräutigam_name",
     "braeutigam_name",
     "name_des_bräutigams",
@@ -237,10 +239,31 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     ]) ||
     coupleName ||
     [firstName, lastName].filter(Boolean).join(" ");
-  const email = readFirst(fields, ["email", "e_mail", "mail", "your_email", "email_address", "e_mail_adresse", "e-mail-adresse"]);
-  const phone = readFirst(fields, ["phone", "telefon", "tel", "mobile", "handy", "your_phone", "telefonnummer"]);
+  const email = readFirst(fields, [
+    "email",
+    "email2",
+    "e_mail",
+    "mail",
+    "your_email",
+    "email_address",
+    "e_mail_adresse",
+    "e-mail-adresse",
+    "e_mail_addresse",
+    "e-mail-addresse"
+  ]);
+  const phone = readFirst(fields, [
+    "phone",
+    "field_0d66287",
+    "telefon",
+    "tel",
+    "mobile",
+    "handy",
+    "your_phone",
+    "telefonnummer"
+  ]);
   const eventDateValue = readFirst(fields, [
     "event_date",
+    "field_b84931f",
     "wedding_date",
     "hochzeitsdatum",
     "datum",
@@ -250,6 +273,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
   ]);
   const venue = readFirst(fields, [
     "venue",
+    "field_5912a3a",
     "location",
     "ort",
     "ort_der_hochzeit",
@@ -262,6 +286,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
   const eventType = readFirst(fields, ["event_type", "shooting_type", "type", "paket", "package", "shooting", "service"]) || "wedding";
   const guestCount = readFirst(fields, [
     "guest_count",
+    "field_2259102",
     "guests",
     "anzahl_der_gäste",
     "anzahl_der_gäste_ca",
@@ -276,6 +301,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
   ]);
   const referralSource = readFirst(fields, [
     "referral_source",
+    "field_2615fbc",
     "found_us",
     "how_found",
     "how_did_you_find_me",
@@ -283,7 +309,17 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "wie_habt_ihr_mich_gefunden_",
     "source"
   ]);
-  const message = readFirst(fields, ["message", "nachricht", "your_message", "notes", "comment", "kommentar", "uzenet", "üzenet"]);
+  const message = readFirst(fields, [
+    "message",
+    "message2",
+    "nachricht",
+    "your_message",
+    "notes",
+    "comment",
+    "kommentar",
+    "uzenet",
+    "üzenet"
+  ]);
   const source = readFirst(fields, ["form_name", "form_id", "elementor_form_name"]) || "Elementor";
 
   if (!name && !email) {
@@ -311,6 +347,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "lastname",
     "nachname",
     "bride_name",
+    "name2",
     "braut_name",
     "name_der_braut",
     "name_braut",
@@ -318,6 +355,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "menyasszony_neve",
     "menyasszony",
     "groom_name",
+    "field_529e117",
     "bräutigam_name",
     "braeutigam_name",
     "name_des_bräutigams",
@@ -331,13 +369,17 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "vőlegény",
     "volegeny",
     "email",
+    "email2",
     "e_mail",
     "mail",
     "your_email",
     "email_address",
     "e_mail_adresse",
     "e-mail-adresse",
+    "e_mail_addresse",
+    "e-mail-addresse",
     "phone",
+    "field_0d66287",
     "telefon",
     "tel",
     "mobile",
@@ -345,11 +387,13 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "your_phone",
     "telefonnummer",
     "event_date",
+    "field_b84931f",
     "wedding_date",
     "hochzeitsdatum",
     "datum",
     "date",
     "venue",
+    "field_5912a3a",
     "location",
     "ort",
     "ort_der_hochzeit",
@@ -366,6 +410,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "shooting",
     "service",
     "guest_count",
+    "field_2259102",
     "guests",
     "anzahl_der_gäste",
     "anzahl_der_gäste_ca",
@@ -376,6 +421,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "anzahl_gaeste",
     "anzahl_gaeste_ca",
     "referral_source",
+    "field_2615fbc",
     "found_us",
     "how_found",
     "how_did_you_find_me",
@@ -386,6 +432,7 @@ function buildPayload(fields: Record<string, string>): LeadPayload | null {
     "form_id",
     "elementor_form_name",
     "message",
+    "message2",
     "nachricht",
     "your_message",
     "notes",
