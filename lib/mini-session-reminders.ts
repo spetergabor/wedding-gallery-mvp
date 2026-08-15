@@ -51,7 +51,6 @@ export async function sendMiniSessionReminderEmails({
           title: true,
           slug: true,
           location: true,
-          sessionDate: true,
           language: true,
           admin: {
             select: {
@@ -91,7 +90,7 @@ export async function sendMiniSessionReminderEmails({
         replyTo: booking.miniSession.admin.email,
         senderName: booking.miniSession.admin.name,
         sessionTitle: booking.miniSession.title,
-        sessionDate: booking.miniSession.sessionDate,
+        sessionDate: booking.startsAt,
         location: booking.miniSession.location,
         startsAt: booking.startsAt,
         endsAt: booking.endsAt,
