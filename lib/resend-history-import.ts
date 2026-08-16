@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 const RESEND_API_BASE = "https://api.resend.com";
 const RESEND_USER_AGENT = "Spetly/1.0";
 const IMPORT_PAGE_SIZE = 20;
-const DETAIL_CONCURRENCY = 4;
+const DETAIL_CONCURRENCY = 1;
+const REQUEST_INTERVAL_MS = 200;
+const MAX_RATE_LIMIT_RETRIES = 4;
 
 type ResendEmailRecord = {
   id: string;
@@ -83,21 +85,42 @@ function providerErrorMessage(payload: unknown, status: number) {
   return `Resend request failed (${status}).`;
 }
 
-async function resendGet(path: string, apiKey: string) {
-  const response = await fetch(`${RESEND_API_BASE}${path}`, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "User-Agent": RESEND_USER_AGENT
-    },
-    cache: "no-store"
-  });
-  const payload: unknown = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(providerErrorMessage(payload, response.status));
+function retryDelayMs(response: Response, attempt: number) {
+  const retryAfter = response.headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.max(REQUEST_INTERVAL_MS, Math.ceil(seconds * 1000));
+    }
   }
 
-  return payload;
+  return Math.max(REQUEST_INTERVAL_MS, 500 * 2 ** attempt);
+}
+
+async function resendGet(path: string, apiKey: string) {
+  for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt += 1) {
+    const response = await fetch(`${RESEND_API_BASE}${path}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "User-Agent": RESEND_USER_AGENT
+      },
+      cache: "no-store"
+    });
+    const payload: unknown = await response.json().catch(() => null);
+
+    if (response.ok) {
+      await new Promise((resolve) => setTimeout(resolve, REQUEST_INTERVAL_MS));
+      return payload;
+    }
+
+    if (response.status !== 429 || attempt === MAX_RATE_LIMIT_RETRIES) {
+      throw new Error(providerErrorMessage(payload, response.status));
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs(response, attempt)));
+  }
+
+  throw new Error("Resend request retry limit exceeded.");
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, task: (item: T) => Promise<R>) {

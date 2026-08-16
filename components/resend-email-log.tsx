@@ -389,6 +389,10 @@ export function ResendEmailLog({
         pageCount += 1;
         setImportState({ status: "running", imported, failed, error: null });
 
+        if (typeof payload?.failed === "number" && payload.failed > 0) {
+          throw new Error(copy.importFailed);
+        }
+
         if (!payload?.hasMore) {
           break;
         }
