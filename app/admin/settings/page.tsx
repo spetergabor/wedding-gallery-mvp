@@ -32,6 +32,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MonetizationSettings } from "@/components/monetization-settings";
 import { PhotographerProfileSettings } from "@/components/photographer-profile-settings";
+import { ResendEmailLog } from "@/components/resend-email-log";
 import { SiteSettingsForm } from "@/components/site-settings-form";
 import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { ownerAdminId } from "@/lib/admin-scope";
@@ -47,6 +48,7 @@ import {
 import { retryGalleryZipPackageGroupAction } from "@/lib/gallery-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE } from "@/lib/proofing";
+import { listResendSentEmails } from "@/lib/resend-email-log";
 import { getAdminStorageUsageForAdmin, getAdminStorageUsageRows } from "@/lib/storage-usage";
 import {
   disconnectGoogleCalendarAction,
@@ -2746,6 +2748,7 @@ export default async function AdminSettingsPage({
     stripeIntegration,
     systemEvents,
     deliveryLogs,
+    resendEmailLog,
     zipPackages,
     stripePurchases,
     subscriptionPlans,
@@ -2884,6 +2887,9 @@ export default async function AdminSettingsPage({
           }
         })
       : Promise.resolve([]),
+    activeTab === "logs" && admin.role === "super_admin"
+      ? listResendSentEmails(50)
+      : Promise.resolve({ emails: [], hasMore: false, configured: Boolean(process.env.RESEND_API_KEY), error: null }),
     !isTeamWorkspace
       ? prisma.galleryDownloadPackage.findMany({
           where: {
@@ -3411,7 +3417,18 @@ export default async function AdminSettingsPage({
         </div>
       ) : null}
 
-      {activeTab === "logs" && admin.role === "super_admin" ? <SystemEventLog events={systemEvents} language={language} /> : null}
+      {activeTab === "logs" && admin.role === "super_admin" ? (
+        <div className="space-y-6">
+          <ResendEmailLog
+            emails={resendEmailLog.emails}
+            hasMore={resendEmailLog.hasMore}
+            configured={resendEmailLog.configured}
+            error={resendEmailLog.error}
+            language={language}
+          />
+          <SystemEventLog events={systemEvents} language={language} />
+        </div>
+      ) : null}
     </AdminShell>
   );
 }
