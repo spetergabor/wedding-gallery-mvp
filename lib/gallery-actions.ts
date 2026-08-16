@@ -227,7 +227,18 @@ function scheduleGalleryMediaProcessing(galleryId: string, { force = false }: { 
   }
 }
 
-async function sendProofingInviteForGallery(galleryId: string, { force = false }: { force?: boolean } = {}) {
+async function sendProofingInviteForGallery(
+  galleryId: string,
+  {
+    force = false,
+    subject,
+    message
+  }: {
+    force?: boolean;
+    subject?: string;
+    message?: string;
+  } = {}
+) {
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
     select: {
@@ -275,7 +286,9 @@ async function sendProofingInviteForGallery(galleryId: string, { force = false }
       to: recipient,
       galleryTitle: gallery.title,
       proofingGalleryUrl: publicGalleryUrl(gallery.slug, language, publicSubdomain),
-      language
+      language,
+      subject,
+      message
     });
 
     if (!sent) {
@@ -900,14 +913,43 @@ export async function disableLightroomUploadTargetAction(galleryId: string) {
   redirect(`/admin/galleries/${galleryId}?tab=settings&lightroom=disabled`);
 }
 
-export async function sendProofingInviteAction(galleryId: string) {
+export async function sendProofingInviteDraftAction(
+  galleryId: string,
+  input: {
+    subject: string;
+    message: string;
+  }
+) {
   await requireGalleryAccess(galleryId);
 
-  const result = await sendProofingInviteForGallery(galleryId, { force: true });
-  const status = result.ok ? "sent" : result.reason === "missing-email" ? "missing-email" : "failed";
+  const subject = input.subject.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+  const message = input.message.trim().slice(0, 5000);
+
+  if (!subject || !message) {
+    return {
+      ok: false,
+      reason: "missing-content",
+      message: "A tárgy és az üzenet nem lehet üres."
+    } as const;
+  }
+
+  const result = await sendProofingInviteForGallery(galleryId, {
+    force: true,
+    subject,
+    message
+  });
 
   revalidatePath(`/admin/galleries/${galleryId}`);
-  redirect(`/admin/galleries/${galleryId}?tab=client&proofingInvite=${status}`);
+
+  if (result.ok) {
+    return { ok: true, reason: "sent", message: "A válogató e-mail elküldve." } as const;
+  }
+
+  if (result.reason === "missing-email") {
+    return { ok: false, reason: "missing-email", message: "Hiányzik vagy hibás az ügyfél e-mail címe." } as const;
+  }
+
+  return { ok: false, reason: "failed", message: "A válogató e-mail küldése nem sikerült." } as const;
 }
 
 export async function sendFinalDeliveryEmailAction(galleryId: string) {
@@ -2274,16 +2316,6 @@ export async function completePhotoUploadsAction(
       await invalidatePublicGalleryDownloadPackages(galleryId);
     }
 
-    if (session.deliveryStage === PHOTO_DELIVERY_STAGE_RAW && isProofingGallery(session.gallery.galleryMode)) {
-      const inviteResult = await sendProofingInviteForGallery(galleryId);
-
-      if (!inviteResult.ok && inviteResult.reason !== "missing-email") {
-        console.error("Proofing invite email failed", {
-          galleryId,
-          reason: inviteResult.reason
-        });
-      }
-    }
   }
 
   if (options.revalidate !== false || isSessionFinished) {

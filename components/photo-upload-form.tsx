@@ -244,6 +244,7 @@ export function PhotoUploadForm({
   galleryId,
   galleryMode,
   defaultDeliveryStage,
+  proofingInviteSent = false,
   deliveryStageMode = "select",
   framed = true,
   sections = [],
@@ -254,6 +255,7 @@ export function PhotoUploadForm({
   galleryId: string;
   galleryMode: string;
   defaultDeliveryStage: string;
+  proofingInviteSent?: boolean;
   deliveryStageMode?: "select" | "fixed";
   framed?: boolean;
   sections?: GallerySectionOption[];
@@ -1059,7 +1061,15 @@ export function PhotoUploadForm({
 
       if (failedUploads === 0) {
         setResumeSessionId(null);
-        window.location.href = `/admin/galleries/${galleryId}?photoAdded=1`;
+        const shouldOfferProofingInvite =
+          isProofingUpload && deliveryStage === PHOTO_DELIVERY_STAGE_RAW && !proofingInviteSent;
+        const search = new URLSearchParams({ tab: "photos", photoAdded: "1" });
+
+        if (shouldOfferProofingInvite) {
+          search.set("proofingInvitePrompt", "1");
+        }
+
+        window.location.href = `/admin/galleries/${galleryId}?${search.toString()}`;
       } else {
         refreshGallerySoon(true);
         setUploadError(`${failedUploads} média feltöltése hibára futott. Csak a hibás elemeket újra tudod próbálni.`);

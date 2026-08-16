@@ -38,6 +38,8 @@ type ClientProofingInviteEmail = {
   galleryTitle: string;
   proofingGalleryUrl: string;
   language?: CustomerLanguage;
+  subject?: string;
+  message?: string;
 };
 
 type ClientFinalDeliveryEmail = {
@@ -323,6 +325,21 @@ function asEmailLanguage(language?: CustomerLanguage) {
 
 function copyForLanguage(language?: CustomerLanguage) {
   return CUSTOMER_EMAIL_COPY[asEmailLanguage(language)];
+}
+
+export function getClientProofingInviteDraft({
+  galleryTitle,
+  language
+}: {
+  galleryTitle: string;
+  language?: CustomerLanguage;
+}) {
+  const copy = copyForLanguage(language).proofingInvite;
+
+  return {
+    subject: `${copy.subject}: ${galleryTitle}`,
+    message: [copy.intro, copy.body].join("\n\n")
+  };
 }
 
 function dateLocale(language?: CustomerLanguage) {
@@ -1131,15 +1148,18 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
 function clientProofingInviteHtml({
   galleryTitle,
   proofingGalleryUrl,
-  language
+  language,
+  message
 }: ClientProofingInviteEmail) {
   const copy = copyForLanguage(language);
+  const draft = getClientProofingInviteDraft({ galleryTitle, language });
+  const emailMessage = message?.trim() || draft.message;
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.proofingInvite.heading}</h1>
-      <p style="margin: 0 0 18px;">${copy.proofingInvite.intro}</p>
-      <p style="margin: 0 0 18px;">${copy.proofingInvite.body} <strong>${escapeHtml(galleryTitle)}</strong></p>
+      <p style="margin: 0 0 18px;">${multilineHtml(emailMessage)}</p>
+      <p style="margin: 0 0 18px;"><strong>${escapeHtml(galleryTitle)}</strong></p>
       <p style="margin: 0 0 20px;">
         <a href="${escapeHtml(proofingGalleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${copy.proofingInvite.cta}</a>
       </p>
@@ -1156,15 +1176,20 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
     return false;
   }
 
+  const draft = getClientProofingInviteDraft(payload);
+  const subject = payload.subject?.trim() || draft.subject;
+  const message = payload.message?.trim() || draft.message;
   const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
-      subject: `${copyForLanguage(payload.language).proofingInvite.subject}: ${payload.galleryTitle}`,
-      html: clientProofingInviteHtml(payload),
+      subject,
+      html: clientProofingInviteHtml({ ...payload, message }),
       text: [
-        copyForLanguage(payload.language).proofingInvite.subject,
+        subject,
         "",
-        `${copyForLanguage(payload.language).proofingInvite.body} ${payload.galleryTitle}`,
+        message,
+        "",
+        payload.galleryTitle,
         `${copyForLanguage(payload.language).proofingInvite.cta}: ${payload.proofingGalleryUrl}`
       ].join("\n")
   });

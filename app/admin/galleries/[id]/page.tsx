@@ -20,6 +20,7 @@ import { ManualZipUploadForm } from "@/components/manual-zip-upload-form";
 import { MediaProcessingStatus } from "@/components/media-processing-status";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
+import { ProofingInviteComposer } from "@/components/proofing-invite-composer";
 import { ProofingStatusPanel } from "@/components/proofing-status-panel";
 import { UploadSessionLog } from "@/components/upload-session-log";
 import { ViewLocationMap } from "@/components/view-location-map";
@@ -28,14 +29,14 @@ import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, albumDesignOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { appBaseUrl, publicGalleryUrl } from "@/lib/email";
+import { appBaseUrl, getClientProofingInviteDraft, publicGalleryUrl } from "@/lib/email";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
   generateClientAccessLinkAction,
   sendFinalDeliveryEmailAction,
-  sendProofingInviteAction,
   updateGalleryDesignAction,
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
@@ -246,6 +247,7 @@ export default async function GalleryDetailPage({
     lightroom?: string;
     lightroomToken?: string;
     proofingInvite?: string;
+    proofingInvitePrompt?: string;
     proofingStatus?: string;
     bulkDelete?: string;
     bulkHide?: string;
@@ -557,7 +559,12 @@ export default async function GalleryDetailPage({
         }
       : null;
   const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
-  const galleryPublicUrl = publicGalleryUrl(gallery.slug, gallery.customer?.preferredLanguage, publicSubdomain);
+  const customerLanguage = normalizeCustomerLanguage(gallery.customer?.preferredLanguage);
+  const galleryPublicUrl = publicGalleryUrl(gallery.slug, customerLanguage, publicSubdomain);
+  const proofingInviteDraft = getClientProofingInviteDraft({
+    galleryTitle: gallery.title,
+    language: customerLanguage
+  });
   const guestUploadUrl = `${galleryPublicUrl}#guest-photos`;
   const lightroomUploadTargetUrl = new URL("/api/lightroom/upload-target", appBaseUrl()).toString();
   const lightroomUploadsUrl = new URL("/api/lightroom/uploads", appBaseUrl()).toString();
@@ -719,6 +726,19 @@ export default async function GalleryDetailPage({
         ) : null}
       </div>
 
+      {proofingGallery ? (
+        <ProofingInviteComposer
+          galleryId={gallery.id}
+          recipient={gallery.clientEmail}
+          galleryUrl={galleryPublicUrl}
+          defaultSubject={proofingInviteDraft.subject}
+          defaultMessage={proofingInviteDraft.message}
+          autoOpen={flags.proofingInvitePrompt === "1" && !gallery.proofingInviteSentAt}
+          alreadySent={Boolean(gallery.proofingInviteSentAt)}
+          showTrigger={false}
+        />
+      ) : null}
+
       <div className="space-y-6">
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
@@ -764,6 +784,7 @@ export default async function GalleryDetailPage({
                 galleryId={gallery.id}
                 galleryMode={gallery.galleryMode}
                 defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+                proofingInviteSent={Boolean(gallery.proofingInviteSentAt)}
                 framed={false}
                 sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
                 resumableSessions={resumableUploadSessions}
@@ -975,17 +996,14 @@ export default async function GalleryDetailPage({
                     </div>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
-                    <form action={sendProofingInviteAction.bind(null, gallery.id)}>
-                      <FormSubmitButton
-                        variant="secondary"
-                        disabled={!gallery.clientEmail}
-                        className={!gallery.clientEmail ? "opacity-60" : ""}
-                        pendingLabel="Küldés..."
-                      >
-                        <Mail size={16} />
-                        Válogató link küldése
-                      </FormSubmitButton>
-                    </form>
+                    <ProofingInviteComposer
+                      galleryId={gallery.id}
+                      recipient={gallery.clientEmail}
+                      galleryUrl={galleryPublicUrl}
+                      defaultSubject={proofingInviteDraft.subject}
+                      defaultMessage={proofingInviteDraft.message}
+                      alreadySent={Boolean(gallery.proofingInviteSentAt)}
+                    />
                     <CopyPublicLinkButton
                       slug={gallery.slug}
                       label="Válogató link másolása"
