@@ -12,6 +12,13 @@ type AdminFavoriteListSubmittedEmail = {
   submittedAt: Date;
 };
 
+type AdminActivityNotificationEmail = {
+  to: string;
+  title: string;
+  message: string;
+  href?: string | null;
+};
+
 type ContractSignatureRequestEmail = {
   to: string[];
   replyTo?: string;
@@ -522,6 +529,40 @@ function formatBytes(value?: bigint | number | null) {
   }
 
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+export async function sendAdminActivityNotificationEmail(payload: AdminActivityNotificationEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey || !payload.to.trim()) {
+    console.warn("Admin activity email skipped. Missing RESEND_API_KEY or recipient.");
+    return;
+  }
+
+  const actionUrl = payload.href ? new URL(payload.href, `${appBaseUrl()}/`).toString() : null;
+  const response = await sendResendEmail(apiKey, {
+    from,
+    to: payload.to.trim(),
+    subject: payload.title,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
+        <p style="margin: 0 0 8px; color: #a67c3b; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">Spetly értesítés</p>
+        <h1 style="font-size: 22px; margin: 0 0 14px;">${escapeHtml(payload.title)}</h1>
+        <div style="margin: 0 0 20px; color: #4c4c4c;">${multilineHtml(payload.message)}</div>
+        ${
+          actionUrl
+            ? `<p style="margin: 0 0 18px;"><a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Megnyitás a Spetlyben</a></p>`
+            : ""
+        }
+      </div>
+    `,
+    text: [payload.title, "", payload.message, ...(actionUrl ? ["", `Megnyitás: ${actionUrl}`] : [])].join("\n")
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Admin activity email failed: ${response.status} ${errorText}`);
+  }
 }
 
 function favoriteListSubmittedHtml({

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import { adminNotificationChannelEnabled, getAdminNotificationPreferences } from "@/lib/admin-notification-preferences";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { DELIVERY_CHANNEL_EMAIL, runLoggedDelivery } from "@/lib/delivery-log";
@@ -1083,6 +1084,20 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     });
   }
 
+  const adminNotificationPreferences = await getAdminNotificationPreferences(session.adminId);
+
+  if (adminNotificationChannelEnabled(adminNotificationPreferences, "mini_session_booking", "inApp")) {
+    await prisma.adminNotification.create({
+      data: {
+        adminId: session.adminId,
+        type: "mini_session_booking",
+        title: "Új mini session foglalás",
+        message: `${name} · ${session.title}`,
+        href: adminUrl
+      }
+    }).catch((error) => console.error("Mini session in-app notification failed", error));
+  }
+
   try {
     const delivery = await runLoggedDelivery({
       adminId: session.adminId,
@@ -1157,7 +1172,8 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     });
   }
 
-  try {
+  if (adminNotificationChannelEnabled(adminNotificationPreferences, "mini_session_booking", "email")) {
+    try {
     const delivery = await runLoggedDelivery({
       adminId: session.adminId,
       channel: DELIVERY_CHANNEL_EMAIL,
@@ -1211,23 +1227,24 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
         }
       });
     }
-  } catch (error) {
-    console.error("Mini session admin email failed", error);
-    await logSystemEvent({
-      targetAdminId: session.adminId,
-      type: "email.mini_session.admin_notification.failed",
-      title: "Admin értesítő email hiba",
-      message: systemEventErrorMessage(error),
-      severity: "error",
-      status: "failed",
-      source: "email",
-      href: adminUrl,
-      metadata: {
-        bookingId: booking.id,
-        sessionId: session.id,
-        recipient: session.admin.email
-      }
-    });
+    } catch (error) {
+      console.error("Mini session admin email failed", error);
+      await logSystemEvent({
+        targetAdminId: session.adminId,
+        type: "email.mini_session.admin_notification.failed",
+        title: "Admin értesítő email hiba",
+        message: systemEventErrorMessage(error),
+        severity: "error",
+        status: "failed",
+        source: "email",
+        href: adminUrl,
+        metadata: {
+          bookingId: booking.id,
+          sessionId: session.id,
+          recipient: session.admin.email
+        }
+      });
+    }
   }
 
   if (customerEmailSentAt || adminEmailSentAt) {
@@ -1573,7 +1590,22 @@ export async function cancelMiniSessionBookingAction(token: string) {
       });
     }
 
-    try {
+    const cancellationNotificationPreferences = await getAdminNotificationPreferences(booking.miniSession.adminId);
+
+    if (adminNotificationChannelEnabled(cancellationNotificationPreferences, "mini_session_cancellation", "inApp")) {
+      await prisma.adminNotification.create({
+        data: {
+          adminId: booking.miniSession.adminId,
+          type: "mini_session_cancellation",
+          title: "Foglalás törölve ügyfél által",
+          message: `${booking.name} · ${booking.miniSession.title}`,
+          href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`
+        }
+      }).catch((error) => console.error("Mini session cancellation in-app notification failed", error));
+    }
+
+    if (adminNotificationChannelEnabled(cancellationNotificationPreferences, "mini_session_cancellation", "email")) {
+      try {
       const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
       const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
       const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
@@ -1657,23 +1689,24 @@ export async function cancelMiniSessionBookingAction(token: string) {
           }
         });
       }
-    } catch (error) {
-      console.error("Mini session cancellation email failed", error);
-      await logSystemEvent({
-        targetAdminId: booking.miniSession.adminId,
-        type: "email.mini_session.cancellation_notification.failed",
-        title: "Lemondási értesítő email hiba",
-        message: systemEventErrorMessage(error),
-        severity: "error",
-        status: "failed",
-        source: "email",
-        href: `/admin/mini-sessions/${booking.miniSession.id}`,
-        metadata: {
-          bookingId: booking.id,
-          sessionId: booking.miniSession.id,
-          recipient: booking.miniSession.admin.email
-        }
-      });
+      } catch (error) {
+        console.error("Mini session cancellation email failed", error);
+        await logSystemEvent({
+          targetAdminId: booking.miniSession.adminId,
+          type: "email.mini_session.cancellation_notification.failed",
+          title: "Lemondási értesítő email hiba",
+          message: systemEventErrorMessage(error),
+          severity: "error",
+          status: "failed",
+          source: "email",
+          href: `/admin/mini-sessions/${booking.miniSession.id}`,
+          metadata: {
+            bookingId: booking.id,
+            sessionId: booking.miniSession.id,
+            recipient: booking.miniSession.admin.email
+          }
+        });
+      }
     }
 
     await logSystemEvent({
@@ -1811,7 +1844,22 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
       });
     }
 
-    try {
+    const cancellationNotificationPreferences = await getAdminNotificationPreferences(booking.miniSession.adminId);
+
+    if (adminNotificationChannelEnabled(cancellationNotificationPreferences, "mini_session_cancellation", "inApp")) {
+      await prisma.adminNotification.create({
+        data: {
+          adminId: booking.miniSession.adminId,
+          type: "mini_session_cancellation",
+          title: "Admin törölte a foglalást",
+          message: `${booking.name} · ${booking.miniSession.title}`,
+          href: `/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}`
+        }
+      }).catch((error) => console.error("Mini session admin cancellation in-app notification failed", error));
+    }
+
+    if (adminNotificationChannelEnabled(cancellationNotificationPreferences, "mini_session_cancellation", "email")) {
+      try {
       const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
       const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
       const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
@@ -1897,24 +1945,25 @@ export async function cancelMiniSessionBookingByAdminAction(bookingId: string, f
           }
         });
       }
-    } catch (error) {
-      console.error("Mini session admin cancellation email failed", error);
-      await logSystemEvent({
-        actorAdminId: admin.id,
-        targetAdminId: booking.miniSession.adminId,
-        type: "email.mini_session.cancellation_notification.failed",
-        title: "Admin törlési értesítő email hiba",
-        message: systemEventErrorMessage(error),
-        severity: "error",
-        status: "failed",
-        source: "email",
-        href: `/admin/mini-sessions/${booking.miniSession.id}`,
-        metadata: {
-          bookingId: booking.id,
-          sessionId: booking.miniSession.id,
-          recipient: booking.miniSession.admin.email
-        }
-      });
+      } catch (error) {
+        console.error("Mini session admin cancellation email failed", error);
+        await logSystemEvent({
+          actorAdminId: admin.id,
+          targetAdminId: booking.miniSession.adminId,
+          type: "email.mini_session.cancellation_notification.failed",
+          title: "Admin törlési értesítő email hiba",
+          message: systemEventErrorMessage(error),
+          severity: "error",
+          status: "failed",
+          source: "email",
+          href: `/admin/mini-sessions/${booking.miniSession.id}`,
+          metadata: {
+            bookingId: booking.id,
+            sessionId: booking.miniSession.id,
+            recipient: booking.miniSession.admin.email
+          }
+        });
+      }
     }
 
     await logSystemEvent({

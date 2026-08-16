@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ownerAdminId } from "@/lib/admin-scope";
@@ -18,6 +19,7 @@ import {
   normalizePublicSubdomain
 } from "@/lib/public-subdomain";
 import { logSystemEvent } from "@/lib/system-events";
+import { ADMIN_NOTIFICATION_TOPICS } from "@/lib/admin-notification-preferences";
 import {
   createBrandAssetObjectKey,
   deletePhotoObject,
@@ -75,6 +77,44 @@ function formOptionalDate(formData: FormData, key: string) {
 
 function formNullableString(formData: FormData, key: string) {
   return formString(formData, key) || null;
+}
+
+export async function updateAdminNotificationPreferencesAction(formData: FormData) {
+  const admin = await requireAdmin();
+
+  if (admin.isTeamWorkspace) {
+    redirect("/admin/settings?tab=profile");
+  }
+
+  const adminId = ownerAdminId(admin);
+  const topics = Object.fromEntries(
+    ADMIN_NOTIFICATION_TOPICS.map((topic) => [
+      topic.key,
+      {
+        inApp: formData.get(`topic__${topic.key}__inApp`) === "on",
+        email: formData.get(`topic__${topic.key}__email`) === "on"
+      }
+    ])
+  ) as Prisma.InputJsonObject;
+
+  await prisma.adminNotificationPreference.upsert({
+    where: { adminId },
+    create: {
+      adminId,
+      inAppEnabled: formData.get("inAppEnabled") === "on",
+      emailEnabled: formData.get("emailEnabled") === "on",
+      topics
+    },
+    update: {
+      inAppEnabled: formData.get("inAppEnabled") === "on",
+      emailEnabled: formData.get("emailEnabled") === "on",
+      topics
+    }
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin");
+  redirect("/admin/settings?tab=notifications&notifications=saved");
 }
 
 export async function updatePhotographerProfileAction(formData: FormData) {

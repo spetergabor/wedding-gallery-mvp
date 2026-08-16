@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { dispatchAdminNotification } from "@/lib/admin-notification-preferences";
 import { ensureLeadPipelineSchema, normalizeLeadEventType } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -564,16 +565,12 @@ export async function POST(request: NextRequest) {
     }
   });
 
-  await prisma.adminNotification.create({
-    data: {
-      adminId: admin.id,
-      type: "lead_created",
-      title: "Új ajánlatkérés érkezett",
-      message: `${payload.name} ajánlatkérést küldött a weboldalról.`,
-      href: "/admin/dashboard#lead-pipeline"
-    }
-  }).catch((error) => {
-    console.error("Lead webhook notification failed", { leadId: lead.id, error });
+  await dispatchAdminNotification({
+    adminId: admin.id,
+    topic: "lead_created",
+    title: "Új ajánlatkérés érkezett",
+    message: `${payload.name} ajánlatkérést küldött a weboldalról.`,
+    href: "/admin/dashboard#lead-pipeline"
   });
 
   revalidatePath("/admin/dashboard");

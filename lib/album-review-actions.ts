@@ -3,6 +3,7 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { dispatchAdminNotification } from "@/lib/admin-notification-preferences";
 import { albumReviewAccessWhere, customerAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
@@ -747,20 +748,18 @@ export async function submitAlbumReviewAction({ token }: { token: string }) {
       }
     });
 
-    if (updated.count > 0 && review.customer.adminId) {
-      await transaction.adminNotification.create({
-        data: {
-          adminId: review.customer.adminId,
-          type: "album_review_submitted",
-          title: status === "approved" ? "Album jóváhagyva" : "Album módosítások leadva",
-          message: `${review.customer.coupleName}: ${approvedCount}/${total} oldalpár jóváhagyva, ${changesRequestedCount} oldalpár módosítással.`,
-          href: `/admin/clients/${review.customerId}?tab=album&albumMode=upload#album-review-${review.id}`
-        }
-      });
-    }
-
     return updated.count;
   });
+
+  if (result > 0 && review.customer.adminId) {
+    await dispatchAdminNotification({
+      adminId: review.customer.adminId,
+      topic: "album_review_submitted",
+      title: status === "approved" ? "Album jóváhagyva" : "Album módosítások leadva",
+      message: `${review.customer.coupleName}: ${approvedCount}/${total} oldalpár jóváhagyva, ${changesRequestedCount} oldalpár módosítással.`,
+      href: `/admin/clients/${review.customerId}?tab=album&albumMode=upload#album-review-${review.id}`
+    });
+  }
 
   const finalSubmittedAt = result > 0 ? submittedAt : (await prisma.albumReview.findUnique({ where: { id: review.id }, select: { submittedAt: true } }))?.submittedAt;
 

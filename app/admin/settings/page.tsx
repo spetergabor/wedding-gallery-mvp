@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   Activity,
   AlertTriangle,
+  Bell,
   CalendarDays,
   ChevronDown,
   CheckCircle2,
@@ -27,6 +28,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
+import { AdminNotificationSettings } from "@/components/admin-notification-settings";
 import { AdminSecuritySettings } from "@/components/admin-security-settings";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
@@ -36,6 +38,7 @@ import { ResendEmailLog } from "@/components/resend-email-log";
 import { SiteSettingsForm } from "@/components/site-settings-form";
 import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { ownerAdminId } from "@/lib/admin-scope";
+import { defaultAdminNotificationPreferences, getAdminNotificationPreferences } from "@/lib/admin-notification-preferences";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { requireAdmin } from "@/lib/auth";
 import {
@@ -63,7 +66,7 @@ import {
 } from "@/lib/mini-session-actions";
 import { isStripeConnectConfigured, isStripeWebhookConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
-type SettingsTab = "brand" | "profile" | "integrations" | "monetization" | "providers" | "security" | "health" | "logs";
+type SettingsTab = "brand" | "profile" | "notifications" | "integrations" | "monetization" | "providers" | "security" | "health" | "logs";
 
 const providerLinks = [
   {
@@ -425,6 +428,7 @@ const SETTINGS_COPY = {
     tabs: {
       brand: "Márka",
       profile: "Fotós adatok",
+      notifications: "Értesítések",
       security: "Biztonság",
       integrations: "Integrációk",
       health: "Rendszerállapot",
@@ -532,6 +536,7 @@ const SETTINGS_COPY = {
     tabs: {
       brand: "Marke",
       profile: "Fotografendaten",
+      notifications: "Benachrichtigungen",
       security: "Sicherheit",
       integrations: "Integrationen",
       health: "Systemstatus",
@@ -639,6 +644,7 @@ const SETTINGS_COPY = {
     tabs: {
       brand: "Brand",
       profile: "Photographer details",
+      notifications: "Notifications",
       security: "Security",
       integrations: "Integrations",
       health: "System health",
@@ -2717,6 +2723,7 @@ export default async function AdminSettingsPage({
     google?: string;
     stripe?: string;
     automation?: string;
+    notifications?: string;
   }>;
 }) {
   const [admin, params, language] = await Promise.all([requireAdmin(), searchParams, getAdminLanguage()]);
@@ -2725,6 +2732,8 @@ export default async function AdminSettingsPage({
   const activeTab: SettingsTab =
     params.tab === "security"
       ? "security"
+      : params.tab === "notifications" && !isTeamWorkspace
+        ? "notifications"
       : params.tab === "logs" && admin.role === "super_admin"
         ? "logs"
       : params.tab === "health" && !isTeamWorkspace
@@ -2743,6 +2752,7 @@ export default async function AdminSettingsPage({
   const [
     settings,
     photographerProfile,
+    notificationPreferences,
     serviceUsage,
     loadedGoogleIntegration,
     stripeIntegration,
@@ -2795,6 +2805,9 @@ export default async function AdminSettingsPage({
         profileNotes: true
       }
     }),
+    !isTeamWorkspace
+      ? getAdminNotificationPreferences(workspaceAdminId)
+      : Promise.resolve(defaultAdminNotificationPreferences()),
     admin.role === "super_admin" ? getServiceUsageSummary() : Promise.resolve(null),
     !isTeamWorkspace
       ? prisma.googleCalendarIntegration.findUnique({
@@ -3034,7 +3047,7 @@ export default async function AdminSettingsPage({
       })
     : null;
   const automationItems = !isTeamWorkspace ? buildAutomationItems(deliveryLogs, zipPackages, stripePurchases, language) : [];
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-8" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5";
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-9" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-6";
   const copy = SETTINGS_COPY[language];
 
   return (
@@ -3078,6 +3091,17 @@ export default async function AdminSettingsPage({
             <ShieldCheck size={16} />
             {copy.tabs.security}
           </Link>
+          {!isTeamWorkspace ? (
+            <Link
+              href="/admin/settings?tab=notifications"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                activeTab === "notifications" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <Bell size={16} />
+              {copy.tabs.notifications}
+            </Link>
+          ) : null}
           {!isTeamWorkspace ? (
             <Link
               href="/admin/settings?tab=health"
@@ -3138,6 +3162,7 @@ export default async function AdminSettingsPage({
 
       <div className="mb-5 space-y-3">
         {params.saved ? <Alert title={copy.alerts.saved} variant="success" /> : null}
+        {params.notifications === "saved" ? <Alert title={copy.alerts.saved} variant="success" /> : null}
         {params.error === "logo" ? (
           <Alert title={copy.alerts.logoTitle} variant="error">
             {copy.alerts.logoBody}
@@ -3211,6 +3236,14 @@ export default async function AdminSettingsPage({
       ) : null}
 
       {activeTab === "security" ? <AdminSecuritySettings enabled={params.enabled} disabled={params.disabled} error={params.error} /> : null}
+
+      {activeTab === "notifications" && !isTeamWorkspace ? (
+        <AdminNotificationSettings
+          preferences={notificationPreferences}
+          recipientEmail={settings?.contactEmail || photographerProfile.email}
+          language={language}
+        />
+      ) : null}
 
       {activeTab === "integrations" ? (
         <div className="space-y-5">

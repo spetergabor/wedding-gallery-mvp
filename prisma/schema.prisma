@@ -36,6 +36,7 @@ model Admin {
   galleries    Gallery[]
   customers    Customer[]
   notifications AdminNotification[]
+  notificationPreference AdminNotificationPreference?
   calendarBlocks AdminCalendarBlock[]
   googleCalendarIntegration GoogleCalendarIntegration?
   siteSettings SiteSettings?
@@ -155,6 +156,19 @@ model AdminNotification {
   @@index([adminId])
   @@index([readAt])
   @@index([createdAt])
+}
+
+model AdminNotificationPreference {
+  id           String   @id @default(cuid())
+  adminId      String   @unique
+  inAppEnabled Boolean  @default(true)
+  emailEnabled Boolean  @default(true)
+  topics       Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  admin        Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
 }
 
 model SystemEvent {

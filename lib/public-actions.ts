@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { dispatchAdminNotification } from "@/lib/admin-notification-preferences";
 import { prisma } from "@/lib/prisma";
 import {
   ensureDownloadPackageAccessToken,
@@ -1458,33 +1459,23 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
     });
   }
 
-  await prisma.adminNotification.create({
-    data: {
-      adminId: list.gallery.adminId,
-      type: "favorite_list_submitted",
-      title: "Kedvenc lista lezárva",
-      message: `${normalizedEmail} lezárta a(z) ${list.name} listát a(z) ${list.gallery.title} galériában.`,
-      href: `/admin/galleries/${galleryId}`
-    }
+  await dispatchAdminNotification({
+    adminId: list.gallery.adminId,
+    topic: "favorite_list_submitted",
+    title: "Kedvenc lista lezárva",
+    message: `${normalizedEmail} lezárta a(z) ${list.name} listát a(z) ${list.gallery.title} galériában.`,
+    href: `/admin/galleries/${galleryId}`,
+    sendEmail: () =>
+      sendAdminFavoriteListSubmittedEmail({
+        to: list.gallery.admin?.siteSettings?.contactEmail || list.gallery.admin?.email,
+        galleryTitle: list.gallery.title,
+        galleryAdminUrl: adminGalleryUrl(galleryId),
+        clientEmail: normalizedEmail,
+        listName: list.name,
+        filenames: list.items.map((item) => item.photo.filename),
+        submittedAt
+      })
   });
-
-  try {
-    await sendAdminFavoriteListSubmittedEmail({
-      to: list.gallery.admin?.siteSettings?.contactEmail || list.gallery.admin?.email,
-      galleryTitle: list.gallery.title,
-      galleryAdminUrl: adminGalleryUrl(galleryId),
-      clientEmail: normalizedEmail,
-      listName: list.name,
-      filenames: list.items.map((item) => item.photo.filename),
-      submittedAt
-    });
-  } catch (error) {
-    console.error("Admin favorite list email failed", {
-      galleryId,
-      listId: list.id,
-      error
-    });
-  }
 
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/notifications");
@@ -1638,14 +1629,12 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   }
 
   if (list._count.items === 0 && count === 1) {
-    await prisma.adminNotification.create({
-      data: {
-        adminId: photo.gallery.adminId,
-        type: "favorite_list_created",
-        title: "Új kedvenc lista",
-        message: `${normalizedEmail} kedvenc listát kezdett a(z) ${photo.gallery.title} galériában.`,
-        href: `/admin/galleries/${galleryId}`
-      }
+    await dispatchAdminNotification({
+      adminId: photo.gallery.adminId,
+      topic: "favorite_list_started",
+      title: "Új kedvenc lista",
+      message: `${normalizedEmail} kedvenc listát kezdett a(z) ${photo.gallery.title} galériában.`,
+      href: `/admin/galleries/${galleryId}`
     });
 
     revalidatePath("/admin/dashboard");

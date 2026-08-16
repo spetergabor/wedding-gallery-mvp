@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createHash } from "node:crypto";
 import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from "pdf-lib";
+import { dispatchAdminNotification } from "@/lib/admin-notification-preferences";
 import {
   contractFieldDisplayLabel,
   contractFieldInputName,
@@ -827,23 +828,13 @@ export async function signContractAction(token: string, formData: FormData) {
     });
 
     if (contract.customer.adminId) {
-      await prisma.adminNotification
-        .create({
-          data: {
-            adminId: contract.customer.adminId,
-            type: "contract_signed",
-            title: "Szerződés aláírva",
-            message: `${contract.customer.coupleName} aláírta a(z) ${contract.title} szerződést.`,
-            href: `/admin/clients/${contract.customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}`
-          }
-        })
-        .catch((notificationError) => {
-          console.error("Contract signed admin notification failed", {
-            contractId: contract.id,
-            customerId: contract.customerId,
-            error: notificationError
-          });
-        });
+      await dispatchAdminNotification({
+        adminId: contract.customer.adminId,
+        topic: "contract_signed",
+        title: "Szerződés aláírva",
+        message: `${contract.customer.coupleName} aláírta a(z) ${contract.title} szerződést.`,
+        href: `/admin/clients/${contract.customerId}?tab=contracts&contractFlow=email&contractId=${contract.id}`
+      });
     }
   } catch (error) {
     console.error("Contract signing failed", {

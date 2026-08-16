@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
 import sharp from "sharp";
+import { dispatchAdminNotification } from "@/lib/admin-notification-preferences";
 import { prisma } from "@/lib/prisma";
 import {
   GUEST_UPLOAD_DOWNLOAD_SCOPE,
@@ -1825,43 +1826,27 @@ async function notifyGalleryZipReady({
   generatedAt: Date;
 }) {
   if (adminId) {
-    await prisma.adminNotification
-      .create({
-        data: {
-          adminId,
-          type: "gallery_zip_ready",
-          title: "Galéria ZIP elkészült",
-          message: `A(z) ${galleryTitle} galéria ZIP fájlja elkészült ${photoCount} médiával.`,
-          href: `/admin/galleries/${galleryId}`
-        }
-      })
-      .catch((error) => {
-        console.error("Gallery ZIP ready admin notification failed", {
-          galleryId,
-          error
-        });
-      });
+    await dispatchAdminNotification({
+      adminId,
+      topic: "gallery_zip_ready",
+      title: "Galéria ZIP elkészült",
+      message: `A(z) ${galleryTitle} galéria ZIP fájlja elkészült ${photoCount} médiával.`,
+      href: `/admin/galleries/${galleryId}`,
+      sendEmail: () =>
+        sendAdminGalleryZipReadyEmail({
+          to: recipient,
+          galleryTitle,
+          galleryAdminUrl: adminGalleryUrl(galleryId),
+          galleryPublicUrl: publicGalleryUrl(gallerySlug, undefined, publicSubdomain),
+          photoCount,
+          fileSizeBytes,
+          generatedAt
+        })
+    });
   } else {
     console.warn("Skipped ZIP ready admin notification without gallery owner", {
       galleryId,
       galleryTitle
-    });
-  }
-
-  try {
-    await sendAdminGalleryZipReadyEmail({
-      to: recipient,
-      galleryTitle,
-      galleryAdminUrl: adminGalleryUrl(galleryId),
-      galleryPublicUrl: publicGalleryUrl(gallerySlug, undefined, publicSubdomain),
-      photoCount,
-      fileSizeBytes,
-      generatedAt
-    });
-  } catch (error) {
-    console.error("Gallery ZIP ready email failed", {
-      galleryId,
-      error
     });
   }
 
