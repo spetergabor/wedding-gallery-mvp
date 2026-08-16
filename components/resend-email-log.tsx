@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, LoaderCircle, Mail, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Download, LoaderCircle, Mail, Search } from "lucide-react";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import type { ResendSentEmailDetail, ResendSentEmailSummary } from "@/lib/resend-email-log";
 
@@ -10,6 +10,20 @@ type EmailState =
   | { status: "loading"; email: null; error: null }
   | { status: "loaded"; email: ResendSentEmailDetail; error: null }
   | { status: "error"; email: null; error: string };
+
+type HistoryImportState =
+  | { status: "idle"; imported: 0; failed: 0; error: null }
+  | { status: "running"; imported: number; failed: number; error: null }
+  | { status: "success"; imported: number; failed: number; error: null }
+  | { status: "error"; imported: number; failed: number; error: string };
+
+type HistoryImportResponse = {
+  message?: unknown;
+  imported?: unknown;
+  failed?: unknown;
+  hasMore?: unknown;
+  nextCursor?: unknown;
+};
 
 const COPY = {
   hu: {
@@ -35,6 +49,10 @@ const COPY = {
     textContent: "Szöveges tartalom",
     noContent: "A Resend nem adott vissza megjeleníthető levéltartalmat.",
     more: "További régebbi e-mailek is vannak a Resendben; itt a legutóbbi 50 látható.",
+    importHistory: "Korábbi e-mailek importálása",
+    importingHistory: (count: number) => `Importálás folyamatban · ${count} e-mail mentve`,
+    importComplete: (count: number) => `${count} korábbi e-mail importálva. A lista frissül…`,
+    importFailed: "A korábbi e-mailek importálása nem sikerült.",
     status: {
       delivered: "Kézbesítve",
       opened: "Megnyitva",
@@ -72,6 +90,10 @@ const COPY = {
     textContent: "Textinhalt",
     noContent: "Resend hat keinen darstellbaren E-Mail-Inhalt zurückgegeben.",
     more: "In Resend sind weitere ältere E-Mails vorhanden; hier werden die letzten 50 angezeigt.",
+    importHistory: "Frühere E-Mails importieren",
+    importingHistory: (count: number) => `Import läuft · ${count} E-Mails gespeichert`,
+    importComplete: (count: number) => `${count} frühere E-Mails importiert. Die Liste wird aktualisiert…`,
+    importFailed: "Frühere E-Mails konnten nicht importiert werden.",
     status: {
       delivered: "Zugestellt",
       opened: "Geöffnet",
@@ -109,6 +131,10 @@ const COPY = {
     textContent: "Text content",
     noContent: "Resend did not return displayable e-mail content.",
     more: "More older e-mails are available in Resend; the latest 50 are shown here.",
+    importHistory: "Import previous e-mails",
+    importingHistory: (count: number) => `Import in progress · ${count} e-mails saved`,
+    importComplete: (count: number) => `${count} previous e-mails imported. Refreshing the list…`,
+    importFailed: "Previous e-mails could not be imported.",
     status: {
       delivered: "Delivered",
       opened: "Opened",
@@ -316,6 +342,7 @@ export function ResendEmailLog({
 }) {
   const copy = COPY[language];
   const [query, setQuery] = useState("");
+  const [importState, setImportState] = useState<HistoryImportState>({ status: "idle", imported: 0, failed: 0, error: null });
   const filteredEmails = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
 
@@ -331,6 +358,65 @@ export function ResendEmailLog({
     );
   }, [emails, query]);
 
+  async function importHistory() {
+    if (importState.status === "running") {
+      return;
+    }
+
+    let cursor: string | null = null;
+    let imported = 0;
+    let failed = 0;
+    let pageCount = 0;
+    setImportState({ status: "running", imported, failed, error: null });
+
+    try {
+      while (pageCount < 500) {
+        const response: Response = await fetch("/api/admin/resend-emails/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cursor }),
+          cache: "no-store"
+        });
+        const rawPayload: unknown = await response.json().catch(() => null);
+        const payload: HistoryImportResponse | null = rawPayload && typeof rawPayload === "object" ? rawPayload : null;
+
+        if (!response.ok) {
+          throw new Error(typeof payload?.message === "string" ? payload.message : copy.importFailed);
+        }
+
+        imported += typeof payload?.imported === "number" ? payload.imported : 0;
+        failed += typeof payload?.failed === "number" ? payload.failed : 0;
+        pageCount += 1;
+        setImportState({ status: "running", imported, failed, error: null });
+
+        if (!payload?.hasMore) {
+          break;
+        }
+
+        if (typeof payload.nextCursor !== "string" || payload.nextCursor === cursor) {
+          throw new Error(copy.importFailed);
+        }
+
+        cursor = payload.nextCursor;
+      }
+
+      if (pageCount >= 500) {
+        throw new Error(copy.importFailed);
+      }
+
+      setImportState({ status: "success", imported, failed, error: null });
+      await new Promise((resolve) => window.setTimeout(resolve, 900));
+      window.location.reload();
+    } catch (error) {
+      setImportState({
+        status: "error",
+        imported,
+        failed,
+        error: error instanceof Error ? error.message : copy.importFailed
+      });
+    }
+  }
+
   return (
     <section className="rounded-md border border-ink/10 bg-white p-4 shadow-soft sm:p-5">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -342,10 +428,42 @@ export function ResendEmailLog({
           <h2 className="mt-2 text-lg font-semibold text-ink">{copy.title}</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/65">{copy.description}</p>
         </div>
-        <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-          {copy.latest(emails.length)}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void importHistory()}
+            disabled={importState.status === "running"}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-xs font-medium text-ink transition hover:bg-ink/5 disabled:cursor-wait disabled:opacity-60"
+          >
+            {importState.status === "running" ? <LoaderCircle className="animate-spin" size={15} /> : <Download size={15} />}
+            {copy.importHistory}
+          </button>
+          <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
+            {copy.latest(emails.length)}
+          </span>
+        </div>
       </div>
+
+      {importState.status === "running" ? (
+        <div className="mt-5 flex items-center gap-2 rounded-md border border-brass/25 bg-brass/[0.06] px-4 py-3 text-sm text-graphite/75">
+          <LoaderCircle className="shrink-0 animate-spin text-brass" size={17} />
+          {copy.importingHistory(importState.imported)}
+        </div>
+      ) : null}
+
+      {importState.status === "success" ? (
+        <div className="mt-5 flex items-center gap-2 rounded-md border border-sage/25 bg-sage/10 px-4 py-3 text-sm text-sage">
+          <CheckCircle2 className="shrink-0" size={17} />
+          {copy.importComplete(importState.imported)}
+        </div>
+      ) : null}
+
+      {importState.status === "error" ? (
+        <div className="mt-5 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 shrink-0" size={17} />
+          <span>{importState.error}</span>
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-5 flex items-start gap-3 rounded-md border border-brass/25 bg-brass/[0.06] px-4 py-3 text-sm text-graphite/75">
