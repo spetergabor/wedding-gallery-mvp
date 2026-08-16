@@ -1,5 +1,6 @@
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
+import { storeSentEmailLog } from "@/lib/resend-email-log";
 
 type AdminFavoriteListSubmittedEmail = {
   to?: string;
@@ -371,6 +372,80 @@ function emailConfig() {
   };
 }
 
+type ResendSendPayload = {
+  from: string;
+  to: string | string[];
+  subject: string;
+  html?: string;
+  text?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+  reply_to?: string | string[];
+  [key: string]: unknown;
+};
+
+function emailAddressList(value?: string | string[]) {
+  if (!value) {
+    return [];
+  }
+
+  return Array.isArray(value) ? value : [value];
+}
+
+function resendResponseValue(payload: unknown, key: "id" | "message") {
+  if (!payload || typeof payload !== "object" || !(key in payload)) {
+    return null;
+  }
+
+  const value = (payload as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
+}
+
+async function sendResendEmail(apiKey: string, payload: ResendSendPayload) {
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    const responsePayload: unknown = await response.clone().json().catch(() => null);
+
+    await storeSentEmailLog({
+      from: payload.from,
+      to: emailAddressList(payload.to),
+      cc: emailAddressList(payload.cc),
+      bcc: emailAddressList(payload.bcc),
+      replyTo: emailAddressList(payload.reply_to),
+      subject: payload.subject,
+      html: payload.html ?? null,
+      text: payload.text ?? null,
+      providerMessageId: resendResponseValue(responsePayload, "id"),
+      status: response.ok ? "sent" : "failed",
+      errorMessage: response.ok ? null : resendResponseValue(responsePayload, "message") || `Resend request failed (${response.status}).`
+    });
+
+    return response;
+  } catch (error) {
+    await storeSentEmailLog({
+      from: payload.from,
+      to: emailAddressList(payload.to),
+      cc: emailAddressList(payload.cc),
+      bcc: emailAddressList(payload.bcc),
+      replyTo: emailAddressList(payload.reply_to),
+      subject: payload.subject,
+      html: payload.html ?? null,
+      text: payload.text ?? null,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : "Resend request failed."
+    });
+
+    throw error;
+  }
+}
+
 function emailAddressFromSender(sender: string) {
   const match = sender.match(/<([^<>]+)>/);
   return (match?.[1] ?? sender).trim();
@@ -471,13 +546,7 @@ export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavorite
     return;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: recipient,
       subject: `Kedvenc lista lezárva: ${payload.galleryTitle}`,
@@ -494,7 +563,6 @@ export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavorite
         "Fájlnevek:",
         filenamesText(payload.filenames)
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -622,13 +690,7 @@ export async function sendAdminPasswordResetEmail(payload: AdminPasswordResetEma
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
       subject: "Jelszó visszaállítása - Spetly",
@@ -642,7 +704,6 @@ export async function sendAdminPasswordResetEmail(payload: AdminPasswordResetEma
         `A link ${payload.expiresInMinutes} percig érvényes.`,
         "Ha nem te kérted, hagyd figyelmen kívül ezt az e-mailt."
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -699,19 +760,12 @@ export async function sendCustomerPortalAccessEmail(payload: CustomerPortalAcces
     </div>
   `;
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
       subject,
       html,
       text: [greeting, "", body, `${loginLabel}: ${payload.loginIdentifier}`, "", `${cta}: ${payload.actionUrl}`, "", expiry].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -854,13 +908,7 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from: senderWithDisplayName(from, payload.senderName),
       to: payload.to,
       ...replyToPayload(payload.replyTo),
@@ -880,7 +928,6 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
         `${copy.cancelButton}: ${payload.cancelUrl}`
       ].join("\n"),
       ...(attachments ? { attachments } : {})
-    })
   });
 
   if (!response.ok) {
@@ -940,13 +987,7 @@ export async function sendMiniSessionReminderEmail(payload: MiniSessionReminderE
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from: senderWithDisplayName(from, payload.senderName),
       to: payload.to,
       ...replyToPayload(payload.replyTo),
@@ -965,7 +1006,6 @@ export async function sendMiniSessionReminderEmail(payload: MiniSessionReminderE
         ...(payload.rescheduleUrl ? [`${copy.rescheduleButton}: ${payload.rescheduleUrl}`, ""] : []),
         `${copy.cancelButton}: ${payload.cancelUrl}`
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -1017,13 +1057,7 @@ export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSession
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from: senderWithDisplayName(from, payload.senderName),
       to: recipient,
       ...replyToPayload(payload.replyTo),
@@ -1044,7 +1078,6 @@ export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSession
         `Admin: ${payload.adminUrl}`
       ].join("\n"),
       ...(attachments ? { attachments } : {})
-    })
   });
 
   if (!response.ok) {
@@ -1065,13 +1098,7 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from: senderWithDisplayName(from, payload.senderName),
       to: recipient,
       ...replyToPayload(payload.replyTo),
@@ -1091,7 +1118,6 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
         `Admin: ${payload.adminUrl}`
       ].join("\n"),
       ...(attachments ? { attachments } : {})
-    })
   });
 
   if (!response.ok) {
@@ -1130,13 +1156,7 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
       subject: `${copyForLanguage(payload.language).proofingInvite.subject}: ${payload.galleryTitle}`,
@@ -1147,7 +1167,6 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
         `${copyForLanguage(payload.language).proofingInvite.body} ${payload.galleryTitle}`,
         `${copyForLanguage(payload.language).proofingInvite.cta}: ${payload.proofingGalleryUrl}`
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -1190,13 +1209,7 @@ export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryE
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
       subject: `${copyForLanguage(payload.language).finalDelivery.subject}: ${payload.galleryTitle}`,
@@ -1211,7 +1224,6 @@ export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryE
         "",
         `Galerie öffnen: ${payload.galleryUrl}`
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -1260,13 +1272,7 @@ export async function sendAdminGalleryZipReadyEmail(payload: AdminGalleryZipRead
     return;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: recipient,
       subject: `Galéria ZIP elkészült: ${payload.galleryTitle}`,
@@ -1281,7 +1287,6 @@ export async function sendAdminGalleryZipReadyEmail(payload: AdminGalleryZipRead
         `Admin: ${payload.galleryAdminUrl}`,
         `Publikus galéria: ${payload.galleryPublicUrl}`
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -1347,13 +1352,7 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
       subject: `${links.length > 1 ? copy.guestDownload.subjectMulti : copy.guestDownload.subjectSingle}: ${payload.galleryTitle}`,
@@ -1369,7 +1368,6 @@ export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDo
         "",
         ...links.map((link) => `${link.label}: ${link.url}`)
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -1415,13 +1413,7 @@ export async function sendPaidGalleryPhotoPurchaseEmail(payload: PaidGalleryPhot
     return false;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
       subject: `${copy.subject}: ${payload.galleryTitle}`,
@@ -1437,7 +1429,6 @@ export async function sendPaidGalleryPhotoPurchaseEmail(payload: PaidGalleryPhot
         "",
         `${copy.cta}: ${payload.galleryUrl}`
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -1491,13 +1482,7 @@ export async function sendContractSignatureRequestEmail(payload: ContractSignatu
     return;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: recipients,
       ...replyToPayload(payload.replyTo),
@@ -1510,7 +1495,6 @@ export async function sendContractSignatureRequestEmail(payload: ContractSignatu
         `${copy.contract.body} ${payload.contractTitle}`,
         `${copy.contract.cta}: ${payload.contractUrl}`
       ].join("\n")
-    })
   });
 
   if (!response.ok) {
@@ -1571,19 +1555,12 @@ export async function sendCustomerInvoiceEmail(payload: CustomerInvoiceEmail) {
     `Rechnung öffnen: ${payload.invoiceUrl}`
   ].filter(Boolean);
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await sendResendEmail(apiKey, {
       from,
       to: recipients,
       subject: `${copy.invoice.subjectPrefix}: ${payload.invoiceTitle}`,
       html: customerInvoiceHtml(payload),
       text: textLines.join("\n")
-    })
   });
 
   if (!response.ok) {

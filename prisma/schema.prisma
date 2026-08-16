@@ -211,6 +211,30 @@ model DeliveryLog {
   @@index([nextAttemptAt])
 }
 
+model SentEmailLog {
+  id                String   @id @default(cuid())
+  provider          String   @default("resend")
+  providerMessageId String?  @unique
+  status            String   @default("sent")
+  from              String
+  to                Json
+  cc                Json?
+  bcc               Json?
+  replyTo           Json?
+  subject           String
+  html              String?
+  text              String?
+  lastEvent         String   @default("sent")
+  errorMessage      String?
+  sentAt            DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([provider, createdAt])
+}
+
 model AdminCalendarBlock {
   id        String   @id @default(cuid())
   adminId   String

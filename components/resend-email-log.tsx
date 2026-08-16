@@ -15,7 +15,7 @@ const COPY = {
   hu: {
     eyebrow: "Resend",
     title: "Kiküldött e-mailek",
-    description: "A Resendben ténylegesen létrejött levelek, kézbesítési állapottal és teljes tartalommal.",
+    description: "A Spetly által a Resendnek átadott levelek, küldési állapottal és teljes tartalommal.",
     latest: (count: number) => `Legutóbbi ${count} e-mail`,
     search: "Keresés címzett vagy tárgy alapján",
     empty: "Nincs a keresésnek megfelelő e-mail.",
@@ -30,7 +30,7 @@ const COPY = {
     cc: "Másolat",
     bcc: "Titkos másolat",
     replyTo: "Válaszcím",
-    providerId: "Resend azonosító",
+    providerId: "E-mail azonosító",
     content: "Levél tartalma",
     textContent: "Szöveges tartalom",
     noContent: "A Resend nem adott vissza megjeleníthető levéltartalmat.",
@@ -52,7 +52,7 @@ const COPY = {
   de: {
     eyebrow: "Resend",
     title: "Gesendete E-Mails",
-    description: "Tatsächlich über Resend erstellte E-Mails mit Zustellstatus und vollständigem Inhalt.",
+    description: "Von Spetly an Resend übergebene E-Mails mit Sendestatus und vollständigem Inhalt.",
     latest: (count: number) => `Letzte ${count} E-Mails`,
     search: "Nach Empfänger oder Betreff suchen",
     empty: "Keine E-Mail entspricht der Suche.",
@@ -67,7 +67,7 @@ const COPY = {
     cc: "Kopie",
     bcc: "Blindkopie",
     replyTo: "Antwortadresse",
-    providerId: "Resend-ID",
+    providerId: "E-Mail-ID",
     content: "E-Mail-Inhalt",
     textContent: "Textinhalt",
     noContent: "Resend hat keinen darstellbaren E-Mail-Inhalt zurückgegeben.",
@@ -89,7 +89,7 @@ const COPY = {
   en: {
     eyebrow: "Resend",
     title: "Sent e-mails",
-    description: "E-mails actually created in Resend, including delivery status and full content.",
+    description: "E-mails submitted by Spetly to Resend, including send status and full content.",
     latest: (count: number) => `Latest ${count} e-mails`,
     search: "Search by recipient or subject",
     empty: "No e-mail matches this search.",
@@ -104,7 +104,7 @@ const COPY = {
     cc: "CC",
     bcc: "BCC",
     replyTo: "Reply to",
-    providerId: "Resend ID",
+    providerId: "E-mail ID",
     content: "E-mail content",
     textContent: "Text content",
     noContent: "Resend did not return displayable e-mail content.",
@@ -214,6 +214,7 @@ function ResendEmailRow({ email, language }: { email: ResendSentEmailSummary; la
   }
 
   const statusLabel = copy.status[email.lastEvent as keyof typeof copy.status] ?? email.lastEvent;
+  const deliveryError = state.status === "loaded" ? state.email.tags.find((tag) => tag.name === "error")?.value : null;
 
   return (
     <details
@@ -271,6 +272,12 @@ function ResendEmailRow({ email, language }: { email: ResendSentEmailSummary; la
 
         {state.status === "loaded" ? (
           <div className="mt-4">
+            {deliveryError ? (
+              <div className="mb-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertTriangle className="mt-0.5 shrink-0" size={16} />
+                <span className="break-words">{deliveryError}</span>
+              </div>
+            ) : null}
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/45">
               {state.email.html ? copy.content : copy.textContent}
             </p>
