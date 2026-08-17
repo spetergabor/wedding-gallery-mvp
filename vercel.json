@@ -12,6 +12,10 @@
       "schedule": "0 12 * * *"
     },
     {
+      "path": "/api/jobs/invoice-reminders",
+      "schedule": "15 7 * * *"
+    },
+    {
       "path": "/api/jobs/r2-cleanup",
       "schedule": "30 3 * * *"
     }

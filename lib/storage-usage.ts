@@ -73,13 +73,12 @@ export async function getAdminStorageUsageRows(): Promise<NormalizedAdminStorage
       UNION ALL
 
       SELECT
-        c."adminId" AS "adminId",
+        inv."adminId" AS "adminId",
         COALESCE(SUM(inv."fileSize"), 0)::bigint AS "storageBytes",
         0::bigint AS "photoCount"
-      FROM "Customer" c
-      JOIN "CustomerInvoice" inv ON inv."customerId" = c."id"
+      FROM "CustomerInvoice" inv
       WHERE inv."r2Key" IS NOT NULL
-      GROUP BY c."adminId"
+      GROUP BY inv."adminId"
 
       UNION ALL
 

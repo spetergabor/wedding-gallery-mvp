@@ -40,6 +40,10 @@ type CustomerInvoiceEmail = {
   amountLabel?: string | null;
   dueDateLabel?: string | null;
   language?: CustomerLanguage;
+  subject?: string;
+  heading?: string;
+  message?: string;
+  ctaLabel?: string;
 };
 
 type ClientProofingInviteEmail = {
@@ -1578,7 +1582,10 @@ function customerInvoiceHtml({
   invoiceUrl,
   amountLabel,
   dueDateLabel,
-  language
+  language,
+  heading,
+  message,
+  ctaLabel
 }: CustomerInvoiceEmail) {
   const copy = copyForLanguage(language);
   const metaLines = [
@@ -1588,12 +1595,12 @@ function customerInvoiceHtml({
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.invoice.heading}</h1>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(heading || copy.invoice.heading)}</h1>
       <p style="margin: 0 0 18px;">Hallo ${escapeHtml(coupleName)},</p>
-      <p style="margin: 0 0 18px;">${copy.invoice.body} <strong>${escapeHtml(invoiceTitle)}</strong>.</p>
+      <p style="margin: 0 0 18px;">${message ? escapeHtml(message) : `${copy.invoice.body} <strong>${escapeHtml(invoiceTitle)}</strong>.`}</p>
       ${metaLines}
       <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(invoiceUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${copy.invoice.cta}</a>
+        <a href="${escapeHtml(invoiceUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(ctaLabel || copy.invoice.cta)}</a>
       </p>
       <p style="margin: 0; color: #777; font-size: 13px;">${copy.invoice.fallback}<br>${escapeHtml(invoiceUrl)}</p>
     </div>
@@ -1618,7 +1625,7 @@ export async function sendCustomerInvoiceEmail(payload: CustomerInvoiceEmail) {
   const textLines = [
     `Hallo ${payload.coupleName},`,
     "",
-    `Die Rechnung ${payload.invoiceTitle} ist bereit.`,
+    payload.message || `Die Rechnung ${payload.invoiceTitle} ist bereit.`,
     payload.amountLabel ? `Betrag: ${payload.amountLabel}` : "",
     payload.dueDateLabel ? `Fällig bis: ${payload.dueDateLabel}` : "",
     `Rechnung öffnen: ${payload.invoiceUrl}`
@@ -1627,7 +1634,7 @@ export async function sendCustomerInvoiceEmail(payload: CustomerInvoiceEmail) {
   const response = await sendResendEmail(apiKey, {
       from,
       to: recipients,
-      subject: `${copy.invoice.subjectPrefix}: ${payload.invoiceTitle}`,
+      subject: payload.subject?.trim() || `${copy.invoice.subjectPrefix}: ${payload.invoiceTitle}`,
       html: customerInvoiceHtml(payload),
       text: textLines.join("\n")
   });
