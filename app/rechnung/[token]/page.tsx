@@ -1,0 +1,12 @@
+import { notFound } from "next/navigation";
+import { CustomerInvoiceDocument } from "@/components/customer-invoice-document";
+import { InvoicePrintButton } from "@/components/invoice-print-button";
+import { INVOICE_TAX_NOTICE, parseInvoiceIssuer, parseInvoiceParty } from "@/lib/customer-invoices";
+import { prisma } from "@/lib/prisma";
+
+export default async function PublicCustomerInvoicePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const invoice = await prisma.customerInvoice.findUnique({ where: { publicToken: token }, include: { items: { orderBy: { position: "asc" } }, relatedInvoice: { select: { number: true } }, admin: { select: { siteSettings: { select: { businessName: true, logoUrl: true } } } } } });
+  if (!invoice?.number || invoice.status === "draft" || !invoice.issueDate || !invoice.dueDate || !invoice.customerSnapshot || !invoice.issuerSnapshot || invoice.totalCents === null || !invoice.items.length) notFound();
+  return <main className="min-h-screen bg-paper px-3 py-5 sm:px-6 sm:py-8"><header className="mx-auto mb-4 flex max-w-[900px] items-center justify-between rounded-lg border border-ink/10 bg-white px-4 py-3 shadow-soft"><div><strong className="block text-sm">{invoice.admin.siteSettings?.businessName || parseInvoiceIssuer(invoice.issuerSnapshot).name || "Spetly"}</strong><span className="text-xs text-graphite/60">Rechnung {invoice.number}</span></div><InvoicePrintButton/></header><CustomerInvoiceDocument invoice={{ number: invoice.number, issueDate: invoice.issueDate, dueDate: invoice.dueDate, serviceDateFrom: invoice.serviceDateFrom, serviceDateTo: invoice.serviceDateTo, currency: invoice.currency, taxNotice: invoice.taxNotice || INVOICE_TAX_NOTICE, taxMode: invoice.taxMode, subtotalCents: invoice.subtotalCents ?? invoice.totalCents, taxCents: invoice.taxCents ?? 0, totalCents: invoice.totalCents, documentType: invoice.documentType, relatedNumber: invoice.relatedInvoice?.number, status: invoice.status, cancelledAt: invoice.cancelledAt, cancellationReason: invoice.cancellationReason, customer: parseInvoiceParty(invoice.customerSnapshot), issuer: parseInvoiceIssuer(invoice.issuerSnapshot), items: invoice.items.map((item) => ({ id: item.id, description: item.description, quantity: Number(item.quantity), unit: item.unit, unitPriceCents: item.unitPriceCents, vatRate: item.vatRate, amountCents: item.amountCents })) }}/></main>;
+}

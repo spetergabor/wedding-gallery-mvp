@@ -18,6 +18,7 @@ import {
   Mail,
   PackageCheck,
   RefreshCw,
+  ReceiptText,
   Server,
   ShieldCheck,
   ShoppingCart,
@@ -3047,7 +3048,7 @@ export default async function AdminSettingsPage({
       })
     : null;
   const automationItems = !isTeamWorkspace ? buildAutomationItems(deliveryLogs, zipPackages, stripePurchases, language) : [];
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-9" : isTeamWorkspace ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-6";
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-10" : isTeamWorkspace ? "sm:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-7";
   const copy = SETTINGS_COPY[language];
 
   return (
@@ -3081,6 +3082,13 @@ export default async function AdminSettingsPage({
           >
             <UserRound size={16} />
             {copy.tabs.profile}
+          </Link>
+          <Link
+            href="/admin/settings/invoices"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-graphite transition hover:bg-ink/5 hover:text-ink"
+          >
+            <ReceiptText size={16} />
+            Számlázás
           </Link>
           <Link
             href="/admin/settings?tab=security"

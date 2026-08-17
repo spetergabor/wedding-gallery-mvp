@@ -403,7 +403,9 @@ export default async function CustomerPortalPage({
               title: true,
               status: true,
               fileUrl: true,
+              publicToken: true,
               amountCents: true,
+              totalCents: true,
               currency: true,
               dueDate: true,
               paidAt: true,
@@ -626,13 +628,13 @@ export default async function CustomerPortalPage({
                       ) : (
                         <div className="mt-2 space-y-2">
                           {project.invoices.map((invoice) => {
-                            const amount = formatAmount(invoice.amountCents, invoice.currency, language);
+                            const amount = formatAmount(invoice.totalCents ?? invoice.amountCents, invoice.currency, language);
                             const isPaid = Boolean(invoice.paidAt || invoice.status === "paid");
 
                             return (
                               <a
                                 key={invoice.id}
-                                href={invoice.fileUrl}
+                                href={invoice.fileUrl ?? (invoice.publicToken ? `/rechnung/${invoice.publicToken}` : undefined)}
                                 target="_blank"
                                 className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 text-sm transition hover:bg-ink/5"
                               >

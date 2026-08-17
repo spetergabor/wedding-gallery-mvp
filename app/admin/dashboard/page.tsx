@@ -24,7 +24,7 @@ import { EmptyState } from "@/components/empty-state";
 import { LeadPipelineBoard } from "@/components/lead-pipeline-board";
 import { UpcomingWorkCardGrid, type UpcomingWorkCard } from "@/components/upcoming-work-card-grid";
 import { ViewLocationMap } from "@/components/view-location-map";
-import { adminOwnedWhere } from "@/lib/admin-scope";
+import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -1169,7 +1169,7 @@ export default async function AdminDashboardPage() {
   const calendarEnd = addMonths(calendarStart, 1);
   const staleZipCutoff = new Date(Date.now() - 15 * 60 * 1000);
   const contractWhere = { customer: adminOwnedWhere(admin) };
-  const invoiceWhere = { customer: adminOwnedWhere(admin) };
+  const invoiceWhere = { adminId: ownerAdminId(admin) };
   const albumCommentWhere = {
     spread: {
       review: {
@@ -1866,8 +1866,8 @@ export default async function AdminDashboardPage() {
       return {
         key: `invoice-${invoice.id}`,
         title,
-        detail: `${invoice.customer.coupleName}${projectText}: ${invoice.title}${dueText}`,
-        href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+        detail: `${invoice.customer?.coupleName ?? "Kézi ügyfél"}${projectText}: ${invoice.title}${dueText}`,
+        href: invoice.customer ? `/admin/clients/${invoice.customer.id}?tab=invoices` : `/admin/invoices/${invoice.id}`,
         label,
         priority: isUnsent || isOverdue ? "high" : "medium",
         icon: ReceiptText,
@@ -2036,7 +2036,8 @@ export default async function AdminDashboardPage() {
     ...calendarInvoices.flatMap((invoice): DashboardCalendarEvent[] => {
       const events: DashboardCalendarEvent[] = [];
       const projectText = invoice.project ? ` · ${invoice.project.title}` : "";
-      const detail = `${invoice.customer.coupleName}${projectText}`;
+      const detail = `${invoice.customer?.coupleName ?? "Kézi ügyfél"}${projectText}`;
+      const invoiceHref = invoice.customer ? `/admin/clients/${invoice.customer.id}?tab=invoices` : `/admin/invoices/${invoice.id}`;
 
       if (invoice.dueDate && invoice.status !== "paid") {
         events.push({
@@ -2044,7 +2045,7 @@ export default async function AdminDashboardPage() {
           date: invoice.dueDate,
           title: invoice.title,
           detail,
-          href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+          href: invoiceHref,
           label: copy.calendar.invoiceDue,
           kind: "task",
           tone: invoice.dueDate.getTime() < today.getTime() ? "danger" : "brass",
@@ -2058,7 +2059,7 @@ export default async function AdminDashboardPage() {
           date: invoice.sentAt,
           title: invoice.title,
           detail,
-          href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+          href: invoiceHref,
           label: copy.calendar.invoiceSent,
           kind: "activity",
           tone: "ink",
@@ -2072,7 +2073,7 @@ export default async function AdminDashboardPage() {
           date: invoice.paidAt,
           title: invoice.title,
           detail,
-          href: `/admin/clients/${invoice.customer.id}?tab=invoices`,
+          href: invoiceHref,
           label: copy.calendar.invoicePaid,
           kind: "activity",
           tone: "sage",

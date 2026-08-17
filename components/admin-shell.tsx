@@ -15,6 +15,7 @@ import {
   Menu,
   Plus,
   QrCode,
+  ReceiptText,
   Settings,
   ShieldCheck,
   Users,
@@ -367,6 +368,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <CalendarClock size={17} />
             {copy.bookings}
           </Link>
+          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/invoices">
+            <ReceiptText size={17} />
+            {copy.invoices}
+          </Link>
           {admin && !admin.isTeamMember ? (
             <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/team">
               <Users size={17} />
@@ -520,6 +525,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/mini-sessions">
                     <CalendarClock size={17} />
                     {copy.bookings}
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/invoices">
+                    <ReceiptText size={17} />
+                    {copy.invoices}
                   </Link>
                   {admin && !admin.isTeamMember ? (
                     <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/team">
