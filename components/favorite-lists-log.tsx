@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Copy, Heart } from "lucide-react";
 import { Button } from "@/components/button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { photoFilenameWithoutExtension } from "@/lib/photo-filename";
 
 type FavoriteList = {
   id: string;
@@ -20,8 +21,10 @@ type FavoriteList = {
   }[];
 };
 
-function filenamesText(list: FavoriteList) {
-  return list.items.map((item) => item.photo.filename).join("\n");
+function filenamesText(list: FavoriteList, withoutExtensions: boolean) {
+  return list.items
+    .map((item) => withoutExtensions ? photoFilenameWithoutExtension(item.photo.filename) : item.photo.filename)
+    .join("\n");
 }
 
 export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: FavoriteList[]; mode?: "favorites" | "proofing" }) {
@@ -30,7 +33,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
 
   async function handleCopy(list: FavoriteList) {
     try {
-      await window.navigator.clipboard.writeText(filenamesText(list));
+      await window.navigator.clipboard.writeText(filenamesText(list, proofingMode));
       setCopiedListId(list.id);
       window.setTimeout(() => setCopiedListId(null), 2000);
     } catch {
@@ -45,7 +48,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
           <h2 className="text-lg font-semibold text-ink">{proofingMode ? "Ügyfélválogatások" : "Kedvenc listák"}</h2>
           <p className="mt-1 text-sm text-graphite/70">
             {proofingMode
-              ? "Az ügyfél által kiválasztott képek email cím szerint, teljes fájlnévlistával."
+              ? "Az ügyfél által kiválasztott képek email cím szerint, Lightroomhoz használható, kiterjesztés nélküli fájlnévlistával."
               : "Email címhez mentett képkiválasztások, teljes fájlnévlistával."}
           </p>
         </div>
@@ -109,7 +112,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                 <div className="mt-4 rounded-md bg-paper p-3">
                   <div className="max-h-72 overflow-auto rounded-md bg-white px-3 py-2">
                     <pre className="whitespace-pre-wrap break-all font-mono text-sm leading-6 text-graphite">
-                      {filenamesText(list)}
+                      {filenamesText(list, proofingMode)}
                     </pre>
                   </div>
                 </div>

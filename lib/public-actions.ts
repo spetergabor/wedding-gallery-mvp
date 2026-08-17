@@ -19,6 +19,7 @@ import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type
 import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
+import { photoFilenameWithoutExtension } from "@/lib/photo-filename";
 import { createZipPartRanges, enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
 import {
   GALLERY_PURCHASE_KIND_PHOTOS,
@@ -1472,7 +1473,9 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
         galleryAdminUrl: adminGalleryUrl(galleryId),
         clientEmail: normalizedEmail,
         listName: list.name,
-        filenames: list.items.map((item) => item.photo.filename),
+        filenames: list.items.map((item) =>
+          proofingSelection ? photoFilenameWithoutExtension(item.photo.filename) : item.photo.filename
+        ),
         submittedAt
       })
   });
