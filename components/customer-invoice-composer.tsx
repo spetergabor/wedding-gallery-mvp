@@ -35,7 +35,7 @@ function amounts(item: LineItem, taxMode: string) {
   return { quantity, unitPriceCents, net, tax, total: net + tax };
 }
 
-const fieldClass = "h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50";
+const fieldClass = "h-11 min-w-0 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50";
 
 export function CustomerInvoiceComposer({
   candidates,
@@ -154,8 +154,8 @@ export function CustomerInvoiceComposer({
       <input type="hidden" name="customerId" value={customer.selected ? customer.id : ""} />
       <input type="hidden" name="itemsJson" value={itemsJson} />
       <input type="hidden" name="taxMode" value={taxMode} />
-      <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(520px,.95fr)]">
-        <div className="space-y-5">
+      <div className="grid min-w-0 items-start gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(460px,.95fr)]">
+        <div className="min-w-0 space-y-5">
           {state.error ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{state.error}</div> : null}
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
             <header className="flex gap-3 border-b border-ink/10 pb-4"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-semibold text-white">1</span><div><h2 className="font-semibold text-ink">Ügyfél és projekt</h2><p className="mt-1 text-sm text-graphite/65">Keress Spetly-ügyfelet, vagy írj be teljesen kézi adatokat.</p></div></header>
@@ -189,20 +189,20 @@ export function CustomerInvoiceComposer({
 
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
             <header className="flex gap-3 border-b border-ink/10 pb-4"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-semibold text-white">3</span><div><h2 className="font-semibold text-ink">Számlatételek</h2><p className="mt-1 text-sm text-graphite/65">Mennyiség, egység, ár és szükség esetén USt.</p></div></header>
-            <div className="mt-5 space-y-3">{items.map((item, index) => <div key={item.id} className="grid gap-3 rounded-md border border-ink/10 bg-paper p-4 lg:grid-cols-[minmax(180px,1fr)_90px_130px_120px_90px_42px]">
-              <label className="space-y-1"><span className="text-xs font-medium text-graphite/70">Beschreibung</span><input required value={item.description} onChange={(event) => editItem(item.id, "description", event.target.value)} className={fieldClass}/></label>
-              <label className="space-y-1"><span className="text-xs font-medium text-graphite/70">Menge</span><input required inputMode="decimal" value={item.quantity} onChange={(event) => editItem(item.id, "quantity", event.target.value)} className={fieldClass}/></label>
-              <label className="space-y-1"><span className="text-xs font-medium text-graphite/70">Egység</span><select value={item.unit} onChange={(event) => editItem(item.id, "unit", event.target.value)} className={fieldClass}>{units.map(([unit, label]) => <option key={unit} value={unit}>{label}</option>)}</select></label>
-              <label className="space-y-1"><span className="text-xs font-medium text-graphite/70">Preis EUR</span><input required inputMode="decimal" value={item.unitPrice} onChange={(event) => editItem(item.id, "unitPrice", event.target.value)} className={fieldClass}/></label>
-              <label className="space-y-1"><span className="text-xs font-medium text-graphite/70">USt.</span><select disabled={taxMode !== "taxable"} value={item.vatRate} onChange={(event) => editItem(item.id, "vatRate", event.target.value)} className={fieldClass}><option value="20">20%</option><option value="13">13%</option><option value="10">10%</option></select></label>
-              <button type="button" disabled={items.length === 1} onClick={() => setItems((current) => current.filter((row) => row.id !== item.id))} aria-label={`${index + 1}. tétel törlése`} className="mt-auto flex size-11 items-center justify-center rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-30"><Trash2 size={17}/></button>
-              <p className="text-right text-sm font-semibold lg:col-span-6">Betrag: {formatInvoiceMoney(amounts(item, taxMode).total)}</p>
+            <div className="mt-5 space-y-3">{items.map((item, index) => <div key={item.id} className="grid min-w-0 grid-cols-1 gap-3 rounded-md border border-ink/10 bg-paper p-4 sm:grid-cols-2 2xl:grid-cols-12">
+              <label className="min-w-0 space-y-1 sm:col-span-2 2xl:col-span-4"><span className="text-xs font-medium text-graphite/70">Beschreibung</span><input required value={item.description} onChange={(event) => editItem(item.id, "description", event.target.value)} className={fieldClass}/></label>
+              <label className="min-w-0 space-y-1 2xl:col-span-2"><span className="text-xs font-medium text-graphite/70">Menge</span><input required inputMode="decimal" value={item.quantity} onChange={(event) => editItem(item.id, "quantity", event.target.value)} className={fieldClass}/></label>
+              <label className="min-w-0 space-y-1 2xl:col-span-2"><span className="text-xs font-medium text-graphite/70">Egység</span><select value={item.unit} onChange={(event) => editItem(item.id, "unit", event.target.value)} className={fieldClass}>{units.map(([unit, label]) => <option key={unit} value={unit}>{label}</option>)}</select></label>
+              <label className="min-w-0 space-y-1 2xl:col-span-2"><span className="text-xs font-medium text-graphite/70">Preis EUR</span><input required inputMode="decimal" value={item.unitPrice} onChange={(event) => editItem(item.id, "unitPrice", event.target.value)} className={fieldClass}/></label>
+              <label className="min-w-0 space-y-1 2xl:col-span-1"><span className="text-xs font-medium text-graphite/70">USt.</span><select disabled={taxMode !== "taxable"} value={item.vatRate} onChange={(event) => editItem(item.id, "vatRate", event.target.value)} className={fieldClass}><option value="20">20%</option><option value="13">13%</option><option value="10">10%</option></select></label>
+              <button type="button" disabled={items.length === 1} onClick={() => setItems((current) => current.filter((row) => row.id !== item.id))} aria-label={`${index + 1}. tétel törlése`} className="mt-auto flex size-11 items-center justify-center justify-self-end rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-30 2xl:col-span-1"><Trash2 size={17}/></button>
+              <p className="text-right text-sm font-semibold sm:col-span-2 2xl:col-span-12">Betrag: {formatInvoiceMoney(amounts(item, taxMode).total)}</p>
             </div>)}</div>
             <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><button type="button" onClick={() => { setItems((current) => [...current, { id: nextId, description: "", quantity: "1", unit: "Stk", unitPrice: "", vatRate: normalizedVat }]); setNextId((current) => current + 1); }} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium hover:bg-paper"><Plus size={16}/> Új tétel</button><div className="text-right text-sm text-graphite/70">{taxMode === "taxable" ? <p>Netto {formatInvoiceMoney(subtotal)} · USt. {formatInvoiceMoney(tax)}</p> : null}<p className="mt-1 text-lg font-semibold text-ink">Gesamtbetrag {formatInvoiceMoney(total)}</p></div></div>
           </section>
         </div>
 
-        <aside id="invoice-live-preview" className="self-start 2xl:sticky 2xl:top-6"><div className="mb-2 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-graphite/55">Élő előnézet</p><p className="mt-1 text-sm text-graphite/65">A PDF tartalmának megfelelő nézet</p></div></div><div className="overflow-hidden rounded-lg border border-ink/10 bg-paper p-2"><CustomerInvoiceDocument invoice={preview} compact/></div></aside>
+        <aside id="invoice-live-preview" className="min-w-0 self-start 2xl:sticky 2xl:top-6"><div className="mb-2 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-graphite/55">Élő előnézet</p><p className="mt-1 text-sm text-graphite/65">A PDF tartalmának megfelelő nézet</p></div></div><div className="overflow-hidden rounded-lg border border-ink/10 bg-paper p-2"><CustomerInvoiceDocument invoice={preview} compact/></div></aside>
       </div>
 
       <div className="sticky bottom-3 z-10 flex flex-wrap justify-end gap-2 rounded-lg border border-ink/10 bg-white/95 p-3 shadow-xl backdrop-blur">
