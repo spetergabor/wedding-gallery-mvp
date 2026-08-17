@@ -5,10 +5,11 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 
 type Invoice = {
   id: string;
+  number?: string | null;
   title: string;
   status: string;
-  originalFilename: string;
-  fileUrl: string;
+  originalFilename: string | null;
+  fileUrl: string | null;
   fileSize: number;
   amountCents: number | null;
   currency: string;
@@ -107,6 +108,7 @@ export function InvoiceManager({
             Külső számlázóval elkészített PDF számlák feltöltése, emailes kiküldése és fizetési státusz követése.
           </p>
         </div>
+        <a href={`/admin/invoices/new?customerId=${customerId}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white">Új számla készítése</a>
         <div className="grid grid-cols-2 divide-x divide-ink/10 rounded-md bg-paper text-sm text-graphite">
           <div className="px-4 py-3">
             <p className="text-xs uppercase tracking-[0.16em] text-graphite/55">Nyitott</p>
@@ -215,7 +217,7 @@ export function InvoiceManager({
               <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-ink">{invoice.title}</p>
+                    <p className="font-medium text-ink">{invoice.number || invoice.title}</p>
                     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClass(invoice.status)}`}>
                       {invoice.status === "paid" ? "Fizetett" : "Nyitott"}
                     </span>
@@ -225,7 +227,7 @@ export function InvoiceManager({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 truncate text-sm text-graphite/70">{invoice.originalFilename}</p>
+                  <p className="mt-1 truncate text-sm text-graphite/70">{invoice.originalFilename || "Spetlyben generált számla"}</p>
                   <p className="mt-1 text-xs text-graphite/60">
                     {formatAmount(invoice.amountCents, invoice.currency)} · {formatFileSize(invoice.fileSize)} · feltöltve: {formatDate(invoice.createdAt)}
                   </p>
@@ -235,7 +237,7 @@ export function InvoiceManager({
                   {invoice.notes ? <p className="mt-2 text-sm text-graphite/70">{invoice.notes}</p> : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
-                <form action={sendInvoiceAction.bind(null, customerId, invoice.id)}>
+                {invoice.number ? <a href={`/admin/invoices/${invoice.id}`} className="inline-flex h-10 items-center gap-2 rounded-md bg-ink px-3 text-sm font-medium text-white">Kezelés <ExternalLink size={16}/></a> : <form action={sendInvoiceAction.bind(null, customerId, invoice.id)}>
                     <FormSubmitButton
                       variant="secondary"
                       className="h-10 border-ink/10 px-3 text-graphite hover:bg-ink/5"
@@ -245,27 +247,27 @@ export function InvoiceManager({
                       <Mail size={16} />
                       Küldés
                     </FormSubmitButton>
-                  </form>
-                  <a
+                  </form>}
+                  {invoice.fileUrl ? <a
                     href={invoice.fileUrl}
                     target="_blank"
                     className="inline-flex size-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
                     title="PDF megnyitása"
                   >
                     <ExternalLink size={16} />
-                  </a>
-                  <a
+                  </a> : null}
+                  {invoice.fileUrl ? <a
                     href={invoice.fileUrl}
-                    download={invoice.originalFilename}
+                    download={invoice.originalFilename || undefined}
                     className="inline-flex size-10 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5"
                     title="PDF letöltése"
                   >
                     <Download size={16} />
-                  </a>
+                  </a> : null}
                 </div>
               </div>
 
-              <form action={updateInvoiceStatusAction.bind(null, customerId, invoice.id)} className="mt-4 flex flex-col gap-2 rounded-md bg-paper p-3 sm:flex-row sm:items-end">
+              {!invoice.number ? <form action={updateInvoiceStatusAction.bind(null, customerId, invoice.id)} className="mt-4 flex flex-col gap-2 rounded-md bg-paper p-3 sm:flex-row sm:items-end">
                 <label className="flex-1 space-y-2">
                   <span className="text-sm font-medium text-graphite">Fizetési státusz</span>
                   <select
@@ -280,7 +282,7 @@ export function InvoiceManager({
                 <FormSubmitButton type="submit" variant="secondary" className="h-10" pendingLabel="Mentés...">
                   Státusz mentése
                 </FormSubmitButton>
-              </form>
+              </form> : null}
 
               <div className="mt-3 grid gap-2 text-xs text-graphite/60">
                 <p>Elküldve: {formatDate(invoice.sentAt) ?? "még nincs"}</p>

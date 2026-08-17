@@ -72,7 +72,7 @@ export function customerContractAccessWhere(
 export function invoiceAccessWhere(admin: AdminSession, invoiceId: string): Prisma.CustomerInvoiceWhereInput {
   return {
     id: invoiceId,
-    customer: adminOwnedWhere(admin)
+    adminId: ownerAdminId(admin)
   };
 }
 
@@ -84,7 +84,7 @@ export function customerInvoiceAccessWhere(
   return {
     id: invoiceId,
     customerId,
-    customer: customerAccessWhere(admin, customerId)
+    adminId: ownerAdminId(admin)
   };
 }
 

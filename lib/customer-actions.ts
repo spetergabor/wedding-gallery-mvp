@@ -838,7 +838,6 @@ export async function deleteCustomerAction(customerId: string) {
   const contractObjectKeys = customer.contracts.flatMap((contract) =>
     [contract.r2Key, contract.signedR2Key].filter((key): key is string => Boolean(key))
   );
-  const invoiceObjectKeys = customer.invoices.map((invoice) => invoice.r2Key).filter(Boolean);
   const portalImageObjectKeys = customer.portalImages.map((image) => image.r2Key).filter(Boolean);
   const projectIds = customer.projects.map((project) => project.id);
   const meetingIds = customer.meetings.map((meeting) => meeting.id);
@@ -895,7 +894,9 @@ export async function deleteCustomerAction(customerId: string) {
     });
   });
 
-  await Promise.all([...contractObjectKeys, ...invoiceObjectKeys, ...portalImageObjectKeys].map((key) => deletePhotoObject(key)));
+  // Invoices are accounting records and survive customer deletion with a null customerId.
+  // Their uploaded/generated PDFs must therefore stay in storage as well.
+  await Promise.all([...contractObjectKeys, ...portalImageObjectKeys].map((key) => deletePhotoObject(key)));
 
   revalidatePath("/admin/clients");
   revalidatePath("/admin/galleries");

@@ -9,80 +9,82 @@ datasource db {
 }
 
 model Admin {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  legalName    String?
-  birthDate    DateTime?
-  birthPlace   String?
-  phone        String?
-  addressLine  String?
-  postalCode   String?
-  city         String?
-  country      String?
-  taxNumber    String?
+  id                         String                       @id @default(cuid())
+  name                       String
+  email                      String                       @unique
+  passwordHash               String
+  legalName                  String?
+  birthDate                  DateTime?
+  birthPlace                 String?
+  phone                      String?
+  addressLine                String?
+  postalCode                 String?
+  city                       String?
+  country                    String?
+  taxNumber                  String?
   businessRegistrationNumber String?
-  profileNotes String?
-  role         String   @default("photographer")
-  status       String   @default("pending")
-  approvedAt   DateTime?
-  approvedById String?
-  onboardingCompletedAt DateTime?
-  twoFactorEnabled Boolean @default(false)
-  twoFactorSecret  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  galleries    Gallery[]
-  customers    Customer[]
-  notifications AdminNotification[]
-  notificationPreference AdminNotificationPreference?
-  calendarBlocks AdminCalendarBlock[]
-  googleCalendarIntegration GoogleCalendarIntegration?
-  siteSettings SiteSettings?
-  leads        Lead[]
-  miniSessions MiniSession[]
-  teamMembers  AdminTeamMembership[] @relation("TeamOwner")
-  teamMembership AdminTeamMembership? @relation("TeamMember")
-  passwordResetTokens AdminPasswordResetToken[]
-  systemEventsAsActor SystemEvent[] @relation("SystemEventActor")
-  systemEventsAsTarget SystemEvent[] @relation("SystemEventTarget")
-  deliveryLogs DeliveryLog[]
-  stripeConnectIntegration StripeConnectIntegration?
-  galleryPurchases GalleryPurchase[]
-  albumDesigns AlbumDesign[]
-  tasks        CustomerTask[]
-  planOverride AdminPlanOverride?
+  profileNotes               String?
+  role                       String                       @default("photographer")
+  status                     String                       @default("pending")
+  approvedAt                 DateTime?
+  approvedById               String?
+  onboardingCompletedAt      DateTime?
+  twoFactorEnabled           Boolean                      @default(false)
+  twoFactorSecret            String?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  galleries                  Gallery[]
+  customers                  Customer[]
+  notifications              AdminNotification[]
+  notificationPreference     AdminNotificationPreference?
+  calendarBlocks             AdminCalendarBlock[]
+  googleCalendarIntegration  GoogleCalendarIntegration?
+  siteSettings               SiteSettings?
+  leads                      Lead[]
+  miniSessions               MiniSession[]
+  teamMembers                AdminTeamMembership[]        @relation("TeamOwner")
+  teamMembership             AdminTeamMembership?         @relation("TeamMember")
+  passwordResetTokens        AdminPasswordResetToken[]
+  systemEventsAsActor        SystemEvent[]                @relation("SystemEventActor")
+  systemEventsAsTarget       SystemEvent[]                @relation("SystemEventTarget")
+  deliveryLogs               DeliveryLog[]
+  stripeConnectIntegration   StripeConnectIntegration?
+  galleryPurchases           GalleryPurchase[]
+  albumDesigns               AlbumDesign[]
+  tasks                      CustomerTask[]
+  planOverride               AdminPlanOverride?
+  invoices                   CustomerInvoice[]
+  invoiceNumberSequences     InvoiceNumberSequence[]
 }
 
 model SubscriptionPlan {
-  id                 String   @id @default(cuid())
-  name               String
-  slug               String   @unique
-  description        String?
-  monthlyPriceCents  Int      @default(0)
-  currency           String   @default("EUR")
-  storageLimitGb     Int?
-  featureGallery     Boolean  @default(true)
-  featureAlbum       Boolean  @default(false)
-  featureContracts   Boolean  @default(false)
-  featureBooking     Boolean  @default(false)
-  featureStripe      Boolean  @default(false)
-  isActive           Boolean  @default(true)
-  sortOrder          Int      @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  adminOverrides     AdminPlanOverride[]
+  id                String              @id @default(cuid())
+  name              String
+  slug              String              @unique
+  description       String?
+  monthlyPriceCents Int                 @default(0)
+  currency          String              @default("EUR")
+  storageLimitGb    Int?
+  featureGallery    Boolean             @default(true)
+  featureAlbum      Boolean             @default(false)
+  featureContracts  Boolean             @default(false)
+  featureBooking    Boolean             @default(false)
+  featureStripe     Boolean             @default(false)
+  isActive          Boolean             @default(true)
+  sortOrder         Int                 @default(0)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  adminOverrides    AdminPlanOverride[]
 
   @@index([isActive])
   @@index([sortOrder])
 }
 
 model AdminPlanOverride {
-  id                       String   @id @default(cuid())
-  adminId                  String   @unique
+  id                       String            @id @default(cuid())
+  adminId                  String            @unique
   planId                   String?
-  freeAccess               Boolean  @default(false)
+  freeAccess               Boolean           @default(false)
   storageLimitGbOverride   Int?
   featureGalleryOverride   Boolean?
   featureAlbumOverride     Boolean?
@@ -90,9 +92,9 @@ model AdminPlanOverride {
   featureBookingOverride   Boolean?
   featureStripeOverride    Boolean?
   notes                    String?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-  admin                    Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  admin                    Admin             @relation(fields: [adminId], references: [id], onDelete: Cascade)
   plan                     SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
 
   @@index([planId])
@@ -100,13 +102,13 @@ model AdminPlanOverride {
 }
 
 model AdminPasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   adminId   String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
-  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  admin     Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
   @@index([expiresAt])
@@ -129,12 +131,12 @@ model RateLimitBucket {
 }
 
 model AdminTeamMembership {
-  id           String   @id @default(cuid())
-  ownerAdminId String
+  id            String   @id @default(cuid())
+  ownerAdminId  String
   memberAdminId String   @unique
-  createdAt    DateTime @default(now())
-  owner        Admin    @relation("TeamOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
-  member       Admin    @relation("TeamMember", fields: [memberAdminId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  owner         Admin    @relation("TeamOwner", fields: [ownerAdminId], references: [id], onDelete: Cascade)
+  member        Admin    @relation("TeamMember", fields: [memberAdminId], references: [id], onDelete: Cascade)
 
   @@unique([ownerAdminId, memberAdminId])
   @@index([ownerAdminId])
@@ -143,15 +145,15 @@ model AdminTeamMembership {
 }
 
 model AdminNotification {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   adminId   String
   type      String
   title     String
   message   String
   href      String?
   readAt    DateTime?
-  createdAt DateTime @default(now())
-  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  admin     Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
   @@index([readAt])
@@ -196,26 +198,26 @@ model SystemEvent {
 }
 
 model DeliveryLog {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   adminId           String
   channel           String
   type              String
-  status            String   @default("pending")
+  status            String    @default("pending")
   recipient         String?
   subject           String?
   provider          String?
   providerMessageId String?
   entityType        String?
   entityId          String?
-  attemptCount      Int      @default(0)
-  maxAttempts       Int      @default(3)
+  attemptCount      Int       @default(0)
+  maxAttempts       Int       @default(3)
   lastError         String?
   nextAttemptAt     DateTime?
   sentAt            DateTime?
   metadata          Json?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  admin             Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  admin             Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId, createdAt])
   @@index([adminId, status])
@@ -226,10 +228,10 @@ model DeliveryLog {
 }
 
 model SentEmailLog {
-  id                String   @id @default(cuid())
-  provider          String   @default("resend")
-  providerMessageId String?  @unique
-  status            String   @default("sent")
+  id                String    @id @default(cuid())
+  provider          String    @default("resend")
+  providerMessageId String?   @unique
+  status            String    @default("sent")
   from              String
   to                Json
   cc                Json?
@@ -238,11 +240,11 @@ model SentEmailLog {
   subject           String
   html              String?
   text              String?
-  lastEvent         String   @default("sent")
+  lastEvent         String    @default("sent")
   errorMessage      String?
   sentAt            DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([createdAt])
   @@index([status, createdAt])
@@ -267,46 +269,46 @@ model AdminCalendarBlock {
 }
 
 model GoogleCalendarIntegration {
-  id                       String   @id @default(cuid())
-  adminId                  String   @unique
-  googleAccountEmail       String?
-  googleAccountId          String?
-  calendarId               String   @default("primary")
-  calendarSummary          String?
-  accessTokenEncrypted     String?
-  refreshTokenEncrypted    String?
-  accessTokenExpiresAt     DateTime?
-  scope                    String?
-  syncMiniSessionBookings  Boolean  @default(true)
-  syncCustomerProjects     Boolean  @default(true)
-  blockAvailabilityFromGoogleCalendar Boolean  @default(false)
-  deleteCancelledEvents    Boolean  @default(true)
-  lastSyncError            String?
-  connectedAt              DateTime @default(now())
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-  admin                    Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  id                                  String    @id @default(cuid())
+  adminId                             String    @unique
+  googleAccountEmail                  String?
+  googleAccountId                     String?
+  calendarId                          String    @default("primary")
+  calendarSummary                     String?
+  accessTokenEncrypted                String?
+  refreshTokenEncrypted               String?
+  accessTokenExpiresAt                DateTime?
+  scope                               String?
+  syncMiniSessionBookings             Boolean   @default(true)
+  syncCustomerProjects                Boolean   @default(true)
+  blockAvailabilityFromGoogleCalendar Boolean   @default(false)
+  deleteCancelledEvents               Boolean   @default(true)
+  lastSyncError                       String?
+  connectedAt                         DateTime  @default(now())
+  createdAt                           DateTime  @default(now())
+  updatedAt                           DateTime  @updatedAt
+  admin                               Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
   @@index([googleAccountEmail])
 }
 
 model StripeConnectIntegration {
-  id                  String   @id @default(cuid())
-  adminId             String   @unique
-  stripeAccountId     String   @unique
-  stripeAccountEmail  String?
-  country             String?
-  defaultCurrency     String?
-  chargesEnabled      Boolean  @default(false)
-  payoutsEnabled      Boolean  @default(false)
-  detailsSubmitted    Boolean  @default(false)
+  id                    String    @id @default(cuid())
+  adminId               String    @unique
+  stripeAccountId       String    @unique
+  stripeAccountEmail    String?
+  country               String?
+  defaultCurrency       String?
+  chargesEnabled        Boolean   @default(false)
+  payoutsEnabled        Boolean   @default(false)
+  detailsSubmitted      Boolean   @default(false)
   onboardingCompletedAt DateTime?
-  lastSyncError       String?
-  connectedAt         DateTime @default(now())
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  admin               Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  lastSyncError         String?
+  connectedAt           DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  admin                 Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
   @@index([stripeAccountId])
@@ -314,84 +316,103 @@ model StripeConnectIntegration {
 }
 
 model SiteSettings {
-  id             String   @id @default("default")
-  adminId        String?  @unique
-  businessName   String   @default("")
-  publicSubdomain String?  @unique
-  logoUrl        String?
-  logoR2Key      String?
-  logoHeight     Int      @default(80)
-  signatureUrl   String?
-  signatureR2Key String?
-  websiteUrl     String?
-  instagramUrl   String?
-  facebookUrl    String?
-  tiktokUrl      String?
-  youtubeUrl     String?
-  contactEmail   String?
-  contactPhone   String?
-  galleryWatermarkEnabled Boolean @default(false)
-  galleryWatermarkText    String?
-  galleryWatermarkPosition String @default("center")
-  galleryWatermarkOpacity Int    @default(32)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  id                        String   @id @default("default")
+  adminId                   String?  @unique
+  businessName              String   @default("")
+  publicSubdomain           String?  @unique
+  logoUrl                   String?
+  logoR2Key                 String?
+  logoHeight                Int      @default(80)
+  signatureUrl              String?
+  signatureR2Key            String?
+  websiteUrl                String?
+  instagramUrl              String?
+  facebookUrl               String?
+  tiktokUrl                 String?
+  youtubeUrl                String?
+  contactEmail              String?
+  contactPhone              String?
+  galleryWatermarkEnabled   Boolean  @default(false)
+  galleryWatermarkText      String?
+  galleryWatermarkPosition  String   @default("center")
+  galleryWatermarkOpacity   Int      @default(32)
+  invoiceName               String?
+  invoiceAddressLine1       String?
+  invoicePostalCode         String?
+  invoiceCity               String?
+  invoiceCountry            String   @default("Österreich")
+  invoiceIban               String?
+  invoiceBic                String?
+  invoiceTaxNumber          String?
+  invoiceUid                String?
+  invoicePrefix             String   @default("RE")
+  invoiceCancellationPrefix String   @default("ST")
+  invoiceSequenceStart      Int      @default(1)
+  invoiceDueDays            Int      @default(14)
+  invoiceTaxMode            String   @default("small_business")
+  invoiceDefaultVatRate     Int      @default(20)
+  invoiceRemindersEnabled   Boolean  @default(false)
+  invoiceReminderDaysBefore Int      @default(3)
+  invoiceOverdueDays        Int      @default(1)
+  invoiceFollowupDays       Int      @default(7)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  admin                     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
 }
 
 model Customer {
-  id             String   @id @default(cuid())
-  adminId        String
-  customerType   String   @default("wedding_couple")
-  coupleName     String
-  primaryEmail   String
-  secondaryEmail String?
-  phone          String?
-  weddingDate    DateTime?
-  venue          String?
-  preferredLanguage String @default("de")
-  portalToken    String?  @unique
-  wifeName       String?
-  wifeEmail      String?
-  wifePhone      String?
-  husbandName    String?
-  husbandEmail   String?
-  husbandPhone   String?
-  partnerName    String?
-  partnerEmail   String?
-  partnerPhone   String?
-  weddingLocation String?
-  weddingAddress String?
-  gettingReadyLocation String?
+  id                     String                  @id @default(cuid())
+  adminId                String
+  customerType           String                  @default("wedding_couple")
+  coupleName             String
+  primaryEmail           String
+  secondaryEmail         String?
+  phone                  String?
+  weddingDate            DateTime?
+  venue                  String?
+  preferredLanguage      String                  @default("de")
+  portalToken            String?                 @unique
+  wifeName               String?
+  wifeEmail              String?
+  wifePhone              String?
+  husbandName            String?
+  husbandEmail           String?
+  husbandPhone           String?
+  partnerName            String?
+  partnerEmail           String?
+  partnerPhone           String?
+  weddingLocation        String?
+  weddingAddress         String?
+  gettingReadyLocation   String?
   churchCeremonyLocation String?
-  civilCeremonyLocation String?
-  mainLocation   String?
-  ceremonyLocation String?
-  receptionLocation String?
-  weddingSchedule String?
-  weddingStyleNotes String?
-  importantPeopleNotes String?
-  portalNotes    String?
-  status         String   @default("lead")
-  tags           String[] @default([])
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  admin          Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  contracts      Contract[]
-  invoices       CustomerInvoice[]
-  galleries      Gallery[]
-  projects       CustomerProject[]
-  meetings       CustomerMeeting[]
-  tasks          CustomerTask[]
-  miniSessionBookings MiniSessionBooking[]
-  albumReviews   AlbumReview[]
-  albumDesigns   AlbumDesign[]
-  portalImages   CustomerPortalImage[]
-  vendors        CustomerVendor[]
-  portalAccounts CustomerPortalAccount[]
+  civilCeremonyLocation  String?
+  mainLocation           String?
+  ceremonyLocation       String?
+  receptionLocation      String?
+  weddingSchedule        String?
+  weddingStyleNotes      String?
+  importantPeopleNotes   String?
+  portalNotes            String?
+  status                 String                  @default("lead")
+  tags                   String[]                @default([])
+  notes                  String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  admin                  Admin                   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  contracts              Contract[]
+  invoices               CustomerInvoice[]
+  galleries              Gallery[]
+  projects               CustomerProject[]
+  meetings               CustomerMeeting[]
+  tasks                  CustomerTask[]
+  miniSessionBookings    MiniSessionBooking[]
+  albumReviews           AlbumReview[]
+  albumDesigns           AlbumDesign[]
+  portalImages           CustomerPortalImage[]
+  vendors                CustomerVendor[]
+  portalAccounts         CustomerPortalAccount[]
 
   @@index([adminId])
   @@index([customerType])
@@ -401,23 +422,23 @@ model Customer {
 }
 
 model CustomerMeeting {
-  id           String   @id @default(cuid())
-  customerId   String
-  title        String
-  meetingType  String   @default("consultation")
-  status       String   @default("planned")
-  eventDate    DateTime
-  startTime    String
-  endTime      String
-  location     String?
-  notes        String?
-  googleCalendarEventId String?
-  googleCalendarId      String?
-  googleCalendarSyncedAt DateTime?
+  id                      String    @id @default(cuid())
+  customerId              String
+  title                   String
+  meetingType             String    @default("consultation")
+  status                  String    @default("planned")
+  eventDate               DateTime
+  startTime               String
+  endTime                 String
+  location                String?
+  notes                   String?
+  googleCalendarEventId   String?
+  googleCalendarId        String?
+  googleCalendarSyncedAt  DateTime?
   googleCalendarSyncError String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  customer                Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@index([meetingType])
@@ -427,27 +448,27 @@ model CustomerMeeting {
 }
 
 model CustomerTask {
-  id          String   @id @default(cuid())
-  adminId     String
-  customerId  String?
-  projectId   String?
-  title       String
-  taskType    String   @default("general")
-  status      String   @default("planned")
-  priority    String   @default("normal")
-  dueDate     DateTime?
-  dueTime     String?
-  notes       String?
-  completedAt DateTime?
-  googleCalendarEventId String?
-  googleCalendarId      String?
-  googleCalendarSyncedAt DateTime?
+  id                      String           @id @default(cuid())
+  adminId                 String
+  customerId              String?
+  projectId               String?
+  title                   String
+  taskType                String           @default("general")
+  status                  String           @default("planned")
+  priority                String           @default("normal")
+  dueDate                 DateTime?
+  dueTime                 String?
+  notes                   String?
+  completedAt             DateTime?
+  googleCalendarEventId   String?
+  googleCalendarId        String?
+  googleCalendarSyncedAt  DateTime?
   googleCalendarSyncError String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  admin       Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project     CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  admin                   Admin            @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  customer                Customer?        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project                 CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([adminId])
   @@index([customerId])
@@ -496,22 +517,22 @@ model CustomerVendor {
 }
 
 model CustomerPortalAccount {
-  id                    String   @id @default(cuid())
+  id                    String                             @id @default(cuid())
   customerId            String
-  loginIdentifier       String   @unique
+  loginIdentifier       String                             @unique
   email                 String?
   displayName           String?
   passwordHash          String
-  status                String   @default("active")
-  mustChangePassword    Boolean  @default(true)
+  status                String                             @default("active")
+  mustChangePassword    Boolean                            @default(true)
   passwordChangedAt     DateTime?
   lastLoginAt           DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  customer              Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdAt             DateTime                           @default(now())
+  updatedAt             DateTime                           @updatedAt
+  customer              Customer                           @relation(fields: [customerId], references: [id], onDelete: Cascade)
   sessions              CustomerPortalSession[]
   passwordResetTokens   CustomerPortalPasswordResetToken[]
-  deletedGuestUploads   GalleryGuestUpload[] @relation("CustomerDeletedGuestUploads")
+  deletedGuestUploads   GalleryGuestUpload[]               @relation("CustomerDeletedGuestUploads")
   guestGalleryAuditLogs GuestGalleryAuditLog[]
 
   @@index([customerId])
@@ -520,26 +541,26 @@ model CustomerPortalAccount {
 }
 
 model CustomerPortalSession {
-  id          String   @id @default(cuid())
-  accountId   String
-  tokenHash   String   @unique
-  expiresAt   DateTime
-  lastSeenAt  DateTime @default(now())
-  createdAt   DateTime @default(now())
-  account     CustomerPortalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id         String                @id @default(cuid())
+  accountId  String
+  tokenHash  String                @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime              @default(now())
+  createdAt  DateTime              @default(now())
+  account    CustomerPortalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
   @@index([expiresAt])
 }
 
 model CustomerPortalPasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String                @id @default(cuid())
   accountId String
-  tokenHash String   @unique
-  purpose   String   @default("reset")
+  tokenHash String                @unique
+  purpose   String                @default("reset")
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime              @default(now())
   account   CustomerPortalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
@@ -548,18 +569,18 @@ model CustomerPortalPasswordResetToken {
 }
 
 model GuestGalleryAuditLog {
-  id          String   @id @default(cuid())
-  galleryId   String
-  accountId   String?
-  actorType   String
-  actorLabel  String
-  action      String
-  photoCount  Int      @default(0)
-  photoIds    String[] @default([])
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  gallery     Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  account     CustomerPortalAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  id         String                 @id @default(cuid())
+  galleryId  String
+  accountId  String?
+  actorType  String
+  actorLabel String
+  action     String
+  photoCount Int                    @default(0)
+  photoIds   String[]               @default([])
+  metadata   Json?
+  createdAt  DateTime               @default(now())
+  gallery    Gallery                @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  account    CustomerPortalAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@index([galleryId, createdAt])
   @@index([accountId, createdAt])
@@ -568,20 +589,20 @@ model GuestGalleryAuditLog {
 }
 
 model Lead {
-  id           String   @id @default(cuid())
-  adminId      String
-  name         String
-  email        String?
-  phone        String?
-  eventType    String   @default("wedding")
-  eventDate    DateTime?
-  venue        String?
-  status       String   @default("requested")
-  notes        String?
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  admin        Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  adminId   String
+  name      String
+  email     String?
+  phone     String?
+  eventType String    @default("wedding")
+  eventDate DateTime?
+  venue     String?
+  status    String    @default("requested")
+  notes     String?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  admin     Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
   @@index([status])
@@ -591,30 +612,30 @@ model Lead {
 }
 
 model MiniSession {
-  id              String   @id @default(cuid())
-  adminId         String
-  title           String
-  slug            String   @unique
-  location        String
-  bookingMode       String   @default("single_day")
-  bookingWindowDays Int      @default(60)
-  sessionDate       DateTime
-  startsAt          DateTime
-  endsAt            DateTime
+  id                      String                    @id @default(cuid())
+  adminId                 String
+  title                   String
+  slug                    String                    @unique
+  location                String
+  bookingMode             String                    @default("single_day")
+  bookingWindowDays       Int                       @default(60)
+  sessionDate             DateTime
+  startsAt                DateTime
+  endsAt                  DateTime
   durationMinutes         Int
-  minBookingNoticeMinutes Int      @default(0)
-  language                String   @default("hu")
-  isActive                Boolean  @default(true)
-  createCustomerOnBooking Boolean  @default(true)
+  minBookingNoticeMinutes Int                       @default(0)
+  language                String                    @default("hu")
+  isActive                Boolean                   @default(true)
+  createCustomerOnBooking Boolean                   @default(true)
   notes                   String?
   stylingNotes            String?
   coverImageUrl           String?
   coverImageR2Key         String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  admin             Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  bookings          MiniSessionBooking[]
-  availabilityRules MiniSessionAvailability[]
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  admin                   Admin                     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  bookings                MiniSessionBooking[]
+  availabilityRules       MiniSessionAvailability[]
 
   @@index([adminId])
   @@index([slug])
@@ -625,14 +646,14 @@ model MiniSession {
 }
 
 model MiniSessionAvailability {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   miniSessionId String
   weekday       Int
   startsAt      String
   endsAt        String
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   miniSession   MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
 
   @@index([miniSessionId])
@@ -641,34 +662,34 @@ model MiniSessionAvailability {
 }
 
 model MiniSessionBooking {
-  id              String   @id @default(cuid())
-  miniSessionId   String
-  customerId      String?
-  projectId       String?
-  name            String
-  email           String
-  phone           String
-  attendeeCount   Int
-  startsAt        DateTime
-  endsAt          DateTime
-  status          String   @default("booked")
-  source          String   @default("client")
-  adminNote       String?
-  cancelToken     String   @unique
-  customerEmailSentAt DateTime?
-  adminEmailSentAt    DateTime?
-  reminderEmailSentAt DateTime?
-  cancelledAt     DateTime?
+  id                      String           @id @default(cuid())
+  miniSessionId           String
+  customerId              String?
+  projectId               String?
+  name                    String
+  email                   String
+  phone                   String
+  attendeeCount           Int
+  startsAt                DateTime
+  endsAt                  DateTime
+  status                  String           @default("booked")
+  source                  String           @default("client")
+  adminNote               String?
+  cancelToken             String           @unique
+  customerEmailSentAt     DateTime?
+  adminEmailSentAt        DateTime?
+  reminderEmailSentAt     DateTime?
+  cancelledAt             DateTime?
   cancellationEmailSentAt DateTime?
-  googleCalendarEventId String?
-  googleCalendarId      String?
-  googleCalendarSyncedAt DateTime?
+  googleCalendarEventId   String?
+  googleCalendarId        String?
+  googleCalendarSyncedAt  DateTime?
   googleCalendarSyncError String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  miniSession     MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
-  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  project         CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  miniSession             MiniSession      @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+  customer                Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  project                 CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([miniSessionId])
   @@index([customerId])
@@ -683,30 +704,30 @@ model MiniSessionBooking {
 }
 
 model CustomerProject {
-  id           String   @id @default(cuid())
-  customerId   String
-  title        String
-  projectType  String   @default("general")
-  status       String   @default("planned")
-  eventDate    DateTime?
-  startTime    String?
-  endTime      String?
-  venue        String?
-  notes        String?
-  googleCalendarEventId String?
-  googleCalendarId      String?
-  googleCalendarSyncedAt DateTime?
+  id                      String               @id @default(cuid())
+  customerId              String
+  title                   String
+  projectType             String               @default("general")
+  status                  String               @default("planned")
+  eventDate               DateTime?
+  startTime               String?
+  endTime                 String?
+  venue                   String?
+  notes                   String?
+  googleCalendarEventId   String?
+  googleCalendarId        String?
+  googleCalendarSyncedAt  DateTime?
   googleCalendarSyncError String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  contracts    Contract[]
-  invoices     CustomerInvoice[]
-  galleries    Gallery[]
-  albumReviews AlbumReview[]
-  albumDesigns AlbumDesign[]
-  tasks        CustomerTask[]
-  miniSessionBookings MiniSessionBooking[]
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  customer                Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contracts               Contract[]
+  invoices                CustomerInvoice[]
+  galleries               Gallery[]
+  albumReviews            AlbumReview[]
+  albumDesigns            AlbumDesign[]
+  tasks                   CustomerTask[]
+  miniSessionBookings     MiniSessionBooking[]
 
   @@index([customerId])
   @@index([projectType])
@@ -716,18 +737,18 @@ model CustomerProject {
 }
 
 model AlbumReview {
-  id          String   @id @default(cuid())
+  id          String              @id @default(cuid())
   customerId  String
   projectId   String?
-  title       String   @default("Album ellenőrző")
-  status      String   @default("draft")
-  accessToken String   @unique
+  title       String              @default("Album ellenőrző")
+  status      String              @default("draft")
+  accessToken String              @unique
   clientEmail String?
   submittedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project     CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  customer    Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project     CustomerProject?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
   spreads     AlbumReviewSpread[]
 
   @@index([customerId])
@@ -739,20 +760,20 @@ model AlbumReview {
 }
 
 model AlbumReviewSpread {
-  id          String   @id @default(cuid())
+  id          String               @id @default(cuid())
   reviewId    String
   title       String?
   filename    String
   r2Key       String
   imageUrl    String
-  fileSize    Int      @default(0)
-  imageWidth  Int      @default(0)
-  imageHeight Int      @default(0)
-  sortOrder   Int      @default(0)
+  fileSize    Int                  @default(0)
+  imageWidth  Int                  @default(0)
+  imageHeight Int                  @default(0)
+  sortOrder   Int                  @default(0)
   approvedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  review      AlbumReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  review      AlbumReview          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   comments    AlbumReviewComment[]
 
   @@index([reviewId])
@@ -761,14 +782,14 @@ model AlbumReviewSpread {
 }
 
 model AlbumReviewComment {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   spreadId  String
   x         Float
   y         Float
   text      String
-  status    String   @default("open")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    String            @default("open")
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   spread    AlbumReviewSpread @relation(fields: [spreadId], references: [id], onDelete: Cascade)
 
   @@index([spreadId])
@@ -777,26 +798,26 @@ model AlbumReviewComment {
 }
 
 model AlbumDesign {
-  id             String   @id @default(cuid())
-  adminId        String?
-  customerId     String?
-  projectId      String?
-  favoriteListId String?
-  sourceGalleryId String?
-  title          String   @default("Albumterv")
-  status         String   @default("draft")
-  reviewExportStatus      String    @default("idle")
-  reviewExportTotal       Int       @default(0)
-  reviewExportCompleted   Int       @default(0)
-  reviewExportStartedAt   DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  admin          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project        CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  favoriteList   GalleryFavoriteList? @relation(fields: [favoriteListId], references: [id], onDelete: SetNull)
-  sourceGallery  Gallery? @relation("AlbumDesignSourceGallery", fields: [sourceGalleryId], references: [id], onDelete: SetNull)
-  spreads        AlbumDesignSpread[]
+  id                    String               @id @default(cuid())
+  adminId               String?
+  customerId            String?
+  projectId             String?
+  favoriteListId        String?
+  sourceGalleryId       String?
+  title                 String               @default("Albumterv")
+  status                String               @default("draft")
+  reviewExportStatus    String               @default("idle")
+  reviewExportTotal     Int                  @default(0)
+  reviewExportCompleted Int                  @default(0)
+  reviewExportStartedAt DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  admin                 Admin?               @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  customer              Customer?            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project               CustomerProject?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  favoriteList          GalleryFavoriteList? @relation(fields: [favoriteListId], references: [id], onDelete: SetNull)
+  sourceGallery         Gallery?             @relation("AlbumDesignSourceGallery", fields: [sourceGalleryId], references: [id], onDelete: SetNull)
+  spreads               AlbumDesignSpread[]
 
   @@index([adminId])
   @@index([customerId])
@@ -808,14 +829,14 @@ model AlbumDesign {
 }
 
 model AlbumDesignSpread {
-  id        String   @id @default(cuid())
+  id        String                      @id @default(cuid())
   designId  String
   title     String?
   layoutKey String
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  design    AlbumDesign @relation(fields: [designId], references: [id], onDelete: Cascade)
+  sortOrder Int                         @default(0)
+  createdAt DateTime                    @default(now())
+  updatedAt DateTime                    @updatedAt
+  design    AlbumDesign                 @relation(fields: [designId], references: [id], onDelete: Cascade)
   items     AlbumDesignSpreadItem[]
   textItems AlbumDesignSpreadTextItem[]
 
@@ -824,20 +845,20 @@ model AlbumDesignSpread {
 }
 
 model AlbumDesignSpreadItem {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   spreadId  String
   photoId   String
-  slotIndex Int      @default(0)
+  slotIndex Int               @default(0)
   x         Float
   y         Float
   width     Float
   height    Float
-  cropX     Float    @default(50)
-  cropY     Float    @default(50)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  cropX     Float             @default(50)
+  cropY     Float             @default(50)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   spread    AlbumDesignSpread @relation(fields: [spreadId], references: [id], onDelete: Cascade)
-  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photo     Photo             @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@index([spreadId])
   @@index([photoId])
@@ -845,21 +866,21 @@ model AlbumDesignSpreadItem {
 }
 
 model AlbumDesignSpreadTextItem {
-  id         String   @id @default(cuid())
+  id         String            @id @default(cuid())
   spreadId   String
   text       String
   x          Float
   y          Float
   width      Float
   height     Float
-  fontFamily String   @default("playfair")
-  fontSize   Float    @default(7)
-  lineHeight Float    @default(1.05)
-  color      String   @default("#191919")
-  textAlign  String   @default("center")
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  fontFamily String            @default("playfair")
+  fontSize   Float             @default(7)
+  lineHeight Float             @default(1.05)
+  color      String            @default("#191919")
+  textAlign  String            @default("center")
+  sortOrder  Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
   spread     AlbumDesignSpread @relation(fields: [spreadId], references: [id], onDelete: Cascade)
 
   @@index([spreadId])
@@ -867,37 +888,37 @@ model AlbumDesignSpreadTextItem {
 }
 
 model Contract {
-  id          String   @id @default(cuid())
-  customerId  String
-  projectId   String?
-  title       String
-  status      String   @default("draft")
-  sourceType  String   @default("pdf")
-  originalFilename String
-  r2Key       String
-  fileUrl     String
-  fileSize    Int      @default(0)
-  bodyText    String?
-  clientFields Json?
-  completedFields Json?
-  accessToken String?  @unique
+  id                   String           @id @default(cuid())
+  customerId           String
+  projectId            String?
+  title                String
+  status               String           @default("draft")
+  sourceType           String           @default("pdf")
+  originalFilename     String
+  r2Key                String
+  fileUrl              String
+  fileSize             Int              @default(0)
+  bodyText             String?
+  clientFields         Json?
+  completedFields      Json?
+  accessToken          String?          @unique
   accessTokenExpiresAt DateTime?
-  sentAt      DateTime?
-  openedAt    DateTime?
-  signedAt    DateTime?
-  signedR2Key String?
-  signedFileUrl String?
-  documentHash String?
-  signedPdfHash String?
-  signatureIpAddress String?
-  signatureUserAgent String?
-  acceptedTermsAt DateTime?
-  acceptedPrivacyAt DateTime?
-  auditTrail Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project     CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sentAt               DateTime?
+  openedAt             DateTime?
+  signedAt             DateTime?
+  signedR2Key          String?
+  signedFileUrl        String?
+  documentHash         String?
+  signedPdfHash        String?
+  signatureIpAddress   String?
+  signatureUserAgent   String?
+  acceptedTermsAt      DateTime?
+  acceptedPrivacyAt    DateTime?
+  auditTrail           Json?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  customer             Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  project              CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
   @@index([projectId])
@@ -908,108 +929,186 @@ model Contract {
 }
 
 model CustomerInvoice {
-  id               String   @id @default(cuid())
-  customerId       String
-  projectId        String?
-  title            String
-  status           String   @default("open")
-  originalFilename String
-  r2Key            String
-  fileUrl          String
-  fileSize         Int      @default(0)
-  amountCents      Int?
-  currency         String   @default("EUR")
-  dueDate          DateTime?
-  notes            String?
-  sentAt           DateTime?
-  sentTo           String?
-  emailError       String?
-  paidAt           DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  project          CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  id                     String                   @id @default(cuid())
+  adminId                String
+  customerId             String?
+  projectId              String?
+  title                  String
+  status                 String                   @default("open")
+  originalFilename       String?
+  r2Key                  String?
+  fileUrl                String?
+  fileSize               Int                      @default(0)
+  amountCents            Int?
+  currency               String                   @default("EUR")
+  number                 String?
+  issueDate              DateTime?
+  dueDate                DateTime?
+  serviceDateFrom        DateTime?
+  serviceDateTo          DateTime?
+  documentType           String                   @default("invoice")
+  relatedInvoiceId       String?
+  taxMode                String                   @default("small_business")
+  issuerSnapshot         Json?
+  customerSnapshot       Json?
+  taxNotice              String?
+  subtotalCents          Int?
+  taxCents               Int?
+  totalCents             Int?
+  paidCents              Int                      @default(0)
+  publicToken            String?                  @unique
+  finalizedAt            DateTime?
+  notes                  String?
+  sentAt                 DateTime?
+  sentTo                 String?
+  emailError             String?
+  paidAt                 DateTime?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  remindersEnabled       Boolean                  @default(true)
+  preDueReminderSentAt   DateTime?
+  overdueReminderSentAt  DateTime?
+  followupReminderSentAt DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  admin                  Admin                    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  customer               Customer?                @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  project                CustomerProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  relatedInvoice         CustomerInvoice?         @relation("CustomerInvoiceDocuments", fields: [relatedInvoiceId], references: [id], onDelete: SetNull)
+  relatedDocuments       CustomerInvoice[]        @relation("CustomerInvoiceDocuments")
+  items                  CustomerInvoiceItem[]
+  payments               CustomerInvoicePayment[]
 
+  @@unique([adminId, number])
+  @@index([adminId])
   @@index([customerId])
   @@index([projectId])
+  @@index([relatedInvoiceId])
   @@index([status])
+  @@index([documentType])
+  @@index([issueDate])
   @@index([dueDate])
   @@index([sentAt])
   @@index([paidAt])
   @@index([createdAt])
 }
 
+model CustomerInvoiceItem {
+  id             String          @id @default(cuid())
+  invoiceId      String
+  position       Int             @default(0)
+  description    String
+  quantity       Decimal         @db.Decimal(12, 3)
+  unit           String
+  unitPriceCents Int
+  vatRate        Int             @default(0)
+  netAmountCents Int
+  taxAmountCents Int             @default(0)
+  amountCents    Int
+  createdAt      DateTime        @default(now())
+  invoice        CustomerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, position])
+}
+
+model CustomerInvoicePayment {
+  id          String          @id @default(cuid())
+  invoiceId   String
+  amountCents Int
+  paidAt      DateTime
+  method      String          @default("bank_transfer")
+  note        String?
+  createdAt   DateTime        @default(now())
+  invoice     CustomerInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, paidAt])
+}
+
+model InvoiceNumberSequence {
+  id        String   @id @default(cuid())
+  adminId   String
+  year      Int
+  kind      String
+  nextValue Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@unique([adminId, year, kind])
+  @@index([adminId])
+}
+
 model Gallery {
-  id           String   @id @default(cuid())
-  adminId      String
-  customerId   String?
-  projectId    String?
-  title        String
-  slug         String   @unique
-  password     String?
-  eventDate    DateTime?
-  isActive     Boolean  @default(false)
-  galleryMode  String   @default("full")
-  galleryDesign String  @default("classic")
-  galleryTextColor String?
-  galleryBodyTextColor String?
-  galleryBackgroundColor String?
-  galleryTitleFont String @default("playfair")
-  galleryBodyFont String @default("inter")
-  galleryTitleSize Int    @default(96)
-  showGalleryLogo Boolean @default(true)
-  galleryLogoSize Int?
-  classicGradientIntensity Int @default(100)
-  showContactBox Boolean @default(true)
-  deliveryMode String   @default("free_download")
-  salePriceCents Int    @default(0)
-  saleUnitPriceCents Int @default(0)
-  salePricingTiers Json?
-  saleCurrency String   @default("eur")
-  proofingStatus String @default("not_opened")
-  proofingStatusUpdatedAt DateTime?
-  downloadsEnabled Boolean @default(true)
-  guestUploadsEnabled Boolean @default(false)
-  guestUploadModerationMode String @default("automatic")
-  guestUploadLimit Int @default(1000)
-  guestGalleryExpiresAt DateTime?
-  guestGalleryArchivedAt DateTime?
-  guestGalleryRevision Int @default(0)
-  lightroomUploadsEnabled Boolean @default(false)
-  lightroomUploadTokenHash String? @unique
-  lightroomUploadTokenCreatedAt DateTime?
+  id                             String                   @id @default(cuid())
+  adminId                        String
+  customerId                     String?
+  projectId                      String?
+  title                          String
+  slug                           String                   @unique
+  password                       String?
+  eventDate                      DateTime?
+  isActive                       Boolean                  @default(false)
+  galleryMode                    String                   @default("full")
+  galleryDesign                  String                   @default("classic")
+  galleryTextColor               String?
+  galleryBodyTextColor           String?
+  galleryBackgroundColor         String?
+  galleryTitleFont               String                   @default("playfair")
+  galleryBodyFont                String                   @default("inter")
+  galleryTitleSize               Int                      @default(96)
+  showGalleryLogo                Boolean                  @default(true)
+  galleryLogoSize                Int?
+  classicGradientIntensity       Int                      @default(100)
+  showContactBox                 Boolean                  @default(true)
+  deliveryMode                   String                   @default("free_download")
+  salePriceCents                 Int                      @default(0)
+  saleUnitPriceCents             Int                      @default(0)
+  salePricingTiers               Json?
+  saleCurrency                   String                   @default("eur")
+  proofingStatus                 String                   @default("not_opened")
+  proofingStatusUpdatedAt        DateTime?
+  downloadsEnabled               Boolean                  @default(true)
+  guestUploadsEnabled            Boolean                  @default(false)
+  guestUploadModerationMode      String                   @default("automatic")
+  guestUploadLimit               Int                      @default(1000)
+  guestGalleryExpiresAt          DateTime?
+  guestGalleryArchivedAt         DateTime?
+  guestGalleryRevision           Int                      @default(0)
+  lightroomUploadsEnabled        Boolean                  @default(false)
+  lightroomUploadTokenHash       String?                  @unique
+  lightroomUploadTokenCreatedAt  DateTime?
   lightroomUploadTokenLastUsedAt DateTime?
-  coverPhotoId String?
-  coverPositionX Int      @default(50)
-  coverPositionY Int      @default(50)
-  publicColumnCount Int    @default(1)
-  publicGridGap Int        @default(8)
-  publicImageRadius Int    @default(8)
-  clientEmail  String?
-  clientAccessToken String? @unique
-  proofingInviteSentAt DateTime?
-  proofingInviteSentTo String?
-  proofingInviteEmailError String?
-  finalDeliveryEmailSentAt DateTime?
-  finalDeliveryEmailSentTo String?
-  finalDeliveryEmailError String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  sections     GallerySection[]
-  photos       Photo[]
-  downloads    GalleryDownload[]
-  downloadPackages GalleryDownloadPackage[]
-  views        GalleryView[]
-  favoriteLists GalleryFavoriteList[]
-  sourceAlbumDesigns AlbumDesign[] @relation("AlbumDesignSourceGallery")
-  uploadSessions GalleryUploadSession[]
-  mediaProcessingJobs MediaProcessingJob[]
-  purchases    GalleryPurchase[]
-  guestUploads GalleryGuestUpload[]
-  guestAuditLogs GuestGalleryAuditLog[]
-  admin        Admin   @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  project      CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  coverPhotoId                   String?
+  coverPositionX                 Int                      @default(50)
+  coverPositionY                 Int                      @default(50)
+  publicColumnCount              Int                      @default(1)
+  publicGridGap                  Int                      @default(8)
+  publicImageRadius              Int                      @default(8)
+  clientEmail                    String?
+  clientAccessToken              String?                  @unique
+  proofingInviteSentAt           DateTime?
+  proofingInviteSentTo           String?
+  proofingInviteEmailError       String?
+  finalDeliveryEmailSentAt       DateTime?
+  finalDeliveryEmailSentTo       String?
+  finalDeliveryEmailError        String?
+  createdAt                      DateTime                 @default(now())
+  updatedAt                      DateTime                 @updatedAt
+  sections                       GallerySection[]
+  photos                         Photo[]
+  downloads                      GalleryDownload[]
+  downloadPackages               GalleryDownloadPackage[]
+  views                          GalleryView[]
+  favoriteLists                  GalleryFavoriteList[]
+  sourceAlbumDesigns             AlbumDesign[]            @relation("AlbumDesignSourceGallery")
+  uploadSessions                 GalleryUploadSession[]
+  mediaProcessingJobs            MediaProcessingJob[]
+  purchases                      GalleryPurchase[]
+  guestUploads                   GalleryGuestUpload[]
+  guestAuditLogs                 GuestGalleryAuditLog[]
+  admin                          Admin                    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  customer                       Customer?                @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  project                        CustomerProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([adminId])
   @@index([customerId])
@@ -1023,35 +1122,36 @@ model Gallery {
 }
 
 model GalleryGuestUpload {
-  id           String   @id @default(cuid())
-  galleryId    String
-  email        String?
-  guestName    String?
-  guestKey     String?
-  contentHash  String?
-  filename     String
-  r2Key        String
-  imageUrl     String
-  thumbnailUrl String
-  previewUrl   String   @default("")
-  mediaType    String   @default("image")
-  fileSize     Int      @default(0)
-  imageWidth   Int      @default(0)
-  imageHeight  Int      @default(0)
-  status       String   @default("visible")
-  processingStatus String @default("ready")
-  processingError String?
-  processingRequestedAt DateTime?
-  processingCompletedAt DateTime?
-  visibleAt    DateTime?
-  customerDeletedAt DateTime?
+  id                         String                 @id @default(cuid())
+  galleryId                  String
+  email                      String?
+  guestName                  String?
+  guestKey                   String?
+  contentHash                String?
+  filename                   String
+  r2Key                      String
+  imageUrl                   String
+  thumbnailUrl               String
+  previewUrl                 String                 @default("")
+  mediaType                  String                 @default("image")
+  fileSize                   Int                    @default(0)
+  imageWidth                 Int                    @default(0)
+  imageHeight                Int                    @default(0)
+  status                     String                 @default("visible")
+  processingStatus           String                 @default("ready")
+  processingError            String?
+  processingRequestedAt      DateTime?
+  processingCompletedAt      DateTime?
+  visibleAt                  DateTime?
+  customerDeletedAt          DateTime?
   customerDeletedByAccountId String?
   statusBeforeCustomerDelete String?
-  createdAt    DateTime @default(now())
-  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  processingJobs MediaProcessingJob[]
-  customerDeletedByAccount CustomerPortalAccount? @relation("CustomerDeletedGuestUploads", fields: [customerDeletedByAccountId], references: [id], onDelete: SetNull)
+  createdAt                  DateTime               @default(now())
+  gallery                    Gallery                @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  processingJobs             MediaProcessingJob[]
+  customerDeletedByAccount   CustomerPortalAccount? @relation("CustomerDeletedGuestUploads", fields: [customerDeletedByAccountId], references: [id], onDelete: SetNull)
 
+  @@unique([galleryId, contentHash])
   @@index([galleryId])
   @@index([galleryId, status])
   @@index([galleryId, status, visibleAt, id])
@@ -1060,36 +1160,35 @@ model GalleryGuestUpload {
   @@index([customerDeletedByAccountId])
   @@index([email])
   @@index([guestKey])
-  @@unique([galleryId, contentHash])
   @@index([processingStatus])
   @@index([createdAt])
   @@index([r2Key])
 }
 
 model GalleryPurchase {
-  id                      String   @id @default(cuid())
+  id                      String    @id @default(cuid())
   galleryId               String
   adminId                 String
   email                   String
   name                    String?
   stripeAccountId         String
-  stripeCheckoutSessionId String?  @unique
+  stripeCheckoutSessionId String?   @unique
   stripePaymentIntentId   String?
   amountTotal             Int
   currency                String
-  purchaseKind            String   @default("gallery")
+  purchaseKind            String    @default("gallery")
   purchasedPhotoIds       Json?
-  itemCount               Int      @default(0)
-  status                  String   @default("pending")
+  itemCount               Int       @default(0)
+  status                  String    @default("pending")
   downloadScope           String?
   paidAt                  DateTime?
   fulfilledAt             DateTime?
   fulfillmentEmailSentAt  DateTime?
   fulfillmentError        String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  gallery                 Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  admin                   Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  gallery                 Gallery   @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  admin                   Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([galleryId])
   @@index([adminId])
@@ -1100,15 +1199,15 @@ model GalleryPurchase {
 }
 
 model GallerySection {
-  id        String   @id @default(cuid())
-  galleryId String
-  title     String
-  slug      String
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  photos    Photo[]
+  id             String                 @id @default(cuid())
+  galleryId      String
+  title          String
+  slug           String
+  sortOrder      Int                    @default(0)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  gallery        Gallery                @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photos         Photo[]
   uploadSessions GalleryUploadSession[]
 
   @@unique([galleryId, slug])
@@ -1117,33 +1216,33 @@ model GallerySection {
 }
 
 model Photo {
-  id           String   @id @default(cuid())
-  galleryId    String
-  sectionId    String?
-  filename     String
-  r2Key        String   @default("")
-  imageUrl     String
-  thumbnailUrl String
-  previewUrl   String   @default("")
-  deliveryStage String  @default("final")
-  mediaType    String   @default("image")
-  processingStatus String @default("ready")
-  processingError  String?
+  id                    String                  @id @default(cuid())
+  galleryId             String
+  sectionId             String?
+  filename              String
+  r2Key                 String                  @default("")
+  imageUrl              String
+  thumbnailUrl          String
+  previewUrl            String                  @default("")
+  deliveryStage         String                  @default("final")
+  mediaType             String                  @default("image")
+  processingStatus      String                  @default("ready")
+  processingError       String?
   processingRequestedAt DateTime?
   processingCompletedAt DateTime?
-  fileSize     Int      @default(0)
-  imageWidth   Int      @default(0)
-  imageHeight  Int      @default(0)
-  sortOrder    Int      @default(0)
-  capturedAt   DateTime?
-  isClientHidden Boolean @default(false)
-  clientHiddenAt DateTime?
-  createdAt    DateTime @default(now())
-  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  section      GallerySection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  favoriteItems GalleryFavoriteItem[]
-  processingJobs MediaProcessingJob[]
-  albumDesignItems AlbumDesignSpreadItem[]
+  fileSize              Int                     @default(0)
+  imageWidth            Int                     @default(0)
+  imageHeight           Int                     @default(0)
+  sortOrder             Int                     @default(0)
+  capturedAt            DateTime?
+  isClientHidden        Boolean                 @default(false)
+  clientHiddenAt        DateTime?
+  createdAt             DateTime                @default(now())
+  gallery               Gallery                 @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  section               GallerySection?         @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  favoriteItems         GalleryFavoriteItem[]
+  processingJobs        MediaProcessingJob[]
+  albumDesignItems      AlbumDesignSpreadItem[]
 
   @@index([galleryId])
   @@index([sectionId])
@@ -1156,25 +1255,25 @@ model Photo {
 }
 
 model MediaProcessingJob {
-  id           String   @id @default(cuid())
-  galleryId    String
-  photoId      String?
-  guestUploadId String?
-  mediaType    String
-  status       String   @default("pending")
-  sourceR2Key  String
+  id             String              @id @default(cuid())
+  galleryId      String
+  photoId        String?
+  guestUploadId  String?
+  mediaType      String
+  status         String              @default("pending")
+  sourceR2Key    String
   thumbnailR2Key String?
   previewR2Key   String?
   posterR2Key    String?
-  attempts     Int      @default(0)
-  errorMessage String?
-  claimedAt    DateTime?
-  completedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  photo        Photo?   @relation(fields: [photoId], references: [id], onDelete: Cascade)
-  guestUpload  GalleryGuestUpload? @relation(fields: [guestUploadId], references: [id], onDelete: Cascade)
+  attempts       Int                 @default(0)
+  errorMessage   String?
+  claimedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  gallery        Gallery             @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photo          Photo?              @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  guestUpload    GalleryGuestUpload? @relation(fields: [guestUploadId], references: [id], onDelete: Cascade)
 
   @@index([galleryId])
   @@index([photoId])
@@ -1185,16 +1284,16 @@ model MediaProcessingJob {
 }
 
 model GalleryDownload {
-  id        String   @id @default(cuid())
-  galleryId String
-  packageId String?
-  email     String
-  status    String   @default("recorded")
-  downloadLinkSentAt DateTime?
+  id                     String                  @id @default(cuid())
+  galleryId              String
+  packageId              String?
+  email                  String
+  status                 String                  @default("recorded")
+  downloadLinkSentAt     DateTime?
   downloadLinkEmailError String?
-  createdAt DateTime @default(now())
-  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  package   GalleryDownloadPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  createdAt              DateTime                @default(now())
+  gallery                Gallery                 @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  package                GalleryDownloadPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
 
   @@index([galleryId])
   @@index([packageId])
@@ -1203,32 +1302,32 @@ model GalleryDownload {
 }
 
 model GalleryDownloadPackage {
-  id           String   @id @default(cuid())
-  galleryId    String
-  scope        String   @default("public")
-  status       String   @default("pending")
-  photoCount   Int      @default(0)
-  partIndex    Int      @default(0)
-  partCount    Int      @default(1)
-  photoOffset  Int      @default(0)
-  photoLimit   Int?
-  photoIds     Json?
-  groupId      String?
-  fileSize     BigInt   @default(0)
-  processedCount Int     @default(0)
-  processedBytes BigInt  @default(0)
-  r2Key        String?
-  downloadUrl  String?
-  accessToken  String?  @unique
+  id                   String            @id @default(cuid())
+  galleryId            String
+  scope                String            @default("public")
+  status               String            @default("pending")
+  photoCount           Int               @default(0)
+  partIndex            Int               @default(0)
+  partCount            Int               @default(1)
+  photoOffset          Int               @default(0)
+  photoLimit           Int?
+  photoIds             Json?
+  groupId              String?
+  fileSize             BigInt            @default(0)
+  processedCount       Int               @default(0)
+  processedBytes       BigInt            @default(0)
+  r2Key                String?
+  downloadUrl          String?
+  accessToken          String?           @unique
   accessTokenExpiresAt DateTime?
-  linkCreatedAt DateTime?
-  lastDownloadedAt DateTime?
-  errorMessage String?
-  generatedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  downloads    GalleryDownload[]
+  linkCreatedAt        DateTime?
+  lastDownloadedAt     DateTime?
+  errorMessage         String?
+  generatedAt          DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  gallery              Gallery           @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  downloads            GalleryDownload[]
 
   @@index([galleryId])
   @@index([galleryId, scope])
@@ -1239,18 +1338,18 @@ model GalleryDownloadPackage {
 }
 
 model BackgroundJob {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   type         String
-  status       String   @default("pending")
+  status       String    @default("pending")
   payload      Json
-  attempts     Int      @default(0)
-  maxAttempts  Int      @default(3)
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(3)
   errorMessage String?
   lockedAt     DateTime?
   startedAt    DateTime?
   completedAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([type])
   @@index([status])
@@ -1259,17 +1358,17 @@ model BackgroundJob {
 }
 
 model GalleryView {
-  id          String   @id @default(cuid())
-  galleryId   String
-  country     String?
-  region      String?
-  city        String?
-  latitude    Float?
-  longitude   Float?
-  referrer    String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-  gallery     Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  galleryId String
+  country   String?
+  region    String?
+  city      String?
+  latitude  Float?
+  longitude Float?
+  referrer  String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
 
   @@index([galleryId])
   @@index([createdAt])
@@ -1277,15 +1376,15 @@ model GalleryView {
 }
 
 model GalleryFavoriteList {
-  id        String   @id @default(cuid())
-  galleryId String
-  email     String
-  name      String   @default("Favoriten")
-  submittedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  items     GalleryFavoriteItem[]
+  id           String                @id @default(cuid())
+  galleryId    String
+  email        String
+  name         String                @default("Favoriten")
+  submittedAt  DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  gallery      Gallery               @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  items        GalleryFavoriteItem[]
   albumDesigns AlbumDesign[]
 
   @@unique([galleryId, email, name])
@@ -1295,32 +1394,32 @@ model GalleryFavoriteList {
 }
 
 model GalleryFavoriteItem {
-  id        String   @id @default(cuid())
+  id        String              @id @default(cuid())
   listId    String
   photoId   String
-  createdAt DateTime @default(now())
+  createdAt DateTime            @default(now())
   list      GalleryFavoriteList @relation(fields: [listId], references: [id], onDelete: Cascade)
-  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  photo     Photo               @relation(fields: [photoId], references: [id], onDelete: Cascade)
 
   @@unique([listId, photoId])
   @@index([photoId])
 }
 
 model GalleryUploadSession {
-  id             String   @id @default(cuid())
+  id             String              @id @default(cuid())
   galleryId      String
   sectionId      String?
-  status         String   @default("pending")
-  deliveryStage  String   @default("final")
-  totalCount     Int      @default(0)
-  uploadedCount  Int      @default(0)
-  completedCount Int      @default(0)
-  failedCount    Int      @default(0)
-  baseSortOrder  Int      @default(1)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  gallery        Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  section        GallerySection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  status         String              @default("pending")
+  deliveryStage  String              @default("final")
+  totalCount     Int                 @default(0)
+  uploadedCount  Int                 @default(0)
+  completedCount Int                 @default(0)
+  failedCount    Int                 @default(0)
+  baseSortOrder  Int                 @default(1)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  gallery        Gallery             @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  section        GallerySection?     @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   items          GalleryUploadItem[]
 
   @@index([galleryId])
@@ -1330,27 +1429,27 @@ model GalleryUploadSession {
 }
 
 model GalleryUploadItem {
-  id            String   @id @default(cuid())
+  id            String               @id @default(cuid())
   sessionId     String
   clientId      String
   filename      String
-  deliveryStage String   @default("final")
+  deliveryStage String               @default("final")
   r2Key         String?
   imageUrl      String?
   thumbnailUrl  String?
   previewUrl    String?
-  mediaType     String   @default("image")
-  fileSize      Int      @default(0)
-  imageWidth    Int      @default(0)
-  imageHeight   Int      @default(0)
+  mediaType     String               @default("image")
+  fileSize      Int                  @default(0)
+  imageWidth    Int                  @default(0)
+  imageHeight   Int                  @default(0)
   capturedAt    DateTime?
-  originalIndex Int      @default(0)
-  status        String   @default("pending")
+  originalIndex Int                  @default(0)
+  status        String               @default("pending")
   errorMessage  String?
   uploadedAt    DateTime?
   completedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
   session       GalleryUploadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, clientId])

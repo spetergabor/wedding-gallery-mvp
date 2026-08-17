@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
-import { customerAccessWhere, customerInvoiceAccessWhere } from "@/lib/admin-scope";
+import { customerAccessWhere, customerInvoiceAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { sendCustomerInvoiceEmail } from "@/lib/email";
@@ -117,6 +117,7 @@ export async function uploadInvoiceAction(customerId: string, formData: FormData
 
   await prisma.customerInvoice.create({
     data: {
+      adminId: ownerAdminId(admin),
       customerId,
       projectId: validProjectId,
       title,
@@ -152,7 +153,7 @@ export async function sendInvoiceAction(customerId: string, invoiceId: string) {
     }
   });
 
-  if (!invoice) {
+  if (!invoice || !invoice.customer || !invoice.fileUrl) {
     invoiceRedirect(customerId, "invoiceError=not-found");
   }
 
@@ -163,7 +164,7 @@ export async function sendInvoiceAction(customerId: string, invoiceId: string) {
       to: recipients,
       coupleName: invoice.customer.coupleName,
       invoiceTitle: invoice.title,
-      invoiceUrl: invoice.fileUrl,
+      invoiceUrl: invoice.fileUrl || "",
       amountLabel: formatAmount(invoice.amountCents, invoice.currency),
       dueDateLabel: formatDueDate(invoice.dueDate),
       language: normalizeCustomerLanguage(invoice.customer.preferredLanguage)

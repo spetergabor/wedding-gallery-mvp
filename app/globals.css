@@ -231,3 +231,22 @@ input[type="time"] {
     opacity: 1;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .invoice-document-root,
+  .invoice-document-root * {
+    visibility: visible !important;
+  }
+
+  .invoice-document-root {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+  }
+}
