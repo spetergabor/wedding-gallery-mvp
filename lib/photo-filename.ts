@@ -3,3 +3,7 @@ export function photoFilenameWithoutExtension(filename: string) {
 
   return withoutExtension || filename;
 }
+
+export function lightroomFilenameList(filenames: string[]) {
+  return filenames.map(photoFilenameWithoutExtension).join(", ");
+}

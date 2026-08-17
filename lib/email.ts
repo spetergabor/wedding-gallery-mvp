@@ -1,5 +1,6 @@
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
+import { lightroomFilenameList } from "@/lib/photo-filename";
 import { storeSentEmailLog } from "@/lib/resend-email-log";
 
 type AdminFavoriteListSubmittedEmail = {
@@ -9,6 +10,7 @@ type AdminFavoriteListSubmittedEmail = {
   clientEmail: string;
   listName: string;
   filenames: string[];
+  lightroomCompatible?: boolean;
   submittedAt: Date;
 };
 
@@ -504,8 +506,8 @@ function multilineHtml(value: string) {
   return escapeHtml(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n/g, "<br>");
 }
 
-function filenamesText(filenames: string[]) {
-  return filenames.join("\n");
+function filenamesText(filenames: string[], lightroomCompatible = false) {
+  return lightroomCompatible ? lightroomFilenameList(filenames) : filenames.join("\n");
 }
 
 function formatBytes(value?: bigint | number | null) {
@@ -571,9 +573,10 @@ function favoriteListSubmittedHtml({
   clientEmail,
   listName,
   filenames,
+  lightroomCompatible,
   submittedAt
 }: AdminFavoriteListSubmittedEmail) {
-  const escapedFilenames = escapeHtml(filenamesText(filenames));
+  const escapedFilenames = escapeHtml(filenamesText(filenames, lightroomCompatible));
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
@@ -619,7 +622,7 @@ export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavorite
         `Admin: ${payload.galleryAdminUrl}`,
         "",
         "Fájlnevek:",
-        filenamesText(payload.filenames)
+        filenamesText(payload.filenames, payload.lightroomCompatible)
       ].join("\n")
   });
 

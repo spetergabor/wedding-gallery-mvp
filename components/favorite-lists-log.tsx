@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Copy, Heart } from "lucide-react";
 import { Button } from "@/components/button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { photoFilenameWithoutExtension } from "@/lib/photo-filename";
+import { lightroomFilenameList } from "@/lib/photo-filename";
 
 type FavoriteList = {
   id: string;
@@ -22,9 +22,9 @@ type FavoriteList = {
 };
 
 function filenamesText(list: FavoriteList, withoutExtensions: boolean) {
-  return list.items
-    .map((item) => withoutExtensions ? photoFilenameWithoutExtension(item.photo.filename) : item.photo.filename)
-    .join("\n");
+  const filenames = list.items.map((item) => item.photo.filename);
+
+  return withoutExtensions ? lightroomFilenameList(filenames) : filenames.join("\n");
 }
 
 export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: FavoriteList[]; mode?: "favorites" | "proofing" }) {
