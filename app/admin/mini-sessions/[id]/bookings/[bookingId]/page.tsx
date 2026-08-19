@@ -130,7 +130,7 @@ export default async function MiniSessionBookingWorkflowPage({
     <AdminShell>
       <div className="mb-5">
         <Link
-          href={`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`}
+          href="/admin/mini-sessions?tab=bookings"
           className="inline-flex items-center gap-2 text-sm font-medium text-graphite hover:text-ink"
         >
           <ArrowLeft size={15} />
