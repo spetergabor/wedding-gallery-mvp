@@ -25,6 +25,7 @@ import {
   ensurePaidGalleryPurchaseFulfillmentForSession
 } from "@/lib/gallery-sales";
 import { isAnyRateLimited } from "@/lib/rate-limit";
+import { MINI_SESSION_WORKFLOW_FINAL_UPLOAD } from "@/lib/mini-session-workflow";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PROOFING_STATUS_DELIVERED,
@@ -1457,6 +1458,26 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
         proofingStatusUpdatedAt: submittedAt
       }
     });
+
+    const linkedBookings = await prisma.miniSessionBooking.findMany({
+      where: { proofingGalleryId: galleryId },
+      select: { id: true, miniSessionId: true }
+    });
+
+    if (linkedBookings.length > 0) {
+      await prisma.miniSessionBooking.updateMany({
+        where: { proofingGalleryId: galleryId },
+        data: {
+          workflowStatus: MINI_SESSION_WORKFLOW_FINAL_UPLOAD,
+          selectionSubmittedAt: submittedAt
+        }
+      });
+
+      for (const booking of linkedBookings) {
+        revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
+        revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}/bookings/${booking.id}`);
+      }
+    }
   }
 
   await dispatchAdminNotification({

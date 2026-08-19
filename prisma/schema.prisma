@@ -685,11 +685,20 @@ model MiniSessionBooking {
   googleCalendarId        String?
   googleCalendarSyncedAt  DateTime?
   googleCalendarSyncError String?
+  workflowStatus          String           @default("shoot_scheduled")
+  shootCompletedAt        DateTime?
+  selectionSentAt         DateTime?
+  selectionSubmittedAt    DateTime?
+  finalDeliveredAt        DateTime?
+  proofingGalleryId       String?          @unique
+  finalGalleryId          String?          @unique
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
   miniSession             MiniSession      @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
   customer                Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
   project                 CustomerProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  proofingGallery         Gallery?         @relation("MiniSessionProofingGallery", fields: [proofingGalleryId], references: [id], onDelete: SetNull)
+  finalGallery            Gallery?         @relation("MiniSessionFinalGallery", fields: [finalGalleryId], references: [id], onDelete: SetNull)
 
   @@index([miniSessionId])
   @@index([customerId])
@@ -701,6 +710,7 @@ model MiniSessionBooking {
   @@index([email])
   @@index([cancelToken])
   @@index([googleCalendarEventId])
+  @@index([workflowStatus])
 }
 
 model CustomerProject {
@@ -1106,6 +1116,8 @@ model Gallery {
   purchases                      GalleryPurchase[]
   guestUploads                   GalleryGuestUpload[]
   guestAuditLogs                 GuestGalleryAuditLog[]
+  miniSessionProofingBooking     MiniSessionBooking?      @relation("MiniSessionProofingGallery")
+  miniSessionFinalBooking        MiniSessionBooking?      @relation("MiniSessionFinalGallery")
   admin                          Admin                    @relation(fields: [adminId], references: [id], onDelete: Cascade)
   customer                       Customer?                @relation(fields: [customerId], references: [id], onDelete: SetNull)
   project                        CustomerProject?         @relation(fields: [projectId], references: [id], onDelete: SetNull)

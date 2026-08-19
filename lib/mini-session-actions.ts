@@ -18,6 +18,8 @@ import {
   miniSessionBookingCancelUrl,
   miniSessionBookingRescheduleUrl,
   miniSessionPublicUrl,
+  publicGalleryUrl,
+  sendClientFinalDeliveryEmail,
   sendMiniSessionAdminBookingEmail,
   sendMiniSessionBookingCancelledEmail,
   sendMiniSessionBookingConfirmationEmail
@@ -51,6 +53,19 @@ import {
   parseMiniSessionLocalDateTime
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
+import {
+  MINI_SESSION_WORKFLOW_DELIVERED,
+  MINI_SESSION_WORKFLOW_FINAL_UPLOAD,
+  MINI_SESSION_WORKFLOW_RAW_UPLOAD
+} from "@/lib/mini-session-workflow";
+import {
+  GALLERY_MODE_FULL,
+  GALLERY_MODE_PROOFING,
+  PROOFING_STATUS_NOT_OPENED,
+  PROOFING_STATUS_PROCESSING,
+  PROOFING_STATUS_SUBMITTED
+} from "@/lib/proofing";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import { normalizeSlug } from "@/lib/slug";
 import { logSystemEvent, systemEventErrorMessage } from "@/lib/system-events";
@@ -126,6 +141,14 @@ function miniSessionMinBookingNoticeFromForm(formData: FormData) {
 
 function createCancelToken() {
   return randomBytes(32).toString("base64url");
+}
+
+function createGalleryClientAccessToken() {
+  return randomBytes(24).toString("base64url");
+}
+
+function miniSessionBookingWorkflowUrl(miniSessionId: string, bookingId: string) {
+  return `/admin/mini-sessions/${miniSessionId}/bookings/${bookingId}`;
 }
 
 async function uploadMiniSessionCover(adminId: string, file: FormDataEntryValue | null, errorPath = "/admin/mini-sessions") {
@@ -2095,6 +2118,284 @@ export async function updateMiniSessionBookingStatusAction(bookingId: string, fo
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/work");
   redirect(`${redirectBase}&bookingStatusUpdated=1`);
+}
+
+export async function markMiniSessionShootCompletedAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
+      status: { notIn: [MINI_SESSION_BOOKING_STATUS_CANCELLED, MINI_SESSION_BOOKING_STATUS_NO_SHOW] },
+      miniSession: adminOwnedWhere(admin)
+    },
+    select: { id: true, miniSessionId: true, shootCompletedAt: true }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  await prisma.miniSessionBooking.update({
+    where: { id: booking.id },
+    data: {
+      workflowStatus: MINI_SESSION_WORKFLOW_RAW_UPLOAD,
+      shootCompletedAt: booking.shootCompletedAt ?? new Date()
+    }
+  });
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
+  revalidatePath(miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id));
+  redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?shootCompleted=1`);
+}
+
+export async function createMiniSessionProofingGalleryAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
+      status: { notIn: [MINI_SESSION_BOOKING_STATUS_CANCELLED, MINI_SESSION_BOOKING_STATUS_NO_SHOW] },
+      miniSession: adminOwnedWhere(admin)
+    },
+    include: {
+      miniSession: { select: { id: true, adminId: true, slug: true, title: true } },
+      proofingGallery: { select: { id: true } }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  if (booking.proofingGallery) {
+    redirect(`/admin/galleries/${booking.proofingGallery.id}?tab=photos`);
+  }
+
+  const slug = normalizeSlug(`${booking.miniSession.slug}-${booking.name}-valogatas-${booking.id.slice(-8)}`);
+  const gallery = await prisma.$transaction(async (tx) => {
+    const created = await tx.gallery.create({
+      data: {
+        adminId: booking.miniSession.adminId,
+        customerId: booking.customerId,
+        projectId: booking.projectId,
+        title: `${booking.name} – Válogatás`,
+        slug,
+        eventDate: booking.startsAt,
+        isActive: false,
+        galleryMode: GALLERY_MODE_PROOFING,
+        deliveryMode: "free_download",
+        downloadsEnabled: false,
+        proofingStatus: PROOFING_STATUS_NOT_OPENED,
+        proofingStatusUpdatedAt: new Date(),
+        clientEmail: normalizeEmail(booking.email),
+        clientAccessToken: createGalleryClientAccessToken()
+      }
+    });
+
+    await tx.miniSessionBooking.update({
+      where: { id: booking.id },
+      data: {
+        proofingGalleryId: created.id,
+        workflowStatus: MINI_SESSION_WORKFLOW_RAW_UPLOAD,
+        shootCompletedAt: booking.shootCompletedAt ?? new Date()
+      }
+    });
+
+    return created;
+  });
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  revalidatePath(miniSessionBookingWorkflowUrl(booking.miniSession.id, booking.id));
+  revalidatePath("/admin/galleries");
+  redirect(`/admin/galleries/${gallery.id}?tab=photos&miniSessionWorkflow=1`);
+}
+
+export async function createMiniSessionFinalGalleryAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
+      status: { notIn: [MINI_SESSION_BOOKING_STATUS_CANCELLED, MINI_SESSION_BOOKING_STATUS_NO_SHOW] },
+      miniSession: adminOwnedWhere(admin)
+    },
+    include: {
+      miniSession: { select: { id: true, adminId: true, slug: true } },
+      proofingGallery: { select: { id: true, proofingStatus: true } },
+      finalGallery: { select: { id: true } }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  if (booking.finalGallery) {
+    redirect(`/admin/galleries/${booking.finalGallery.id}?tab=photos`);
+  }
+
+  if (
+    !booking.proofingGallery ||
+    ![PROOFING_STATUS_SUBMITTED, PROOFING_STATUS_PROCESSING].includes(booking.proofingGallery.proofingStatus)
+  ) {
+    redirect(`${miniSessionBookingWorkflowUrl(booking.miniSession.id, booking.id)}?error=selection-required`);
+  }
+
+  const slug = normalizeSlug(`${booking.miniSession.slug}-${booking.name}-kesz-${booking.id.slice(-8)}`);
+  const gallery = await prisma.$transaction(async (tx) => {
+    const created = await tx.gallery.create({
+      data: {
+        adminId: booking.miniSession.adminId,
+        customerId: booking.customerId,
+        projectId: booking.projectId,
+        title: `${booking.name} – Kész galéria`,
+        slug,
+        eventDate: booking.startsAt,
+        isActive: false,
+        galleryMode: GALLERY_MODE_FULL,
+        deliveryMode: "free_download",
+        downloadsEnabled: true,
+        clientEmail: normalizeEmail(booking.email),
+        clientAccessToken: createGalleryClientAccessToken()
+      }
+    });
+
+    await tx.miniSessionBooking.update({
+      where: { id: booking.id },
+      data: {
+        finalGalleryId: created.id,
+        workflowStatus: MINI_SESSION_WORKFLOW_FINAL_UPLOAD,
+        selectionSubmittedAt: booking.selectionSubmittedAt ?? new Date()
+      }
+    });
+
+    return created;
+  });
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  revalidatePath(miniSessionBookingWorkflowUrl(booking.miniSession.id, booking.id));
+  revalidatePath("/admin/galleries");
+  redirect(`/admin/galleries/${gallery.id}?tab=photos&miniSessionWorkflow=1`);
+}
+
+export async function deliverMiniSessionFinalGalleryAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
+      status: { notIn: [MINI_SESSION_BOOKING_STATUS_CANCELLED, MINI_SESSION_BOOKING_STATUS_NO_SHOW] },
+      miniSession: adminOwnedWhere(admin)
+    },
+    include: {
+      miniSession: {
+        select: {
+          id: true,
+          adminId: true,
+          admin: {
+            select: {
+              siteSettings: { select: { publicSubdomain: true } }
+            }
+          }
+        }
+      },
+      customer: { select: { preferredLanguage: true } },
+      finalGallery: {
+        include: {
+          _count: { select: { photos: true } }
+        }
+      }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  const workflowUrl = miniSessionBookingWorkflowUrl(booking.miniSession.id, booking.id);
+  const gallery = booking.finalGallery;
+
+  if (!gallery || gallery._count.photos === 0) {
+    redirect(`${workflowUrl}?error=final-photos-required`);
+  }
+
+  const recipient = normalizeEmail(gallery.clientEmail || booking.email);
+
+  if (!isValidEmail(recipient)) {
+    redirect(`${workflowUrl}?error=client-email`);
+  }
+
+  await prisma.gallery.update({
+    where: { id: gallery.id },
+    data: {
+      isActive: true,
+      downloadsEnabled: true,
+      clientEmail: recipient,
+      finalDeliveryEmailError: null
+    }
+  });
+
+  const language = normalizeCustomerLanguage(booking.customer?.preferredLanguage);
+  const galleryUrl = publicGalleryUrl(
+    gallery.slug,
+    language,
+    booking.miniSession.admin.siteSettings?.publicSubdomain ?? null
+  );
+  const delivery = await runLoggedDelivery({
+    adminId: booking.miniSession.adminId,
+    channel: DELIVERY_CHANNEL_EMAIL,
+    type: "email.mini_session.final_gallery",
+    recipient,
+    subject: `Kész galéria: ${gallery.title}`,
+    provider: "resend",
+    entityType: "mini_session_booking",
+    entityId: booking.id,
+    metadata: { galleryId: gallery.id },
+    send: () =>
+      sendClientFinalDeliveryEmail({
+        to: recipient,
+        galleryTitle: gallery.title,
+        galleryUrl,
+        downloadsEnabled: true,
+        language
+      })
+  });
+
+  if (!delivery.ok) {
+    await prisma.gallery.update({
+      where: { id: gallery.id },
+      data: { finalDeliveryEmailError: delivery.errorMessage ?? "Az e-mail küldése nem sikerült." }
+    });
+    redirect(`${workflowUrl}?error=delivery-email`);
+  }
+
+  const deliveredAt = new Date();
+  await prisma.$transaction([
+    prisma.gallery.update({
+      where: { id: gallery.id },
+      data: {
+        finalDeliveryEmailSentAt: deliveredAt,
+        finalDeliveryEmailSentTo: recipient,
+        finalDeliveryEmailError: null
+      }
+    }),
+    prisma.miniSessionBooking.update({
+      where: { id: booking.id },
+      data: {
+        workflowStatus: MINI_SESSION_WORKFLOW_DELIVERED,
+        finalDeliveredAt: deliveredAt,
+        status: MINI_SESSION_BOOKING_STATUS_COMPLETED
+      }
+    })
+  ]);
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
+  revalidatePath(workflowUrl);
+  revalidatePath(`/admin/galleries/${gallery.id}`);
+  revalidatePath(`/g/${gallery.slug}`);
+  revalidatePath("/admin/dashboard");
+  redirect(`${workflowUrl}?delivered=1`);
 }
 
 export async function resendMiniSessionBookingConfirmationAction(bookingId: string) {

@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarClock, CheckCircle2, Code2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Code2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -55,6 +55,7 @@ import {
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
 
 type MiniSessionTab = "overview" | "bookings" | "slots" | "settings";
 type DeliveryDisplay = {
@@ -444,7 +445,15 @@ export default async function AdminMiniSessionDetailPage({
         orderBy: [{ weekday: "asc" }, { startsAt: "asc" }]
       },
       bookings: {
-        orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }]
+        orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+        include: {
+          proofingGallery: {
+            select: { proofingInviteSentAt: true, proofingStatus: true }
+          },
+          finalGallery: {
+            select: { finalDeliveryEmailSentAt: true }
+          }
+        }
       }
     }
   });
@@ -841,6 +850,13 @@ export default async function AdminMiniSessionDetailPage({
                         <p className="flex items-center gap-2"><Users size={14} /> {booking.attendeeCount} fő</p>
                       </div>
                       {booking.adminNote ? <p className="mt-3 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
+                      <Link
+                        href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
+                        className="mt-3 flex items-center justify-between rounded-md border border-brass/20 bg-brass/5 px-3 py-2 text-sm font-medium text-ink transition hover:bg-brass/10"
+                      >
+                        <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
+                        <ArrowRight size={15} />
+                      </Link>
                       <div className="mt-3 space-y-2 rounded-md border border-ink/10 bg-white px-3 py-3">
                         <DeliveryStatusLine label="Ügyfél e-mail" display={customerEmailDelivery} />
                         <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
@@ -934,17 +950,26 @@ export default async function AdminMiniSessionDetailPage({
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <BookingManagementActions
-                              bookingId={booking.id}
-                              status={booking.status}
-                              canCloseBooking={canCloseBooking}
-                              currentSlot={currentSlot}
-                              rescheduleSlots={rescheduleSlots}
-                              showSlotDates={showSlotDates}
-                              customerEmailDelivery={customerEmailDelivery}
-                              adminEmailDelivery={adminEmailDelivery}
-                              calendarDelivery={calendarDelivery}
-                            />
+                            <div className="grid min-w-52 gap-2">
+                              <Link
+                                href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
+                                className="inline-flex h-9 items-center justify-between gap-2 rounded-md border border-brass/20 bg-brass/5 px-3 text-xs font-semibold text-ink transition hover:bg-brass/10"
+                              >
+                                <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
+                                <ArrowRight size={14} />
+                              </Link>
+                              <BookingManagementActions
+                                bookingId={booking.id}
+                                status={booking.status}
+                                canCloseBooking={canCloseBooking}
+                                currentSlot={currentSlot}
+                                rescheduleSlots={rescheduleSlots}
+                                showSlotDates={showSlotDates}
+                                customerEmailDelivery={customerEmailDelivery}
+                                adminEmailDelivery={adminEmailDelivery}
+                                calendarDelivery={calendarDelivery}
+                              />
+                            </div>
                           </td>
                         </tr>
                       );
