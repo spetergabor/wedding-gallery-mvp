@@ -63,8 +63,7 @@ import {
   GALLERY_MODE_FULL,
   GALLERY_MODE_PROOFING,
   PROOFING_STATUS_NOT_OPENED,
-  PROOFING_STATUS_PROCESSING,
-  PROOFING_STATUS_SUBMITTED
+  PROOFING_STATUS_PROCESSING
 } from "@/lib/proofing";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import { normalizeSlug } from "@/lib/slug";
@@ -2222,7 +2221,20 @@ export async function createMiniSessionFinalGalleryAction(bookingId: string) {
     },
     include: {
       miniSession: { select: { id: true, adminId: true, slug: true } },
-      proofingGallery: { select: { id: true, proofingStatus: true } },
+      proofingGallery: {
+        select: {
+          id: true,
+          proofingStatus: true,
+          favoriteLists: {
+            orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
+            select: {
+              submittedAt: true,
+              updatedAt: true,
+              _count: { select: { items: true } }
+            }
+          }
+        }
+      },
       finalGallery: { select: { id: true } }
     }
   });
@@ -2235,15 +2247,22 @@ export async function createMiniSessionFinalGalleryAction(bookingId: string) {
     redirect(`/admin/galleries/${booking.finalGallery.id}?tab=photos`);
   }
 
-  if (
-    !booking.proofingGallery ||
-    ![PROOFING_STATUS_SUBMITTED, PROOFING_STATUS_PROCESSING].includes(booking.proofingGallery.proofingStatus)
-  ) {
+  const selectedList = booking.proofingGallery?.favoriteLists.find((list) => list._count.items > 0) ?? null;
+
+  if (!booking.proofingGallery || !selectedList) {
     redirect(`${miniSessionBookingWorkflowUrl(booking.miniSession.id, booking.id)}?error=selection-required`);
   }
 
   const slug = normalizeSlug(`${booking.miniSession.slug}-${booking.name}-kesz-${booking.id.slice(-8)}`);
   const gallery = await prisma.$transaction(async (tx) => {
+    await tx.gallery.update({
+      where: { id: booking.proofingGallery!.id },
+      data: {
+        proofingStatus: PROOFING_STATUS_PROCESSING,
+        proofingStatusUpdatedAt: new Date()
+      }
+    });
+
     const created = await tx.gallery.create({
       data: {
         adminId: booking.miniSession.adminId,
@@ -2266,7 +2285,8 @@ export async function createMiniSessionFinalGalleryAction(bookingId: string) {
       data: {
         finalGalleryId: created.id,
         workflowStatus: MINI_SESSION_WORKFLOW_FINAL_UPLOAD,
-        selectionSubmittedAt: booking.selectionSubmittedAt ?? new Date()
+        selectionSubmittedAt:
+          booking.selectionSubmittedAt ?? selectedList.submittedAt ?? selectedList.updatedAt
       }
     });
 

@@ -247,14 +247,26 @@ export default async function MiniSessionBookingWorkflowPage({
             <div>
               <div className="flex size-11 items-center justify-center rounded-full bg-brass text-white"><UserRound size={20} /></div>
               <h2 className="mt-4 text-xl font-semibold text-ink">Az ügyfél válogat</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">Itt most nincs teendőd. Amint az ügyfél lezárja a kiválasztást, ez a foglalás automatikusan a kész képek szakaszába lép.</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
+                {selectedFilenames.length > 0
+                  ? "Az ügyfél már választott képeket. Ha befejezte, indítsd el a kész képek feltöltését; ezzel a workflow a következő szakaszba lép."
+                  : "Itt most nincs teendőd. Amint az ügyfél képeket választ, innen indíthatod a kész képek feltöltését."}
+              </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-md bg-paper px-4 py-3"><p className="text-xs uppercase tracking-[0.15em] text-graphite/55">Nyers képek</p><p className="mt-2 text-2xl font-semibold text-ink">{proofingGallery?._count.photos ?? 0}</p></div>
                 <div className="rounded-md bg-paper px-4 py-3"><p className="text-xs uppercase tracking-[0.15em] text-graphite/55">Kiválasztva</p><p className="mt-2 text-2xl font-semibold text-ink">{activeList?.items.length ?? 0}</p></div>
                 <div className="rounded-md bg-paper px-4 py-3"><p className="text-xs uppercase tracking-[0.15em] text-graphite/55">Kiküldve</p><p className="mt-2 text-sm font-semibold text-ink">{formatDateTime(booking.selectionSentAt ?? proofingGallery?.proofingInviteSentAt)}</p></div>
               </div>
               {proofingGallery ? (
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  {selectedFilenames.length > 0 ? (
+                    <form action={createMiniSessionFinalGalleryAction.bind(null, booking.id)}>
+                      <FormSubmitButton disabled={isClosedWithoutDelivery} pendingLabel="Feltöltés előkészítése...">
+                        <UploadCloud size={16} />
+                        Képek feltöltése
+                      </FormSubmitButton>
+                    </form>
+                  ) : null}
                   <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=client`} variant="secondary"><ExternalLink size={16} /> Válogatás megnyitása</ButtonLink>
                   <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=client&proofingInvitePrompt=1`} variant="secondary"><Mail size={16} /> Emlékeztető szerkesztése</ButtonLink>
                 </div>
