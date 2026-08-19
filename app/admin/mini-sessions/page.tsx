@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   Ban,
   BriefcaseBusiness,
   CalendarClock,
@@ -64,6 +65,7 @@ import {
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
 
 type BookingHubTab = "overview" | "create" | "services" | "mini" | "bookings" | "calendar";
 type BookingCreateMode = "service" | "mini";
@@ -588,7 +590,15 @@ export default async function AdminMiniSessionsPage({
           orderBy: [{ weekday: "asc" }, { startsAt: "asc" }]
         },
         bookings: {
-          orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }]
+          orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+          include: {
+            proofingGallery: {
+              select: { proofingInviteSentAt: true, proofingStatus: true }
+            },
+            finalGallery: {
+              select: { finalDeliveryEmailSentAt: true }
+            }
+          }
         }
       }
     }),
@@ -1180,6 +1190,13 @@ export default async function AdminMiniSessionsPage({
                         <p className="mt-1 truncate text-xs text-graphite/55">/mini-session/{session.slug}</p>
                       </div>
                       <div className="flex flex-wrap gap-2 md:justify-end">
+                        <Link
+                          href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
+                          className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-graphite md:w-auto"
+                        >
+                          {miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}
+                          <ArrowRight size={14} />
+                        </Link>
                         {canCloseBooking ? (
                           <>
                             <form action={updateMiniSessionBookingStatusAction.bind(null, booking.id)}>

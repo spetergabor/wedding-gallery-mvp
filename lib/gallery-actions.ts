@@ -61,6 +61,7 @@ import { normalizeSaleCurrency, parseGallerySalePriceCents } from "@/lib/gallery
 import { parseGallerySalePricingTiersFromForm, parsePriceCents } from "@/lib/gallery-sale-pricing";
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
+import { MINI_SESSION_WORKFLOW_CLIENT_SELECTION } from "@/lib/mini-session-workflow";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
   abortMultipartUpload,
@@ -942,6 +943,31 @@ export async function sendProofingInviteDraftAction(
   revalidatePath(`/admin/galleries/${galleryId}`);
 
   if (result.ok) {
+    const sentAt = new Date();
+    const linkedBookings = await prisma.miniSessionBooking.findMany({
+      where: { proofingGalleryId: galleryId },
+      select: { id: true, miniSessionId: true }
+    });
+
+    await prisma.$transaction([
+      prisma.gallery.update({
+        where: { id: galleryId },
+        data: { isActive: true }
+      }),
+      prisma.miniSessionBooking.updateMany({
+        where: { proofingGalleryId: galleryId },
+        data: {
+          workflowStatus: MINI_SESSION_WORKFLOW_CLIENT_SELECTION,
+          selectionSentAt: sentAt
+        }
+      })
+    ]);
+
+    for (const booking of linkedBookings) {
+      revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
+      revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}/bookings/${booking.id}`);
+    }
+
     return { ok: true, reason: "sent", message: "A válogató e-mail elküldve." } as const;
   }
 
