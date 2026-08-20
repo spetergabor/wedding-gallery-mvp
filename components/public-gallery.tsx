@@ -533,6 +533,7 @@ export function PublicGallery({
   sale = null,
   favoritesEnabled = true,
   favoriteMode = "favorites",
+  favoriteEmailRequired = true,
   language = "de",
   mobileColumns = 1,
   gridGap = 8,
@@ -553,6 +554,7 @@ export function PublicGallery({
   sale?: GallerySaleSettings | null;
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
+  favoriteEmailRequired?: boolean;
   language?: CustomerLanguage;
   mobileColumns?: number;
   gridGap?: number;
@@ -642,6 +644,20 @@ export function PublicGallery({
     () => new Set(favoritesEnabled ? activeFavoriteList?.photoIds ?? [] : []),
     [activeFavoriteList, favoritesEnabled]
   );
+
+  function anonymousFavoriteIdentity() {
+    const storageKey = `wgm-favorite-email-${galleryId}`;
+    const storedIdentity = window.localStorage.getItem(storageKey);
+
+    if (storedIdentity) {
+      return storedIdentity;
+    }
+
+    const token = window.crypto.randomUUID().replaceAll("-", "");
+    const identity = `guest-${token}@favorites.spetly.local`;
+    window.localStorage.setItem(storageKey, identity);
+    return identity;
+  }
 
   const visiblePhotos = useMemo(() => {
     if (!favoritesEnabled || !showFavoritesOnly) {
@@ -842,7 +858,9 @@ export function PublicGallery({
       return;
     }
 
-    const storedEmail = window.localStorage.getItem(`wgm-favorite-email-${galleryId}`);
+    const storedEmail =
+      window.localStorage.getItem(`wgm-favorite-email-${galleryId}`) ||
+      (!favoriteEmailRequired ? anonymousFavoriteIdentity() : "");
 
     if (!storedEmail) {
       return;
@@ -856,7 +874,7 @@ export function PublicGallery({
         setActiveFavoriteListId(result.lists[0]?.id ?? "");
       }
     });
-  }, [favoritesEnabled, galleryId]);
+  }, [favoriteEmailRequired, favoritesEnabled, galleryId]);
 
   function showPreviousPhoto() {
     setSelectedIndex((current) => {
@@ -1078,7 +1096,12 @@ export function PublicGallery({
       return;
     }
 
-    const emailForFavorite = emailOverride ?? favoriteEmail;
+    let emailForFavorite = emailOverride ?? favoriteEmail;
+
+    if (!emailForFavorite && !favoriteEmailRequired) {
+      emailForFavorite = anonymousFavoriteIdentity();
+      setFavoriteEmail(emailForFavorite);
+    }
 
     if (!emailForFavorite) {
       setFavoritePromptPhotoId(photoId);
@@ -1232,7 +1255,10 @@ export function PublicGallery({
       return;
     }
 
-    const normalizedEmail = favoriteEmail || favoriteEmailDraft.trim().toLowerCase();
+    const normalizedEmail =
+      favoriteEmail ||
+      favoriteEmailDraft.trim().toLowerCase() ||
+      (!favoriteEmailRequired ? anonymousFavoriteIdentity() : "");
     const listName = newFavoriteListName.trim();
 
     if (!normalizedEmail) {
@@ -2419,7 +2445,7 @@ export function PublicGallery({
         </div>
       ) : null}
 
-      {favoritesEnabled && favoritePromptPhotoId ? (
+      {favoritesEnabled && favoriteEmailRequired && favoritePromptPhotoId ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-ink/60 px-5 backdrop-blur-sm">
           <form onSubmit={submitFavoriteEmail} className="w-full max-w-md rounded-lg bg-white p-6 shadow-soft">
             <div className="flex items-start justify-between gap-4">

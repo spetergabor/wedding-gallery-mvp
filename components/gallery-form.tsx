@@ -215,7 +215,11 @@ export function GalleryForm({
                 <span className="block rounded-md bg-paper px-3 py-2 text-xs leading-5 text-graphite">
                   Régi galéria email: <span className="font-medium text-ink">{gallery.clientEmail}</span>
                 </span>
-              ) : null}
+              ) : (
+                <span className="block rounded-md bg-sage/10 px-3 py-2 text-xs leading-5 text-sage">
+                  Önálló galéria: e-mail cím megadása nem szükséges.
+                </span>
+              )}
             </label>
 
             <label className="block space-y-2">

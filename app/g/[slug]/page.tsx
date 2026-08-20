@@ -401,6 +401,7 @@ export default async function PublicGalleryPage({
         sale={saleSettings}
         favoritesEnabled={favoritesEnabled}
         favoriteMode={proofingSelection ? "proofing" : "favorites"}
+        favoriteEmailRequired={Boolean(gallery.customerId) || proofingSelection}
         language={language}
         mobileColumns={gallery.publicColumnCount}
         gridGap={publicGridGap}
