@@ -875,7 +875,7 @@ export async function generateClientAccessLinkAction(galleryId: string) {
 
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/client/${gallery.slug}`);
-  redirect(`/admin/galleries/${galleryId}?tab=client&clientLink=1`);
+  redirect(`/admin/galleries/${galleryId}?tab=activity&clientLink=1`);
 }
 
 export async function generateLightroomUploadTokenAction(galleryId: string) {
@@ -985,7 +985,7 @@ export async function sendFinalDeliveryEmailAction(galleryId: string) {
   const status = result.ok ? "sent" : result.reason === "missing-email" ? "missing-email" : "failed";
 
   revalidatePath(`/admin/galleries/${galleryId}`);
-  redirect(`/admin/galleries/${galleryId}?tab=client&deliveryEmail=${status}`);
+  redirect(`/admin/galleries/${galleryId}?tab=activity&deliveryEmail=${status}`);
 }
 
 export async function restoreClientHiddenPhotoAction(galleryId: string, photoId: string) {
@@ -1065,7 +1065,7 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
   await requireGalleryAccess(galleryId);
 
   if (!PROOFING_STATUSES.some((item) => item.key === status)) {
-    redirect(`/admin/galleries/${galleryId}?tab=client&error=proofing-status`);
+    redirect(`/admin/galleries/${galleryId}?tab=activity&error=proofing-status`);
   }
 
   if (status === PROOFING_STATUS_DELIVERED) {
@@ -1083,7 +1083,7 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
     ]);
 
     if (finalPhotoCount === 0) {
-      redirect(`/admin/galleries/${galleryId}?tab=client&deliveryEmail=no-final-photos`);
+      redirect(`/admin/galleries/${galleryId}?tab=activity&deliveryEmail=no-final-photos`);
     }
 
     const recipient = normalizeEmail(galleryBeforeDelivery?.clientEmail);
@@ -1093,7 +1093,7 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
         where: { id: galleryId },
         data: { finalDeliveryEmailError: "Hiányzó vagy érvénytelen ügyfél email cím." }
       });
-      redirect(`/admin/galleries/${galleryId}?tab=client&deliveryEmail=missing-email`);
+      redirect(`/admin/galleries/${galleryId}?tab=activity&deliveryEmail=missing-email`);
     }
   }
 
@@ -1115,10 +1115,10 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
     const emailResult = await sendFinalDeliveryEmailForGallery(galleryId);
     const deliveryEmail = emailResult.ok ? "sent" : emailResult.reason === "missing-email" ? "missing-email" : "failed";
 
-    redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1&deliveryEmail=${deliveryEmail}&zip=manual-required`);
+    redirect(`/admin/galleries/${galleryId}?tab=activity&proofingStatus=1&deliveryEmail=${deliveryEmail}&zip=manual-required`);
   }
 
-  redirect(`/admin/galleries/${galleryId}?tab=client&proofingStatus=1`);
+  redirect(`/admin/galleries/${galleryId}?tab=activity&proofingStatus=1`);
 }
 
 export async function createGalleryAction(formData: FormData) {
@@ -2839,7 +2839,7 @@ export async function queueGalleryZipPackageAction(galleryId: string) {
 
   revalidatePath(`/admin/galleries/${gallery.id}`);
   revalidatePath(`/g/${gallery.slug}`);
-  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=${zipStatus}`);
+  redirect(`/admin/galleries/${gallery.id}?tab=activity&zip=${zipStatus}`);
 }
 
 export async function retryGalleryZipPackageGroupAction(galleryId: string, groupKey: string) {
@@ -2857,7 +2857,7 @@ export async function retryGalleryZipPackageGroupAction(galleryId: string, group
   });
 
   if (packages.length === 0) {
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=not-found`);
+    redirect(`/admin/galleries/${gallery.id}?tab=activity&zip=not-found`);
   }
 
   await prisma.$transaction([
@@ -2912,7 +2912,7 @@ export async function retryGalleryZipPackageGroupAction(galleryId: string, group
 
   revalidatePath(`/admin/galleries/${gallery.id}`);
   revalidatePath(`/g/${gallery.slug}`);
-  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=queued`);
+  redirect(`/admin/galleries/${gallery.id}?tab=activity&zip=queued`);
 }
 
 export async function deleteGalleryZipPackageGroupAction(galleryId: string, groupKey: string) {
@@ -2930,13 +2930,13 @@ export async function deleteGalleryZipPackageGroupAction(galleryId: string, grou
   });
 
   if (packages.length === 0) {
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=not-found`);
+    redirect(`/admin/galleries/${gallery.id}?tab=activity&zip=not-found`);
   }
 
   const hasActivePackage = packages.some((downloadPackage) => downloadPackage.status === "pending" || downloadPackage.status === "processing");
 
   if (hasActivePackage) {
-    redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=delete-active`);
+    redirect(`/admin/galleries/${gallery.id}?tab=activity&zip=delete-active`);
   }
 
   const packageIds = packages.map((downloadPackage) => downloadPackage.id);
@@ -2953,7 +2953,7 @@ export async function deleteGalleryZipPackageGroupAction(galleryId: string, grou
 
   revalidatePath(`/admin/galleries/${gallery.id}`);
   revalidatePath(`/g/${gallery.slug}`);
-  redirect(`/admin/galleries/${gallery.id}?tab=downloads&zip=deleted`);
+  redirect(`/admin/galleries/${gallery.id}?tab=activity&zip=deleted`);
 }
 
 function isZipFilename(filename: string) {
@@ -3364,7 +3364,7 @@ export async function resendGalleryDownloadEmailsAction(galleryId: string, downl
   const validDownloadIds = [...new Set(downloadIds.filter(Boolean))];
 
   if (validDownloadIds.length === 0) {
-    redirect(`/admin/galleries/${galleryId}?tab=downloads&downloadEmail=missing`);
+    redirect(`/admin/galleries/${galleryId}?tab=activity&downloadEmail=missing`);
   }
 
   const downloads = await prisma.galleryDownload.findMany({
@@ -3378,13 +3378,13 @@ export async function resendGalleryDownloadEmailsAction(galleryId: string, downl
   });
 
   if (downloads.length === 0) {
-    redirect(`/admin/galleries/${galleryId}?tab=downloads&downloadEmail=missing`);
+    redirect(`/admin/galleries/${galleryId}?tab=activity&downloadEmail=missing`);
   }
 
   await sendGalleryDownloadLinksForDownloadRequests(downloads.map((download) => download.id));
 
   revalidatePath(`/admin/galleries/${galleryId}`);
-  redirect(`/admin/galleries/${galleryId}?tab=downloads&downloadEmail=resent`);
+  redirect(`/admin/galleries/${galleryId}?tab=activity&downloadEmail=resent`);
 }
 
 export async function setCoverPhotoAction(galleryId: string, photoId: string) {

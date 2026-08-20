@@ -1351,7 +1351,7 @@ function buildAutomationItems(
       updatedAt: zipPackage.generatedAt ?? zipPackage.updatedAt,
       createdAt: zipPackage.createdAt,
       error: zipPackage.errorMessage,
-      href: `/admin/galleries/${zipPackage.galleryId}?tab=downloads`,
+      href: `/admin/galleries/${zipPackage.galleryId}?tab=activity`,
       retry: isFailed ? { kind: "zip", galleryId: zipPackage.galleryId, groupKey } : null
     });
   }
@@ -1370,7 +1370,7 @@ function buildAutomationItems(
       updatedAt: purchase.fulfilledAt ?? purchase.paidAt ?? purchase.updatedAt,
       createdAt: purchase.createdAt,
       error: purchase.fulfillmentError,
-      href: `/admin/galleries/${purchase.galleryId}?tab=downloads`,
+      href: `/admin/galleries/${purchase.galleryId}?tab=activity`,
       retry: isPaidButUnfulfilled || purchase.fulfillmentError ? { kind: "stripe_fulfillment", purchaseId: purchase.id } : null
     });
   }

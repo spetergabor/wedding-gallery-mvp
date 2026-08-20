@@ -1207,6 +1207,12 @@ export function PhotoUploadForm({
                 ) : null}
               </div>
             ) : null}
+            <details className="mb-5 rounded-md border border-ink/10 bg-white">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                Feltöltési beállítások
+                <span className="text-xs font-medium uppercase tracking-[0.12em] text-graphite/50">Speciális</span>
+              </summary>
+              <div className="border-t border-ink/10 p-4">
             {sections.length > 0 ? (
               <label className="mb-5 block space-y-2">
                 <span className="text-sm font-medium text-graphite">Feltöltés ide</span>
@@ -1253,6 +1259,8 @@ export function PhotoUploadForm({
                   : "Azonos fájlnév és méret alapján. Kihagyásnál nem tölti fel újra, felülírásnál a meglévő képet frissíti."}
               </p>
             </label>
+              </div>
+            </details>
             <p className="text-sm font-medium text-graphite">Kiválasztott médiák</p>
             <p className="mt-2 text-3xl font-semibold text-ink">{selectedFiles.length}</p>
             <p className="mt-1 text-sm text-graphite/70">

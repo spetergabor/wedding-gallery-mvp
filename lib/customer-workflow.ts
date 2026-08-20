@@ -282,7 +282,7 @@ export function getCustomerWorkflowSummary(customer: WorkflowCustomer, language:
       iconKey: hasFinalPhotos ? ("check" satisfies CustomerWorkflowIconKey) : ("upload" satisfies CustomerWorkflowIconKey),
       title: hasFinalPhotos ? copy.deliverFinalPhotosTitle : copy.uploadFinalPhotosTitle,
       description: hasFinalPhotos ? copy.deliverAfterSubmittedDescription : copy.uploadAfterSubmittedDescription,
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
       buttonLabel: hasFinalPhotos ? copy.manageDelivery : copy.uploadFinalPhotos
     };
   }
@@ -297,7 +297,7 @@ export function getCustomerWorkflowSummary(customer: WorkflowCustomer, language:
       iconKey: hasFinalPhotos ? ("check" satisfies CustomerWorkflowIconKey) : ("upload" satisfies CustomerWorkflowIconKey),
       title: hasFinalPhotos ? copy.deliverFinalPhotosTitle : copy.editingInProgressTitle,
       description: hasFinalPhotos ? copy.deliverFromProcessingDescription : copy.processingDescription,
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
       buttonLabel: hasFinalPhotos ? copy.openDelivery : copy.uploadFinalPhotos
     };
   }
@@ -314,7 +314,7 @@ export function getCustomerWorkflowSummary(customer: WorkflowCustomer, language:
       iconKey: proofingGallery.proofingInviteSentAt ? ("heart" satisfies CustomerWorkflowIconKey) : ("mail" satisfies CustomerWorkflowIconKey),
       title: proofingGallery.proofingInviteSentAt ? copy.trackSelectionTitle : copy.sendSelectionLinkTitle,
       description: proofingGallery.proofingInviteSentAt ? copy.trackSelectionDescription : copy.sendSelectionLinkDescription,
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
       buttonLabel: proofingGallery.proofingInviteSentAt ? copy.openSelection : copy.sendLink
     };
   }
@@ -328,7 +328,7 @@ export function getCustomerWorkflowSummary(customer: WorkflowCustomer, language:
       iconKey: "check" satisfies CustomerWorkflowIconKey,
       title: finishedProofingGallery.finalDeliveryEmailSentAt ? copy.deliverySentTitle : copy.finalPhotosReadyTitle,
       description: finishedProofingGallery.finalDeliveryEmailSentAt ? copy.deliverySentDescription : copy.finalPhotosReadyDescription,
-      href: `/admin/galleries/${finishedProofingGallery.id}?tab=client`,
+      href: `/admin/galleries/${finishedProofingGallery.id}?tab=activity`,
       buttonLabel: copy.openDelivery
     };
   }

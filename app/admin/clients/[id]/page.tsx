@@ -797,7 +797,7 @@ function createCustomerTasks(
       title: copy.tasks.selectionLink,
       detail: activeProofingGallery.proofingInviteSentAt ? copy.tasks.sentToClient : copy.tasks.notSentYet,
       state: activeProofingGallery.proofingInviteSentAt ? "done" : "action",
-      href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
+      href: `/admin/galleries/${activeProofingGallery.id}?tab=activity`
     });
     tasks.push({
       title: copy.tasks.clientSelection,
@@ -807,13 +807,13 @@ function createCustomerTasks(
         activeProofingGallery.proofingStatus === PROOFING_STATUS_PROCESSING
           ? "done"
           : "waiting",
-      href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
+      href: `/admin/galleries/${activeProofingGallery.id}?tab=activity`
     });
     tasks.push({
       title: copy.tasks.finalPhotos,
       detail: hasFinalPhotos ? copy.tasks.hasFinalPhotos : copy.tasks.noFinalPhotos,
       state: hasFinalPhotos ? "done" : activeProofingGallery.proofingStatus === PROOFING_STATUS_SUBMITTED ? "action" : "info",
-      href: `/admin/galleries/${activeProofingGallery.id}?tab=client`
+      href: `/admin/galleries/${activeProofingGallery.id}?tab=activity`
     });
   }
 
@@ -988,7 +988,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput, copy: ClientDet
         date: gallery.proofingStatusUpdatedAt,
         title: copy.timeline.proofingStatusUpdated,
         detail: `${gallery.title} · ${proofingStatusLabel(gallery.proofingStatus, language)}`,
-        href: `/admin/galleries/${gallery.id}?tab=client`
+        href: `/admin/galleries/${gallery.id}?tab=activity`
       });
     }
 
@@ -997,7 +997,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput, copy: ClientDet
         date: gallery.proofingInviteSentAt,
         title: copy.timeline.proofingLinkSent,
         detail: gallery.title,
-        href: `/admin/galleries/${gallery.id}?tab=client`
+        href: `/admin/galleries/${gallery.id}?tab=activity`
       });
     }
 
@@ -1010,7 +1010,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput, copy: ClientDet
         date: list.submittedAt,
         title: copy.timeline.selectionSubmitted,
         detail: `${list.email} · ${list._count.items} ${copy.timeline.selectedPhotos}`,
-        href: `/admin/galleries/${gallery.id}?tab=client`
+        href: `/admin/galleries/${gallery.id}?tab=activity`
       });
     });
 
@@ -1019,7 +1019,7 @@ function createCustomerTimeline(customer: CustomerWorkflowInput, copy: ClientDet
         date: gallery.finalDeliveryEmailSentAt,
         title: copy.timeline.finalDeliverySent,
         detail: gallery.title,
-        href: `/admin/galleries/${gallery.id}?tab=client`
+        href: `/admin/galleries/${gallery.id}?tab=activity`
       });
     }
   });
@@ -1057,7 +1057,7 @@ function createCommunicationEvents(customer: CustomerWorkflowInput, copy: Client
         date: gallery.proofingInviteSentAt,
         title: copy.communication.proofingEmail,
         detail: gallery.title,
-        href: `/admin/galleries/${gallery.id}?tab=client`
+        href: `/admin/galleries/${gallery.id}?tab=activity`
       });
     }
 
@@ -1066,7 +1066,7 @@ function createCommunicationEvents(customer: CustomerWorkflowInput, copy: Client
         date: gallery.finalDeliveryEmailSentAt,
         title: copy.communication.finalGalleryEmail,
         detail: gallery.title,
-        href: `/admin/galleries/${gallery.id}?tab=client`
+        href: `/admin/galleries/${gallery.id}?tab=activity`
       });
     }
   });
@@ -2376,7 +2376,7 @@ export default async function AdminClientDetailPage({
           ) : (
             <div className="mt-5 grid gap-3">
               {proofingGalleries.map((gallery) => (
-                <Link key={gallery.id} href={`/admin/galleries/${gallery.id}?tab=client`} className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-ink/20 hover:bg-ink/[0.03]">
+                <Link key={gallery.id} href={`/admin/galleries/${gallery.id}?tab=activity`} className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-ink/20 hover:bg-ink/[0.03]">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">

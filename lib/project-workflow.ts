@@ -428,7 +428,7 @@ export function getProjectWorkflowSummary(
       return {
         title: "Válogató link kiküldése",
         detail: "A nyers galéria megvan, de az ügyfél még nem kapta meg a válogató linket.",
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
         buttonLabel: "Kiküldés kezelése",
         state: "action",
         stateLabel: stateLabel("action"),
@@ -440,7 +440,7 @@ export function getProjectWorkflowSummary(
       return {
         title: "Ügyfél válogatásra vár",
         detail: proofingStatusLabel(proofingGallery.proofingStatus),
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
         buttonLabel: "Válogatás megnyitása",
         state: "waiting",
         stateLabel: stateLabel("waiting"),
@@ -452,7 +452,7 @@ export function getProjectWorkflowSummary(
       return {
         title: "Képek kidolgozása",
         detail: "Az ügyfél leadta a válogatást. Most a kiválasztott képek feldolgozása következik.",
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
         buttonLabel: "Leadott válogatás",
         state: "action",
         stateLabel: stateLabel("action"),
@@ -464,7 +464,7 @@ export function getProjectWorkflowSummary(
       return {
         title: "Kidolgozás alatt",
         detail: "A válogatás feldolgozás alatt van. Ha elkészültél, a kész képek átadása következik.",
-        href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+        href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
         buttonLabel: "Kész képek kezelése",
         state: "waiting",
         stateLabel: stateLabel("waiting"),
@@ -475,7 +475,7 @@ export function getProjectWorkflowSummary(
     return {
       title: "Kész képek átadva",
       detail: "A végleges anyag át lett adva az ügyfélnek. A projekt lezárását továbbra is kézzel döntöd el.",
-      href: `/admin/galleries/${proofingGallery.id}?tab=client`,
+      href: `/admin/galleries/${proofingGallery.id}?tab=activity`,
       buttonLabel: "Átadás megnyitása",
       state: "done",
       stateLabel: stateLabel("done"),

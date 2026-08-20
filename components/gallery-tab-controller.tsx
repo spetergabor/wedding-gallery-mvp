@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Camera, Download, Heart, MapPin, Palette, Settings } from "lucide-react";
+import { Activity, Camera, Palette, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type GalleryTab = "photos" | "client" | "views" | "downloads" | "appearance" | "settings";
+type GalleryTab = "photos" | "activity" | "appearance" | "settings";
 
 type GalleryTabItem = {
   key: GalleryTab;
@@ -14,9 +14,7 @@ type GalleryTabItem = {
 
 const icons = {
   Camera,
-  Heart,
-  MapPin,
-  Download,
+  Activity,
   Palette,
   Settings
 } satisfies Record<string, LucideIcon>;
@@ -75,7 +73,8 @@ export function GalleryTabController({
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const tab = params.get("tab") as GalleryTab | null;
+      const requestedTab = params.get("tab");
+      const tab = (["client", "views", "downloads"].includes(requestedTab ?? "") ? "activity" : requestedTab) as GalleryTab | null;
 
       setActiveTab(tab && validTabs.has(tab) ? tab : "photos");
     };
@@ -87,7 +86,7 @@ export function GalleryTabController({
 
   return (
     <div className="overflow-hidden rounded-md border border-ink/12 bg-white">
-      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white md:grid-cols-6" aria-label="Galéria részletek">
+      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white sm:grid-cols-2 lg:grid-cols-4" aria-label="Galéria részletek">
         {tabs.map((tab) => {
           const Icon = icons[tab.icon];
           const isActive = activeTab === tab.key;

@@ -72,17 +72,15 @@ import {
 } from "@/lib/proofing";
 import { createViewLocationPoints } from "@/lib/view-location-points";
 
-type GalleryTab = "photos" | "client" | "views" | "downloads" | "appearance" | "settings";
+type GalleryTab = "photos" | "activity" | "appearance" | "settings";
 
 const galleryTabs: Array<{
   key: GalleryTab;
   label: string;
-  icon: "Camera" | "Heart" | "MapPin" | "Download" | "Palette" | "Settings";
+  icon: "Camera" | "Activity" | "Palette" | "Settings";
 }> = [
   { key: "photos", label: "Fotók", icon: "Camera" },
-  { key: "client", label: "Kedvenc listák", icon: "Heart" },
-  { key: "views", label: "Megtekintések", icon: "MapPin" },
-  { key: "downloads", label: "Letöltések", icon: "Download" },
+  { key: "activity", label: "Ügyfélaktivitás", icon: "Activity" },
   { key: "appearance", label: "Megjelenés", icon: "Palette" },
   { key: "settings", label: "Beállítások", icon: "Settings" }
 ];
@@ -102,6 +100,10 @@ function getActiveTab(flags: {
   saved?: string;
   tab?: string;
 }): GalleryTab {
+  if (["client", "views", "downloads"].includes(flags.tab ?? "")) {
+    return "activity";
+  }
+
   if (galleryTabs.some((tab) => tab.key === flags.tab)) {
     return flags.tab as GalleryTab;
   }
@@ -111,7 +113,7 @@ function getActiveTab(flags: {
   }
 
   if (flags.proofingInvite || flags.deliveryEmail) {
-    return "client";
+    return "activity";
   }
 
   if (flags.saved || flags.archived || flags.activated || flags.error) {
@@ -370,10 +372,7 @@ export default async function GalleryDetailPage({
   const activeTab = getActiveTab(flags);
   const locationPoints = createViewLocationPoints(gallery.views);
   const proofingGallery = isProofingGallery(gallery.galleryMode);
-  const renderedGalleryTabs = galleryTabs.map((tab) => ({
-    ...tab,
-    label: tab.key === "client" ? (proofingGallery ? "Válogatás" : "Kedvenc listák") : tab.label
-  }));
+  const renderedGalleryTabs = galleryTabs;
   const rawPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "raw").length;
   const finalPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "final").length;
   const selectedPhotoIds = Array.from(
@@ -641,7 +640,15 @@ export default async function GalleryDetailPage({
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
             <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
-              <div className="border-b border-ink/10 pb-6">
+              <details className="mb-6 rounded-md border border-ink/10 bg-paper">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-2">
+                    <Columns3 size={16} />
+                    Címkék és anchor blokkok
+                  </span>
+                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Opcionális</span>
+                </summary>
+                <div className="border-t border-ink/10 p-5">
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                   <div>
                     <p className={sectionMetaClass}>Galéria címkék</p>
@@ -676,8 +683,9 @@ export default async function GalleryDetailPage({
                     Még nincs címke. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
                   </div>
                 )}
-              </div>
-              <div className="pt-6">
+                </div>
+              </details>
+              <div>
                 <PhotoUploadForm
                   galleryId={gallery.id}
                   galleryMode={gallery.galleryMode}
@@ -703,48 +711,13 @@ export default async function GalleryDetailPage({
           </div>
         </div>
 
-        <div data-gallery-tab-panel="client" hidden={activeTab !== "client"}>
+        <div data-gallery-tab-panel="activity" hidden={activeTab !== "activity"}>
           <div className="space-y-6">
-            <section className="rounded-md border border-ink/12 bg-white p-4">
-              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                <div>
-                  <div className={sectionMetaClass}>
-                    <KeyRound size={15} />
-                    Ügyfél kezelő link
-                  </div>
-                  <h2 className="mt-2 text-lg font-semibold text-ink">Saját kép-elrejtő felület az ügyfélnek</h2>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">
-                    Ezen a külön linken az ügyfél maga tudja elrejteni azokat a képeket, amelyeket nem szeretne a publikus vendéggalériában és a ZIP letöltésben látni.
-                    A fájlok nem törlődnek, csak kikerülnek a publikus nézetből.
-                  </p>
-                  <p className="mt-3 text-sm text-graphite/70">
-                    {gallery.clientAccessToken ? `/client/${gallery.slug}?token=${gallery.clientAccessToken}` : "Még nincs létrehozott kezelő link."}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  {gallery.clientAccessToken ? (
-                    <>
-                      <CopyClientLinkButton
-                        slug={gallery.slug}
-                        token={gallery.clientAccessToken}
-                        label="Kezelő link másolása"
-                      />
-                      <ButtonLink href={`/client/${gallery.slug}?token=${gallery.clientAccessToken}`} variant="secondary">
-                        <ExternalLink size={16} />
-                        Megnyitás
-                      </ButtonLink>
-                    </>
-                  ) : (
-                    <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
-                      <FormSubmitButton pendingLabel="Létrehozás...">
-                        <KeyRound size={16} />
-                        Link létrehozása
-                      </FormSubmitButton>
-                    </form>
-                  )}
-                </div>
-              </div>
-            </section>
+            <div>
+              <p className={sectionMetaClass}>Ügyfélaktivitás</p>
+              <h2 className="mt-2 text-xl font-semibold text-ink">Válogatások, megtekintések és letöltések</h2>
+              <p className="mt-2 text-sm text-graphite/70">Minden ügyféloldali esemény egyetlen, áttekinthető munkaterületen.</p>
+            </div>
             {proofingGallery ? (
               <ProofingStatusPanel
                 galleryId={gallery.id}
@@ -903,22 +876,14 @@ export default async function GalleryDetailPage({
               </section>
             ) : null}
             <FavoriteListsLog lists={gallery.favoriteLists} mode={proofingGallery ? "proofing" : "favorites"} />
-          </div>
-        </div>
-
-        <div data-gallery-tab-panel="views" hidden={activeTab !== "views"}>
-          <div className="space-y-6">
+            <div className="border-t border-ink/10 pt-6"><p className={sectionMetaClass}>Megtekintések</p></div>
             <ViewLog views={gallery.views} />
             <ViewLocationMap
               points={locationPoints}
               title="Album megtekintések térképe"
               description="Összesített helyszínek kizárólag ennek a galériának a publikus megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható."
             />
-          </div>
-        </div>
-
-        <div data-gallery-tab-panel="downloads" hidden={activeTab !== "downloads"}>
-          <div className="space-y-6">
+            <div className="border-t border-ink/10 pt-6"><p className={sectionMetaClass}>Letöltések</p></div>
             <ZipPreparationStatus galleryId={gallery.id} packages={publicDownloadPackages} photoCount={gallery.photos.length} canPrepareZip={canPrepareZip} />
             <DownloadLog galleryId={gallery.id} downloads={publicDownloadEntries} packages={publicDownloadPackages.slice(0, 8)} />
           </div>
@@ -1569,6 +1534,31 @@ export default async function GalleryDetailPage({
 
         <div data-gallery-tab-panel="settings" hidden={activeTab !== "settings"}>
           <div className="space-y-8">
+            <details className="rounded-lg border border-ink/10 bg-white shadow-soft">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                <span className="flex items-center gap-2"><KeyRound size={17} /> Ügyfél kezelő link</span>
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Speciális</span>
+              </summary>
+              <div className="flex flex-col justify-between gap-4 border-t border-ink/10 p-5 md:flex-row md:items-center">
+                <div>
+                  <h2 className="text-lg font-semibold text-ink">Saját kép-elrejtő felület az ügyfélnek</h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-graphite/70">Külön kezelőfelület, ahol az ügyfél elrejtheti a publikus galériából és a ZIP-ből kihagyandó képeket. A fájlok nem törlődnek.</p>
+                  <p className="mt-3 text-sm text-graphite/70">{gallery.clientAccessToken ? `/client/${gallery.slug}?token=${gallery.clientAccessToken}` : "Még nincs létrehozott kezelő link."}</p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
+                  {gallery.clientAccessToken ? (
+                    <>
+                      <CopyClientLinkButton slug={gallery.slug} token={gallery.clientAccessToken} label="Kezelő link másolása" />
+                      <ButtonLink href={`/client/${gallery.slug}?token=${gallery.clientAccessToken}`} variant="secondary"><ExternalLink size={16} /> Megnyitás</ButtonLink>
+                    </>
+                  ) : (
+                    <form action={generateClientAccessLinkAction.bind(null, gallery.id)}>
+                      <FormSubmitButton pendingLabel="Létrehozás..."><KeyRound size={16} /> Link létrehozása</FormSubmitButton>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </details>
             <GalleryForm
               gallery={gallery}
               customers={customers}

@@ -203,7 +203,7 @@ export default async function MiniSessionBookingWorkflowPage({
       <section className={cardClass}>
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brass">Mini shooting átadási workflow</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brass">{booking.miniSession.title} · Mini shooting workflow</p>
             <h1 className="mt-2 text-2xl font-semibold text-ink">{booking.name}</h1>
             <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-graphite/70">
               <span className="inline-flex items-center gap-1.5"><CalendarClock size={15} /> {formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}</span>
@@ -237,7 +237,7 @@ export default async function MiniSessionBookingWorkflowPage({
         </div>
       </section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-5 space-y-5">
         <section className={cardClass}>
           {stage === MINI_SESSION_WORKFLOW_SHOOT_SCHEDULED ? (
             <div>
@@ -288,7 +288,7 @@ export default async function MiniSessionBookingWorkflowPage({
                       Képek feltöltése
                     </ButtonLink>
                     {proofingGallery._count.photos > 0 ? (
-                      <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=client&proofingInvitePrompt=1`}>
+                      <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`}>
                         <Mail size={16} />
                         E-mail szerkesztése és kiküldése
                       </ButtonLink>
@@ -342,8 +342,8 @@ export default async function MiniSessionBookingWorkflowPage({
                       </FormSubmitButton>
                     </form>
                   ) : null}
-                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=client`} variant="secondary"><ExternalLink size={16} /> Válogatás megnyitása</ButtonLink>
-                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=client&proofingInvitePrompt=1`} variant="secondary"><Mail size={16} /> Emlékeztető szerkesztése</ButtonLink>
+                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity`} variant="secondary"><ExternalLink size={16} /> Válogatás megnyitása</ButtonLink>
+                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`} variant="secondary"><Mail size={16} /> Emlékeztető szerkesztése</ButtonLink>
                 </div>
               ) : null}
             </div>
@@ -436,26 +436,18 @@ export default async function MiniSessionBookingWorkflowPage({
           ) : null}
         </section>
 
-        <aside className="space-y-5">
-          <section className={cardClass}>
-            <h2 className="text-base font-semibold text-ink">Foglalás</h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <div><dt className="text-xs uppercase tracking-[0.14em] text-graphite/50">Mini shooting</dt><dd className="mt-1 font-medium text-ink">{booking.miniSession.title}</dd></div>
-              <div><dt className="text-xs uppercase tracking-[0.14em] text-graphite/50">Ügyfél</dt><dd className="mt-1 font-medium text-ink">{booking.name}</dd></div>
-              <div><dt className="text-xs uppercase tracking-[0.14em] text-graphite/50">Fotózás</dt><dd className="mt-1 font-medium text-ink">{formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}</dd></div>
-            </dl>
-          </section>
-
-          <section className={cardClass}>
-            <h2 className="text-base font-semibold text-ink">Folyamatnapló</h2>
-            <div className="mt-4 space-y-4 text-sm">
-              <div><p className="text-graphite/55">Fotózás lezárva</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.shootCompletedAt)}</p></div>
-              <div><p className="text-graphite/55">Válogató kiküldve</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.selectionSentAt ?? proofingGallery?.proofingInviteSentAt)}</p></div>
-              <div><p className="text-graphite/55">Válogatás leadva</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.selectionSubmittedAt ?? submittedList?.submittedAt)}</p></div>
-              <div><p className="text-graphite/55">Kész galéria átadva</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.finalDeliveredAt ?? finalGallery?.finalDeliveryEmailSentAt)}</p></div>
-            </div>
-          </section>
-        </aside>
+        <details className="rounded-lg border border-ink/10 bg-white shadow-soft">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+            <span>Folyamatnapló</span>
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">Korábbi lépések</span>
+          </summary>
+          <div className="grid gap-4 border-t border-ink/10 p-5 text-sm sm:grid-cols-2 xl:grid-cols-4">
+            <div><p className="text-graphite/55">Fotózás lezárva</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.shootCompletedAt)}</p></div>
+            <div><p className="text-graphite/55">Válogató kiküldve</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.selectionSentAt ?? proofingGallery?.proofingInviteSentAt)}</p></div>
+            <div><p className="text-graphite/55">Válogatás leadva</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.selectionSubmittedAt ?? submittedList?.submittedAt)}</p></div>
+            <div><p className="text-graphite/55">Kész galéria átadva</p><p className="mt-1 font-medium text-ink">{formatDateTime(booking.finalDeliveredAt ?? finalGallery?.finalDeliveryEmailSentAt)}</p></div>
+          </div>
+        </details>
       </div>
     </AdminShell>
   );

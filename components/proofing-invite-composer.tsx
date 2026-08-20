@@ -110,7 +110,7 @@ export function ProofingInviteComposer({
 
       setIsOpen(false);
       clearPromptFlag();
-      router.push(`/admin/galleries/${galleryId}?tab=client&proofingInvite=sent`);
+      router.push(`/admin/galleries/${galleryId}?tab=activity&proofingInvite=sent`);
       router.refresh();
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "A válogató e-mail küldése nem sikerült.");
