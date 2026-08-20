@@ -268,7 +268,7 @@ export function ZipPreparationStatus({
         <div>
           <div className="flex items-center gap-2 text-sm uppercase tracking-[0.2em] text-brass">
             <Archive size={15} />
-            ZIP előkészítés
+            Online konvertálás
           </div>
           <h2 className="mt-2 text-xl font-semibold text-ink">
             {meta.label}

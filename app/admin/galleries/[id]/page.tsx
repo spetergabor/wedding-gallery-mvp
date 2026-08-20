@@ -16,7 +16,6 @@ import { GalleryDangerZone } from "@/components/gallery-danger-zone";
 import { GalleryDesignLiveControls } from "@/components/gallery-design-live-controls";
 import { GalleryForm } from "@/components/gallery-form";
 import { GalleryTabController } from "@/components/gallery-tab-controller";
-import { ManualZipUploadForm } from "@/components/manual-zip-upload-form";
 import { MediaProcessingStatus } from "@/components/media-processing-status";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
@@ -89,106 +88,6 @@ const galleryTabs: Array<{
 ];
 
 const sectionMetaClass = "text-xs font-medium uppercase tracking-[0.16em] text-graphite/65";
-
-type ZipHandoffState = "none" | "manual_ready" | "online_ready" | "processing" | "stale";
-
-function isCompleteZipPackageGroup(
-  packages: Array<{
-    id: string;
-    groupId: string | null;
-    partIndex: number;
-    partCount: number;
-    status: string;
-    downloadUrl: string | null;
-    r2Key: string | null;
-  }>
-) {
-  if (packages.length === 0) {
-    return false;
-  }
-
-  const expectedPartCount = Math.max(...packages.map((downloadPackage) => downloadPackage.partCount), packages.length, 1);
-  const completedPartIndexes = new Set(
-    packages
-      .filter((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl && downloadPackage.r2Key)
-      .map((downloadPackage) => downloadPackage.partIndex)
-  );
-
-  return Array.from({ length: expectedPartCount }, (_, index) => completedPartIndexes.has(index)).every(Boolean);
-}
-
-function getZipHandoffState(
-  packages: Array<{
-    id: string;
-    groupId: string | null;
-    scope: string;
-    status: string;
-    partIndex: number;
-    partCount: number;
-    downloadUrl: string | null;
-    r2Key: string | null;
-    generatedAt: Date | null;
-    updatedAt: Date;
-  }>,
-  scope = PUBLIC_DOWNLOAD_SCOPE
-): { state: ZipHandoffState; detail: string | null } {
-  const publicPackages = packages.filter((downloadPackage) => downloadPackage.scope === scope);
-  const manualReadyPackage = publicPackages.find(
-    (downloadPackage) =>
-      downloadPackage.status === "completed" &&
-      Boolean(downloadPackage.downloadUrl) &&
-      Boolean(downloadPackage.r2Key?.includes("/downloads/manual/"))
-  );
-
-  if (manualReadyPackage) {
-    const date = manualReadyPackage.generatedAt ?? manualReadyPackage.updatedAt;
-    return {
-      state: "manual_ready",
-      detail: `Saját ZIP feltöltve: ${date.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}`
-    };
-  }
-
-  const groups = new Map<string, typeof publicPackages>();
-
-  for (const downloadPackage of publicPackages) {
-    const key = downloadPackage.groupId ?? downloadPackage.id;
-    groups.set(key, [...(groups.get(key) ?? []), downloadPackage]);
-  }
-
-  const completedGroup = Array.from(groups.values()).find(isCompleteZipPackageGroup);
-
-  if (completedGroup) {
-    const latestDate = completedGroup.reduce((latest, downloadPackage) => {
-      const date = downloadPackage.generatedAt ?? downloadPackage.updatedAt;
-      return date > latest ? date : latest;
-    }, completedGroup[0]?.updatedAt ?? new Date(0));
-
-    return {
-      state: "online_ready",
-      detail: `Online ZIP elkészült: ${latestDate.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}`
-    };
-  }
-
-  if (publicPackages.some((downloadPackage) => downloadPackage.status === "pending" || downloadPackage.status === "processing")) {
-    return {
-      state: "processing",
-      detail: "A ZIP készítés folyamatban van. A részletes állapot a Letöltések fülön látszik."
-    };
-  }
-
-  const stalePackage = publicPackages
-    .filter((downloadPackage) => downloadPackage.status === "stale")
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
-
-  if (stalePackage) {
-    return {
-      state: "stale",
-      detail: `A korábbi ZIP elavult: ${stalePackage.updatedAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}`
-    };
-  }
-
-  return { state: "none", detail: null };
-}
 
 function getActiveTab(flags: {
   activated?: string;
@@ -517,7 +416,6 @@ export default async function GalleryDetailPage({
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const publicDownloadPackages = gallery.downloadPackages.filter((downloadPackage) => downloadPackage.scope === activeDownloadScope);
   const publicDownloadEntries = gallery.downloads.filter((download) => !download.package || download.package.scope === activeDownloadScope);
-  const zipHandoff = getZipHandoffState(publicDownloadPackages, activeDownloadScope);
   const resumableUploadSessions = gallery.uploadSessions
     .filter((session) => session.status !== "completed" && session.totalCount > 0 && session.completedCount < session.totalCount)
     .map((session) => ({
@@ -788,15 +686,6 @@ export default async function GalleryDetailPage({
                 sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
                 resumableSessions={resumableUploadSessions}
               />
-              {!proofingGallery ? (
-                <ManualZipUploadForm
-                  galleryId={gallery.id}
-                  disabled={!canPrepareZip}
-                  variant="compact"
-                  handoffState={zipHandoff.state}
-                  handoffDetail={zipHandoff.detail}
-                />
-              ) : null}
             </section>
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
