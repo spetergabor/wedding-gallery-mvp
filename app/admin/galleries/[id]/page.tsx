@@ -641,51 +641,53 @@ export default async function GalleryDetailPage({
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
             <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
-              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-                <div>
-                  <p className={sectionMetaClass}>Galéria címkék</p>
-                  <h2 className="mt-2 text-xl font-semibold text-ink">Anchor blokkok a publikus galériában</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
-                    Hozz létre címkéket feltöltés előtt, majd az upload panelen válaszd ki, hova kerüljenek az új képek. A címkék sorrendje lesz a publikus galéria blokk-sorrendje is.
-                  </p>
+              <div className="border-b border-ink/10 pb-6">
+                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                  <div>
+                    <p className={sectionMetaClass}>Galéria címkék</p>
+                    <h2 className="mt-2 text-xl font-semibold text-ink">Anchor blokkok a publikus galériában</h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
+                      Hozz létre címkéket feltöltés előtt, majd az upload panelen válaszd ki, hova kerüljenek az új képek. A címkék sorrendje lesz a publikus galéria blokk-sorrendje is.
+                    </p>
+                  </div>
+                  <form action={createGallerySectionAction.bind(null, gallery.id)} className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-md">
+                    <input
+                      name="title"
+                      placeholder="pl. Készülődés"
+                      className="h-11 min-w-0 flex-1 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
+                    />
+                    <FormSubmitButton className="h-11 px-4" pendingLabel="Mentés...">
+                      <Plus size={16} />
+                      Címke
+                    </FormSubmitButton>
+                  </form>
                 </div>
-                <form action={createGallerySectionAction.bind(null, gallery.id)} className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-md">
-                  <input
-                    name="title"
-                    placeholder="pl. Készülődés"
-                    className="h-11 min-w-0 flex-1 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
+                {gallery.sections.length > 0 ? (
+                  <GallerySectionSortableList
+                    galleryId={gallery.id}
+                    sections={gallery.sections.map((section) => ({
+                      id: section.id,
+                      title: section.title,
+                      count: sectionPhotoCounts.get(section.id) ?? 0
+                    }))}
                   />
-                  <FormSubmitButton className="h-11 px-4" pendingLabel="Mentés...">
-                    <Plus size={16} />
-                    Címke
-                  </FormSubmitButton>
-                </form>
+                ) : (
+                  <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-4 text-sm text-graphite/70">
+                    Még nincs címke. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
+                  </div>
+                )}
               </div>
-              {gallery.sections.length > 0 ? (
-                <GallerySectionSortableList
+              <div className="pt-6">
+                <PhotoUploadForm
                   galleryId={gallery.id}
-                  sections={gallery.sections.map((section) => ({
-                    id: section.id,
-                    title: section.title,
-                    count: sectionPhotoCounts.get(section.id) ?? 0
-                  }))}
+                  galleryMode={gallery.galleryMode}
+                  defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
+                  proofingInviteSent={Boolean(gallery.proofingInviteSentAt)}
+                  framed={false}
+                  sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
+                  resumableSessions={resumableUploadSessions}
                 />
-              ) : (
-                <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-4 text-sm text-graphite/70">
-                  Még nincs címke. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
-                </div>
-              )}
-            </section>
-            <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
-              <PhotoUploadForm
-                galleryId={gallery.id}
-                galleryMode={gallery.galleryMode}
-                defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
-                proofingInviteSent={Boolean(gallery.proofingInviteSentAt)}
-                framed={false}
-                sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
-                resumableSessions={resumableUploadSessions}
-              />
+              </div>
             </section>
             <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
