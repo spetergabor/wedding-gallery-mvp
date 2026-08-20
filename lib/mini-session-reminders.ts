@@ -1,6 +1,7 @@
 import {
   miniSessionBookingCalendarUrl,
   miniSessionBookingCancelUrl,
+  miniSessionBookingManageUrl,
   miniSessionBookingRescheduleUrl,
   sendMiniSessionReminderEmail
 } from "@/lib/email";
@@ -96,6 +97,7 @@ export async function sendMiniSessionReminderEmails({
         endsAt: booking.endsAt,
         name: booking.name,
         attendeeCount: booking.attendeeCount,
+        manageUrl: miniSessionBookingManageUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
         cancelUrl: miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
         rescheduleUrl: miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),
         calendarUrl: miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain),

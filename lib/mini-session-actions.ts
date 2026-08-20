@@ -16,6 +16,7 @@ import {
   adminMiniSessionUrl,
   miniSessionBookingCalendarUrl,
   miniSessionBookingCancelUrl,
+  miniSessionBookingManageUrl,
   miniSessionBookingRescheduleUrl,
   miniSessionPublicUrl,
   publicGalleryUrl,
@@ -1036,7 +1037,8 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   const cancelUrl = miniSessionBookingCancelUrl(slug, cancelToken, publicSubdomain);
   const rescheduleUrl = miniSessionBookingRescheduleUrl(slug, cancelToken, publicSubdomain);
   const calendarUrl = miniSessionBookingCalendarUrl(slug, cancelToken, publicSubdomain);
-  const adminUrl = adminMiniSessionUrl(session.id);
+  const adminUrl = `${adminMiniSessionUrl(session.id)}/bookings/${booking.id}`;
+  const manageUrl = miniSessionBookingManageUrl(slug, cancelToken, publicSubdomain);
   const publicUrl = miniSessionPublicUrl(session.slug, publicSubdomain);
   const calendarFilename = miniSessionCalendarFilename(session.title);
   const language = normalizeMiniSessionLanguage(session.language);
@@ -1146,6 +1148,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
         endsAt: booking.endsAt,
         name,
         attendeeCount,
+        manageUrl,
         cancelUrl,
         rescheduleUrl,
         calendarUrl,
@@ -1414,6 +1417,7 @@ export async function rescheduleMiniSessionBookingAction(token: string, formData
 
   revalidatePath(`/mini-session/${slug}`);
   revalidatePath(`/mini-session/${slug}/reschedule/${token}`);
+  revalidatePath(`/mini-session/${slug}/manage/${token}`);
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
   if (booking.customerId) {
@@ -1525,6 +1529,7 @@ export async function rescheduleMiniSessionBookingByAdminAction(bookingId: strin
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${booking.miniSession.id}`);
   revalidatePath(`/mini-session/${booking.miniSession.slug}`);
+  revalidatePath(`/mini-session/${booking.miniSession.slug}/manage/${booking.cancelToken}`);
   if (booking.customerId) {
     revalidatePath(`/admin/clients/${booking.customerId}`);
   }
@@ -1767,7 +1772,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
   if (booking.customerId) {
     revalidatePath(`/admin/clients/${booking.customerId}`);
   }
-  redirect(`/mini-session/${booking.miniSession.slug}?cancelled=1&calendar=${booking.cancelToken}`);
+  redirect(`/mini-session/${booking.miniSession.slug}/manage/${booking.cancelToken}`);
 }
 
 export async function cancelMiniSessionBookingByAdminAction(bookingId: string, formData?: FormData) {
@@ -2128,11 +2133,22 @@ export async function markMiniSessionShootCompletedAction(bookingId: string) {
       status: { notIn: [MINI_SESSION_BOOKING_STATUS_CANCELLED, MINI_SESSION_BOOKING_STATUS_NO_SHOW] },
       miniSession: adminOwnedWhere(admin)
     },
-    select: { id: true, miniSessionId: true, shootCompletedAt: true }
+    select: {
+      id: true,
+      miniSessionId: true,
+      startsAt: true,
+      shootCompletedAt: true,
+      cancelToken: true,
+      miniSession: { select: { slug: true } }
+    }
   });
 
   if (!booking) {
     redirect("/admin/mini-sessions");
+  }
+
+  if (booking.startsAt.getTime() > Date.now()) {
+    redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?error=shoot-not-started`);
   }
 
   await prisma.miniSessionBooking.update({
@@ -2145,7 +2161,71 @@ export async function markMiniSessionShootCompletedAction(bookingId: string) {
 
   revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
   revalidatePath(miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id));
+  revalidatePath(`/mini-session/${booking.miniSession.slug}/manage/${booking.cancelToken}`);
   redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?shootCompleted=1`);
+}
+
+export async function markMiniSessionNoShowAction(bookingId: string) {
+  const admin = await requireAdmin();
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
+      status: { notIn: [MINI_SESSION_BOOKING_STATUS_CANCELLED, MINI_SESSION_BOOKING_STATUS_NO_SHOW] },
+      miniSession: adminOwnedWhere(admin)
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      startsAt: true,
+      endsAt: true,
+      status: true,
+      customerId: true,
+      miniSessionId: true,
+      cancelToken: true,
+      miniSession: { select: { id: true, adminId: true, slug: true, title: true } }
+    }
+  });
+
+  if (!booking) {
+    redirect("/admin/mini-sessions");
+  }
+
+  if (booking.startsAt.getTime() > Date.now()) {
+    redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?error=shoot-not-started`);
+  }
+
+  await prisma.miniSessionBooking.update({
+    where: { id: booking.id },
+    data: { status: MINI_SESSION_BOOKING_STATUS_NO_SHOW }
+  });
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: booking.miniSession.adminId,
+    type: "mini_session.booking.no_show",
+    title: "Mini shooting no show",
+    message: `${booking.name} · ${booking.miniSession.title}`,
+    severity: "warning",
+    status: "success",
+    source: "mini_session",
+    href: miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id),
+    metadata: {
+      bookingId: booking.id,
+      sessionId: booking.miniSessionId,
+      email: booking.email,
+      startsAt: booking.startsAt.toISOString(),
+      endsAt: booking.endsAt.toISOString(),
+      previousStatus: booking.status
+    }
+  });
+
+  revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
+  revalidatePath(miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id));
+  revalidatePath(`/mini-session/${booking.miniSession.slug}/manage/${booking.cancelToken}`);
+  if (booking.customerId) revalidatePath(`/admin/clients/${booking.customerId}`);
+  redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?noShow=1`);
 }
 
 export async function createMiniSessionProofingGalleryAction(bookingId: string) {
@@ -2457,6 +2537,7 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
   const cancelUrl = miniSessionBookingCancelUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
   const rescheduleUrl = miniSessionBookingRescheduleUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
   const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
+  const manageUrl = miniSessionBookingManageUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
   const calendarFilename = miniSessionCalendarFilename(booking.miniSession.title);
   const calendarIcs = buildMiniSessionCalendarIcs({
     uid: miniSessionCalendarUid(booking.id),
@@ -2506,6 +2587,7 @@ export async function resendMiniSessionBookingConfirmationAction(bookingId: stri
         endsAt: booking.endsAt,
         name: booking.name,
         attendeeCount: booking.attendeeCount,
+        manageUrl,
         cancelUrl,
         rescheduleUrl,
         calendarUrl,
@@ -2622,7 +2704,7 @@ export async function resendMiniSessionAdminNotificationAction(bookingId: string
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings&error=email_unavailable`);
   }
 
-  const adminUrl = adminMiniSessionUrl(booking.miniSession.id);
+  const adminUrl = `${adminMiniSessionUrl(booking.miniSession.id)}/bookings/${booking.id}`;
   const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
   const publicUrl = miniSessionPublicUrl(booking.miniSession.slug, publicSubdomain);
   const calendarUrl = miniSessionBookingCalendarUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);

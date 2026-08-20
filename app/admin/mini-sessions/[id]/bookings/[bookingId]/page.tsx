@@ -27,6 +27,7 @@ import {
   createMiniSessionFinalGalleryAction,
   createMiniSessionProofingGalleryAction,
   deliverMiniSessionFinalGalleryAction,
+  markMiniSessionNoShowAction,
   markMiniSessionShootCompletedAction
 } from "@/lib/mini-session-actions";
 import {
@@ -67,6 +68,7 @@ export default async function MiniSessionBookingWorkflowPage({
   params: Promise<{ id: string; bookingId: string }>;
   searchParams: Promise<{
     shootCompleted?: string;
+    noShow?: string;
     delivered?: string;
     error?: string;
   }>;
@@ -125,12 +127,13 @@ export default async function MiniSessionBookingWorkflowPage({
   const selectedFilenames = (activeList?.items ?? []).map((item) => filenameWithoutExtension(item.photo.filename));
   const lightroomFilenameList = selectedFilenames.join(",");
   const isClosedWithoutDelivery = booking.status === "cancelled" || booking.status === "no_show";
+  const isShootTimeReached = booking.startsAt.getTime() <= Date.now();
 
   return (
     <AdminShell>
       <div className="mb-5">
         <Link
-          href="/admin/mini-sessions?tab=bookings"
+          href={`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`}
           className="inline-flex items-center gap-2 text-sm font-medium text-graphite hover:text-ink"
         >
           <ArrowLeft size={15} />
@@ -140,8 +143,10 @@ export default async function MiniSessionBookingWorkflowPage({
 
       <div className="mb-5 space-y-3">
         {flags.shootCompleted ? <Alert title="A fotózás lezárva." variant="success">Most feltöltheted a válogatás képeit.</Alert> : null}
+        {flags.noShow ? <Alert title="A foglalást no show állapotban lezártad." variant="success" /> : null}
         {flags.delivered ? <Alert title="A kész galéria átadva." variant="success">Az ügyfél e-mailben megkapta a letöltési linket.</Alert> : null}
         {flags.error === "selection-required" ? <Alert title="Az ügyfél még nem zárta le a válogatást." variant="error" /> : null}
+        {flags.error === "shoot-not-started" ? <Alert title="A fotózás még nem kezdődött el." variant="error" /> : null}
         {flags.error === "final-photos-required" ? <Alert title="A végleges galéria még üres." variant="error">Az átadás előtt töltsd fel a kidolgozott képeket.</Alert> : null}
         {flags.error === "client-email" ? <Alert title="Hiányzik vagy hibás az ügyfél e-mail címe." variant="error" /> : null}
         {flags.error === "delivery-email" ? <Alert title="A galéria elkészült, de az e-mail küldése nem sikerült." variant="error">Ellenőrizd a Resend beállítást, majd próbáld újra.</Alert> : null}
@@ -192,12 +197,23 @@ export default async function MiniSessionBookingWorkflowPage({
               <div className="flex size-11 items-center justify-center rounded-full bg-ink text-white"><CalendarClock size={20} /></div>
               <h2 className="mt-4 text-xl font-semibold text-ink">A fotózás a következő lépés</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">A fotózás után zárd le ezt a lépést. Ezután megjelenik a külön válogatógaléria feltöltője.</p>
-              <form action={markMiniSessionShootCompletedAction.bind(null, booking.id)} className="mt-6">
-                <FormSubmitButton disabled={isClosedWithoutDelivery} pendingLabel="Továbblépés...">
-                  <CheckCircle2 size={16} />
-                  Fotózás megtörtént
-                </FormSubmitButton>
-              </form>
+              {isShootTimeReached ? (
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <form action={markMiniSessionShootCompletedAction.bind(null, booking.id)}>
+                    <FormSubmitButton disabled={isClosedWithoutDelivery} pendingLabel="Továbblépés...">
+                      <CheckCircle2 size={16} />
+                      Fotózás megtörtént
+                    </FormSubmitButton>
+                  </form>
+                  <form action={markMiniSessionNoShowAction.bind(null, booking.id)}>
+                    <FormSubmitButton variant="danger" disabled={isClosedWithoutDelivery} pendingLabel="Lezárás...">
+                      No show
+                    </FormSubmitButton>
+                  </form>
+                </div>
+              ) : (
+                <p className="mt-6 rounded-md bg-paper px-4 py-3 text-sm text-graphite/70">A lezáró gombok a fotózás kezdetekor jelennek meg.</p>
+              )}
             </div>
           ) : null}
 

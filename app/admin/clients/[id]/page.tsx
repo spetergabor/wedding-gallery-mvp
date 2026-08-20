@@ -14,6 +14,7 @@ import {
   ImagePlus,
   ListChecks,
   Mail,
+  MapPin,
   MessageSquare,
   Plus,
   ReceiptText,
@@ -26,6 +27,7 @@ import { AlbumReviewManager } from "@/components/album-review-manager";
 import { AlbumWorkflowTabs } from "@/components/album-workflow-tabs";
 import { Alert } from "@/components/alert";
 import { ButtonLink } from "@/components/button";
+import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
@@ -45,7 +47,9 @@ import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel, isClosedCustomerTaskStatus } from "@/lib/customer-task-options";
 import { CUSTOMER_STATUSES, customerStatusDisplayLabel, customerStatusLabel, customerTypeLabelForLanguage, normalizeCustomerStatus } from "@/lib/customer-options";
-import { appPublicBaseUrl, customerPortalUrl } from "@/lib/email";
+import { appPublicBaseUrl, customerPortalUrl, miniSessionBookingManageUrl } from "@/lib/email";
+import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
+import { formatMiniSessionSlotWithDate, normalizeMiniSessionLanguage } from "@/lib/mini-sessions";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { getProjectWorkflowSummary } from "@/lib/project-workflow";
 import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
@@ -1325,6 +1329,7 @@ export default async function AdminClientDetailPage({
     albumDesignId?: string;
     albumEditor?: string;
     albumActiveSpread?: string;
+    full?: string;
   }>;
 }) {
   const [admin, language, { id }, flags] = await Promise.all([requireAdmin(), getAdminLanguage(), params, searchParams]);
@@ -1398,6 +1403,32 @@ export default async function AdminClientDetailPage({
       tags: true,
       notes: true,
       createdAt: true,
+      miniSessionBookings: {
+        where: { source: { not: "blocked" } },
+        orderBy: { startsAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          cancelToken: true,
+          startsAt: true,
+          endsAt: true,
+          status: true,
+          workflowStatus: true,
+          shootCompletedAt: true,
+          selectionSentAt: true,
+          selectionSubmittedAt: true,
+          finalDeliveredAt: true,
+          miniSession: {
+            select: { id: true, slug: true, title: true, location: true, language: true }
+          },
+          proofingGallery: {
+            select: { proofingInviteSentAt: true, proofingStatus: true }
+          },
+          finalGallery: {
+            select: { finalDeliveryEmailSentAt: true }
+          }
+        }
+      },
       contracts: {
         orderBy: { createdAt: "desc" }
       },
@@ -1579,6 +1610,77 @@ export default async function AdminClientDetailPage({
 
   if (!customer) {
     notFound();
+  }
+
+  if (customer.customerType === "mini_session" && flags.full !== "1") {
+    const activeBooking = customer.miniSessionBookings.find((booking) => !["cancelled", "no_show"].includes(booking.status));
+    const booking = activeBooking ?? customer.miniSessionBookings[0] ?? null;
+    const publicSubdomain = customer.admin.siteSettings?.publicSubdomain ?? null;
+    const workflowStage = booking ? deriveMiniSessionWorkflowStage(booking) : null;
+    const workflowLabel = workflowStage ? miniSessionWorkflowStageLabel(workflowStage) : "Nincs aktív folyamat";
+    const workflowHref = booking ? `/admin/mini-sessions/${booking.miniSession.id}/bookings/${booking.id}` : null;
+    const manageUrl = booking
+      ? miniSessionBookingManageUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain)
+      : null;
+
+    return (
+      <AdminShell>
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Mini shooting ügyfél</p>
+            <h1 className="mt-2 text-3xl font-semibold text-ink">{customer.coupleName}</h1>
+            <p className="mt-3 text-sm text-graphite/70">{customer.primaryEmail}</p>
+          </div>
+          <ButtonLink href={`/admin/clients/${customer.id}?full=1`} variant="secondary">Teljes ügyféladatlap</ButtonLink>
+        </div>
+
+        {booking ? (
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-7">
+            <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brass">Mini shooting folyamat</p>
+                <h2 className="mt-2 text-2xl font-semibold text-ink">{booking.miniSession.title}</h2>
+                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-graphite/70">
+                  <span className="inline-flex items-center gap-1.5"><CalendarClock size={15} />{formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt, normalizeMiniSessionLanguage(booking.miniSession.language))}</span>
+                  <span className="inline-flex items-center gap-1.5"><MapPin size={15} />{booking.miniSession.location}</span>
+                </div>
+              </div>
+              <span className="inline-flex w-fit rounded-full bg-brass/10 px-3 py-2 text-sm font-semibold text-brass">{workflowLabel}</span>
+            </div>
+
+            <div className="mt-7 flex flex-col gap-3 border-t border-ink/10 pt-6 sm:flex-row sm:flex-wrap">
+              {workflowHref ? <ButtonLink href={workflowHref}><ArrowRight size={16} />Aktuális lépés megnyitása</ButtonLink> : null}
+              {manageUrl ? <a href={manageUrl} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium text-ink"><ExternalLink size={16} />Ügyfélnézet</a> : null}
+              {manageUrl ? <CopyLinkButton url={manageUrl} label="Ügyféllink másolása" /> : null}
+            </div>
+          </section>
+        ) : (
+          <Alert title="Ehhez az ügyfélhez nem található mini shooting foglalás." variant="warning" />
+        )}
+
+        <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <h2 className="font-semibold text-ink">Kapcsolat</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div><dt className="text-graphite/55">E-mail</dt><dd className="mt-1 font-medium"><a href={`mailto:${customer.primaryEmail}`}>{customer.primaryEmail}</a></dd></div>
+              <div><dt className="text-graphite/55">Telefon</dt><dd className="mt-1 font-medium">{customer.phone || "–"}</dd></div>
+              <div><dt className="text-graphite/55">Nyelv</dt><dd className="mt-1 font-medium">{customer.preferredLanguage === "de" ? "Német" : "Magyar"}</dd></div>
+            </dl>
+          </section>
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <h2 className="font-semibold text-ink">Korábbi foglalások</h2>
+            <div className="mt-4 space-y-2">
+              {customer.miniSessionBookings.slice(0, 4).map((item) => (
+                <Link key={item.id} href={`/admin/mini-sessions/${item.miniSession.id}/bookings/${item.id}`} className="flex items-center justify-between gap-3 rounded-md bg-paper px-3 py-3 text-sm transition hover:bg-ink/5">
+                  <span><strong className="block text-ink">{item.miniSession.title}</strong><span className="mt-1 block text-xs text-graphite/60">{formatMiniSessionSlotWithDate(item.startsAt, item.endsAt, normalizeMiniSessionLanguage(item.miniSession.language))}</span></span>
+                  <ArrowRight size={15} />
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+      </AdminShell>
+    );
   }
 
   await ensureAlbumReviewApprovalSchema();

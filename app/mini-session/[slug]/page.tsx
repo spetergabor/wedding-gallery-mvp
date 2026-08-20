@@ -27,6 +27,7 @@ const MINI_SESSION_PAGE_COPY = {
     recurringMeta: "Folyamatosan foglalható",
     bookedTitle: "Köszönöm, a foglalásod rögzítve lett.",
     bookedText: "A megerősítő e-mail hamarosan megérkezik.",
+    manage: "Fotózás kezelése",
     addCalendar: "Naptárhoz adás",
     cancelledTitle: "A foglalás törölve lett.",
     removeCalendar: "Naptárból eltávolítás",
@@ -56,6 +57,7 @@ const MINI_SESSION_PAGE_COPY = {
     recurringMeta: "Laufend buchbar",
     bookedTitle: "Danke, deine Buchung wurde gespeichert.",
     bookedText: "Die Bestätigung per E-Mail kommt in Kürze.",
+    manage: "Shooting verwalten",
     addCalendar: "Zum Kalender hinzufügen",
     cancelledTitle: "Die Buchung wurde storniert.",
     removeCalendar: "Aus Kalender entfernen",
@@ -131,6 +133,7 @@ export default async function PublicMiniSessionPage({
   }));
   const publicSubdomain = session.admin.siteSettings?.publicSubdomain ?? null;
   const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(session.slug, flags.calendar, publicSubdomain) : null;
+  const manageHref = flags.calendar ? `/mini-session/${session.slug}/manage/${flags.calendar}` : null;
   const hasCoverImage = Boolean(session.coverImageUrl);
   const eyebrowClass = hasCoverImage ? "text-white/80" : "text-brass";
   const headingClass = hasCoverImage ? "text-white drop-shadow-sm" : "text-ink";
@@ -188,12 +191,15 @@ export default async function PublicMiniSessionPage({
             <Alert title={copy.bookedTitle} variant="success">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span>{copy.bookedText}</span>
-                {calendarHref ? (
-                  <Link className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink shadow-sm transition hover:bg-paper" href={calendarHref}>
-                    <CalendarPlus size={15} />
-                    {copy.addCalendar}
-                  </Link>
-                ) : null}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {manageHref ? <Link className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-3 text-sm font-medium text-white" href={manageHref}>{copy.manage}</Link> : null}
+                  {calendarHref ? (
+                    <Link className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-medium text-ink shadow-sm transition hover:bg-paper" href={calendarHref}>
+                      <CalendarPlus size={15} />
+                      {copy.addCalendar}
+                    </Link>
+                  ) : null}
+                </div>
               </div>
             </Alert>
           ) : null}

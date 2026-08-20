@@ -25,7 +25,7 @@ const RESCHEDULE_COPY = {
     available: "Válassz új időpontot",
     save: "Új időpont mentése",
     saving: "Mentés...",
-    back: "Vissza a foglaló oldalra",
+    back: "Vissza a fotózás kezeléséhez",
     rescheduled: "Az időpont módosítva lett.",
     addCalendar: "Naptár frissítése",
     taken: "Ez az időpont közben betelt. Válassz másikat.",
@@ -41,7 +41,7 @@ const RESCHEDULE_COPY = {
     available: "Neuen Termin wählen",
     save: "Neuen Termin speichern",
     saving: "Speichern...",
-    back: "Zur Buchungsseite",
+    back: "Zur Shooting-Verwaltung",
     rescheduled: "Der Termin wurde geändert.",
     addCalendar: "Kalender aktualisieren",
     taken: "Dieser Termin wurde inzwischen gebucht. Bitte wähle einen anderen.",
@@ -197,7 +197,7 @@ export default async function RescheduleMiniSessionBookingPage({
               </div>
             )}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Link href={`/mini-session/${booking.miniSession.slug}`} className="text-sm font-medium text-graphite transition hover:text-ink">
+              <Link href={`/mini-session/${booking.miniSession.slug}/manage/${token}`} className="text-sm font-medium text-graphite transition hover:text-ink">
                 {copy.back}
               </Link>
               <FormSubmitButton pendingLabel={copy.saving}>{copy.save}</FormSubmitButton>

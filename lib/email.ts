@@ -108,6 +108,7 @@ type MiniSessionBookingEmail = {
   endsAt: Date;
   name: string;
   attendeeCount: number;
+  manageUrl?: string;
   cancelUrl: string;
   rescheduleUrl?: string;
   calendarUrl?: string;
@@ -677,6 +678,10 @@ export function miniSessionBookingCalendarUrl(slug: string, token: string, publi
   return `${appPublicBaseUrl(publicSubdomain)}/mini-session/${slug}/calendar/${token}`;
 }
 
+export function miniSessionBookingManageUrl(slug: string, token: string, publicSubdomain?: string | null) {
+  return `${appPublicBaseUrl(publicSubdomain)}/mini-session/${slug}/manage/${token}`;
+}
+
 export function adminPasswordResetUrl(token: string) {
   return `${appBaseUrl()}/admin/reset-password/${encodeURIComponent(token)}`;
 }
@@ -852,6 +857,8 @@ const MINI_SESSION_BOOKING_EMAIL_COPY = {
     timeLabel: "Időpont",
     locationLabel: "Helyszín",
     attendeeCountLabel: "Létszám",
+    manageIntro: "Az időpontodat és a fotózás teljes folyamatát itt követheted:",
+    manageButton: "Fotózás kezelése",
     addCalendar: "Naptárhoz adás",
     rescheduleIntro: "Ha másik időpont lenne jobb, itt tudod módosítani:",
     rescheduleButton: "Időpont módosítása",
@@ -869,6 +876,8 @@ const MINI_SESSION_BOOKING_EMAIL_COPY = {
     timeLabel: "Termin",
     locationLabel: "Ort",
     attendeeCountLabel: "Personen",
+    manageIntro: "Hier kannst du deinen Termin und den gesamten Ablauf verfolgen:",
+    manageButton: "Shooting verwalten",
     addCalendar: "Zum Kalender hinzufügen",
     rescheduleIntro: "Falls ein anderer Termin besser passt, kannst du hier umbuchen:",
     rescheduleButton: "Termin ändern",
@@ -893,6 +902,8 @@ const MINI_SESSION_REMINDER_EMAIL_COPY = {
     timeLabel: "Időpont",
     locationLabel: "Helyszín",
     attendeeCountLabel: "Létszám",
+    manageIntro: "Az időpontodat és a fotózás teljes folyamatát itt követheted:",
+    manageButton: "Fotózás kezelése",
     addCalendar: "Naptárhoz adás",
     rescheduleIntro: "Ha másik időpont lenne jobb, itt tudod módosítani:",
     rescheduleButton: "Időpont módosítása",
@@ -910,6 +921,8 @@ const MINI_SESSION_REMINDER_EMAIL_COPY = {
     timeLabel: "Termin",
     locationLabel: "Ort",
     attendeeCountLabel: "Personen",
+    manageIntro: "Hier kannst du deinen Termin und den gesamten Ablauf verfolgen:",
+    manageButton: "Shooting verwalten",
     addCalendar: "Zum Kalender hinzufügen",
     rescheduleIntro: "Falls ein anderer Termin besser passt, kannst du hier umbuchen:",
     rescheduleButton: "Termin ändern",
@@ -939,6 +952,14 @@ function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.attendeeCountLabel)}</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
       </table>
       ${
+        payload.manageUrl
+          ? `<p style="margin: 0 0 10px;">${escapeHtml(copy.manageIntro)}</p>
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(payload.manageUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 11px 16px; border-radius: 6px;">${escapeHtml(copy.manageButton)}</a>
+      </p>`
+          : ""
+      }
+      ${
         payload.calendarUrl
           ? `<p style="margin: 0 0 16px;">
         <a href="${escapeHtml(payload.calendarUrl)}" style="display: inline-block; background: #8a6f3d; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(calendarLabel)}</a>
@@ -955,7 +976,7 @@ function miniSessionBookingConfirmationHtml(payload: MiniSessionBookingEmail) {
       }
       <p style="margin: 0 0 16px;">${escapeHtml(copy.cancelIntro)}</p>
       <p style="margin: 0 0 16px;">
-        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(copy.cancelButton)}</a>
+        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #f5f2ea; color: #171717; text-decoration: none; padding: 10px 14px; border-radius: 6px; border: 1px solid #ddd6c6;">${escapeHtml(copy.cancelButton)}</a>
       </p>
       <p style="margin: 0; color: #777; font-size: 13px;">${escapeHtml(copy.fallback)}<br>${escapeHtml(payload.cancelUrl)}</p>
     </div>
@@ -988,6 +1009,7 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
         `${copy.locationLabel}: ${payload.location}`,
         `${copy.attendeeCountLabel}: ${payload.attendeeCount}`,
         "",
+        ...(payload.manageUrl ? [`${copy.manageButton}: ${payload.manageUrl}`, ""] : []),
         ...(payload.calendarUrl ? [`${calendarLabel}: ${payload.calendarUrl}`, ""] : []),
         ...(payload.rescheduleUrl ? [`${copy.rescheduleButton}: ${payload.rescheduleUrl}`, ""] : []),
         `${copy.cancelButton}: ${payload.cancelUrl}`
@@ -1019,6 +1041,14 @@ function miniSessionReminderHtml(payload: MiniSessionReminderEmail) {
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">${escapeHtml(copy.attendeeCountLabel)}</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
       </table>
       ${
+        payload.manageUrl
+          ? `<p style="margin: 0 0 10px;">${escapeHtml(copy.manageIntro)}</p>
+      <p style="margin: 0 0 20px;">
+        <a href="${escapeHtml(payload.manageUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 11px 16px; border-radius: 6px;">${escapeHtml(copy.manageButton)}</a>
+      </p>`
+          : ""
+      }
+      ${
         payload.calendarUrl
           ? `<p style="margin: 0 0 16px;">
         <a href="${escapeHtml(payload.calendarUrl)}" style="display: inline-block; background: #8a6f3d; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(calendarLabel)}</a>
@@ -1035,7 +1065,7 @@ function miniSessionReminderHtml(payload: MiniSessionReminderEmail) {
       }
       <p style="margin: 0 0 16px;">${escapeHtml(copy.cancelIntro)}</p>
       <p style="margin: 0 0 16px;">
-        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${escapeHtml(copy.cancelButton)}</a>
+        <a href="${escapeHtml(payload.cancelUrl)}" style="display: inline-block; background: #f5f2ea; color: #171717; text-decoration: none; padding: 10px 14px; border-radius: 6px; border: 1px solid #ddd6c6;">${escapeHtml(copy.cancelButton)}</a>
       </p>
       <p style="margin: 0; color: #777; font-size: 13px;">${escapeHtml(copy.fallback)}<br>${escapeHtml(payload.cancelUrl)}</p>
     </div>
@@ -1067,6 +1097,7 @@ export async function sendMiniSessionReminderEmail(payload: MiniSessionReminderE
         `${copy.locationLabel}: ${payload.location}`,
         `${copy.attendeeCountLabel}: ${payload.attendeeCount}`,
         "",
+        ...(payload.manageUrl ? [`${copy.manageButton}: ${payload.manageUrl}`, ""] : []),
         ...(payload.calendarUrl ? [`${calendarLabel}: ${payload.calendarUrl}`, ""] : []),
         ...(payload.rescheduleUrl ? [`${copy.rescheduleButton}: ${payload.rescheduleUrl}`, ""] : []),
         `${copy.cancelButton}: ${payload.cancelUrl}`
