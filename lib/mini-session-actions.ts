@@ -21,6 +21,7 @@ import {
   miniSessionPublicUrl,
   publicGalleryUrl,
   sendClientFinalDeliveryEmail,
+  sendMiniSessionWorkflowNotificationEmail,
   sendMiniSessionAdminBookingEmail,
   sendMiniSessionBookingCancelledEmail,
   sendMiniSessionBookingConfirmationEmail
@@ -2162,7 +2163,7 @@ export async function markMiniSessionShootCompletedAction(bookingId: string) {
   revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
   revalidatePath(miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id));
   revalidatePath(`/mini-session/${booking.miniSession.slug}/manage/${booking.cancelToken}`);
-  redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?shootCompleted=1`);
+  redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?shootCompleted=1&notify=shoot_completed`);
 }
 
 export async function markMiniSessionNoShowAction(bookingId: string) {
@@ -2226,6 +2227,98 @@ export async function markMiniSessionNoShowAction(bookingId: string) {
   revalidatePath(`/mini-session/${booking.miniSession.slug}/manage/${booking.cancelToken}`);
   if (booking.customerId) revalidatePath(`/admin/clients/${booking.customerId}`);
   redirect(`${miniSessionBookingWorkflowUrl(booking.miniSessionId, booking.id)}?noShow=1`);
+}
+
+const MINI_SESSION_WORKFLOW_NOTIFICATION_KINDS = ["shoot_completed", "post_production"] as const;
+
+export async function sendMiniSessionWorkflowNotificationAction(
+  bookingId: string,
+  notificationKind: string,
+  formData: FormData
+) {
+  const admin = await requireAdmin();
+  const subject = formString(formData, "subject").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").slice(0, 200);
+  const message = formString(formData, "message").slice(0, 5000);
+  const kind = MINI_SESSION_WORKFLOW_NOTIFICATION_KINDS.includes(notificationKind as (typeof MINI_SESSION_WORKFLOW_NOTIFICATION_KINDS)[number])
+    ? notificationKind as (typeof MINI_SESSION_WORKFLOW_NOTIFICATION_KINDS)[number]
+    : null;
+  const booking = await prisma.miniSessionBooking.findFirst({
+    where: {
+      id: bookingId,
+      source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED },
+      miniSession: adminOwnedWhere(admin)
+    },
+    include: {
+      miniSession: {
+        select: {
+          id: true,
+          adminId: true,
+          slug: true,
+          language: true,
+          admin: {
+            select: {
+              name: true,
+              email: true,
+              siteSettings: { select: { publicSubdomain: true } }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!booking) redirect("/admin/mini-sessions");
+
+  const workflowUrl = miniSessionBookingWorkflowUrl(booking.miniSession.id, booking.id);
+  if (!kind || !subject || !message) redirect(`${workflowUrl}?error=notification-content`);
+
+  const recipient = normalizeEmail(booking.email);
+  if (!isValidEmail(recipient)) redirect(`${workflowUrl}?error=client-email`);
+
+  const language = normalizeMiniSessionLanguage(booking.miniSession.language);
+  const manageUrl = miniSessionBookingManageUrl(
+    booking.miniSession.slug,
+    booking.cancelToken,
+    booking.miniSession.admin.siteSettings?.publicSubdomain ?? null
+  );
+  const delivery = await runLoggedDelivery({
+    adminId: booking.miniSession.adminId,
+    channel: DELIVERY_CHANNEL_EMAIL,
+    type: `email.mini_session.workflow.${kind}`,
+    recipient,
+    subject,
+    provider: "resend",
+    entityType: "mini_session_booking",
+    entityId: booking.id,
+    metadata: { sessionId: booking.miniSession.id, notificationKind: kind },
+    send: () => sendMiniSessionWorkflowNotificationEmail({
+      to: recipient,
+      replyTo: booking.miniSession.admin.email,
+      senderName: booking.miniSession.admin.name,
+      subject,
+      message,
+      actionUrl: manageUrl,
+      actionLabel: language === "de" ? "Shooting ansehen" : "Fotózás megnyitása"
+    })
+  });
+
+  if (!delivery.ok) redirect(`${workflowUrl}?error=notification-email`);
+
+  await logSystemEvent({
+    actorAdminId: admin.id,
+    targetAdminId: booking.miniSession.adminId,
+    type: `mini_session.workflow_notification.${kind}`,
+    title: "Mini shooting ügyfélértesítés elküldve",
+    message: `${booking.name} · ${subject}`,
+    severity: "success",
+    status: "success",
+    source: "email",
+    href: workflowUrl,
+    metadata: { bookingId: booking.id, sessionId: booking.miniSession.id, recipient, deliveryLogId: delivery.log.id }
+  });
+
+  revalidatePath(workflowUrl);
+  redirect(`${workflowUrl}?notificationSent=1`);
 }
 
 export async function createMiniSessionProofingGalleryAction(bookingId: string) {
@@ -2379,7 +2472,7 @@ export async function createMiniSessionFinalGalleryAction(bookingId: string) {
   redirect(`/admin/galleries/${gallery.id}?tab=photos&miniSessionWorkflow=1`);
 }
 
-export async function deliverMiniSessionFinalGalleryAction(bookingId: string) {
+export async function deliverMiniSessionFinalGalleryAction(bookingId: string, formData?: FormData) {
   const admin = await requireAdmin();
   const booking = await prisma.miniSessionBooking.findFirst({
     where: {
@@ -2421,6 +2514,12 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string) {
   }
 
   const recipient = normalizeEmail(gallery.clientEmail || booking.email);
+  const customSubject = formData ? formString(formData, "subject").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").slice(0, 200) : "";
+  const customMessage = formData ? formString(formData, "message").slice(0, 5000) : "";
+
+  if (formData && (!customSubject || !customMessage)) {
+    redirect(`${workflowUrl}?error=notification-content`);
+  }
 
   if (!isValidEmail(recipient)) {
     redirect(`${workflowUrl}?error=client-email`);
@@ -2447,7 +2546,7 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string) {
     channel: DELIVERY_CHANNEL_EMAIL,
     type: "email.mini_session.final_gallery",
     recipient,
-    subject: `Kész galéria: ${gallery.title}`,
+    subject: customSubject || `Kész galéria: ${gallery.title}`,
     provider: "resend",
     entityType: "mini_session_booking",
     entityId: booking.id,
@@ -2458,7 +2557,9 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string) {
         galleryTitle: gallery.title,
         galleryUrl,
         downloadsEnabled: true,
-        language
+        language,
+        subject: customSubject || undefined,
+        message: customMessage || undefined
       })
   });
 

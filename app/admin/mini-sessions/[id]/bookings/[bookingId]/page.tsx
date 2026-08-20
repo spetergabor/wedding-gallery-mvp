@@ -20,13 +20,14 @@ import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MiniSessionNotificationComposer } from "@/components/mini-session-notification-composer";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { miniSessionBookingManageUrl, publicGalleryUrl } from "@/lib/email";
 import {
   createMiniSessionFinalGalleryAction,
   createMiniSessionProofingGalleryAction,
-  deliverMiniSessionFinalGalleryAction,
   markMiniSessionNoShowAction,
   markMiniSessionShootCompletedAction
 } from "@/lib/mini-session-actions";
@@ -40,10 +41,41 @@ import {
   deriveMiniSessionWorkflowStage,
   miniSessionWorkflowStageIndex
 } from "@/lib/mini-session-workflow";
-import { formatMiniSessionSlotWithDate } from "@/lib/mini-sessions";
+import { formatMiniSessionSlotWithDate, normalizeMiniSessionLanguage } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
 const cardClass = "rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6";
+
+const NOTIFICATION_COPY = {
+  hu: {
+    shoot: {
+      subject: "Köszönjük, hogy eljöttetek a fotózásra",
+      message: "Szia!\n\nKöszönjük, hogy itt voltatok a mini fotózáson. Hamarosan elkészítem a válogatógalériát, és külön e-mailben jelzem, amikor kiválaszthatjátok a kedvenc képeiteket."
+    },
+    postProduction: {
+      subject: "Megkaptam a képválogatásodat",
+      message: "Szia!\n\nMegérkezett a képválogatásod. Most elkezdem a kiválasztott fotók kidolgozását, és e-mailben értesítelek, amikor elkészült a végleges galéria."
+    },
+    final: {
+      subject: "Elkészült a mini fotózás galériája",
+      message: "Szia!\n\nElkészültek a kidolgozott képek. A galériát az alábbi gombbal tudod megnyitni és a fotókat letölteni."
+    }
+  },
+  de: {
+    shoot: {
+      subject: "Danke, dass ihr beim Shooting wart",
+      message: "Hallo!\n\nVielen Dank, dass ihr beim Mini-Shooting dabei wart. Ich bereite jetzt die Auswahlgalerie vor und informiere euch per E-Mail, sobald ihr eure Lieblingsbilder auswählen könnt."
+    },
+    postProduction: {
+      subject: "Deine Bildauswahl ist angekommen",
+      message: "Hallo!\n\nDeine Bildauswahl ist bei mir angekommen. Ich beginne jetzt mit der Bearbeitung der ausgewählten Fotos und informiere dich per E-Mail, sobald die fertige Galerie bereit ist."
+    },
+    final: {
+      subject: "Deine Mini-Shooting-Galerie ist fertig",
+      message: "Hallo!\n\nDeine fertig bearbeiteten Bilder sind bereit. Über den folgenden Button kannst du die Galerie öffnen und die Fotos herunterladen."
+    }
+  }
+} as const;
 
 function formatDateTime(value: Date | null | undefined) {
   if (!value) {
@@ -69,6 +101,8 @@ export default async function MiniSessionBookingWorkflowPage({
   searchParams: Promise<{
     shootCompleted?: string;
     noShow?: string;
+    notify?: string;
+    notificationSent?: string;
     delivered?: string;
     error?: string;
   }>;
@@ -87,7 +121,12 @@ export default async function MiniSessionBookingWorkflowPage({
         select: {
           id: true,
           title: true,
-          location: true
+          slug: true,
+          location: true,
+          language: true,
+          admin: {
+            select: { siteSettings: { select: { publicSubdomain: true } } }
+          }
         }
       },
       proofingGallery: {
@@ -128,6 +167,11 @@ export default async function MiniSessionBookingWorkflowPage({
   const lightroomFilenameList = selectedFilenames.join(",");
   const isClosedWithoutDelivery = booking.status === "cancelled" || booking.status === "no_show";
   const isShootTimeReached = booking.startsAt.getTime() <= Date.now();
+  const customerLanguage = normalizeMiniSessionLanguage(booking.miniSession.language);
+  const notificationCopy = NOTIFICATION_COPY[customerLanguage];
+  const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
+  const customerWorkspaceUrl = miniSessionBookingManageUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
+  const finalGalleryUrl = finalGallery ? publicGalleryUrl(finalGallery.slug, customerLanguage, publicSubdomain) : customerWorkspaceUrl;
 
   return (
     <AdminShell>
@@ -144,9 +188,12 @@ export default async function MiniSessionBookingWorkflowPage({
       <div className="mb-5 space-y-3">
         {flags.shootCompleted ? <Alert title="A fotózás lezárva." variant="success">Most feltöltheted a válogatás képeit.</Alert> : null}
         {flags.noShow ? <Alert title="A foglalást no show állapotban lezártad." variant="success" /> : null}
+        {flags.notificationSent ? <Alert title="Az ügyfélértesítő e-mail elküldve." variant="success" /> : null}
         {flags.delivered ? <Alert title="A kész galéria átadva." variant="success">Az ügyfél e-mailben megkapta a letöltési linket.</Alert> : null}
         {flags.error === "selection-required" ? <Alert title="Az ügyfél még nem zárta le a válogatást." variant="error" /> : null}
         {flags.error === "shoot-not-started" ? <Alert title="A fotózás még nem kezdődött el." variant="error" /> : null}
+        {flags.error === "notification-content" ? <Alert title="Az e-mail tárgya és szövege nem lehet üres." variant="error" /> : null}
+        {flags.error === "notification-email" ? <Alert title="Az ügyfélértesítő e-mail küldése nem sikerült." variant="error">Ellenőrizd a Resend beállítást, majd próbáld újra.</Alert> : null}
         {flags.error === "final-photos-required" ? <Alert title="A végleges galéria még üres." variant="error">Az átadás előtt töltsd fel a kidolgozott képeket.</Alert> : null}
         {flags.error === "client-email" ? <Alert title="Hiányzik vagy hibás az ügyfél e-mail címe." variant="error" /> : null}
         {flags.error === "delivery-email" ? <Alert title="A galéria elkészült, de az e-mail küldése nem sikerült." variant="error">Ellenőrizd a Resend beállítást, majd próbáld újra.</Alert> : null}
@@ -256,6 +303,18 @@ export default async function MiniSessionBookingWorkflowPage({
                   </FormSubmitButton>
                 </form>
               )}
+              <div className="mt-4">
+                <MiniSessionNotificationComposer
+                  bookingId={booking.id}
+                  kind="shoot_completed"
+                  recipient={booking.email}
+                  previewUrl={customerWorkspaceUrl}
+                  defaultSubject={notificationCopy.shoot.subject}
+                  defaultMessage={notificationCopy.shoot.message}
+                  triggerLabel="Ügyfél értesítése"
+                  autoOpen={flags.notify === "shoot_completed"}
+                />
+              </div>
             </div>
           ) : null}
 
@@ -309,6 +368,18 @@ export default async function MiniSessionBookingWorkflowPage({
                 </div>
               ) : null}
 
+              <div className="mt-5">
+                <MiniSessionNotificationComposer
+                  bookingId={booking.id}
+                  kind="post_production"
+                  recipient={booking.email}
+                  previewUrl={customerWorkspaceUrl}
+                  defaultSubject={notificationCopy.postProduction.subject}
+                  defaultMessage={notificationCopy.postProduction.message}
+                  triggerLabel="Ügyfél értesítése az utómunkáról"
+                />
+              </div>
+
               {finalGallery ? (
                 <>
                   <div className="mt-5 rounded-md bg-paper px-4 py-3">
@@ -316,14 +387,17 @@ export default async function MiniSessionBookingWorkflowPage({
                     <p className="mt-2 text-2xl font-semibold text-ink">{finalGallery._count.photos}</p>
                   </div>
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <ButtonLink href={`/admin/galleries/${finalGallery.id}?tab=photos`} variant="secondary"><UploadCloud size={16} /> Kész képek feltöltése</ButtonLink>
+                  <ButtonLink href={`/admin/galleries/${finalGallery.id}?tab=photos`} variant="secondary"><UploadCloud size={16} /> Kész képek feltöltése</ButtonLink>
                     {finalGallery._count.photos > 0 ? (
-                      <form action={deliverMiniSessionFinalGalleryAction.bind(null, booking.id)}>
-                        <FormSubmitButton disabled={isClosedWithoutDelivery} pendingLabel="Átadás...">
-                          <Mail size={16} />
-                          Kész galéria átadása
-                        </FormSubmitButton>
-                      </form>
+                      <MiniSessionNotificationComposer
+                        bookingId={booking.id}
+                        kind="final_delivery"
+                        recipient={booking.email}
+                        previewUrl={finalGalleryUrl}
+                        defaultSubject={notificationCopy.final.subject}
+                        defaultMessage={notificationCopy.final.message}
+                        triggerLabel="Kész galéria átadása"
+                      />
                     ) : null}
                   </div>
                 </>
@@ -347,6 +421,15 @@ export default async function MiniSessionBookingWorkflowPage({
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <ButtonLink href={`/admin/galleries/${finalGallery.id}`} variant="secondary"><Images size={16} /> Galéria kezelése</ButtonLink>
                   <ButtonLink href={`/g/${finalGallery.slug}`}><ExternalLink size={16} /> Ügyfélgaléria megnyitása</ButtonLink>
+                  <MiniSessionNotificationComposer
+                    bookingId={booking.id}
+                    kind="final_delivery"
+                    recipient={booking.email}
+                    previewUrl={finalGalleryUrl}
+                    defaultSubject={notificationCopy.final.subject}
+                    defaultMessage={notificationCopy.final.message}
+                    triggerLabel="Átadó e-mail újraküldése"
+                  />
                 </div>
               ) : null}
             </div>

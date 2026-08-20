@@ -61,6 +61,18 @@ type ClientFinalDeliveryEmail = {
   galleryUrl: string;
   downloadsEnabled: boolean;
   language?: CustomerLanguage;
+  subject?: string;
+  message?: string;
+};
+
+type MiniSessionWorkflowNotificationEmail = {
+  to: string;
+  replyTo?: string;
+  senderName?: string | null;
+  subject: string;
+  message: string;
+  actionUrl: string;
+  actionLabel: string;
 };
 
 type AdminGalleryZipReadyEmail = {
@@ -1285,17 +1297,19 @@ function clientFinalDeliveryHtml({
   galleryTitle,
   galleryUrl,
   downloadsEnabled,
-  language
+  language,
+  message
 }: ClientFinalDeliveryEmail) {
   const copy = copyForLanguage(language);
-  const body = copy.finalDelivery.body;
+  const body = message?.trim() || copy.finalDelivery.body;
   const cta = copy.finalDelivery.linksEnabledBody;
   const ctaLabel = downloadsEnabled ? cta : copy.finalDelivery.linksDisabledBody;
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.finalDelivery.heading}</h1>
       <p style="margin: 0 0 18px;">${copy.finalDelivery.intro}</p>
-      <p style="margin: 0 0 18px;">${body} <strong>${escapeHtml(galleryTitle)}</strong>.</p>
+      <p style="margin: 0 0 18px; white-space: pre-line;">${escapeHtml(body)}</p>
+      <p style="margin: 0 0 18px;"><strong>${escapeHtml(galleryTitle)}</strong></p>
       <p style="margin: 0 0 18px;">${downloadsEnabled ? copy.finalDelivery.linksEnabledBody : copy.finalDelivery.linksDisabledBody}</p>
       <p style="margin: 0 0 20px;">
         <a href="${escapeHtml(galleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${ctaLabel}</a>
@@ -1316,10 +1330,12 @@ export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryE
   const response = await sendResendEmail(apiKey, {
       from,
       to: payload.to,
-      subject: `${copyForLanguage(payload.language).finalDelivery.subject}: ${payload.galleryTitle}`,
+      subject: payload.subject?.trim() || `${copyForLanguage(payload.language).finalDelivery.subject}: ${payload.galleryTitle}`,
       html: clientFinalDeliveryHtml(payload),
       text: [
-        copyForLanguage(payload.language).finalDelivery.subject,
+        payload.subject?.trim() || copyForLanguage(payload.language).finalDelivery.subject,
+        "",
+        payload.message?.trim() || copyForLanguage(payload.language).finalDelivery.body,
         "",
         `Galerie: ${payload.galleryTitle}`,
         payload.downloadsEnabled
@@ -1333,6 +1349,41 @@ export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryE
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
     throw new Error(`Client final delivery email failed: ${response.status} ${errorText}`);
+  }
+
+  return true;
+}
+
+export async function sendMiniSessionWorkflowNotificationEmail(payload: MiniSessionWorkflowNotificationEmail) {
+  const { apiKey, from } = emailConfig();
+
+  if (!apiKey) {
+    console.warn("Mini session workflow notification skipped. Missing RESEND_API_KEY.");
+    return false;
+  }
+
+  const htmlMessage = escapeHtml(payload.message).replace(/\n/g, "<br>");
+  const response = await sendResendEmail(apiKey, {
+    from: senderWithDisplayName(from, payload.senderName),
+    to: payload.to,
+    ...replyToPayload(payload.replyTo),
+    subject: payload.subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.6;">
+        <h1 style="font-size: 22px; margin: 0 0 16px;">${escapeHtml(payload.subject)}</h1>
+        <p style="margin: 0 0 22px;">${htmlMessage}</p>
+        <p style="margin: 0 0 20px;">
+          <a href="${escapeHtml(payload.actionUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 11px 16px; border-radius: 6px;">${escapeHtml(payload.actionLabel)}</a>
+        </p>
+        <p style="margin: 0; color: #777; font-size: 13px;">${escapeHtml(payload.actionUrl)}</p>
+      </div>
+    `,
+    text: [payload.subject, "", payload.message, "", `${payload.actionLabel}: ${payload.actionUrl}`].join("\n")
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Mini session workflow notification failed: ${response.status} ${errorText}`);
   }
 
   return true;
