@@ -408,14 +408,14 @@ function ServiceCreateForm() {
       </CreateSettingsSection>
 
       <CreateSettingsSection
-        title="Ügyfélfolyamat"
-        description="Egyszerű szolgáltatásoknál, például íriszfotózásnál elég a foglalás. Ha teljes ügyfélfolyamatot szeretnél vezetni, kapcsold be az automatikus ügyfél és projekt létrehozást."
+        title="Utómunka-folyamat"
+        description="Kapcsold be, ha a foglalást válogatás, utómunka és kész galéria követi. Egyszerű szolgáltatásnál, például íriszfotózásnál hagyd kikapcsolva."
       >
         <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite">
-          <input name="createCustomerOnBooking" type="checkbox" className="mt-0.5 size-4 rounded border-ink/20" />
+          <input name="postProductionWorkflowEnabled" type="checkbox" className="mt-0.5 size-4 rounded border-ink/20" />
           <span>
-            <span className="block font-medium text-ink">Foglalásból ügyfél és projekt létrehozása</span>
-            <span className="mt-1 block leading-5 text-graphite/65">Kikapcsolva a foglalás csak az időpontfoglalóban és a dashboard következő munkái között jelenik meg.</span>
+            <span className="block font-medium text-ink">Válogatás és galériaátadás használata</span>
+            <span className="mt-1 block leading-5 text-graphite/65">Bekapcsolva ügyfél és projekt is készül, és megjelenik a teljes folyamatvonal. Kikapcsolva csak az időpontfoglalás marad.</span>
           </span>
         </label>
       </CreateSettingsSection>
@@ -515,14 +515,14 @@ function MiniSessionCreateForm() {
       </CreateSettingsSection>
 
       <CreateSettingsSection
-        title="Ügyfélfolyamat"
-        description="Mini session napoknál általában hasznos, ha a foglalóból automatikusan ügyfél és projekt készül."
+        title="Utómunka-folyamat"
+        description="Mini shootingnál kapcsold be: a foglalás után ügyfél, válogatás, utómunka és kész galéria következik."
       >
         <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite">
-          <input name="createCustomerOnBooking" type="checkbox" defaultChecked className="mt-0.5 size-4 rounded border-ink/20" />
+          <input name="postProductionWorkflowEnabled" type="checkbox" defaultChecked className="mt-0.5 size-4 rounded border-ink/20" />
           <span>
-            <span className="block font-medium text-ink">Foglalásból ügyfél és projekt létrehozása</span>
-            <span className="mt-1 block leading-5 text-graphite/65">Kikapcsolva a foglalás nem kerül be az ügyféllistába, csak önálló időpontként jelenik meg.</span>
+            <span className="block font-medium text-ink">Válogatás és galériaátadás használata</span>
+            <span className="mt-1 block leading-5 text-graphite/65">Bekapcsolva automatikusan ügyfél és projekt készül. Kikapcsolva a foglalás nem kerül az ügyféllistába, és nem kap utómunka-folyamatot.</span>
           </span>
         </label>
       </CreateSettingsSection>
@@ -1190,13 +1190,19 @@ export default async function AdminMiniSessionsPage({
                         <p className="mt-1 truncate text-xs text-graphite/55">/mini-session/{session.slug}</p>
                       </div>
                       <div className="flex flex-wrap gap-2 md:justify-end">
-                        <Link
-                          href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
-                          className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-graphite md:w-auto"
-                        >
-                          {miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}
-                          <ArrowRight size={14} />
-                        </Link>
+                        {session.postProductionWorkflowEnabled ? (
+                          <Link
+                            href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
+                            className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-graphite md:w-auto"
+                          >
+                            {miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}
+                            <ArrowRight size={14} />
+                          </Link>
+                        ) : (
+                          <span className="inline-flex h-9 w-full items-center justify-center rounded-md border border-ink/10 bg-paper px-3 text-sm font-medium text-graphite md:w-auto">
+                            Egyszerű foglalás
+                          </span>
+                        )}
                         {canCloseBooking ? (
                           <>
                             <form action={updateMiniSessionBookingStatusAction.bind(null, booking.id)}>

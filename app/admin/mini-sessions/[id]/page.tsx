@@ -610,7 +610,7 @@ export default async function AdminMiniSessionDetailPage({
               <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
               <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
               <span>Minimum foglalás: {miniSessionMinBookingNoticeLabel(session.minBookingNoticeMinutes)}</span>
-              <span>{session.createCustomerOnBooking ? "Ügyfél/projekt automatikus" : "Egyszerű foglalás"}</span>
+              <span>{session.postProductionWorkflowEnabled ? "Utómunka-folyamat aktív" : "Egyszerű foglalás"}</span>
             </div>
             <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
           </div>
@@ -850,13 +850,15 @@ export default async function AdminMiniSessionDetailPage({
                         <p className="flex items-center gap-2"><Users size={14} /> {booking.attendeeCount} fő</p>
                       </div>
                       {booking.adminNote ? <p className="mt-3 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
-                      <Link
-                        href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
-                        className="mt-3 flex items-center justify-between rounded-md border border-brass/20 bg-brass/5 px-3 py-2 text-sm font-medium text-ink transition hover:bg-brass/10"
-                      >
-                        <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
-                        <ArrowRight size={15} />
-                      </Link>
+                      {session.postProductionWorkflowEnabled ? (
+                        <Link
+                          href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
+                          className="mt-3 flex items-center justify-between rounded-md border border-brass/20 bg-brass/5 px-3 py-2 text-sm font-medium text-ink transition hover:bg-brass/10"
+                        >
+                          <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
+                          <ArrowRight size={15} />
+                        </Link>
+                      ) : null}
                       <div className="mt-3 space-y-2 rounded-md border border-ink/10 bg-white px-3 py-3">
                         <DeliveryStatusLine label="Ügyfél e-mail" display={customerEmailDelivery} />
                         <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
@@ -951,13 +953,15 @@ export default async function AdminMiniSessionDetailPage({
                           </td>
                           <td className="px-4 py-3">
                             <div className="grid min-w-52 gap-2">
-                              <Link
-                                href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
-                                className="inline-flex h-9 items-center justify-between gap-2 rounded-md border border-brass/20 bg-brass/5 px-3 text-xs font-semibold text-ink transition hover:bg-brass/10"
-                              >
-                                <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
-                                <ArrowRight size={14} />
-                              </Link>
+                              {session.postProductionWorkflowEnabled ? (
+                                <Link
+                                  href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
+                                  className="inline-flex h-9 items-center justify-between gap-2 rounded-md border border-brass/20 bg-brass/5 px-3 text-xs font-semibold text-ink transition hover:bg-brass/10"
+                                >
+                                  <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
+                                  <ArrowRight size={14} />
+                                </Link>
+                              ) : null}
                               <BookingManagementActions
                                 bookingId={booking.id}
                                 status={booking.status}
@@ -1181,15 +1185,15 @@ export default async function AdminMiniSessionDetailPage({
               </label>
               <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite sm:col-span-2">
                 <input
-                  name="createCustomerOnBooking"
+                  name="postProductionWorkflowEnabled"
                   type="checkbox"
-                  defaultChecked={session.createCustomerOnBooking}
+                  defaultChecked={session.postProductionWorkflowEnabled}
                   className="mt-0.5 size-4 rounded border-ink/20"
                 />
                 <span>
-                  <span className="block font-medium text-ink">Foglalásból ügyfél és projekt létrehozása</span>
+                  <span className="block font-medium text-ink">Válogatás és galériaátadás használata</span>
                   <span className="mt-1 block leading-5 text-graphite/65">
-                    Kikapcsolva a vendégfoglalás nem hoz létre új ügyfelet vagy ügyfél alatti projektet, de a dashboardon közelgő munkaként látszik.
+                    Bekapcsolva minden új foglalásból ügyfél és projekt készül, valamint elérhető a teljes utómunka-folyamat. Kikapcsolva az új foglalás csak időpont marad. A korábban létrehozott ügyfelek nem törlődnek.
                   </span>
                 </span>
               </label>

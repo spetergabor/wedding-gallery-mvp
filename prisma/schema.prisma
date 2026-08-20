@@ -633,6 +633,7 @@ model MiniSession {
   language                String                    @default("hu")
   isActive                Boolean                   @default(true)
   createCustomerOnBooking Boolean                   @default(true)
+  postProductionWorkflowEnabled Boolean             @default(true)
   notes                   String?
   stylingNotes            String?
   coverImageUrl           String?

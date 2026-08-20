@@ -119,6 +119,7 @@ export default async function MiniSessionManagePage({
           title: true,
           location: true,
           language: true,
+          postProductionWorkflowEnabled: true,
           admin: {
             select: {
               siteSettings: { select: { businessName: true, publicSubdomain: true } }
@@ -149,9 +150,12 @@ export default async function MiniSessionManagePage({
 
   const language = normalizeMiniSessionLanguage(booking.miniSession.language);
   const copy = COPY[language];
-  const currentIndex = workflowIndex(booking);
+  const hasPostProductionWorkflow = booking.miniSession.postProductionWorkflowEnabled;
+  const currentIndex = hasPostProductionWorkflow ? workflowIndex(booking) : 0;
   const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
-  const adminHref = `/admin/mini-sessions/${booking.miniSession.id}/bookings/${booking.id}`;
+  const adminHref = booking.miniSession.postProductionWorkflowEnabled
+    ? `/admin/mini-sessions/${booking.miniSession.id}/bookings/${booking.id}`
+    : `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`;
   const canAdminister = admin?.workspaceAdminId === booking.miniSession.adminId;
   const canManageAppointment = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED && booking.startsAt.getTime() > Date.now();
   const proofingHref = booking.proofingGallery?.clientAccessToken
@@ -203,7 +207,9 @@ export default async function MiniSessionManagePage({
             </div>
             {canAdminister ? <Link href={adminHref} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 px-3 text-sm font-medium"><Settings2 size={15} />{copy.admin}</Link> : null}
           </div>
-          <div className="mt-6"><MiniSessionClientProgress items={copy.progress.map((label) => ({ label }))} currentIndex={currentIndex} /></div>
+          {hasPostProductionWorkflow ? (
+            <div className="mt-6"><MiniSessionClientProgress items={copy.progress.map((label) => ({ label }))} currentIndex={currentIndex} /></div>
+          ) : null}
         </section>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">

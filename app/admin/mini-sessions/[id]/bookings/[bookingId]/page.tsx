@@ -14,7 +14,7 @@ import {
   UserRound
 } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { AdminShell } from "@/components/admin-shell";
 import { ButtonLink } from "@/components/button";
@@ -124,6 +124,7 @@ export default async function MiniSessionBookingWorkflowPage({
           slug: true,
           location: true,
           language: true,
+          postProductionWorkflowEnabled: true,
           admin: {
             select: { siteSettings: { select: { publicSubdomain: true } } }
           }
@@ -155,6 +156,10 @@ export default async function MiniSessionBookingWorkflowPage({
 
   if (!booking) {
     notFound();
+  }
+
+  if (!booking.miniSession.postProductionWorkflowEnabled) {
+    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`);
   }
 
   const stage = deriveMiniSessionWorkflowStage(booking);

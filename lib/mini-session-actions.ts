@@ -334,7 +334,7 @@ export async function createMiniSessionAction(formData: FormData) {
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
-  const createCustomerOnBooking = formData.get("createCustomerOnBooking") === "on";
+  const postProductionWorkflowEnabled = formData.get("postProductionWorkflowEnabled") === "on";
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
@@ -368,7 +368,8 @@ export async function createMiniSessionAction(formData: FormData) {
         minBookingNoticeMinutes,
         language,
         isActive: formData.get("isActive") === "on",
-        createCustomerOnBooking,
+        createCustomerOnBooking: postProductionWorkflowEnabled,
+        postProductionWorkflowEnabled,
         notes: notes || null,
         stylingNotes: stylingNotes || null,
         coverImageUrl: uploadedCover?.url ?? null,
@@ -608,7 +609,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
-  const createCustomerOnBooking = formData.get("createCustomerOnBooking") === "on";
+  const postProductionWorkflowEnabled = formData.get("postProductionWorkflowEnabled") === "on";
   const language = miniSessionLanguageFromForm(formData);
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
@@ -637,7 +638,8 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         minBookingNoticeMinutes,
         language,
         isActive: formData.get("isActive") === "on",
-        createCustomerOnBooking,
+        createCustomerOnBooking: postProductionWorkflowEnabled,
+        postProductionWorkflowEnabled,
         notes: notes || null,
         stylingNotes: stylingNotes || null,
         availabilityRules: {
@@ -850,7 +852,11 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
       }
     });
 
-    if (source === MINI_SESSION_BOOKING_SOURCE_BLOCKED || !session.createCustomerOnBooking) {
+    if (
+      source === MINI_SESSION_BOOKING_SOURCE_BLOCKED ||
+      !session.postProductionWorkflowEnabled ||
+      !session.createCustomerOnBooking
+    ) {
       return createdBooking;
     }
 
@@ -1013,7 +1019,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
       }
     });
 
-    if (!session.createCustomerOnBooking) {
+    if (!session.postProductionWorkflowEnabled || !session.createCustomerOnBooking) {
       return createdBooking;
     }
 
@@ -1038,7 +1044,9 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   const cancelUrl = miniSessionBookingCancelUrl(slug, cancelToken, publicSubdomain);
   const rescheduleUrl = miniSessionBookingRescheduleUrl(slug, cancelToken, publicSubdomain);
   const calendarUrl = miniSessionBookingCalendarUrl(slug, cancelToken, publicSubdomain);
-  const adminUrl = `${adminMiniSessionUrl(session.id)}/bookings/${booking.id}`;
+  const adminUrl = session.postProductionWorkflowEnabled
+    ? `${adminMiniSessionUrl(session.id)}/bookings/${booking.id}`
+    : `${adminMiniSessionUrl(session.id)}?tab=bookings`;
   const manageUrl = miniSessionBookingManageUrl(slug, cancelToken, publicSubdomain);
   const publicUrl = miniSessionPublicUrl(session.slug, publicSubdomain);
   const calendarFilename = miniSessionCalendarFilename(session.title);
