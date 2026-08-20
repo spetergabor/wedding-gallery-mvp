@@ -742,7 +742,6 @@ export default async function GalleryDetailPage({
       <div className="space-y-6">
         <div data-gallery-tab-panel="photos" hidden={activeTab !== "photos"}>
           <div className="space-y-8">
-            {coverPositionControlProps ? <CoverPositionControl {...coverPositionControlProps} returnTab="photos" /> : null}
             <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
