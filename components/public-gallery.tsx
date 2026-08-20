@@ -103,6 +103,14 @@ const GALLERY_COPY = {
     listNameRequired: "Bitte gib einen Namen für die Liste ein.",
     listCreateError: "Die Liste konnte nicht erstellt werden.",
     selectionSaved: "Die Auswahl wurde gespeichert.",
+    billingTitle: "Rechnungsdaten",
+    billingIntro: "Diese Angaben werden für deine Rechnung gespeichert und zusammen mit der Bildauswahl an den Fotografen übermittelt.",
+    billingName: "Vollständiger Name / Firmenname",
+    billingAddress: "Straße und Hausnummer",
+    billingPostalCode: "Postleitzahl",
+    billingCity: "Ort",
+    billingCountry: "Land",
+    billingUid: "UID-Nummer (optional)",
     openPhoto: "Foto öffnen",
     videoSectionTitle: "Videos",
     videoCount: (count: number) => `${count} ${count === 1 ? "Video" : "Videos"}`,
@@ -223,6 +231,14 @@ const GALLERY_COPY = {
     listNameRequired: "Adj nevet a listának.",
     listCreateError: "A listát nem sikerült létrehozni.",
     selectionSaved: "A válogatást mentettük.",
+    billingTitle: "Számlázási adatok",
+    billingIntro: "Ezeket az adatokat elmentjük a számlához, és a képválogatással együtt elküldjük a fotósnak.",
+    billingName: "Teljes név / cégnév",
+    billingAddress: "Utca és házszám",
+    billingPostalCode: "Irányítószám",
+    billingCity: "Település",
+    billingCountry: "Ország",
+    billingUid: "UID-szám (opcionális)",
     openPhoto: "Fotó megnyitása",
     videoSectionTitle: "Videók",
     videoCount: (count: number) => `${count} videó`,
@@ -348,6 +364,15 @@ type FavoriteListState = {
   name: string;
   submittedAt: string | null;
   photoIds: string[];
+};
+
+type BillingDetailsState = {
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  country: string;
+  uid: string;
 };
 
 function photoFileName(photo: PublicPhoto, index: number) {
@@ -567,6 +592,14 @@ export function PublicGallery({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [cartPhotoIds, setCartPhotoIds] = useState<string[]>([]);
   const [isSelectionSummaryOpen, setIsSelectionSummaryOpen] = useState(false);
+  const [billingDetails, setBillingDetails] = useState<BillingDetailsState>({
+    name: "",
+    addressLine1: "",
+    postalCode: "",
+    city: "",
+    country: "Österreich",
+    uid: ""
+  });
   const [shareState, setShareState] = useState<"idle" | "copied" | "failed">("idle");
   const [isFilteringFavorites, startFavoritesFilterTransition] = useTransition();
   const copy = GALLERY_COPY[language];
@@ -1239,7 +1272,7 @@ export function PublicGallery({
     setFavoriteSuccess("");
 
     try {
-      const result = await submitFavoriteListAction(galleryId, favoriteEmail, activeFavoriteList.id);
+      const result = await submitFavoriteListAction(galleryId, favoriteEmail, activeFavoriteList.id, billingDetails);
 
       if (!result.ok || !result.submittedAt) {
         throw new Error(result.message);
@@ -2222,7 +2255,13 @@ export function PublicGallery({
 
       {proofingSelection && isSelectionSummaryOpen && activeFavoriteList ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-ink/60 px-5 backdrop-blur-sm">
-          <section className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-soft">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitActiveFavoriteList();
+            }}
+            className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-soft"
+          >
             <div className="flex items-start justify-between gap-4 border-b border-ink/10 p-5">
               <div>
                 <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
@@ -2288,6 +2327,78 @@ export function PublicGallery({
                 </div>
               </div>
 
+              <div className="mt-5 rounded-md border border-ink/10 bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-ink">{copy.billingTitle}</h3>
+                    <p className="mt-1 text-sm leading-6 text-graphite/70">{copy.billingIntro}</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="space-y-2 sm:col-span-2">
+                    <span className="text-sm font-medium text-graphite">{copy.billingName} *</span>
+                    <input
+                      required
+                      autoComplete="name"
+                      value={billingDetails.name}
+                      onChange={(event) => setBillingDetails((current) => ({ ...current, name: event.target.value }))}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2 sm:col-span-2">
+                    <span className="text-sm font-medium text-graphite">{copy.billingAddress} *</span>
+                    <input
+                      required
+                      autoComplete="street-address"
+                      value={billingDetails.addressLine1}
+                      onChange={(event) => setBillingDetails((current) => ({ ...current, addressLine1: event.target.value }))}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.billingPostalCode} *</span>
+                    <input
+                      required
+                      autoComplete="postal-code"
+                      value={billingDetails.postalCode}
+                      onChange={(event) => setBillingDetails((current) => ({ ...current, postalCode: event.target.value }))}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.billingCity} *</span>
+                    <input
+                      required
+                      autoComplete="address-level2"
+                      value={billingDetails.city}
+                      onChange={(event) => setBillingDetails((current) => ({ ...current, city: event.target.value }))}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.billingCountry} *</span>
+                    <input
+                      required
+                      autoComplete="country-name"
+                      value={billingDetails.country}
+                      onChange={(event) => setBillingDetails((current) => ({ ...current, country: event.target.value }))}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-graphite">{copy.billingUid}</span>
+                    <input
+                      value={billingDetails.uid}
+                      onChange={(event) => setBillingDetails((current) => ({ ...current, uid: event.target.value }))}
+                      className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+                    />
+                  </label>
+                </div>
+              </div>
+
               {favoriteError ? (
                 <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {favoriteError}
@@ -2299,12 +2410,12 @@ export function PublicGallery({
               <Button type="button" variant="secondary" onClick={() => setIsSelectionSummaryOpen(false)}>
                 {copy.backToSelection}
               </Button>
-              <Button type="button" onClick={() => void submitActiveFavoriteList()} disabled={isSubmittingFavoriteList}>
+              <Button type="submit" disabled={isSubmittingFavoriteList}>
                 <Heart size={16} />
                 {isSubmittingFavoriteList ? copy.sending : copy.sendSelection}
               </Button>
             </div>
-          </section>
+          </form>
         </div>
       ) : null}
 

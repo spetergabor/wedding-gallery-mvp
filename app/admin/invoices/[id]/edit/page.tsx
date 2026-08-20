@@ -20,7 +20,17 @@ export default async function EditCustomerInvoicePage({ params }: { params: Prom
   if (!invoice || !workspace) notFound();
   if (invoice.status !== "draft") redirect(`/admin/invoices/${invoice.id}`);
   const party = parseInvoiceParty(invoice.customerSnapshot);
-  const candidates = customers.map((customer) => ({ id: customer.id, name: customer.coupleName, primaryEmail: customer.primaryEmail, secondaryEmail: customer.secondaryEmail ?? "", addressLine1: customer.weddingAddress ?? "", postalCode: "", city: "", country: "Österreich", uid: "" }));
+  const candidates = customers.map((customer) => ({
+    id: customer.id,
+    name: customer.billingName ?? customer.coupleName,
+    primaryEmail: customer.primaryEmail,
+    secondaryEmail: customer.secondaryEmail ?? "",
+    addressLine1: customer.billingAddressLine1 ?? customer.weddingAddress ?? "",
+    postalCode: customer.billingPostalCode ?? "",
+    city: customer.billingCity ?? "",
+    country: customer.billingCountry ?? "Österreich",
+    uid: customer.billingUid ?? ""
+  }));
   const projects = customers.flatMap((customer) => customer.projects.map((project) => ({ id: project.id, customerId: customer.id, title: project.title, eventDate: project.eventDate?.toLocaleDateString("de-AT", { timeZone: "UTC" }) ?? "" })));
   const selectedCustomer = candidates.find((candidate) => candidate.id === invoice.customerId);
   const initialCustomer = { id: selectedCustomer?.id ?? "", name: party.name, primaryEmail: party.email ?? "", secondaryEmail: party.secondaryEmail ?? "", addressLine1: party.addressLine1 ?? "", postalCode: party.postalCode ?? "", city: party.city ?? "", country: party.country ?? "", uid: party.uid ?? "" };

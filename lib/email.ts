@@ -11,6 +11,14 @@ type AdminFavoriteListSubmittedEmail = {
   listName: string;
   filenames: string[];
   lightroomCompatible?: boolean;
+  billingDetails?: {
+    name: string;
+    addressLine1: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    uid?: string | null;
+  };
   submittedAt: Date;
 };
 
@@ -591,9 +599,17 @@ function favoriteListSubmittedHtml({
   listName,
   filenames,
   lightroomCompatible,
+  billingDetails,
   submittedAt
 }: AdminFavoriteListSubmittedEmail) {
   const escapedFilenames = escapeHtml(filenamesText(filenames, lightroomCompatible));
+  const billingRows = billingDetails
+    ? `
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Számlázási név</td><td style="padding: 4px 0;">${escapeHtml(billingDetails.name)}</td></tr>
+        <tr><td style="padding: 4px 16px 4px 0; color: #777;">Számlázási cím</td><td style="padding: 4px 0;">${escapeHtml(billingDetails.addressLine1)}, ${escapeHtml(billingDetails.postalCode)} ${escapeHtml(billingDetails.city)}, ${escapeHtml(billingDetails.country)}</td></tr>
+        ${billingDetails.uid ? `<tr><td style="padding: 4px 16px 4px 0; color: #777;">UID</td><td style="padding: 4px 0;">${escapeHtml(billingDetails.uid)}</td></tr>` : ""}
+      `
+    : "";
 
   return `
     <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
@@ -605,6 +621,7 @@ function favoriteListSubmittedHtml({
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Email</td><td style="padding: 4px 0;">${escapeHtml(clientEmail)}</td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Képek</td><td style="padding: 4px 0;">${filenames.length}</td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Lezárva</td><td style="padding: 4px 0;">${submittedAt.toLocaleString("hu-HU", { timeZone: APP_TIME_ZONE })}</td></tr>
+        ${billingRows}
       </table>
       <p style="margin: 0 0 16px;">
         <a href="${escapeHtml(galleryAdminUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Admin galéria megnyitása</a>
@@ -636,6 +653,13 @@ export async function sendAdminFavoriteListSubmittedEmail(payload: AdminFavorite
         `Lista: ${payload.listName}`,
         `Email: ${payload.clientEmail}`,
         `Képek: ${payload.filenames.length}`,
+        ...(payload.billingDetails
+          ? [
+              `Számlázási név: ${payload.billingDetails.name}`,
+              `Számlázási cím: ${payload.billingDetails.addressLine1}, ${payload.billingDetails.postalCode} ${payload.billingDetails.city}, ${payload.billingDetails.country}`,
+              ...(payload.billingDetails.uid ? [`UID: ${payload.billingDetails.uid}`] : [])
+            ]
+          : []),
         `Admin: ${payload.galleryAdminUrl}`,
         "",
         "Fájlnevek:",

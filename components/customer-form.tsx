@@ -1,7 +1,7 @@
 import { createCustomerAction, updateCustomerAction } from "@/lib/customer-actions";
 import { ButtonLink } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
-import { Calendar, Mail, MapPin, Pencil, Phone, StickyNote, UserRound } from "lucide-react";
+import { Calendar, Mail, MapPin, Pencil, Phone, ReceiptText, StickyNote, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { CUSTOMER_STATUSES, CUSTOMER_TYPES, customerStatusLabel, customerTypeLabel, normalizeCustomerStatus } from "@/lib/customer-options";
@@ -14,6 +14,12 @@ type CustomerFormValue = {
   primaryEmail: string;
   secondaryEmail: string | null;
   phone: string | null;
+  billingName: string | null;
+  billingAddressLine1: string | null;
+  billingPostalCode: string | null;
+  billingCity: string | null;
+  billingCountry: string | null;
+  billingUid: string | null;
   weddingDate: Date | null;
   venue: string | null;
   status: string;
@@ -95,6 +101,21 @@ export function CustomerProfileCard({ customer, statusLabel }: { customer: Custo
         <DetailItem icon={Phone} label="Telefon" value={detailValue(customer.phone)} />
         <DetailItem icon={MapPin} label="Helyszín" value={detailValue(customer.venue)} />
         <DetailItem icon={Mail} label="Elsődleges nyelv" value={customerLanguageLabel(customer.preferredLanguage)} />
+        <DetailItem icon={ReceiptText} label="Számlázási név" value={detailValue(customer.billingName)} />
+        <DetailItem
+          icon={MapPin}
+          label="Számlázási cím"
+          value={detailValue(
+            [
+              customer.billingAddressLine1,
+              [customer.billingPostalCode, customer.billingCity].filter(Boolean).join(" "),
+              customer.billingCountry
+            ]
+              .filter(Boolean)
+              .join(", ")
+          )}
+        />
+        <DetailItem icon={ReceiptText} label="UID-szám" value={detailValue(customer.billingUid)} />
       </div>
 
       <div className="mt-3 rounded-md border border-ink/10 bg-paper px-4 py-3">
@@ -199,6 +220,36 @@ export function CustomerForm({ customer }: { customer?: CustomerFormValue }) {
             placeholder="+43 ..."
             className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
           />
+        </label>
+
+        <div className="border-t border-ink/10 pt-5 md:col-span-2">
+          <p className="text-sm font-semibold text-ink">Számlázási adatok</p>
+          <p className="mt-1 text-xs text-graphite/60">A válogatás lezárásakor megadott adatok itt automatikusan megjelennek.</p>
+        </div>
+
+        <label className="space-y-2 md:col-span-2">
+          <span className="text-sm font-medium text-graphite">Számlázási név / cégnév</span>
+          <input name="billingName" defaultValue={customer?.billingName ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+        </label>
+        <label className="space-y-2 md:col-span-2">
+          <span className="text-sm font-medium text-graphite">Utca, házszám</span>
+          <input name="billingAddressLine1" defaultValue={customer?.billingAddressLine1 ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+        </label>
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-graphite">Irányítószám</span>
+          <input name="billingPostalCode" defaultValue={customer?.billingPostalCode ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+        </label>
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-graphite">Település</span>
+          <input name="billingCity" defaultValue={customer?.billingCity ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+        </label>
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-graphite">Ország</span>
+          <input name="billingCountry" defaultValue={customer?.billingCountry ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+        </label>
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-graphite">UID-szám</span>
+          <input name="billingUid" defaultValue={customer?.billingUid ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
         </label>
 
         <label className="space-y-2">

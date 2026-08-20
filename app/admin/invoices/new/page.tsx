@@ -23,7 +23,17 @@ export default async function NewCustomerInvoicePage({ searchParams }: { searchP
   ]);
   const highest = numberedInvoices.reduce((max, invoice) => { const value = Number(invoice.number?.slice(numberPrefix.length)); return Number.isInteger(value) ? Math.max(max, value) : max; }, 0);
   const suggestedNumber = `${numberPrefix}${String(Math.max(highest + 1, workspace.invoiceSettings.invoiceSequenceStart)).padStart(3, "0")}`;
-  const candidates = customers.map((customer) => ({ id: customer.id, name: customer.coupleName, primaryEmail: customer.primaryEmail, secondaryEmail: customer.secondaryEmail ?? "", addressLine1: customer.weddingAddress ?? "", postalCode: "", city: "", country: "Österreich", uid: "" }));
+  const candidates = customers.map((customer) => ({
+    id: customer.id,
+    name: customer.billingName ?? customer.coupleName,
+    primaryEmail: customer.primaryEmail,
+    secondaryEmail: customer.secondaryEmail ?? "",
+    addressLine1: customer.billingAddressLine1 ?? customer.weddingAddress ?? "",
+    postalCode: customer.billingPostalCode ?? "",
+    city: customer.billingCity ?? "",
+    country: customer.billingCountry ?? "Österreich",
+    uid: customer.billingUid ?? ""
+  }));
   const projects = customers.flatMap((customer) => customer.projects.map((project) => ({ id: project.id, customerId: customer.id, title: project.title, eventDate: project.eventDate?.toLocaleDateString("de-AT", { timeZone: "UTC" }) ?? "" })));
   const initialCustomer = candidates.find((candidate) => candidate.id === query.customerId);
   const initialProjectId = projects.some((project) => project.id === query.projectId && project.customerId === initialCustomer?.id) ? query.projectId : "";

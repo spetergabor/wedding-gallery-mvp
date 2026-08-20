@@ -1344,8 +1344,28 @@ export async function createFavoriteListAction(galleryId: string, email: string,
   };
 }
 
-export async function submitFavoriteListAction(galleryId: string, email: string, listId: string) {
+export async function submitFavoriteListAction(
+  galleryId: string,
+  email: string,
+  listId: string,
+  billingDetails: {
+    name: string;
+    addressLine1: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    uid?: string;
+  }
+) {
   const normalizedEmail = normalizeEmail(email);
+  const normalizedBillingDetails = {
+    name: billingDetails.name.trim().slice(0, 160),
+    addressLine1: billingDetails.addressLine1.trim().slice(0, 240),
+    postalCode: billingDetails.postalCode.trim().slice(0, 24),
+    city: billingDetails.city.trim().slice(0, 120),
+    country: billingDetails.country.trim().slice(0, 120),
+    uid: billingDetails.uid?.trim().slice(0, 40) || null
+  };
 
   if (!isValidEmail(normalizedEmail)) {
     return {
@@ -1383,6 +1403,7 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
         select: {
           title: true,
           adminId: true,
+          customerId: true,
           galleryMode: true,
           proofingStatus: true,
           admin: {
@@ -1441,43 +1462,96 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
 
   const proofingSelection = isProofingGallery(list.gallery.galleryMode);
   const submittedAt = new Date();
-
-  await prisma.galleryFavoriteList.update({
-    where: { id: list.id },
-    data: { submittedAt }
-  });
-
   if (
-    isProofingGallery(list.gallery.galleryMode) &&
-    ![PROOFING_STATUS_PROCESSING, PROOFING_STATUS_DELIVERED].includes(list.gallery.proofingStatus)
+    proofingSelection &&
+    (normalizedBillingDetails.name.length < 2 ||
+      normalizedBillingDetails.addressLine1.length < 3 ||
+      normalizedBillingDetails.postalCode.length < 2 ||
+      normalizedBillingDetails.city.length < 2 ||
+      normalizedBillingDetails.country.length < 2)
   ) {
-    await prisma.gallery.update({
-      where: { id: galleryId },
-      data: {
-        proofingStatus: PROOFING_STATUS_SUBMITTED,
-        proofingStatusUpdatedAt: submittedAt
-      }
-    });
+    return {
+      ok: false,
+      message: "Bitte fülle alle erforderlichen Rechnungsdaten aus.",
+      submittedAt: null
+    };
+  }
 
-    const linkedBookings = await prisma.miniSessionBooking.findMany({
-      where: { proofingGalleryId: galleryId },
-      select: { id: true, miniSessionId: true }
-    });
+  const customer = proofingSelection
+    ? list.gallery.customerId
+      ? await prisma.customer.findUnique({ where: { id: list.gallery.customerId }, select: { id: true } })
+      : await prisma.customer.findFirst({
+          where: {
+            adminId: list.gallery.adminId,
+            OR: [{ primaryEmail: normalizedEmail }, { secondaryEmail: normalizedEmail }]
+          },
+          orderBy: { updatedAt: "desc" },
+          select: { id: true }
+        })
+    : null;
 
-    if (linkedBookings.length > 0) {
-      await prisma.miniSessionBooking.updateMany({
+  if (proofingSelection && !customer) {
+    return {
+      ok: false,
+      message: "Die Galerie ist keinem Kunden zugeordnet. Bitte kontaktiere den Fotografen.",
+      submittedAt: null
+    };
+  }
+
+  const linkedBookings = proofingSelection
+    ? await prisma.miniSessionBooking.findMany({
         where: { proofingGalleryId: galleryId },
+        select: { id: true, miniSessionId: true }
+      })
+    : [];
+
+  await prisma.$transaction(async (transaction) => {
+    await transaction.galleryFavoriteList.update({
+      where: { id: list.id },
+      data: { submittedAt }
+    });
+
+    if (customer) {
+      await transaction.customer.update({
+        where: { id: customer.id },
         data: {
-          workflowStatus: MINI_SESSION_WORKFLOW_FINAL_UPLOAD,
-          selectionSubmittedAt: submittedAt
+          billingName: normalizedBillingDetails.name,
+          billingAddressLine1: normalizedBillingDetails.addressLine1,
+          billingPostalCode: normalizedBillingDetails.postalCode,
+          billingCity: normalizedBillingDetails.city,
+          billingCountry: normalizedBillingDetails.country,
+          billingUid: normalizedBillingDetails.uid
+        }
+      });
+    }
+
+    if (
+      proofingSelection &&
+      ![PROOFING_STATUS_PROCESSING, PROOFING_STATUS_DELIVERED].includes(list.gallery.proofingStatus)
+    ) {
+      await transaction.gallery.update({
+        where: { id: galleryId },
+        data: {
+          proofingStatus: PROOFING_STATUS_SUBMITTED,
+          proofingStatusUpdatedAt: submittedAt
         }
       });
 
-      for (const booking of linkedBookings) {
-        revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
-        revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}/bookings/${booking.id}`);
+      if (linkedBookings.length > 0) {
+        await transaction.miniSessionBooking.updateMany({
+          where: { proofingGalleryId: galleryId },
+          data: {
+            workflowStatus: MINI_SESSION_WORKFLOW_FINAL_UPLOAD,
+            selectionSubmittedAt: submittedAt
+          }
+        });
       }
     }
+  });
+
+  for (const booking of linkedBookings) {
+    revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
+    revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}/bookings/${booking.id}`);
   }
 
   await dispatchAdminNotification({
@@ -1495,6 +1569,7 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
         listName: list.name,
         filenames: list.items.map((item) => item.photo.filename),
         lightroomCompatible: proofingSelection,
+        billingDetails: proofingSelection ? normalizedBillingDetails : undefined,
         submittedAt
       })
   });
@@ -1502,6 +1577,9 @@ export async function submitFavoriteListAction(galleryId: string, email: string,
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/notifications");
   revalidatePath(`/admin/galleries/${galleryId}`);
+  if (customer) {
+    revalidatePath(`/admin/clients/${customer.id}`);
+  }
 
   return {
     ok: true,

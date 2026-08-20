@@ -1346,6 +1346,12 @@ export default async function AdminClientDetailPage({
       primaryEmail: true,
       secondaryEmail: true,
       phone: true,
+      billingName: true,
+      billingAddressLine1: true,
+      billingPostalCode: true,
+      billingCity: true,
+      billingCountry: true,
+      billingUid: true,
       weddingDate: true,
       venue: true,
       preferredLanguage: true,
@@ -1658,13 +1664,21 @@ export default async function AdminClientDetailPage({
           <Alert title="Ehhez az ügyfélhez nem található mini shooting foglalás." variant="warning" />
         )}
 
-        <div className="mt-5 grid gap-5 md:grid-cols-2">
+        <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <h2 className="font-semibold text-ink">Kapcsolat</h2>
             <dl className="mt-4 space-y-3 text-sm">
               <div><dt className="text-graphite/55">E-mail</dt><dd className="mt-1 font-medium"><a href={`mailto:${customer.primaryEmail}`}>{customer.primaryEmail}</a></dd></div>
               <div><dt className="text-graphite/55">Telefon</dt><dd className="mt-1 font-medium">{customer.phone || "–"}</dd></div>
               <div><dt className="text-graphite/55">Nyelv</dt><dd className="mt-1 font-medium">{customer.preferredLanguage === "de" ? "Német" : "Magyar"}</dd></div>
+            </dl>
+          </section>
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
+            <h2 className="flex items-center gap-2 font-semibold text-ink"><ReceiptText size={17} />Számlázási adatok</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div><dt className="text-graphite/55">Név / cégnév</dt><dd className="mt-1 font-medium">{customer.billingName || "–"}</dd></div>
+              <div><dt className="text-graphite/55">Cím</dt><dd className="mt-1 font-medium">{[customer.billingAddressLine1, [customer.billingPostalCode, customer.billingCity].filter(Boolean).join(" "), customer.billingCountry].filter(Boolean).join(", ") || "–"}</dd></div>
+              <div><dt className="text-graphite/55">UID</dt><dd className="mt-1 font-medium">{customer.billingUid || "–"}</dd></div>
             </dl>
           </section>
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">

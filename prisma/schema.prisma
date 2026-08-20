@@ -370,6 +370,12 @@ model Customer {
   primaryEmail           String
   secondaryEmail         String?
   phone                  String?
+  billingName            String?
+  billingAddressLine1    String?
+  billingPostalCode      String?
+  billingCity            String?
+  billingCountry         String?
+  billingUid             String?
   weddingDate            DateTime?
   venue                  String?
   preferredLanguage      String                  @default("de")
