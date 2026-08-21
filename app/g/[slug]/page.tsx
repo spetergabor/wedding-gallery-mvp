@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { Facebook, Instagram, Lock, Mail, Music2, Phone, Youtube, type LucideIcon } from "lucide-react";
+import { Globe2, Instagram, Lock, Mail, type LucideIcon } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
 import { FloatingGuestPhotoUploadButton, GuestPhotoUpload, GuestPhotoUploadButton } from "@/components/guest-photo-upload";
 import { PublicGallery } from "@/components/public-gallery";
@@ -41,6 +41,7 @@ import {
 } from "@/lib/gallery-appearance";
 
 const GUEST_PHOTO_INITIAL_PAGE_SIZE = 48;
+const DEFAULT_PHOTOGRAPHER_WEBSITE_URL = "https://www.hochzeitsfotografgraz.at";
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -59,18 +60,6 @@ function mailHref(value: string | null | undefined) {
   const email = value?.trim();
 
   return email ? `mailto:${email}` : null;
-}
-
-function phoneHref(value: string | null | undefined) {
-  const phone = value?.trim();
-
-  if (!phone) {
-    return null;
-  }
-
-  const normalizedPhone = phone.replace(/[^\d+]/g, "");
-
-  return normalizedPhone ? `tel:${normalizedPhone}` : null;
 }
 
 function hexToRgb(color: string) {
@@ -154,11 +143,9 @@ export default async function PublicGalleryPage({
       logoUrl: true,
       logoHeight: true,
       contactEmail: true,
-      contactPhone: true,
+      websiteUrl: true,
       instagramUrl: true,
-      facebookUrl: true,
-      tiktokUrl: true,
-      youtubeUrl: true
+      facebookUrl: true
     }
   });
 
@@ -255,12 +242,14 @@ export default async function PublicGalleryPage({
   const contactTitle = language === "hu" ? "Fotós elérhetőségei" : "Fotograf kontaktieren";
   const contactText = language === "hu" ? "Kérdésed van a galériával kapcsolatban?" : "Fragen zur Galerie?";
   const contactLinks: ContactQuickLink[] = [
-    { href: mailHref(settings?.contactEmail) ?? "", label: "Email", icon: Mail },
-    { href: phoneHref(settings?.contactPhone) ?? "", label: language === "hu" ? "Telefon" : "Telefon", icon: Phone },
+    { href: mailHref(settings?.contactEmail) ?? "", label: "E-mail", icon: Mail },
     { href: settings?.instagramUrl ?? "", label: "Instagram", icon: Instagram, external: true },
-    { href: settings?.facebookUrl ?? "", label: "Facebook", icon: Facebook, external: true },
-    { href: settings?.tiktokUrl ?? "", label: "TikTok", icon: Music2, external: true },
-    { href: settings?.youtubeUrl ?? "", label: "YouTube", icon: Youtube, external: true }
+    {
+      href: settings?.websiteUrl?.trim() || DEFAULT_PHOTOGRAPHER_WEBSITE_URL,
+      label: "Website",
+      icon: Globe2,
+      external: true
+    }
   ].filter((link) => link.href);
   const paidPurchaseDownloadState =
     paidGallery && flags.session_id
