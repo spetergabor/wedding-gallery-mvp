@@ -254,7 +254,7 @@ export function CustomerTabController({
   return (
     <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
       <nav
-        className="flex min-w-full gap-1 overflow-x-auto border-b border-ink/10 bg-white p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="grid grid-cols-2 gap-1 border-b border-ink/10 bg-white p-1 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7"
         aria-label={copy.mainAreaLabel}
       >
         {availableGroups.map((group) => {
@@ -267,7 +267,7 @@ export function CustomerTabController({
               type="button"
               data-customer-tab-target={group.defaultTab}
               aria-current={isActive ? "page" : undefined}
-              className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md border px-3 py-2 text-center text-sm font-semibold transition ${
                 isActive
                   ? "border-ink bg-ink text-white shadow-sm"
                   : "border-transparent text-graphite hover:bg-ink/[0.04] hover:text-ink"
