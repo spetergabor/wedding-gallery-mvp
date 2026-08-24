@@ -225,6 +225,53 @@ export async function updateCustomerAction(customerId: string, formData: FormDat
   redirect(`/admin/clients/${customerId}?updated=1`);
 }
 
+export async function updateCustomerBillingAction(customerId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: {
+      billingName: formOptionalString(formData, "billingName"),
+      billingAddressLine1: formOptionalString(formData, "billingAddressLine1"),
+      billingPostalCode: formOptionalString(formData, "billingPostalCode"),
+      billingCity: formOptionalString(formData, "billingCity"),
+      billingCountry: formOptionalString(formData, "billingCountry"),
+      billingUid: formOptionalString(formData, "billingUid")
+    }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=billing&updated=1`);
+}
+
+export async function updateCustomerNotesAction(customerId: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const customer = await prisma.customer.findFirst({
+    where: customerAccessWhere(admin, customerId),
+    select: { id: true }
+  });
+
+  if (!customer) {
+    redirect("/admin/clients");
+  }
+
+  await prisma.customer.update({
+    where: { id: customer.id },
+    data: { notes: formOptionalString(formData, "notes") }
+  });
+
+  revalidatePath(`/admin/clients/${customerId}`);
+  redirect(`/admin/clients/${customerId}?tab=notes&updated=1`);
+}
+
 export async function updateCustomerStatusAction(customerId: string, formData: FormData) {
   const admin = await requireAdmin();
   const status = normalizeCustomerStatus(formString(formData, "status"));

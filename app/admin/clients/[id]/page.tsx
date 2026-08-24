@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Circle,
   Clock3,
+  CreditCard,
   ExternalLink,
   FileText,
   FolderKanban,
@@ -16,8 +17,11 @@ import {
   Mail,
   MapPin,
   MessageSquare,
+  Pencil,
+  Phone,
   Plus,
   ReceiptText,
+  StickyNote,
   Trash2
 } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
@@ -31,13 +35,12 @@ import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { ContractManager } from "@/components/contract-manager";
-import { CustomerForm, CustomerProfileCard } from "@/components/customer-form";
+import { CustomerForm } from "@/components/customer-form";
 import { CustomerMeetingManager } from "@/components/customer-meeting-manager";
 import { CustomerPortalManager } from "@/components/customer-portal-manager";
 import { CustomerProjectManager } from "@/components/customer-project-manager";
 import { CustomerTabController } from "@/components/customer-tab-controller";
 import { CustomerTaskManager } from "@/components/customer-task-manager";
-import { DismissibleNextAction } from "@/components/dismissible-next-action";
 import { InvoiceManager } from "@/components/invoice-manager";
 import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
 import { requireAdmin } from "@/lib/auth";
@@ -46,13 +49,13 @@ import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel, isClosedCustomerTaskStatus } from "@/lib/customer-task-options";
-import { CUSTOMER_STATUSES, customerStatusDisplayLabel, customerStatusLabel, customerTypeLabelForLanguage, normalizeCustomerStatus } from "@/lib/customer-options";
+import { customerStatusDisplayLabel, customerTypeLabelForLanguage } from "@/lib/customer-options";
 import { appPublicBaseUrl, customerPortalUrl, miniSessionBookingManageUrl } from "@/lib/email";
 import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
 import { formatMiniSessionSlotWithDate, normalizeMiniSessionLanguage } from "@/lib/mini-sessions";
 import { getCustomerWorkflowSummary } from "@/lib/customer-workflow";
 import { getProjectWorkflowSummary } from "@/lib/project-workflow";
-import { deleteCustomerAction, updateCustomerStatusAction } from "@/lib/customer-actions";
+import { deleteCustomerAction, updateCustomerBillingAction, updateCustomerNotesAction } from "@/lib/customer-actions";
 import { prisma } from "@/lib/prisma";
 import {
   GALLERY_MODE_FULL,
@@ -175,26 +178,28 @@ type CustomerProjectOverview = {
   };
 };
 
-type CustomerTab = "overview" | "tasks" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
+type CustomerTab = "overview" | "tasks" | "projects" | "billing" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "notes" | "danger";
 type AlbumMode = "editor" | "upload";
 
 const customerTabs: Array<{
   key: CustomerTab;
   label: string;
-  icon: "CheckCircle2" | "ListChecks" | "FolderKanban" | "CalendarClock" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Globe2" | "Settings";
+  icon: "CheckCircle2" | "ListChecks" | "FolderKanban" | "CalendarClock" | "Camera" | "Heart" | "ImagePlus" | "FileText" | "ReceiptText" | "MessageSquare" | "Globe2" | "CreditCard" | "StickyNote" | "TriangleAlert";
 }> = [
   { key: "overview", label: "Áttekintés", icon: "CheckCircle2" },
-  { key: "tasks", label: "Feladatok", icon: "ListChecks" },
   { key: "projects", label: "Projektek", icon: "FolderKanban" },
-  { key: "meetings", label: "Meetingek", icon: "CalendarClock" },
+  { key: "tasks", label: "Feladatok", icon: "ListChecks" },
+  { key: "billing", label: "Számlázási adatok", icon: "CreditCard" },
+  { key: "contracts", label: "Szerződések", icon: "FileText" },
+  { key: "invoices", label: "Számlák", icon: "ReceiptText" },
   { key: "galleries", label: "Galériák", icon: "Camera" },
   { key: "proofing", label: "Válogatás", icon: "Heart" },
   { key: "album", label: "Album", icon: "ImagePlus" },
-  { key: "contracts", label: "Szerződések", icon: "FileText" },
-  { key: "invoices", label: "Számlák", icon: "ReceiptText" },
   { key: "communication", label: "Kommunikáció", icon: "MessageSquare" },
+  { key: "meetings", label: "Meetingek", icon: "CalendarClock" },
   { key: "portal", label: "Portál", icon: "Globe2" },
-  { key: "details", label: "Adatok", icon: "Settings" }
+  { key: "notes", label: "Belső jegyzetek", icon: "StickyNote" },
+  { key: "danger", label: "Veszélyzóna", icon: "TriangleAlert" }
 ];
 
 const CLIENT_DETAIL_COPY = {
@@ -220,6 +225,7 @@ const CLIENT_DETAIL_COPY = {
       overview: "Áttekintés",
       tasks: "Feladatok",
       projects: "Projektek",
+      billing: "Számlázási adatok",
       meetings: "Meetingek",
       galleries: "Galériák",
       proofing: "Válogatás",
@@ -228,7 +234,8 @@ const CLIENT_DETAIL_COPY = {
       invoices: "Számlák",
       communication: "Kommunikáció",
       portal: "Portál",
-      details: "Adatok"
+      notes: "Belső jegyzetek",
+      danger: "Veszélyzóna"
     },
     tasks: {
       eyebrow: "Teendők",
@@ -372,6 +379,7 @@ const CLIENT_DETAIL_COPY = {
       overview: "Übersicht",
       tasks: "Aufgaben",
       projects: "Projekte",
+      billing: "Rechnungsdaten",
       meetings: "Meetings",
       galleries: "Galerien",
       proofing: "Auswahl",
@@ -380,7 +388,8 @@ const CLIENT_DETAIL_COPY = {
       invoices: "Rechnungen",
       communication: "Kommunikation",
       portal: "Portal",
-      details: "Daten"
+      notes: "Interne Notizen",
+      danger: "Gefahrenzone"
     },
     tasks: {
       eyebrow: "To-dos",
@@ -537,6 +546,7 @@ const CLIENT_DETAIL_COPY = {
       overview: "Overview",
       tasks: "Tasks",
       projects: "Projects",
+      billing: "Billing details",
       meetings: "Meetings",
       galleries: "Galleries",
       proofing: "Selection",
@@ -545,7 +555,8 @@ const CLIENT_DETAIL_COPY = {
       invoices: "Invoices",
       communication: "Communication",
       portal: "Client portal",
-      details: "Details"
+      notes: "Internal notes",
+      danger: "Danger zone"
     },
     tasks: {
       eyebrow: "To-dos",
@@ -1179,7 +1190,7 @@ function getActiveTab(flags: {
   meetingError?: string;
 }): CustomerTab {
   if (flags.edit === "1") {
-    return "details";
+    return "overview";
   }
 
   if (flags.invoiceUploaded || flags.invoiceSent || flags.invoiceStatusUpdated) {
@@ -1203,6 +1214,10 @@ function getActiveTab(flags: {
 
   if (flags.meetingCreated || flags.meetingUpdated || flags.meetingDeleted || flags.meetingStatusUpdated || flags.meetingError) {
     return "meetings";
+  }
+
+  if (flags.tab === "details") {
+    return "billing";
   }
 
   if (customerTabs.some((tab) => tab.key === flags.tab)) {
@@ -1828,9 +1843,9 @@ export default async function AdminClientDetailPage({
   const isEditing = flags.edit === "1";
   const typeLabel = customerTypeLabelForLanguage(customer.customerType, language);
   const nextAction = getCustomerWorkflowSummary(customer, language);
-  const customerTasks = createCustomerTasks(customer, nextAction, copy, language);
-  const timelineEvents = createCustomerTimeline(customer, copy, language);
   const communicationEvents = createCommunicationEvents(customer, copy);
+  const latestCommunication = communicationEvents[0] ?? null;
+  const activeMiniBooking = customer.miniSessionBookings.find((booking) => !["cancelled", "no_show"].includes(booking.status)) ?? null;
   const proofingGalleries = customer.galleries.filter((gallery) => gallery.galleryMode === GALLERY_MODE_PROOFING);
   const today = startOfToday();
   const projectsByDate = sortProjectsForOverview(customer.projects, today);
@@ -1867,44 +1882,14 @@ export default async function AdminClientDetailPage({
     <AdminShell>
       <div className="mb-8">
         <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">{copy.common.client}</p>
-        <div className="mt-2 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h1 className="text-3xl font-semibold text-ink">{customer.coupleName}</h1>
-            <p className="mt-3 text-sm text-graphite/70">
-              {typeLabel} · {statusLabel} · {formatDate(nextProject?.eventDate ?? customer.weddingDate, language)}
-            </p>
-            {customer.tags.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {customer.tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-ink">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+        <h1 className="mt-2 text-3xl font-semibold text-ink">{customer.coupleName}</h1>
+        {customer.tags.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {customer.tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-ink">{tag}</span>
+            ))}
           </div>
-          <form action={updateCustomerStatusAction.bind(null, customer.id)} className="rounded-md border border-ink/10 bg-white p-3">
-            <label className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-              <span className="space-y-1">
-                <span className="block text-xs font-medium uppercase tracking-[0.16em] text-graphite/55">{copy.header.mainStatus}</span>
-              <select
-                  name="status"
-                  defaultValue={normalizeCustomerStatus(customer.status)}
-                  className="h-10 w-full min-w-56 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-                >
-                  {CUSTOMER_STATUSES.map((status) => (
-                    <option key={status.value} value={status.value}>
-                      {customerStatusLabel(status.value, language)}
-                    </option>
-                  ))}
-                </select>
-              </span>
-              <FormSubmitButton className="h-10 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
-                {copy.header.save}
-              </FormSubmitButton>
-            </label>
-          </form>
-        </div>
+        ) : null}
       </div>
 
       <div className="mb-5 space-y-3">
@@ -2060,218 +2045,99 @@ export default async function AdminClientDetailPage({
         ) : null}
       </div>
 
-      <DismissibleNextAction
-        customerId={customer.id}
-        title={nextAction.title}
-        description={nextAction.description}
-        buttonLabel={nextAction.buttonLabel}
-        href={nextAction.href}
-        iconKey={nextAction.iconKey}
-      />
-
       <CustomerTabController tabs={localizedCustomerTabs} initialTab={activeTab} language={language} />
 
       <div data-customer-tab-panel="overview" hidden={activeTab !== "overview"}>
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-6">
-            <section className="rounded-md border border-ink/10 bg-white p-5">
-              <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
+        {isEditing ? (
+          <CustomerForm customer={customer} />
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <section className="rounded-md border border-ink/10 bg-white p-5 lg:col-span-2">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                 <div>
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
-                    <CheckCircle2 size={15} />
-                    {copy.tasks.eyebrow}
-                  </div>
-                  <h2 className="mt-2 text-base font-semibold text-ink">{copy.tasks.title}</h2>
-                  <p className="mt-1 text-sm leading-6 text-graphite/70">
-                    {copy.tasks.description}
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">
+                    {language === "de" ? "Kunde und Kontakt" : language === "en" ? "Client and contact" : "Ügyfél és elérhetőség"}
                   </p>
+                  <h2 className="mt-2 text-xl font-semibold text-ink">{customer.coupleName}</h2>
+                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-graphite/75">
+                    <a className="inline-flex items-center gap-2 hover:text-ink" href={`mailto:${customer.primaryEmail}`}><Mail size={15} />{customer.primaryEmail}</a>
+                    <span className="inline-flex items-center gap-2"><Phone size={15} />{customer.phone || copy.common.notProvided}</span>
+                  </div>
                 </div>
-                <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                  {nextAction.laneLabel}
-                </span>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {customerTasks.map((task) => {
-                  const styles = taskStyles(task.state, copy);
-                  const TaskIcon = styles.icon;
-                  const content = (
-                    <>
-                      <div className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${styles.className}`}>
-                        <TaskIcon size={16} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-medium text-ink">{task.title}</p>
-                          <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
-                            {styles.label}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-sm leading-5 text-graphite/70">{task.detail}</p>
-                      </div>
-                    </>
-                  );
-
-                  return task.href ? (
-                    <Link key={`${task.title}-${task.detail}`} href={task.href} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3 transition hover:border-ink/20 hover:bg-ink/[0.03]">
-                      {content}
-                    </Link>
-                  ) : (
-                    <div key={`${task.title}-${task.detail}`} className="flex gap-3 rounded-md border border-ink/10 bg-paper p-3">
-                      {content}
-                    </div>
-                  );
-                })}
+                <ButtonLink href={`/admin/clients/${customer.id}?edit=1`} variant="secondary">
+                  <Pencil size={15} />
+                  {language === "de" ? "Bearbeiten" : language === "en" ? "Edit" : "Szerkesztés"}
+                </ButtonLink>
               </div>
             </section>
 
             <section className="rounded-md border border-ink/10 bg-white p-5">
-              <div className="flex flex-col justify-between gap-3 border-b border-ink/10 pb-4 sm:flex-row sm:items-start">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">
+                {language === "de" ? "Aktueller Status" : language === "en" ? "Current status" : "Aktuális státusz"}
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <span className="flex size-9 items-center justify-center rounded-full bg-ink text-white"><CheckCircle2 size={17} /></span>
                 <div>
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
-                    <FolderKanban size={15} />
-                    {copy.projects.eyebrow}
-                  </div>
-                  <h2 className="mt-2 text-base font-semibold text-ink">{copy.projects.title}</h2>
-                  <p className="mt-1 text-sm leading-6 text-graphite/70">
-                    {copy.projects.description}
-                  </p>
+                  <p className="font-semibold text-ink">{statusLabel}</p>
+                  <p className="mt-0.5 text-sm text-graphite/65">{typeLabel}</p>
                 </div>
-                <Link
-                  href={`/admin/clients/${customer.id}?tab=projects`}
-                  data-customer-tab-target="projects"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
-                >
-                  {copy.projects.manage}
-                </Link>
               </div>
+            </section>
 
-              {projectsByDate.length === 0 ? (
-                <div className="mt-4 rounded-md bg-paper px-4 py-4">
-                  <p className="text-sm font-medium text-ink">{copy.projects.emptyTitle}</p>
-                  <p className="mt-1 text-sm text-graphite/70">{copy.projects.emptyDescription}</p>
+            <section className="rounded-md border border-brass/25 bg-brass/[0.07] p-5 lg:col-span-2">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brass">
+                    {language === "de" ? "Nächster Schritt" : language === "en" ? "Next action" : "Következő teendő"}
+                  </p>
+                  <h2 className="mt-2 text-lg font-semibold text-ink">{nextAction.title}</h2>
+                  <p className="mt-1 text-sm leading-6 text-graphite/75">{nextAction.description}</p>
+                </div>
+                {nextAction.href ? (
+                  <ButtonLink href={nextAction.href}>
+                    {nextAction.buttonLabel}
+                    <ArrowRight size={15} />
+                  </ButtonLink>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="rounded-md border border-ink/10 bg-white p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55">
+                {language === "de" ? "Aktive Arbeit" : language === "en" ? "Active work" : "Aktív projekt / mini shooting"}
+              </p>
+              {nextProject ? (
+                <Link href={`/admin/clients/${customer.id}?tab=projects`} data-customer-tab-target="projects" className="mt-3 block rounded-md bg-paper p-3 transition hover:bg-ink/[0.05]">
+                  <p className="font-semibold text-ink">{nextProject.title}</p>
+                  <p className="mt-1 text-sm text-graphite/70">{formatDate(nextProject.eventDate, language)}{nextProject.venue ? ` · ${nextProject.venue}` : ""}</p>
+                  {nextProjectWorkflow ? <p className="mt-2 text-xs font-medium text-brass">{nextProjectWorkflow.title}</p> : null}
+                </Link>
+              ) : activeMiniBooking ? (
+                <Link href={`/admin/mini-sessions/${activeMiniBooking.miniSession.id}/bookings/${activeMiniBooking.id}`} className="mt-3 block rounded-md bg-paper p-3 transition hover:bg-ink/[0.05]">
+                  <p className="font-semibold text-ink">{activeMiniBooking.miniSession.title}</p>
+                  <p className="mt-1 text-sm text-graphite/70">{formatMiniSessionSlotWithDate(activeMiniBooking.startsAt, activeMiniBooking.endsAt, normalizeMiniSessionLanguage(activeMiniBooking.miniSession.language))}</p>
+                </Link>
+              ) : (
+                <p className="mt-3 text-sm text-graphite/65">{language === "de" ? "Kein aktives Projekt." : language === "en" ? "No active project." : "Nincs aktív projekt."}</p>
+              )}
+            </section>
+
+            <section className="rounded-md border border-ink/10 bg-white p-5 lg:col-span-2 xl:col-span-3">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-graphite/55"><MessageSquare size={15} />{language === "de" ? "Letzte Kommunikation" : language === "en" ? "Last communication" : "Utolsó kommunikáció"}</div>
+              {latestCommunication ? (
+                <div className="mt-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                  <div>
+                    <p className="font-medium text-ink">{latestCommunication.title}</p>
+                    <p className="mt-1 text-sm text-graphite/70">{latestCommunication.detail}</p>
+                  </div>
+                  <p className="text-sm text-graphite/55">{formatDateTime(latestCommunication.date, language)}</p>
                 </div>
               ) : (
-                <div className="mt-4 space-y-3">
-                  {nextProject ? (
-                    <Link
-                      href={`/admin/clients/${customer.id}?tab=projects`}
-                      data-customer-tab-target="projects"
-                      className="block rounded-md border border-brass/30 bg-brass/10 p-4 transition hover:bg-brass/15"
-                    >
-                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-graphite/65">{copy.projects.nextProject}</p>
-                          <h3 className="mt-2 text-base font-semibold text-ink">{nextProject.title}</h3>
-                          <p className="mt-1 text-sm text-graphite/75">
-                            {customerProjectTypeLabel(nextProject.projectType, language)} · {formatDate(nextProject.eventDate, language)}
-                            {formatProjectTimeRange(nextProject) ? ` · ${formatProjectTimeRange(nextProject)}` : ""}
-                            {nextProject.venue ? ` · ${nextProject.venue}` : ""}
-                          </p>
-                          {nextProjectWorkflow ? (
-                            <p className="mt-2 text-sm font-medium text-ink">
-                              {copy.projects.nextPrefix} {nextProjectWorkflow.title}
-                            </p>
-                          ) : null}
-                        </div>
-                        <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-medium text-brass">
-                          {nextProjectWorkflow?.stateLabel ?? customerProjectStatusLabel(nextProject.status, language)}
-                        </span>
-                      </div>
-                    </Link>
-                  ) : null}
-
-                  <div className="divide-y divide-ink/10 rounded-md border border-ink/10">
-                    {projectsByDate.slice(0, 5).map((project) => {
-                      const workflow = projectWorkflowSummaries.get(project.id);
-
-                      return (
-                        <Link
-                          key={project.id}
-                          href={`/admin/clients/${customer.id}?tab=projects`}
-                          data-customer-tab-target="projects"
-                          className="grid gap-3 px-4 py-3 transition hover:bg-ink/[0.03] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                        >
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium text-ink">{project.title}</p>
-                              {project.id === nextProject?.id ? (
-                                <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-brass">
-                                  {copy.projects.next}
-                                </span>
-                              ) : null}
-                              {workflow ? (
-                                <span className="rounded-full bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-graphite">
-                                  {workflow.stateLabel}
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="mt-1 text-sm text-graphite/70">
-                              {customerProjectTypeLabel(project.projectType, language)} · {project.venue || copy.common.noVenue}
-                            </p>
-                            {workflow ? (
-                              <p className="mt-1 text-sm text-graphite/75">
-                                {copy.projects.nextShortPrefix} {workflow.title}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                            <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                              {formatDate(project.eventDate, language)}
-                            </span>
-                            {formatProjectTimeRange(project) ? (
-                              <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                                {formatProjectTimeRange(project)}
-                              </span>
-                            ) : null}
-                            <span className="rounded-full bg-ink/5 px-2.5 py-1 text-xs font-medium text-graphite">
-                              {project._count.galleries} {copy.common.gallery}
-                            </span>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
+                <p className="mt-3 text-sm text-graphite/65">{copy.communication.emptyTitle}</p>
               )}
             </section>
           </div>
-
-          <section className="rounded-md border border-ink/10 bg-white p-5">
-            <div className="border-b border-ink/10 pb-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/65">
-                <CalendarClock size={15} />
-                {copy.timeline.eyebrow}
-              </div>
-              <h2 className="mt-2 text-base font-semibold text-ink">{copy.timeline.title}</h2>
-            </div>
-            <div className="mt-4 space-y-4">
-              {timelineEvents.map((event) => {
-                const content = (
-                  <>
-                    <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-paper text-brass">
-                      <FileText size={14} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink">{event.title}</p>
-                      <p className="mt-1 text-sm leading-5 text-graphite/70">{event.detail}</p>
-                      <p className="mt-1 text-xs text-graphite/55">{formatDateTime(event.date, language)}</p>
-                    </div>
-                  </>
-                );
-
-                return event.href ? (
-                  <Link key={`${event.title}-${event.date.toISOString()}`} href={event.href} className="flex gap-3 rounded-md p-2 transition hover:bg-ink/[0.03]">
-                    {content}
-                  </Link>
-                ) : (
-                  <div key={`${event.title}-${event.date.toISOString()}`} className="flex gap-3 rounded-md p-2">
-                    {content}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </div>
+        )}
       </div>
 
       <div data-customer-tab-panel="tasks" hidden={activeTab !== "tasks"}>
@@ -2512,54 +2378,49 @@ export default async function AdminClientDetailPage({
         <CustomerPortalManager customer={customer} portalUrl={portalUrl} loginUrl={portalLoginUrl} />
       </div>
 
-      <div data-customer-tab-panel="details" hidden={activeTab !== "details"}>
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div>{isEditing ? <CustomerForm customer={customer} /> : <CustomerProfileCard customer={customer} statusLabel={statusLabel} />}</div>
-          <aside className="space-y-6">
-            <section className="rounded-md border border-ink/10 bg-white p-5">
-              <h2 className="text-base font-semibold text-ink">{copy.details.quickData}</h2>
-              <dl className="mt-4 space-y-3 text-sm">
-                <div>
-                  <dt className="text-graphite/60">{copy.details.type}</dt>
-                  <dd className="font-medium text-ink">{typeLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-graphite/60">{copy.details.primaryEmail}</dt>
-                  <dd className="font-medium text-ink">{customer.primaryEmail}</dd>
-                </div>
-                <div>
-                  <dt className="text-graphite/60">{copy.details.secondaryEmail}</dt>
-                  <dd className="font-medium text-ink">{customer.secondaryEmail || copy.common.notProvided}</dd>
-                </div>
-                <div>
-                  <dt className="text-graphite/60">{copy.details.phone}</dt>
-                  <dd className="font-medium text-ink">{customer.phone || copy.common.notProvided}</dd>
-                </div>
-                <div>
-                  <dt className="text-graphite/60">{copy.details.venue}</dt>
-                  <dd className="font-medium text-ink">{customer.venue || copy.common.notProvided}</dd>
-                </div>
-              </dl>
-            </section>
+      <div data-customer-tab-panel="billing" hidden={activeTab !== "billing"}>
+        <form action={updateCustomerBillingAction.bind(null, customer.id)} className="rounded-md border border-ink/10 bg-white p-5 sm:p-6">
+          <div className="flex items-start gap-3 border-b border-ink/10 pb-5">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-brass"><CreditCard size={18} /></span>
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{language === "de" ? "Rechnungsdaten" : language === "en" ? "Billing details" : "Számlázási adatok"}</h2>
+              <p className="mt-1 text-sm text-graphite/70">{language === "de" ? "Diese Daten werden bei neuen Rechnungen übernommen." : language === "en" ? "These details are used for new invoices." : "Az itt mentett adatok automatikusan használhatók az új számlákhoz."}</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 md:col-span-2"><span className="text-sm font-medium text-graphite">{language === "de" ? "Name / Firma" : language === "en" ? "Name / company" : "Számlázási név / cégnév"}</span><input name="billingName" defaultValue={customer.billingName ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50" /></label>
+            <label className="space-y-2 md:col-span-2"><span className="text-sm font-medium text-graphite">{language === "de" ? "Straße, Hausnummer" : language === "en" ? "Street and number" : "Utca, házszám"}</span><input name="billingAddressLine1" defaultValue={customer.billingAddressLine1 ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50" /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-graphite">{language === "de" ? "Postleitzahl" : language === "en" ? "Postal code" : "Irányítószám"}</span><input name="billingPostalCode" defaultValue={customer.billingPostalCode ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50" /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-graphite">{language === "de" ? "Ort" : language === "en" ? "City" : "Település"}</span><input name="billingCity" defaultValue={customer.billingCity ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50" /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-graphite">{language === "de" ? "Land" : language === "en" ? "Country" : "Ország"}</span><input name="billingCountry" defaultValue={customer.billingCountry ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50" /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-graphite">UID</span><input name="billingUid" defaultValue={customer.billingUid ?? ""} className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 outline-none transition focus:border-ink/50" /></label>
+          </div>
+          <div className="mt-6 flex justify-end"><FormSubmitButton>{language === "de" ? "Rechnungsdaten speichern" : language === "en" ? "Save billing details" : "Számlázási adatok mentése"}</FormSubmitButton></div>
+        </form>
+      </div>
 
-            <section className="rounded-md border border-red-200 bg-white p-5">
-              <h2 className="text-base font-semibold text-ink">{copy.details.dangerZone}</h2>
-              <p className="mt-2 text-sm leading-6 text-graphite/70">
-                {copy.details.dangerDescription}
-              </p>
-              <form action={deleteCustomerAction.bind(null, customer.id)} className="mt-4">
-                <ConfirmSubmitButton
-                  variant="danger"
-                  message={copy.details.deleteConfirm(customer.coupleName)}
-                  className="w-full"
-                >
-                  <Trash2 size={16} />
-                  {copy.details.deleteClient}
-                </ConfirmSubmitButton>
-              </form>
-            </section>
-          </aside>
-        </div>
+      <div data-customer-tab-panel="notes" hidden={activeTab !== "notes"}>
+        <form action={updateCustomerNotesAction.bind(null, customer.id)} className="rounded-md border border-ink/10 bg-white p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-brass"><StickyNote size={18} /></span>
+            <div>
+              <h2 className="text-lg font-semibold text-ink">{language === "de" ? "Interne Notizen" : language === "en" ? "Internal notes" : "Belső jegyzetek"}</h2>
+              <p className="mt-1 text-sm text-graphite/70">{language === "de" ? "Nur für dich und dein Team sichtbar." : language === "en" ? "Visible only to you and your team." : "Csak te és a csapatod látjátok, az ügyfél nem."}</p>
+            </div>
+          </div>
+          <textarea name="notes" defaultValue={customer.notes ?? ""} rows={12} placeholder={language === "de" ? "Absprachen, Wünsche und wichtige interne Informationen …" : language === "en" ? "Agreements, requests and important internal information…" : "Megállapodások, kérések és fontos belső információk…"} className="mt-5 w-full rounded-md border border-ink/15 bg-paper px-4 py-3 leading-6 outline-none transition focus:border-ink/50" />
+          <div className="mt-5 flex justify-end"><FormSubmitButton>{language === "de" ? "Notizen speichern" : language === "en" ? "Save notes" : "Jegyzet mentése"}</FormSubmitButton></div>
+        </form>
+      </div>
+
+      <div data-customer-tab-panel="danger" hidden={activeTab !== "danger"}>
+        <section className="rounded-md border border-red-200 bg-white p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-ink">{copy.details.dangerZone}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-graphite/70">{copy.details.dangerDescription}</p>
+          <form action={deleteCustomerAction.bind(null, customer.id)} className="mt-5 max-w-xs">
+            <ConfirmSubmitButton variant="danger" message={copy.details.deleteConfirm(customer.coupleName)} className="w-full"><Trash2 size={16} />{copy.details.deleteClient}</ConfirmSubmitButton>
+          </form>
+        </section>
       </div>
     </AdminShell>
   );

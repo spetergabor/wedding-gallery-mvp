@@ -6,6 +6,7 @@ import {
   Camera,
   CalendarClock,
   CheckCircle2,
+  CreditCard,
   FileText,
   FolderKanban,
   Globe2,
@@ -14,12 +15,13 @@ import {
   ListChecks,
   MessageSquare,
   ReceiptText,
-  Settings
+  StickyNote,
+  TriangleAlert
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { AdminLanguage } from "@/lib/admin-language";
 
-type CustomerTab = "overview" | "tasks" | "projects" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "details";
+type CustomerTab = "overview" | "tasks" | "projects" | "billing" | "meetings" | "galleries" | "proofing" | "album" | "contracts" | "invoices" | "communication" | "portal" | "notes" | "danger";
 
 type CustomerTabItem = {
   key: CustomerTab;
@@ -28,7 +30,7 @@ type CustomerTabItem = {
 };
 
 type CustomerTabGroup = {
-  key: "overview" | "work" | "business" | "portal";
+  key: "overview" | "billing" | "documents" | "galleries" | "communication" | "notes" | "danger";
   label: string;
   icon: keyof typeof icons;
   defaultTab: CustomerTab;
@@ -47,7 +49,9 @@ const icons = {
   ReceiptText,
   MessageSquare,
   Globe2,
-  Settings
+  CreditCard,
+  StickyNote,
+  TriangleAlert
 } satisfies Record<string, LucideIcon>;
 
 const tabGroups: CustomerTabGroup[] = [
@@ -56,28 +60,49 @@ const tabGroups: CustomerTabGroup[] = [
     label: "Áttekintés",
     icon: "CheckCircle2",
     defaultTab: "overview",
-    tabs: ["overview"]
+    tabs: ["overview", "projects", "tasks"]
   },
   {
-    key: "work",
-    label: "Munka",
-    icon: "FolderKanban",
-    defaultTab: "tasks",
-    tabs: ["tasks", "projects", "meetings", "galleries", "proofing", "album"]
+    key: "billing",
+    label: "Számlázási adatok",
+    icon: "CreditCard",
+    defaultTab: "billing",
+    tabs: ["billing"]
   },
   {
-    key: "business",
-    label: "Üzlet",
+    key: "documents",
+    label: "Szerződések és számlák",
     icon: "FileText",
     defaultTab: "contracts",
     tabs: ["contracts", "invoices"]
   },
   {
-    key: "portal",
-    label: "Ügyfélportál",
-    icon: "Globe2",
-    defaultTab: "portal",
-    tabs: ["portal", "details", "communication"]
+    key: "galleries",
+    label: "Galériák",
+    icon: "Camera",
+    defaultTab: "galleries",
+    tabs: ["galleries", "proofing", "album"]
+  },
+  {
+    key: "communication",
+    label: "Kommunikáció",
+    icon: "MessageSquare",
+    defaultTab: "communication",
+    tabs: ["communication", "meetings", "portal"]
+  },
+  {
+    key: "notes",
+    label: "Belső jegyzetek",
+    icon: "StickyNote",
+    defaultTab: "notes",
+    tabs: ["notes"]
+  },
+  {
+    key: "danger",
+    label: "Veszélyzóna",
+    icon: "TriangleAlert",
+    defaultTab: "danger",
+    tabs: ["danger"]
   }
 ];
 
@@ -90,9 +115,12 @@ const COPY: Record<AdminLanguage, {
   hu: {
     groupLabels: {
       overview: "Áttekintés",
-      work: "Munka",
-      business: "Üzlet",
-      portal: "Ügyfélportál"
+      billing: "Számlázási adatok",
+      documents: "Szerződések és számlák",
+      galleries: "Galériák",
+      communication: "Kommunikáció",
+      notes: "Belső jegyzetek",
+      danger: "Veszélyzóna"
     },
     mainAreaLabel: "Ügyfél fő területek",
     subAreaLabel: (label) => `${label} alfülek`,
@@ -101,9 +129,12 @@ const COPY: Record<AdminLanguage, {
   de: {
     groupLabels: {
       overview: "Übersicht",
-      work: "Arbeit",
-      business: "Business",
-      portal: "Kundenportal"
+      billing: "Rechnungsdaten",
+      documents: "Verträge und Rechnungen",
+      galleries: "Galerien",
+      communication: "Kommunikation",
+      notes: "Interne Notizen",
+      danger: "Gefahrenzone"
     },
     mainAreaLabel: "Kundenbereiche",
     subAreaLabel: (label) => `${label} Unterbereiche`,
@@ -112,9 +143,12 @@ const COPY: Record<AdminLanguage, {
   en: {
     groupLabels: {
       overview: "Overview",
-      work: "Work",
-      business: "Business",
-      portal: "Client portal"
+      billing: "Billing details",
+      documents: "Contracts and invoices",
+      galleries: "Galleries",
+      communication: "Communication",
+      notes: "Internal notes",
+      danger: "Danger zone"
     },
     mainAreaLabel: "Client sections",
     subAreaLabel: (label) => `${label} subsections`,
@@ -124,6 +158,12 @@ const COPY: Record<AdminLanguage, {
 
 function isCustomerTabItem(tab: CustomerTabItem | undefined): tab is CustomerTabItem {
   return Boolean(tab);
+}
+
+function normalizeTabParam(tab: string | null, validTabs: Set<CustomerTab>): CustomerTab {
+  const normalizedTab = tab === "details" ? "billing" : tab;
+
+  return normalizedTab && validTabs.has(normalizedTab as CustomerTab) ? (normalizedTab as CustomerTab) : "overview";
 }
 
 function updatePanels(activeTab: CustomerTab) {
@@ -174,7 +214,7 @@ export function CustomerTabController({
   const activeGroupTabs = activeGroup?.tabs.map((tab) => tabsByKey.get(tab)).filter(isCustomerTabItem) ?? [];
 
   useEffect(() => {
-    setActiveTab(tabParam && validTabs.has(tabParam as CustomerTab) ? (tabParam as CustomerTab) : "overview");
+    setActiveTab(normalizeTabParam(tabParam, validTabs));
   }, [tabParam, validTabs]);
 
   useEffect(() => {
@@ -203,9 +243,7 @@ export function CustomerTabController({
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const tab = params.get("tab") as CustomerTab | null;
-
-      setActiveTab(tab && validTabs.has(tab) ? tab : "overview");
+      setActiveTab(normalizeTabParam(params.get("tab"), validTabs));
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -216,7 +254,7 @@ export function CustomerTabController({
   return (
     <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
       <nav
-        className="grid grid-cols-2 gap-1 border-b border-ink/10 bg-white p-1 sm:grid-cols-4"
+        className="flex min-w-full gap-1 overflow-x-auto border-b border-ink/10 bg-white p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-label={copy.mainAreaLabel}
       >
         {availableGroups.map((group) => {
@@ -229,7 +267,7 @@ export function CustomerTabController({
               type="button"
               data-customer-tab-target={group.defaultTab}
               aria-current={isActive ? "page" : undefined}
-              className={`flex h-11 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${
+              className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${
                 isActive
                   ? "border-ink bg-ink text-white shadow-sm"
                   : "border-transparent text-graphite hover:bg-ink/[0.04] hover:text-ink"
