@@ -51,6 +51,10 @@ function sha256Hex(value: Buffer | string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function contractTitleFromFilename(filename: string) {
+  return filename.replace(/\.[^/.]+$/, "").trim() || "Szerződés";
+}
+
 export async function uploadContractAction(customerId: string, formData: FormData) {
   const admin = await requireAdmin();
 
@@ -64,13 +68,13 @@ export async function uploadContractAction(customerId: string, formData: FormDat
   }
 
   const file = formData.get("contractPdf");
-  const title = formString(formData, "title");
 
-  if (!(file instanceof File) || file.size === 0 || !title) {
+  if (!(file instanceof File) || file.size === 0) {
     redirect(`/admin/clients/${customerId}?tab=contracts&contractFlow=upload&contractError=missing`);
   }
 
   const fileName = file.name || "contract.pdf";
+  const title = formString(formData, "title") || contractTitleFromFilename(fileName);
   const isPdf = file.type === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
 
   if (!isPdf) {

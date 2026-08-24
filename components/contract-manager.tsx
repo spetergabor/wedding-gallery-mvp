@@ -11,10 +11,11 @@ import {
   UploadCloud
 } from "lucide-react";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { ContractPdfUploadForm } from "@/components/contract-pdf-upload-form";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PdfContractFieldEditor } from "@/components/pdf-contract-field-editor";
 import { WrittenContractEditor } from "@/components/written-contract-editor";
-import { deleteContractAction, sendContractAction, uploadContractAction } from "@/lib/contract-actions";
+import { deleteContractAction, sendContractAction } from "@/lib/contract-actions";
 import { parseContractPdfFields } from "@/lib/contract-pdf-fields";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 
@@ -600,40 +601,7 @@ export function ContractManager({
       ) : null}
 
       {activeFlow === "upload" ? (
-        <form action={uploadContractAction.bind(null, customerId)} className="mt-6 space-y-4 rounded-md border border-ink/10 bg-paper p-5">
-          <div>
-            <div className="flex items-center gap-2 text-base font-semibold text-ink">
-              <UploadCloud size={18} />
-              Kész PDF sablon feltöltése
-            </div>
-            <p className="mt-1 text-sm text-graphite/70">
-              Add meg a szerződés címét, töltsd fel a PDF-et, majd a következő lépésben elhelyezheted rajta a kitöltendő mezőket.
-            </p>
-          </div>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Szerződés címe</span>
-            <input
-              name="title"
-              required
-              placeholder="pl. Fotózás szerződés"
-              className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            />
-          </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">PDF fájl</span>
-            <input
-              name="contractPdf"
-              type="file"
-              accept="application/pdf,.pdf"
-              required
-              className="block w-full rounded-md border border-ink/15 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
-            />
-          </label>
-          <FormSubmitButton className="w-full sm:w-auto" pendingLabel="Feltöltés...">
-            <UploadCloud size={16} />
-            PDF feltöltése és tovább
-          </FormSubmitButton>
-        </form>
+        <ContractPdfUploadForm customerId={customerId} />
       ) : null}
 
       {activeFlow === "fields" ? (
