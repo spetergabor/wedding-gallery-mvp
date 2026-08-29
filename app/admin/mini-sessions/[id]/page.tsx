@@ -367,7 +367,7 @@ function BookingManagementActions({
             </label>
           </div>
           <p className="mt-2 text-[10px] leading-4 text-graphite/50">
-            Adminisztrátorként a heti foglalási napoktól eltérő dátumot is megadhatsz.
+            Felülírja a heti napokat, naptártiltásokat és más foglaltsági jelzéseket is.
           </p>
         </div>
         <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>

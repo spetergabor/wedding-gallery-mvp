@@ -1487,17 +1487,8 @@ export async function rescheduleMiniSessionBookingByAdminAction(bookingId: strin
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=slot`);
   }
 
-  if (!isMiniSessionSlotBookable(slot, booking.miniSession.minBookingNoticeMinutes)) {
+  if (!isMiniSessionSlotBookable(slot, 0)) {
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=notice`);
-  }
-
-  if (
-    await hasMiniSessionSlotConflict(booking.miniSession.adminId, slot, {
-      excludeBookingId: booking.id,
-      excludeProjectId: booking.projectId
-    })
-  ) {
-    redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=taken`);
   }
 
   await rescheduleMiniSessionBookingRecord({
@@ -1551,6 +1542,7 @@ export async function rescheduleMiniSessionBookingByAdminAction(bookingId: strin
       previousEndsAt: booking.endsAt.toISOString(),
       newStartsAt: slot.startsAt.toISOString(),
       newEndsAt: slot.endsAt.toISOString(),
+      adminConflictOverride: true,
       googleCalendarSyncStatus
     }
   });
