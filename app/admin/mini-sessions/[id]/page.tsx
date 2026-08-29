@@ -345,6 +345,31 @@ function BookingManagementActions({
             </option>
           ))}
         </select>
+        <div className="rounded-md border border-ink/10 bg-paper p-2.5">
+          <p className="text-[11px] font-medium text-graphite/70">Vagy egyedi admin időpont</p>
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_92px] gap-2">
+            <label className="grid gap-1">
+              <span className="text-[10px] uppercase tracking-[0.08em] text-graphite/50">Dátum</span>
+              <input
+                name="customDate"
+                type="date"
+                className="h-9 min-w-0 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none focus:border-ink/50"
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[10px] uppercase tracking-[0.08em] text-graphite/50">Kezdés</span>
+              <input
+                name="customStartTime"
+                type="time"
+                defaultValue={miniSessionTimeInput(currentSlot.startsAt)}
+                className="h-9 min-w-0 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none focus:border-ink/50"
+              />
+            </label>
+          </div>
+          <p className="mt-2 text-[10px] leading-4 text-graphite/50">
+            Adminisztrátorként a heti foglalási napoktól eltérő dátumot is megadhatsz.
+          </p>
+        </div>
         <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
           Áthelyezés
         </FormSubmitButton>

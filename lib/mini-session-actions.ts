@@ -1438,6 +1438,8 @@ export async function rescheduleMiniSessionBookingAction(token: string, formData
 export async function rescheduleMiniSessionBookingByAdminAction(bookingId: string, formData: FormData) {
   const admin = await requireAdmin();
   const selectedSlot = formString(formData, "slot");
+  const customDate = formString(formData, "customDate");
+  const customStartTime = formString(formData, "customStartTime");
   const returnTab = formData.get("returnTab") === "slots" ? "slots" : "bookings";
   const booking = await prisma.miniSessionBooking.findFirst({
     where: {
@@ -1461,7 +1463,25 @@ export async function rescheduleMiniSessionBookingByAdminAction(bookingId: strin
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=slot`);
   }
 
-  const slot = createMiniSessionSlots(booking.miniSession).find((candidate) => candidate.token === selectedSlot);
+  let slot: { token: string; startsAt: Date; endsAt: Date } | undefined;
+
+  if (customDate) {
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(customDate);
+    const validTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(customStartTime);
+    const startsAt = validDate && validTime
+      ? parseMiniSessionLocalDateTime(customDate, customStartTime)
+      : null;
+
+    if (startsAt) {
+      slot = {
+        token: startsAt.toISOString(),
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + booking.miniSession.durationMinutes * 60 * 1000)
+      };
+    }
+  } else {
+    slot = createMiniSessionSlots(booking.miniSession).find((candidate) => candidate.token === selectedSlot);
+  }
 
   if (!slot) {
     redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&error=slot`);
