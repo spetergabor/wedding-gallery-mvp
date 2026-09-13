@@ -235,7 +235,8 @@ export default async function GalleryDetailPage({
             select: {
               id: true,
               title: true,
-              slug: true
+              slug: true,
+              displayMode: true
             }
           }
         }
@@ -527,10 +528,10 @@ export default async function GalleryDetailPage({
         {flags.bulkMove && flags.bulkMove !== "none" && flags.bulkMove !== "section" ? <Alert title={`${flags.bulkMove} kép áthelyezve.`} variant="success" /> : null}
         {flags.bulkMove === "none" ? <Alert title="Nem volt áthelyezhető kijelölt kép." variant="error" /> : null}
         {flags.bulkMove === "section" ? <Alert title="A kiválasztott címke nem található." variant="error" /> : null}
-        {flags.sectionCreated ? <Alert title="Címke létrehozva." variant="success" /> : null}
-        {flags.sectionDeleted ? <Alert title="Címke törölve." variant="success">A benne lévő képek az általános galériában maradtak.</Alert> : null}
-        {flags.sectionOrdered ? <Alert title="Címke sorrend mentve." variant="success" /> : null}
-        {flags.sectionError === "missing" ? <Alert title="Adj meg egy címke nevet." variant="error" /> : null}
+        {flags.sectionCreated ? <Alert title="Címke vagy algaléria létrehozva." variant="success" /> : null}
+        {flags.sectionDeleted ? <Alert title="Címke vagy algaléria törölve." variant="success">A benne lévő képek az általános galériában maradtak.</Alert> : null}
+        {flags.sectionOrdered ? <Alert title="Navigációs sorrend mentve." variant="success" /> : null}
+        {flags.sectionError === "missing" ? <Alert title="Adj meg egy nevet." variant="error" /> : null}
         {flags.sectionError === "order" ? <Alert title="A címkék sorrendjét nem sikerült menteni." variant="error" /> : null}
         {flags.duplicateCleanup && flags.duplicateCleanup !== "none" ? (
           <Alert title={`${flags.duplicateCleanup} duplikált fotó törölve.`} variant="success" />
@@ -644,28 +645,37 @@ export default async function GalleryDetailPage({
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
                   <span className="flex items-center gap-2">
                     <Columns3 size={16} />
-                    Címkék és anchor blokkok
+                    Címkék és algalériák
                   </span>
                   <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">Opcionális</span>
                 </summary>
                 <div className="border-t border-ink/10 p-5">
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                   <div>
-                    <p className={sectionMetaClass}>Galéria címkék</p>
-                    <h2 className="mt-2 text-xl font-semibold text-ink">Anchor blokkok a publikus galériában</h2>
+                    <p className={sectionMetaClass}>Galéria rendszerezése</p>
+                    <h2 className="mt-2 text-xl font-semibold text-ink">Anchor blokkok és külön algalériák</h2>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
-                      Hozz létre címkéket feltöltés előtt, majd az upload panelen válaszd ki, hova kerüljenek az új képek. A címkék sorrendje lesz a publikus galéria blokk-sorrendje is.
+                      Az anchor blokk az oldalon belül egy képcsoporthoz görget. Az algaléria külön választható a publikus fejlécben, és csak a hozzá tartozó képeket mutatja.
                     </p>
                   </div>
-                  <form action={createGallerySectionAction.bind(null, gallery.id)} className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-md">
+                  <form action={createGallerySectionAction.bind(null, gallery.id)} className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] lg:max-w-2xl">
                     <input
                       name="title"
-                      placeholder="pl. Készülődés"
+                      placeholder="pl. Verlobungsshooting"
                       className="h-11 min-w-0 flex-1 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
                     />
+                    <select
+                      name="displayMode"
+                      defaultValue="anchor"
+                      aria-label="Megjelenés típusa"
+                      className="h-11 rounded-md border border-ink/15 bg-paper px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                    >
+                      <option value="anchor">Anchor blokk</option>
+                      <option value="subgallery">Algaléria</option>
+                    </select>
                     <FormSubmitButton className="h-11 px-4" pendingLabel="Mentés...">
                       <Plus size={16} />
-                      Címke
+                      Létrehozás
                     </FormSubmitButton>
                   </form>
                 </div>
@@ -675,12 +685,13 @@ export default async function GalleryDetailPage({
                     sections={gallery.sections.map((section) => ({
                       id: section.id,
                       title: section.title,
+                      displayMode: section.displayMode,
                       count: sectionPhotoCounts.get(section.id) ?? 0
                     }))}
                   />
                 ) : (
                   <div className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-4 text-sm text-graphite/70">
-                    Még nincs címke. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
+                    Még nincs címke vagy algaléria. A publikus galéria egyben jelenik meg, a feltöltés pedig a megszokott módon működik.
                   </div>
                 )}
                 </div>
@@ -692,7 +703,7 @@ export default async function GalleryDetailPage({
                   defaultDeliveryStage={defaultPhotoDeliveryStageForGalleryMode(gallery.galleryMode)}
                   proofingInviteSent={Boolean(gallery.proofingInviteSentAt)}
                   framed={false}
-                  sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
+                  sections={gallery.sections.map((section) => ({ id: section.id, title: section.title, displayMode: section.displayMode }))}
                   resumableSessions={resumableUploadSessions}
                 />
               </div>
@@ -703,7 +714,7 @@ export default async function GalleryDetailPage({
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
               photos={gallery.photos}
-              sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
+              sections={gallery.sections.map((section) => ({ id: section.id, title: section.title, displayMode: section.displayMode }))}
               activeSet={flags.photoSet}
               activeSearch={flags.photoSearch}
               selectedPhotoIds={selectedPhotoIds}
@@ -825,7 +836,7 @@ export default async function GalleryDetailPage({
                 galleryMode={gallery.galleryMode}
                 defaultDeliveryStage={PHOTO_DELIVERY_STAGE_FINAL}
                 deliveryStageMode="fixed"
-                sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
+                sections={gallery.sections.map((section) => ({ id: section.id, title: section.title, displayMode: section.displayMode }))}
                 resumableSessions={resumableUploadSessions}
                 title="Kész képek feltöltése"
                 description="Ide töltsd fel a kidolgozott képeket, amelyeket az ügyfél kiválasztott. Ezek külön kész képként kerülnek a galériába."

@@ -1222,6 +1222,7 @@ model GallerySection {
   galleryId      String
   title          String
   slug           String
+  displayMode    String                 @default("anchor")
   sortOrder      Int                    @default(0)
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt

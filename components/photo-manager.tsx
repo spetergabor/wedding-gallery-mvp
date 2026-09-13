@@ -50,7 +50,7 @@ export function PhotoManager({
   galleryId: string;
   galleryMode: string;
   photos: SortablePhoto[];
-  sections?: Array<{ id: string; title: string }>;
+  sections?: Array<{ id: string; title: string; displayMode?: string }>;
   activeSet?: string | null;
   activeSearch?: string | null;
   selectedPhotoIds?: string[];
