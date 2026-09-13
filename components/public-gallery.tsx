@@ -73,6 +73,11 @@ const GALLERY_COPY = {
     saveFavorites: "Favoriten speichern",
     saveSelectionIntro: "Gib deine E-Mail-Adresse ein, damit wir deine Auswahl zuordnen können.",
     saveFavoritesIntro: "Gib deine E-Mail-Adresse ein. Deine ausgewählten Lieblingsfotos werden damit gespeichert.",
+    openFavorites: "Meine Favoriten",
+    restoreFavorites: "Meine Favoriten öffnen",
+    restoreFavoritesIntro: "Gib dieselbe E-Mail-Adresse ein, die du beim Speichern verwendet hast. Wir laden alle deine Listen in dieser Galerie.",
+    restoreFavoritesButton: "Favoriten laden",
+    noFavoriteListsForEmail: "Zu dieser E-Mail-Adresse wurde in dieser Galerie noch keine Favoritenliste gefunden.",
     saveSelectionButton: "Auswahl speichern",
     saveFavoriteButton: "Favorit speichern",
     choose: "Auswählen",
@@ -201,6 +206,11 @@ const GALLERY_COPY = {
     saveFavorites: "Kedvencek mentése",
     saveSelectionIntro: "Add meg az e-mail címed, hogy hozzá tudjuk rendelni a válogatásodat.",
     saveFavoritesIntro: "Add meg az e-mail címed. Így tudjuk menteni a kiválasztott kedvenc fotóidat.",
+    openFavorites: "Kedvenceim",
+    restoreFavorites: "Kedvenceim megnyitása",
+    restoreFavoritesIntro: "Add meg ugyanazt az e-mail címet, amelyet a mentéskor használtál. Betöltjük a galériához tartozó összes listádat.",
+    restoreFavoritesButton: "Kedvencek betöltése",
+    noFavoriteListsForEmail: "Ehhez az e-mail címhez még nem tartozik kedvenclista ebben a galériában.",
     saveSelectionButton: "Válogatás mentése",
     saveFavoriteButton: "Kedvenc mentése",
     choose: "Kiválasztás",
@@ -582,6 +592,7 @@ export function PublicGallery({
   const [newFavoriteListName, setNewFavoriteListName] = useState("");
   const [favoriteError, setFavoriteError] = useState("");
   const [favoritePromptPhotoId, setFavoritePromptPhotoId] = useState<string | null>(null);
+  const [favoriteEmailDialogMode, setFavoriteEmailDialogMode] = useState<"save" | "restore" | null>(null);
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null);
   const [lastFavoritePulseId, setLastFavoritePulseId] = useState<string | null>(null);
   const [isSubmittingFavoriteList, setIsSubmittingFavoriteList] = useState(false);
@@ -681,6 +692,9 @@ export function PublicGallery({
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
+  const toolbarDownloadMode: DownloadMode =
+    !proofingSelection && showFavoritesOnly && activeFavoriteList && favoriteCount > 0 ? "favorites" : "gallery";
+  const toolbarDownloadLabel = toolbarDownloadMode === "favorites" ? copy.downloadFavorites : copy.download;
   const galleryGridStyle: CSSProperties = {
     gap: `${safeGridGap}px`,
     gridTemplateColumns: `repeat(${Math.max(1, columnCount)}, minmax(0, 1fr))`
@@ -837,6 +851,7 @@ export function PublicGallery({
       setFavoriteLists([]);
       setActiveFavoriteListId("");
       setFavoritePromptPhotoId(null);
+      setFavoriteEmailDialogMode(null);
       setFavoriteError("");
       setFavoriteSuccess("");
       return;
@@ -1082,6 +1097,7 @@ export function PublicGallery({
 
     if (!emailForFavorite) {
       setFavoritePromptPhotoId(photoId);
+      setFavoriteEmailDialogMode("save");
       setFavoriteError("");
       return;
     }
@@ -1188,16 +1204,22 @@ export function PublicGallery({
 
     setIsSubmittingFavoriteEmail(true);
     setFavoriteError("");
-
-    setFavoriteEmail(normalizedEmail);
-    window.localStorage.setItem(`wgm-favorite-email-${galleryId}`, normalizedEmail);
     const queuedPhotoId = favoritePromptPhotoId;
-    setFavoritePromptPhotoId(null);
+    const dialogMode = favoriteEmailDialogMode ?? "save";
 
     try {
       let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail);
 
-      if (listsResult.ok && listsResult.lists.length === 0) {
+      if (!listsResult.ok) {
+        throw new Error(listsResult.message);
+      }
+
+      if (dialogMode === "restore" && listsResult.lists.length === 0) {
+        setFavoriteError(copy.noFavoriteListsForEmail);
+        return;
+      }
+
+      if (dialogMode === "save" && listsResult.lists.length === 0) {
         const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? copy.defaultSelectionName : copy.defaultFavoritesName);
 
         if (created.ok && created.list) {
@@ -1205,13 +1227,25 @@ export function PublicGallery({
             ok: true,
             lists: [created.list]
           };
+        } else {
+          throw new Error(created.message ?? copy.listCreateError);
         }
       }
 
       if (listsResult.ok) {
-        const nextActiveListId = listsResult.lists[0]?.id ?? "";
+        const nextActiveList = listsResult.lists.find((list) => list.photoIds.length > 0) ?? listsResult.lists[0];
+        const nextActiveListId = nextActiveList?.id ?? "";
+        setFavoriteEmail(normalizedEmail);
+        setFavoriteEmailDraft(normalizedEmail);
+        window.localStorage.setItem(`wgm-favorite-email-${galleryId}`, normalizedEmail);
         setFavoriteLists(listsResult.lists);
         setActiveFavoriteListId(nextActiveListId);
+        setFavoritePromptPhotoId(null);
+        setFavoriteEmailDialogMode(null);
+
+        if (dialogMode === "restore" && nextActiveList && nextActiveList.photoIds.length > 0) {
+          setShowFavoritesOnly(true);
+        }
 
         if (queuedPhotoId) {
           await toggleFavorite(queuedPhotoId, normalizedEmail, nextActiveListId);
@@ -1222,6 +1256,8 @@ export function PublicGallery({
       if (queuedPhotoId) {
         await toggleFavorite(queuedPhotoId, normalizedEmail);
       }
+    } catch (error) {
+      setFavoriteError(error instanceof Error ? error.message : copy.favoriteListNotFound);
     } finally {
       setIsSubmittingFavoriteEmail(false);
     }
@@ -1237,6 +1273,7 @@ export function PublicGallery({
 
     if (!normalizedEmail) {
       setFavoritePromptPhotoId(photos[0]?.id ?? "");
+      setFavoriteEmailDialogMode("save");
       return;
     }
 
@@ -1325,6 +1362,28 @@ export function PublicGallery({
     startFavoritesFilterTransition(() => {
       setShowFavoritesOnly((current) => !current);
     });
+  }
+
+  function closeFavoriteEmailDialog() {
+    setFavoritePromptPhotoId(null);
+    setFavoriteEmailDialogMode(null);
+    setFavoriteError("");
+  }
+
+  function handleFavoritesToolbarClick() {
+    if (!favoritesEnabled) {
+      return;
+    }
+
+    if (!favoriteEmail || favoriteLists.length === 0 || favoriteCount === 0) {
+      setFavoritePromptPhotoId(null);
+      setFavoriteEmailDraft(favoriteEmail);
+      setFavoriteEmailDialogMode("restore");
+      setFavoriteError("");
+      return;
+    }
+
+    toggleFavoritesFilter();
   }
 
   async function shareGallery() {
@@ -1690,17 +1749,16 @@ export function PublicGallery({
                 {favoritesEnabled ? (
                   <button
                     type="button"
-                    title={proofingSelection ? copy.selection : copy.favorites}
-                    aria-label={proofingSelection ? copy.selection : copy.favorites}
-                    onClick={toggleFavoritesFilter}
-                    disabled={favoriteCount === 0}
+                    title={!favoriteEmail || favoriteLists.length === 0 ? copy.openFavorites : proofingSelection ? copy.selection : copy.favorites}
+                    aria-label={!favoriteEmail || favoriteLists.length === 0 ? copy.openFavorites : proofingSelection ? copy.selection : copy.favorites}
+                    onClick={handleFavoritesToolbarClick}
                     className={`group/toolbar relative inline-flex size-9 items-center justify-center rounded-md transition sm:size-10 ${
                       showFavoritesOnly ? "bg-ink text-white" : "bg-white text-graphite hover:bg-ink/5 hover:text-ink"
-                    } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
+                    } ${isFilteringFavorites ? "opacity-70" : ""}`}
                   >
                     <Heart size={17} fill={showFavoritesOnly ? "currentColor" : "none"} />
                     <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block">
-                      {proofingSelection ? copy.selection : copy.favorites}
+                      {!favoriteEmail || favoriteLists.length === 0 ? copy.openFavorites : proofingSelection ? copy.selection : copy.favorites}
                     </span>
                     {favoriteCount > 0 ? (
                       <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-brass px-1 text-[10px] font-semibold leading-5 text-white">
@@ -1712,15 +1770,15 @@ export function PublicGallery({
                 {canDownload ? (
                   <button
                     type="button"
-                    title={copy.download}
-                    aria-label={copy.download}
-                    onClick={() => openDownloadDialog("gallery")}
+                    title={toolbarDownloadLabel}
+                    aria-label={toolbarDownloadLabel}
+                    onClick={() => openDownloadDialog(toolbarDownloadMode)}
                     disabled={isZipping || photos.length === 0}
                     className="group/toolbar relative inline-flex size-9 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60 sm:size-10"
                   >
                     <Download size={17} />
                     <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block">
-                      {copy.download}
+                      {toolbarDownloadLabel}
                     </span>
                   </button>
                 ) : null}
@@ -2112,20 +2170,21 @@ export function PublicGallery({
           {favoritesEnabled ? (
             <button
               type="button"
-              onClick={toggleFavoritesFilter}
-              disabled={favoriteCount === 0}
+              onClick={handleFavoritesToolbarClick}
               className={`flex h-10 items-center gap-2 rounded-md px-2 text-sm transition ${
                 showFavoritesOnly ? "bg-ink text-white" : "text-graphite hover:bg-ink/5"
-              } disabled:cursor-not-allowed disabled:opacity-50 ${isFilteringFavorites ? "opacity-70" : ""}`}
+              } ${isFilteringFavorites ? "opacity-70" : ""}`}
             >
               <Heart size={16} />
-              {favoriteCount} {proofingSelection ? copy.selected : copy.favorites}
+              {!favoriteEmail || favoriteLists.length === 0
+                ? copy.openFavorites
+                : `${favoriteCount} ${proofingSelection ? copy.selected : copy.favorites}`}
             </button>
           ) : null}
           {canDownload ? (
-            <Button type="button" onClick={() => openDownloadDialog("gallery")} disabled={isZipping || photos.length === 0}>
+            <Button type="button" onClick={() => openDownloadDialog(toolbarDownloadMode)} disabled={isZipping || photos.length === 0}>
               <Download size={16} />
-              {isZipping ? copy.zipPreparing : copy.zipEmail}
+              {isZipping ? copy.zipPreparing : toolbarDownloadLabel}
             </Button>
           ) : null}
           {hasPaidCartBar ? (
@@ -2419,7 +2478,7 @@ export function PublicGallery({
         </div>
       ) : null}
 
-      {favoritesEnabled && favoritePromptPhotoId ? (
+      {favoritesEnabled && favoriteEmailDialogMode ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-ink/60 px-5 backdrop-blur-sm">
           <form onSubmit={submitFavoriteEmail} className="w-full max-w-md rounded-lg bg-white p-6 shadow-soft">
             <div className="flex items-start justify-between gap-4">
@@ -2428,18 +2487,24 @@ export function PublicGallery({
                   <Heart size={20} />
                 </div>
                 <h2 className="mt-4 text-xl font-semibold text-ink">
-                  {proofingSelection ? copy.saveSelection : copy.saveFavorites}
+                  {favoriteEmailDialogMode === "restore"
+                    ? copy.restoreFavorites
+                    : proofingSelection
+                      ? copy.saveSelection
+                      : copy.saveFavorites}
                 </h2>
                 <p className="mt-2 text-sm text-graphite/70">
-                  {proofingSelection
-                    ? copy.saveSelectionIntro
-                    : copy.saveFavoritesIntro}
+                  {favoriteEmailDialogMode === "restore"
+                    ? copy.restoreFavoritesIntro
+                    : proofingSelection
+                      ? copy.saveSelectionIntro
+                      : copy.saveFavoritesIntro}
                 </p>
               </div>
               <button
                 type="button"
                 title={copy.close}
-                onClick={() => setFavoritePromptPhotoId(null)}
+                onClick={closeFavoriteEmailDialog}
                 className="flex size-9 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
               >
                 <X size={18} />
@@ -2473,9 +2538,13 @@ export function PublicGallery({
                 disabled={isSubmittingFavoriteEmail}
               >
                 <Heart size={16} />
-                {proofingSelection ? copy.saveSelectionButton : copy.saveFavoriteButton}
+                {favoriteEmailDialogMode === "restore"
+                  ? copy.restoreFavoritesButton
+                  : proofingSelection
+                    ? copy.saveSelectionButton
+                    : copy.saveFavoriteButton}
               </FormSubmitButton>
-              <Button type="button" variant="secondary" onClick={() => setFavoritePromptPhotoId(null)}>
+              <Button type="button" variant="secondary" onClick={closeFavoriteEmailDialog}>
                 {copy.cancel}
               </Button>
             </div>
