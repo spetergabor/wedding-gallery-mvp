@@ -692,6 +692,7 @@ export function PublicGallery({
 
   const selectedPosition = selectedIndex === null ? 0 : selectedIndex + 1;
   const favoriteCount = favoriteIds.size;
+  const hasDownloadableFavoriteList = !proofingSelection && Boolean(activeFavoriteList) && favoriteCount > 0;
   const toolbarDownloadMode: DownloadMode =
     !proofingSelection && showFavoritesOnly && activeFavoriteList && favoriteCount > 0 ? "favorites" : "gallery";
   const toolbarDownloadLabel = toolbarDownloadMode === "favorites" ? copy.downloadFavorites : copy.download;
@@ -1877,17 +1878,6 @@ export function PublicGallery({
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:shrink-0">
-                {!proofingSelection && canDownload ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => openDownloadDialog("favorites")}
-                    disabled={!activeFavoriteList || favoriteCount === 0 || isZipping}
-                  >
-                    <Download size={16} />
-                    {copy.downloadFavorites}
-                  </Button>
-                ) : null}
                 <Button
                   type="button"
                   onClick={handleSelectionSubmitClick}
@@ -2181,10 +2171,25 @@ export function PublicGallery({
                 : `${favoriteCount} ${proofingSelection ? copy.selected : copy.favorites}`}
             </button>
           ) : null}
-          {canDownload ? (
-            <Button type="button" onClick={() => openDownloadDialog(toolbarDownloadMode)} disabled={isZipping || photos.length === 0}>
+          {canDownload && hasDownloadableFavoriteList ? (
+            <Button
+              type="button"
+              onClick={() => openDownloadDialog("favorites")}
+              disabled={isZipping}
+            >
               <Download size={16} />
-              {isZipping ? copy.zipPreparing : toolbarDownloadLabel}
+              {isZipping && downloadMode === "favorites" ? copy.zipPreparing : copy.downloadFavorites}
+            </Button>
+          ) : null}
+          {canDownload ? (
+            <Button
+              type="button"
+              variant={hasDownloadableFavoriteList ? "secondary" : "primary"}
+              onClick={() => openDownloadDialog("gallery")}
+              disabled={isZipping || photos.length === 0}
+            >
+              <Download size={16} />
+              {isZipping && downloadMode === "gallery" ? copy.zipPreparing : copy.downloadAlbum}
             </Button>
           ) : null}
           {hasPaidCartBar ? (
