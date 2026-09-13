@@ -251,6 +251,11 @@ export default async function PublicGalleryPage({
       external: true
     }
   ].filter((link) => link.href);
+  const cinematicContactLinks = [
+    { href: settings?.instagramUrl?.trim() ?? "", label: "Instagram", external: true },
+    { href: settings?.facebookUrl?.trim() ?? "", label: "Facebook", external: true },
+    { href: mailHref(settings?.contactEmail) ?? "", label: "Email", external: false }
+  ].filter((link) => link.href);
   const paidPurchaseDownloadState =
     paidGallery && flags.session_id
       ? await getPaidGalleryPurchaseDownloadState(gallery.id, flags.session_id)
@@ -557,9 +562,17 @@ export default async function PublicGalleryPage({
                   )
                 ) : null}
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] opacity-85">
-                  {settings?.instagramUrl ? <span>Instagram</span> : null}
-                  {settings?.facebookUrl ? <span>Facebook</span> : null}
-                  {settings?.contactEmail ? <span>Email</span> : null}
+                  {cinematicContactLinks.map((link) => (
+                    <a
+                      key={`${link.label}-${link.href}`}
+                      href={link.href}
+                      target={link.external ? "_blank" : undefined}
+                      rel={link.external ? "noreferrer" : undefined}
+                      className="relative z-10 rounded-sm transition-opacity hover:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-current"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
                 </div>
               </div>
 
