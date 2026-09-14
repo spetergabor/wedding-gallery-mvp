@@ -8,13 +8,11 @@ import {
   deleteGallerySectionAction,
   saveGallerySectionOrderAction
 } from "@/lib/gallery-actions";
-import { gallerySectionDisplayModeLabel } from "@/lib/gallery-sections";
 
 type GallerySectionItem = {
   id: string;
   title: string;
   count: number;
-  displayMode: string;
 };
 
 function sectionsChanged(left: GallerySectionItem[], right: GallerySectionItem[]) {
@@ -142,9 +140,6 @@ export function GallerySectionSortableList({
                 <span className="sr-only">Sorrend: {index + 1}</span>
               </span>
               <span className="font-medium">{section.title}</span>
-              <span className="rounded-full border border-ink/10 bg-white px-2 py-0.5 text-[11px] font-medium text-graphite/70">
-                {gallerySectionDisplayModeLabel(section.displayMode)}
-              </span>
               <span className="rounded-full bg-white px-2 py-0.5 text-xs text-graphite/70">
                 {section.count}
               </span>
@@ -168,8 +163,8 @@ export function GallerySectionSortableList({
           className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border border-brass/25 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between"
         >
           <div>
-            <p className="text-sm font-semibold text-ink">A címkék és algalériák sorrendje módosult</p>
-            <p className="mt-0.5 text-xs text-graphite/70">Ez lesz a publikus galéria navigációjának sorrendje is.</p>
+            <p className="text-sm font-semibold text-ink">A címkék sorrendje módosult</p>
+            <p className="mt-0.5 text-xs text-graphite/70">Ez lesz a publikus galéria blokk-sorrendje is.</p>
           </div>
           {orderedSections.map((section) => (
             <input key={section.id} type="hidden" name="sectionIds" value={section.id} />

@@ -25,7 +25,6 @@ import {
   galleryPurchasePhotoIds
 } from "@/lib/gallery-sales";
 import { normalizeGallerySalePricingTiers } from "@/lib/gallery-sale-pricing";
-import { GALLERY_SECTION_MODE_SUBGALLERY } from "@/lib/gallery-sections";
 import { GALLERY_DESIGN_COVER_STICKY, GALLERY_DESIGN_FULLSCREEN_COVER, normalizeGalleryDesign } from "@/lib/gallery-design";
 import {
   galleryHeroTitleSizeClamp,
@@ -92,7 +91,7 @@ export default async function PublicGalleryPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ collection?: string; error?: string; lang?: string; purchase?: string; session_id?: string }>;
+  searchParams: Promise<{ error?: string; lang?: string; purchase?: string; session_id?: string }>;
 }) {
   const { slug } = await params;
   const flags = await searchParams;
@@ -156,27 +155,17 @@ export default async function PublicGalleryPage({
     proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
       ? PHOTO_DELIVERY_STAGE_RAW
       : PHOTO_DELIVERY_STAGE_FINAL;
-  const allVisiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden && photo.deliveryStage === publicDeliveryStage);
-  const allVisibleSectionIds = new Set(
-    allVisiblePhotos.map((photo) => photo.sectionId).filter((sectionId): sectionId is string => Boolean(sectionId))
-  );
-  const visibleSections = gallery.sections.filter((section) => allVisibleSectionIds.has(section.id));
-  const visibleSubgalleries = visibleSections.filter((section) => section.displayMode === GALLERY_SECTION_MODE_SUBGALLERY);
-  const activeSubgallery = visibleSubgalleries.find((section) => section.slug === flags.collection) ?? null;
-  const visiblePhotos = activeSubgallery
-    ? allVisiblePhotos.filter((photo) => photo.sectionId === activeSubgallery.id)
-    : allVisiblePhotos;
+  const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden && photo.deliveryStage === publicDeliveryStage);
   const visibleVideos = visiblePhotos.filter((photo) => photo.mediaType === "video");
   const visibleImages = visiblePhotos.filter((photo) => photo.mediaType !== "video");
   const publicPhotos = [...visibleVideos, ...visibleImages];
-  const visibleAnchorSections = activeSubgallery
-    ? []
-    : visibleSections.filter((section) => section.displayMode !== GALLERY_SECTION_MODE_SUBGALLERY);
-  const knownAnchorSectionIds = new Set(visibleAnchorSections.map((section) => section.id));
-  const unsectionedPhotoCount = visibleImages.filter((photo) => !photo.sectionId || !knownAnchorSectionIds.has(photo.sectionId)).length;
+  const visibleSectionIds = new Set(visibleImages.map((photo) => photo.sectionId).filter((sectionId): sectionId is string => Boolean(sectionId)));
+  const visibleSections = gallery.sections.filter((section) => visibleSectionIds.has(section.id));
+  const knownSectionIds = new Set(gallery.sections.map((section) => section.id));
+  const unsectionedPhotoCount = visibleImages.filter((photo) => !photo.sectionId || !knownSectionIds.has(photo.sectionId)).length;
   const sectionPhotoCounts = new Map<string, number>();
 
-  for (const photo of allVisiblePhotos) {
+  for (const photo of visibleImages) {
     if (photo.sectionId) {
       sectionPhotoCounts.set(photo.sectionId, (sectionPhotoCounts.get(photo.sectionId) ?? 0) + 1);
     }
@@ -191,49 +180,13 @@ export default async function PublicGalleryPage({
   const favoritesEnabled = !proofingGallery || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
   const proofingSelection = proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
   const coverPhoto =
-    allVisiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
-    allVisiblePhotos.find((photo) => photo.mediaType !== "video") ??
+    visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
+    visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
   const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
   const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage ?? flags.lang);
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
-  function subgalleryHref(collection?: string) {
-    const query = new URLSearchParams();
-
-    if (collection) {
-      query.set("collection", collection);
-    }
-    if (flags.lang === "de" || flags.lang === "hu") {
-      query.set("lang", flags.lang);
-    }
-    if (flags.purchase) {
-      query.set("purchase", flags.purchase);
-    }
-    if (flags.session_id) {
-      query.set("session_id", flags.session_id);
-    }
-
-    const serializedQuery = query.toString();
-    return serializedQuery ? `${publicGalleryPath}?${serializedQuery}` : publicGalleryPath;
-  }
-  const subgalleryLinks =
-    visibleSubgalleries.length > 0
-      ? [
-          {
-            href: subgalleryHref(),
-            label: language === "hu" ? "Összes kép" : "Alle Bilder",
-            count: allVisiblePhotos.length,
-            active: !activeSubgallery
-          },
-          ...visibleSubgalleries.map((section) => ({
-            href: subgalleryHref(section.slug),
-            label: section.title,
-            count: sectionPhotoCounts.get(section.id) ?? 0,
-            active: activeSubgallery?.id === section.id
-          }))
-        ]
-      : [];
   const galleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
   const defaultGalleryLogoSize =
     galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER
@@ -279,7 +232,7 @@ export default async function PublicGalleryPage({
     : null;
   const hasGuestPhotos = guestPhotoTotalCount > 0;
   const showGuestPhotoSection = gallery.guestUploadsEnabled || hasGuestPhotos;
-  const guestPhotoAnchorLink = showGuestPhotoSection && !activeSubgallery
+  const guestPhotoAnchorLink = showGuestPhotoSection
     ? {
         href: "#guest-photos",
         label: language === "hu" ? "Vendégfotók" : "Gästefotos",
@@ -436,8 +389,7 @@ export default async function PublicGalleryPage({
         gallerySlug={gallery.slug}
         title={gallery.title}
         photos={publicGalleryPhotos}
-        sections={visibleAnchorSections}
-        subgalleryLinks={subgalleryLinks}
+        sections={visibleSections}
         downloadsEnabled={downloadsEnabled}
         deliveryMode={deliveryMode}
         sale={saleSettings}
@@ -466,7 +418,7 @@ export default async function PublicGalleryPage({
         {language === "hu" ? "Ez a galéria még nem tartalmaz fotókat." : "Diese Galerie enthält noch keine Fotos."}
       </div>
     );
-  const guestPhotoSection = showGuestPhotoSection && !activeSubgallery ? (
+  const guestPhotoSection = showGuestPhotoSection ? (
     <GuestPhotoUpload
       galleryId={gallery.id}
       language={language}
@@ -802,32 +754,13 @@ export default async function PublicGalleryPage({
       </header>
 
       <section className="mx-auto w-full max-w-7xl px-5 pb-28 lg:px-8">
-        {subgalleryLinks.length > 0 || visibleAnchorSections.length > 0 || guestPhotoAnchorLink ? (
+        {visibleSections.length > 0 || guestPhotoAnchorLink ? (
           <nav
             className="sticky top-0 z-30 -mx-5 -mt-8 mb-12 border-b border-ink/10 bg-paper/95 px-5 py-2.5 shadow-[0_12px_28px_rgba(17,17,17,0.05)] backdrop-blur lg:-mx-8 lg:px-8"
             aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
             style={{ color: galleryBodyTextColor }}
           >
             <div className="flex min-w-full gap-2 overflow-x-auto [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden">
-              {subgalleryLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  aria-current={link.active ? "page" : undefined}
-                  className={`inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border px-4 text-sm font-semibold shadow-sm transition ${
-                    link.active
-                      ? "border-ink bg-ink text-white"
-                      : "border-ink/10 bg-white hover:border-ink/25"
-                  }`}
-                  style={link.active ? undefined : { color: galleryBodyTextColor }}
-                >
-                  {link.label}
-                  <span className={`ml-2 text-xs ${link.active ? "text-white/70" : "opacity-70"}`}>{link.count}</span>
-                </a>
-              ))}
-              {subgalleryLinks.length > 0 && (visibleAnchorSections.length > 0 || visibleVideos.length > 0 || guestPhotoAnchorLink) ? (
-                <span className="my-1 w-px shrink-0 bg-ink/10" aria-hidden="true" />
-              ) : null}
               {visibleVideos.length > 0 ? (
                 <a
                   href="#public-gallery-videos"
@@ -838,7 +771,7 @@ export default async function PublicGalleryPage({
                   <span className="ml-2 text-xs opacity-70">{visibleVideos.length}</span>
                 </a>
               ) : null}
-              {visibleAnchorSections.map((section) => (
+              {visibleSections.map((section) => (
                 <a
                   key={section.id}
                   href={`#gallery-section-${section.slug}`}
@@ -849,7 +782,7 @@ export default async function PublicGalleryPage({
                   <span className="ml-2 text-xs opacity-70">{sectionPhotoCounts.get(section.id) ?? 0}</span>
                 </a>
               ))}
-              {visibleAnchorSections.length > 0 && unsectionedPhotoCount > 0 ? (
+              {unsectionedPhotoCount > 0 ? (
                 <a
                   href="#gallery-section-rest"
                   className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border border-ink/10 bg-white px-4 text-sm font-semibold shadow-sm transition hover:border-ink/25"

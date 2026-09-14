@@ -65,7 +65,6 @@ type ResumableUploadSession = {
 type GallerySectionOption = {
   id: string;
   title: string;
-  displayMode?: string;
 };
 
 type SelectedPhotoFile = {
@@ -1230,12 +1229,12 @@ export function PhotoUploadForm({
                   <option value="__all__">Nincs külön szekció</option>
                   {sections.map((section) => (
                     <option key={section.id} value={section.id}>
-                      {section.displayMode === "subgallery" ? `Algaléria · ${section.title}` : `Anchor blokk · ${section.title}`}
+                      {section.title}
                     </option>
                   ))}
                 </select>
                 <p className="text-xs leading-5 text-graphite/70">
-                  Üres választásnál a képek az általános galériába kerülnek. Az algalériák külön fejlécfület, az anchor blokkok oldalon belüli ugrópontot kapnak.
+                  Üres választásnál a képek az általános galériába kerülnek. A szekciók a publikus galériában külön fülként jelennek meg.
                 </p>
               </label>
             ) : null}

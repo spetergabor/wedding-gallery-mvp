@@ -37,7 +37,6 @@ import {
   isProofingGallery,
   normalizePhotoDeliveryStage
 } from "@/lib/proofing";
-import { normalizeGallerySectionDisplayMode } from "@/lib/gallery-sections";
 import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
 import {
   galleryDeliveryAllowsDownloads,
@@ -1453,7 +1452,6 @@ export async function deleteGalleryAction(id: string) {
 export async function createGallerySectionAction(galleryId: string, formData: FormData) {
   const { gallery } = await requireGalleryAccess(galleryId);
   const title = normalizeGallerySectionTitle(formString(formData, "title"));
-  const displayMode = normalizeGallerySectionDisplayMode(formString(formData, "displayMode"));
 
   if (!title) {
     redirect(`/admin/galleries/${galleryId}?tab=photos&sectionError=missing`);
@@ -1473,7 +1471,6 @@ export async function createGallerySectionAction(galleryId: string, formData: Fo
       galleryId,
       title,
       slug,
-      displayMode,
       sortOrder: (latestSection?.sortOrder ?? 0) + 1
     }
   });

@@ -31,7 +31,6 @@ export type SortablePhoto = {
     id: string;
     title: string;
     slug: string;
-    displayMode?: string;
   } | null;
   filename: string;
   imageUrl: string;
@@ -132,7 +131,7 @@ export function PhotoSortableGrid({
   galleryId: string;
   galleryMode: string;
   photos: SortablePhoto[];
-  sections?: Array<{ id: string; title: string; displayMode?: string }>;
+  sections?: Array<{ id: string; title: string }>;
   selectedPhotoIds: string[];
 }) {
   const [orderedPhotos, setOrderedPhotos] = useState(() => photos);
@@ -494,9 +493,7 @@ export function PhotoSortableGrid({
                     {proofingGallery ? ` · ${photoDeliveryStageLabel(photo.deliveryStage)}` : ""}
                   </p>
                   {photo.section?.title ? (
-                    <p className="mt-1 truncate text-xs font-medium text-brass">
-                      {photo.section.displayMode === "subgallery" ? "Algaléria" : "Anchor blokk"}: {photo.section.title}
-                    </p>
+                    <p className="mt-1 truncate text-xs font-medium text-brass">Címke: {photo.section.title}</p>
                   ) : null}
                   {photo.processingError ? (
                     <p className="mt-1 text-xs text-red-700">{photo.processingError}</p>
@@ -645,7 +642,7 @@ export function PhotoSortableGrid({
         <div className="fixed inset-x-4 bottom-4 z-50 mx-auto grid max-w-6xl gap-3 rounded-lg border border-ink/10 bg-white/95 p-3 shadow-[0_18px_60px_rgba(17,17,17,0.18)] backdrop-blur lg:grid-cols-[minmax(180px,0.75fr)_minmax(420px,1.1fr)_auto] lg:items-center">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">{bulkSelectedCount} kép kijelölve</p>
-            <p className="mt-0.5 text-xs text-graphite/70">Anchor blokkba vagy algalériába helyezés, elrejtés vagy törlés.</p>
+            <p className="mt-0.5 text-xs text-graphite/70">Címke alá helyezés, elrejtés vagy törlés.</p>
           </div>
           <form
             action={moveSelectedPhotosToSectionAction.bind(null, galleryId)}
@@ -657,12 +654,12 @@ export function PhotoSortableGrid({
             <select
               name="sectionId"
               className="h-10 w-full min-w-0 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-              aria-label="Cél címke vagy algaléria"
+              aria-label="Cél címke"
             >
-              <option value="__all__">Nincs külön csoport</option>
+              <option value="__all__">Nincs külön címke</option>
               {sections.map((section) => (
                 <option key={section.id} value={section.id}>
-                  {section.displayMode === "subgallery" ? `Algaléria · ${section.title}` : `Anchor blokk · ${section.title}`}
+                  {section.title}
                 </option>
               ))}
             </select>

@@ -369,10 +369,6 @@ type GalleryAnchorLink = {
   count: number;
 };
 
-type GallerySubgalleryLink = GalleryAnchorLink & {
-  active: boolean;
-};
-
 type FavoriteListState = {
   id: string;
   name: string;
@@ -554,7 +550,6 @@ export function PublicGallery({
   textColor = "#111111",
   fontFamily,
   stickyToolbar = null,
-  subgalleryLinks = [],
   extraAnchorLinks = [],
   guestUploadButtonLabel = null
 }: {
@@ -575,7 +570,6 @@ export function PublicGallery({
   textColor?: string;
   fontFamily?: string;
   stickyToolbar?: StickyToolbarSettings | null;
-  subgalleryLinks?: GallerySubgalleryLink[];
   extraAnchorLinks?: GalleryAnchorLink[];
   guestUploadButtonLabel?: string | null;
 }) {
@@ -1698,29 +1692,11 @@ export function PublicGallery({
                   <p className="mt-0.5 truncate text-[11px] leading-tight text-graphite/65 sm:text-xs">{stickyToolbar.subtitle}</p>
                 ) : null}
               </div>
-              {subgalleryLinks.length > 0 || stickyAnchorLinks.length > 0 ? (
+              {stickyAnchorLinks.length > 0 ? (
                 <nav
                   className="order-3 -mx-1 flex min-w-0 gap-1 overflow-x-auto px-1 [scrollbar-width:none] lg:order-2 lg:mx-0 lg:justify-center lg:px-0 [&::-webkit-scrollbar]:hidden"
                   aria-label={language === "hu" ? "Galéria szekciók" : "Galerie Abschnitte"}
                 >
-                  {subgalleryLinks.map((link) => (
-                    <a
-                      key={link.href}
-                      href={link.href}
-                      aria-current={link.active ? "page" : undefined}
-                      className={`inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold shadow-sm transition sm:min-h-9 sm:text-sm ${
-                        link.active
-                          ? "border-ink bg-ink text-white"
-                          : "border-ink/10 bg-white text-ink hover:border-ink/25 hover:bg-paper"
-                      }`}
-                    >
-                      <span className="max-w-[9rem] truncate">{link.label}</span>
-                      <span className={link.active ? "text-[11px] text-white/70" : "text-[11px] text-graphite/60"}>{link.count}</span>
-                    </a>
-                  ))}
-                  {subgalleryLinks.length > 0 && stickyAnchorLinks.length > 0 ? (
-                    <span className="my-1 w-px shrink-0 bg-ink/10" aria-hidden="true" />
-                  ) : null}
                   {stickyAnchorLinks.map((link) => (
                     <a
                       key={link.href}
