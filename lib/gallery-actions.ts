@@ -78,12 +78,16 @@ import {
   getPhotoPublicUrl,
   getR2KeyFromPublicUrl,
   isR2StorageEnabled,
+  listMultipartUploadParts,
   savePhotoObject
 } from "@/lib/storage";
 import { verifyTotpCode } from "@/lib/totp";
 
 const MANUAL_ZIP_MULTIPART_THRESHOLD_BYTES = 4 * 1024 * 1024 * 1024;
 const MANUAL_ZIP_MULTIPART_PART_SIZE_BYTES = 128 * 1024 * 1024;
+const MEDIA_MULTIPART_THRESHOLD_BYTES = 256 * 1024 * 1024;
+const MEDIA_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024;
+const MAX_MULTIPART_PARTS = 10_000;
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -1756,7 +1760,11 @@ export async function createPhotoUploadTargetsAction(
         fileSize: true,
         imageWidth: true,
         imageHeight: true,
-        capturedAt: true
+        capturedAt: true,
+        uploadedAt: true,
+        multipartUploadId: true,
+        multipartPartSize: true,
+        multipartPartCount: true
       }
     });
     const existingPhotoByKey = new Map<string, (typeof existingPhotos)[number]>();
@@ -1784,6 +1792,14 @@ export async function createPhotoUploadTargetsAction(
         const fileDuplicateKey = photoDuplicateKey(file);
         const existingUploadItem = existingUploadItemByKey.get(fileDuplicateKey);
         const existingPhoto = existingPhotoByKey.get(fileDuplicateKey);
+        const useMultipart = (file.fileSize ?? 0) >= MEDIA_MULTIPART_THRESHOLD_BYTES;
+        const expectedPartCount = useMultipart
+          ? Math.ceil((file.fileSize ?? 0) / MEDIA_MULTIPART_PART_SIZE_BYTES)
+          : 0;
+
+        if (expectedPartCount > MAX_MULTIPART_PARTS) {
+          throw new Error(`${file.filename} túl nagy a darabolt feltöltéshez.`);
+        }
 
         if (existingUploadItem?.status === "completed" && existingUploadItem.r2Key && existingUploadItem.imageUrl) {
           return {
@@ -1799,6 +1815,7 @@ export async function createPhotoUploadTargetsAction(
             mediaType,
             alreadyCompleted: true,
             replacePhotoId: null,
+            uploadType: "single" as const,
             uploadUrl: ""
           };
         }
@@ -1821,7 +1838,10 @@ export async function createPhotoUploadTargetsAction(
             status: "completed",
             errorMessage: null,
             uploadedAt: now,
-            completedAt: now
+            completedAt: now,
+            multipartUploadId: null,
+            multipartPartSize: null,
+            multipartPartCount: null
           };
           const uploadItem = existingUploadItem
             ? await prisma.galleryUploadItem.update({
@@ -1862,8 +1882,94 @@ export async function createPhotoUploadTargetsAction(
             mediaType,
             alreadyCompleted: true,
             replacePhotoId: null,
+            uploadType: "single" as const,
             uploadUrl: ""
           };
+        }
+
+        if (
+          existingUploadItem?.status !== "completed" &&
+          existingUploadItem?.uploadedAt &&
+          existingUploadItem.r2Key &&
+          existingUploadItem.imageUrl
+        ) {
+          return {
+            uploadItemId: existingUploadItem.id,
+            clientId: file.clientId,
+            filename: file.filename,
+            r2Key: existingUploadItem.r2Key,
+            imageUrl: existingUploadItem.imageUrl,
+            thumbnailUrl: existingUploadItem.thumbnailUrl || existingUploadItem.imageUrl,
+            previewUrl: existingUploadItem.previewUrl || existingUploadItem.imageUrl,
+            thumbnailR2Key: null,
+            previewR2Key: null,
+            mediaType,
+            alreadyCompleted: false,
+            alreadyUploaded: true,
+            replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
+            uploadType: "single" as const,
+            uploadUrl: ""
+          };
+        }
+
+        if (
+          useMultipart &&
+          existingUploadItem?.status !== "completed" &&
+          existingUploadItem?.r2Key &&
+          existingUploadItem.multipartUploadId &&
+          existingUploadItem.multipartPartSize === MEDIA_MULTIPART_PART_SIZE_BYTES &&
+          existingUploadItem.multipartPartCount === expectedPartCount
+        ) {
+          try {
+            const uploadedParts = await listMultipartUploadParts({
+              r2Key: existingUploadItem.r2Key,
+              uploadId: existingUploadItem.multipartUploadId
+            });
+
+            await prisma.galleryUploadItem.update({
+              where: { id: existingUploadItem.id },
+              data: {
+                status: "uploading",
+                errorMessage: null
+              }
+            });
+
+            return {
+              uploadItemId: existingUploadItem.id,
+              clientId: file.clientId,
+              filename: file.filename,
+              r2Key: existingUploadItem.r2Key,
+              imageUrl: existingUploadItem.imageUrl || getPhotoPublicUrl(existingUploadItem.r2Key),
+              thumbnailUrl: existingUploadItem.thumbnailUrl || existingUploadItem.imageUrl || getPhotoPublicUrl(existingUploadItem.r2Key),
+              previewUrl: existingUploadItem.previewUrl || existingUploadItem.imageUrl || getPhotoPublicUrl(existingUploadItem.r2Key),
+              thumbnailR2Key: null,
+              previewR2Key: null,
+              mediaType,
+              alreadyCompleted: false,
+              replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
+              uploadType: "multipart" as const,
+              uploadUrl: "",
+              multipartUploadId: existingUploadItem.multipartUploadId,
+              partSize: MEDIA_MULTIPART_PART_SIZE_BYTES,
+              partCount: expectedPartCount,
+              uploadedParts: uploadedParts.map((part) => ({
+                partNumber: part.partNumber,
+                size: part.size
+              }))
+            };
+          } catch {
+            await abortMultipartUpload({
+              r2Key: existingUploadItem.r2Key,
+              uploadId: existingUploadItem.multipartUploadId
+            }).catch(() => undefined);
+          }
+        }
+
+        if (existingUploadItem?.r2Key && existingUploadItem.multipartUploadId) {
+          await abortMultipartUpload({
+            r2Key: existingUploadItem.r2Key,
+            uploadId: existingUploadItem.multipartUploadId
+          }).catch(() => undefined);
         }
 
         const generatedR2Key = createPhotoObjectKey({
@@ -1887,6 +1993,12 @@ export async function createPhotoUploadTargetsAction(
               })
             : null;
         const generatedPublicUrl = getPhotoPublicUrl(generatedR2Key);
+        const multipartUpload = useMultipart
+          ? await createMultipartUpload({
+              r2Key: generatedR2Key,
+              contentType: file.contentType
+            })
+          : null;
         const uploadingUploadItemData = {
           filename: file.filename,
           deliveryStage: session.deliveryStage,
@@ -1903,7 +2015,10 @@ export async function createPhotoUploadTargetsAction(
           status: "uploading",
           errorMessage: null,
           uploadedAt: null,
-          completedAt: null
+          completedAt: null,
+          multipartUploadId: multipartUpload?.uploadId ?? null,
+          multipartPartSize: multipartUpload ? MEDIA_MULTIPART_PART_SIZE_BYTES : null,
+          multipartPartCount: multipartUpload ? expectedPartCount : null
         };
         const uploadItem = existingUploadItem
           ? await prisma.galleryUploadItem.update({
@@ -1956,10 +2071,17 @@ export async function createPhotoUploadTargetsAction(
           mediaType,
           alreadyCompleted: false,
           replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
-          uploadUrl: await createPresignedPhotoUploadUrl({
-            r2Key,
-            contentType: file.contentType
-          })
+          uploadType: multipartUpload ? ("multipart" as const) : ("single" as const),
+          uploadUrl: multipartUpload
+            ? ""
+            : await createPresignedPhotoUploadUrl({
+                r2Key,
+                contentType: file.contentType
+              }),
+          multipartUploadId: multipartUpload?.uploadId ?? null,
+          partSize: multipartUpload ? MEDIA_MULTIPART_PART_SIZE_BYTES : null,
+          partCount: multipartUpload ? expectedPartCount : null,
+          uploadedParts: [] as Array<{ partNumber: number; size: number }>
         };
       })
     );
@@ -1982,6 +2104,111 @@ export async function createPhotoUploadTargetsAction(
       message: "Nem sikerült előkészíteni az R2 feltöltést."
     };
   }
+}
+
+export async function createPhotoMultipartPartUploadUrlAction(
+  galleryId: string,
+  sessionId: string,
+  uploadItemId: string,
+  partNumber: number
+) {
+  await requireGalleryAccess(galleryId);
+
+  const item = await prisma.galleryUploadItem.findFirst({
+    where: {
+      id: uploadItemId,
+      sessionId,
+      session: { galleryId }
+    },
+    select: {
+      r2Key: true,
+      multipartUploadId: true,
+      multipartPartCount: true
+    }
+  });
+
+  if (
+    !item?.r2Key ||
+    !item.multipartUploadId ||
+    !item.multipartPartCount ||
+    !Number.isInteger(partNumber) ||
+    partNumber < 1 ||
+    partNumber > item.multipartPartCount ||
+    partNumber > MAX_MULTIPART_PARTS
+  ) {
+    return { ok: false, message: "A videódarab feltöltése nem készíthető elő." };
+  }
+
+  return {
+    ok: true,
+    uploadUrl: await createPresignedMultipartUploadPartUrl({
+      r2Key: item.r2Key,
+      uploadId: item.multipartUploadId,
+      partNumber
+    })
+  };
+}
+
+export async function completePhotoMultipartUploadAction(
+  galleryId: string,
+  sessionId: string,
+  uploadItemId: string,
+  partNumbers: number[]
+) {
+  await requireGalleryAccess(galleryId);
+
+  const item = await prisma.galleryUploadItem.findFirst({
+    where: {
+      id: uploadItemId,
+      sessionId,
+      session: { galleryId }
+    },
+    select: {
+      r2Key: true,
+      multipartUploadId: true,
+      multipartPartCount: true,
+      uploadedAt: true
+    }
+  });
+
+  if (!item?.r2Key || !item.multipartUploadId || !item.multipartPartCount) {
+    return { ok: false, message: "A darabolt feltöltés nem található." };
+  }
+
+  if (item.uploadedAt) {
+    return { ok: true };
+  }
+
+  const uniquePartNumbers = Array.from(
+    new Set(partNumbers.filter((partNumber) => Number.isInteger(partNumber) && partNumber > 0))
+  ).sort((left, right) => left - right);
+  const hasEveryPart =
+    uniquePartNumbers.length === item.multipartPartCount &&
+    uniquePartNumbers.every((partNumber, index) => partNumber === index + 1);
+
+  if (!hasEveryPart) {
+    return { ok: false, message: "A videó feltöltése még nem teljes." };
+  }
+
+  await completeMultipartUpload({
+    r2Key: item.r2Key,
+    uploadId: item.multipartUploadId,
+    parts: uniquePartNumbers.map((partNumber) => ({ partNumber }))
+  });
+
+  await prisma.galleryUploadItem.updateMany({
+    where: {
+      id: uploadItemId,
+      sessionId
+    },
+    data: {
+      status: "uploaded",
+      uploadedAt: new Date(),
+      errorMessage: null
+    }
+  });
+
+  return { ok: true };
 }
 
 export async function markPhotoUploadItemFailedAction({

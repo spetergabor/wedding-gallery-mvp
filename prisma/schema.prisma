@@ -618,31 +618,31 @@ model Lead {
 }
 
 model MiniSession {
-  id                      String                    @id @default(cuid())
-  adminId                 String
-  title                   String
-  slug                    String                    @unique
-  location                String
-  bookingMode             String                    @default("single_day")
-  bookingWindowDays       Int                       @default(60)
-  sessionDate             DateTime
-  startsAt                DateTime
-  endsAt                  DateTime
-  durationMinutes         Int
-  minBookingNoticeMinutes Int                       @default(0)
-  language                String                    @default("hu")
-  isActive                Boolean                   @default(true)
-  createCustomerOnBooking Boolean                   @default(true)
-  postProductionWorkflowEnabled Boolean             @default(true)
-  notes                   String?
-  stylingNotes            String?
-  coverImageUrl           String?
-  coverImageR2Key         String?
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @updatedAt
-  admin                   Admin                     @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  bookings                MiniSessionBooking[]
-  availabilityRules       MiniSessionAvailability[]
+  id                            String                    @id @default(cuid())
+  adminId                       String
+  title                         String
+  slug                          String                    @unique
+  location                      String
+  bookingMode                   String                    @default("single_day")
+  bookingWindowDays             Int                       @default(60)
+  sessionDate                   DateTime
+  startsAt                      DateTime
+  endsAt                        DateTime
+  durationMinutes               Int
+  minBookingNoticeMinutes       Int                       @default(0)
+  language                      String                    @default("hu")
+  isActive                      Boolean                   @default(true)
+  createCustomerOnBooking       Boolean                   @default(true)
+  postProductionWorkflowEnabled Boolean                   @default(true)
+  notes                         String?
+  stylingNotes                  String?
+  coverImageUrl                 String?
+  coverImageR2Key               String?
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @updatedAt
+  admin                         Admin                     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  bookings                      MiniSessionBooking[]
+  availabilityRules             MiniSessionAvailability[]
 
   @@index([adminId])
   @@index([slug])
@@ -1249,7 +1249,7 @@ model Photo {
   processingError       String?
   processingRequestedAt DateTime?
   processingCompletedAt DateTime?
-  fileSize              Int                     @default(0)
+  fileSize              Float                   @default(0)
   imageWidth            Int                     @default(0)
   imageHeight           Int                     @default(0)
   sortOrder             Int                     @default(0)
@@ -1448,28 +1448,31 @@ model GalleryUploadSession {
 }
 
 model GalleryUploadItem {
-  id            String               @id @default(cuid())
-  sessionId     String
-  clientId      String
-  filename      String
-  deliveryStage String               @default("final")
-  r2Key         String?
-  imageUrl      String?
-  thumbnailUrl  String?
-  previewUrl    String?
-  mediaType     String               @default("image")
-  fileSize      Int                  @default(0)
-  imageWidth    Int                  @default(0)
-  imageHeight   Int                  @default(0)
-  capturedAt    DateTime?
-  originalIndex Int                  @default(0)
-  status        String               @default("pending")
-  errorMessage  String?
-  uploadedAt    DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  session       GalleryUploadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id                 String               @id @default(cuid())
+  sessionId          String
+  clientId           String
+  filename           String
+  deliveryStage      String               @default("final")
+  r2Key              String?
+  imageUrl           String?
+  thumbnailUrl       String?
+  previewUrl         String?
+  mediaType          String               @default("image")
+  fileSize           Float                @default(0)
+  multipartUploadId  String?
+  multipartPartSize  Int?
+  multipartPartCount Int?
+  imageWidth         Int                  @default(0)
+  imageHeight        Int                  @default(0)
+  capturedAt         DateTime?
+  originalIndex      Int                  @default(0)
+  status             String               @default("pending")
+  errorMessage       String?
+  uploadedAt         DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  session            GalleryUploadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, clientId])
   @@index([sessionId])

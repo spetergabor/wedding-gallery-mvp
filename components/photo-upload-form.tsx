@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import * as exifr from "exifr";
 import { ImagePlus, RefreshCw, UploadCloud } from "lucide-react";
 import {
+  completePhotoMultipartUploadAction,
   completePhotoUploadsAction,
+  createPhotoMultipartPartUploadUrlAction,
   createPhotoUploadSessionAction,
   createPhotoUploadTargetsAction,
   markPhotoUploadItemFailedAction,
@@ -32,8 +34,14 @@ type PreparedUpload = {
   thumbnailR2Key: string | null;
   previewR2Key: string | null;
   uploadUrl: string;
+  uploadType?: "single" | "multipart";
+  multipartUploadId?: string | null;
+  partSize?: number | null;
+  partCount?: number | null;
+  uploadedParts?: Array<{ partNumber: number; size: number }>;
   mediaType: "image" | "video";
   alreadyCompleted?: boolean;
+  alreadyUploaded?: boolean;
   replacePhotoId?: string | null;
   fileSize?: number;
   imageWidth?: number;
@@ -83,6 +91,7 @@ type SelectedPhotoFile = {
 
 const UPLOAD_BATCH_SIZE = 24;
 const UPLOAD_CONCURRENCY = 6;
+const MULTIPART_UPLOAD_CONCURRENCY = 3;
 const MAX_UPLOAD_ATTEMPTS = 5;
 const MAX_CONNECTION_RESUME_ATTEMPTS = 60;
 const GALLERY_REFRESH_INTERVAL_MS = 2500;
@@ -741,16 +750,114 @@ export function PhotoUploadForm({
   async function uploadFile({
     file,
     target,
+    sessionId,
     onWaiting,
     onResume,
     onProgress
   }: {
     file: File;
     target: PreparedUpload;
+    sessionId: string;
     onWaiting: () => void;
     onResume: () => void;
     onProgress: (bytesSent: number) => void;
   }) {
+    if (target.uploadType === "multipart") {
+      if (!target.partSize || !target.partCount || !target.multipartUploadId) {
+        throw new Error(`${file.name} darabolt feltöltése nincs megfelelően előkészítve.`);
+      }
+
+      const uploadedPartNumbers = new Set(
+        (target.uploadedParts ?? [])
+          .map((part) => part.partNumber)
+          .filter((partNumber) => Number.isInteger(partNumber) && partNumber >= 1 && partNumber <= target.partCount!)
+      );
+      const partProgress = new Map<number, number>();
+      const completedPartSizes = new Map<number, number>();
+
+      for (const partNumber of uploadedPartNumbers) {
+        const start = (partNumber - 1) * target.partSize;
+        completedPartSizes.set(partNumber, Math.max(0, Math.min(target.partSize, file.size - start)));
+      }
+
+      const reportProgress = () => {
+        const completedBytes = Array.from(completedPartSizes.values()).reduce((sum, bytes) => sum + bytes, 0);
+        const activeBytes = Array.from(partProgress.values()).reduce((sum, bytes) => sum + bytes, 0);
+        onProgress(Math.min(file.size, completedBytes + activeBytes));
+      };
+      const pendingPartNumbers = Array.from({ length: target.partCount }, (_, index) => index + 1).filter(
+        (partNumber) => !uploadedPartNumbers.has(partNumber)
+      );
+      let nextPartIndex = 0;
+
+      reportProgress();
+
+      async function partWorker() {
+        while (nextPartIndex < pendingPartNumbers.length) {
+          const partNumber = pendingPartNumbers[nextPartIndex];
+          nextPartIndex += 1;
+          const start = (partNumber - 1) * target.partSize!;
+          const end = Math.min(file.size, start + target.partSize!);
+          const body = file.slice(start, end, file.type || "application/octet-stream");
+
+          await ensureAdminSessionForUpload();
+          const partTarget = await runWithConnectionResume({
+            operation: () =>
+              createPhotoMultipartPartUploadUrlAction(galleryId, sessionId, target.uploadItemId, partNumber),
+            onWaiting,
+            onResume
+          });
+
+          if (!partTarget.ok || !partTarget.uploadUrl) {
+            throw new Error(partTarget.message || `${file.name} ${partNumber}. darabja nem készíthető elő.`);
+          }
+
+          await uploadBlob({
+            body,
+            uploadUrl: partTarget.uploadUrl,
+            filename: `${file.name} (${partNumber}/${target.partCount})`,
+            contentType: file.type || "application/octet-stream",
+            onWaiting,
+            onResume,
+            onProgress: (bytesSent) => {
+              partProgress.set(partNumber, Math.min(body.size, bytesSent));
+              reportProgress();
+            }
+          });
+
+          partProgress.delete(partNumber);
+          completedPartSizes.set(partNumber, body.size);
+          reportProgress();
+        }
+      }
+
+      await Promise.all(
+        Array.from(
+          { length: Math.min(MULTIPART_UPLOAD_CONCURRENCY, Math.max(1, pendingPartNumbers.length)) },
+          () => partWorker()
+        )
+      );
+
+      const multipartResult = await runWithConnectionResume({
+        operation: () =>
+          completePhotoMultipartUploadAction(
+            galleryId,
+            sessionId,
+            target.uploadItemId,
+            Array.from({ length: target.partCount! }, (_, index) => index + 1)
+          ),
+        onWaiting,
+        onResume
+      });
+
+      if (!multipartResult.ok) {
+        throw new Error(multipartResult.message || `${file.name} darabolt feltöltése nem zárható le.`);
+      }
+
+      onProgress(file.size);
+      return;
+    }
+
     await uploadBlob({
       body: file,
       uploadUrl: target.uploadUrl,
@@ -900,25 +1007,28 @@ export function PhotoUploadForm({
         try {
           for (let urlAttempt = 1; urlAttempt <= 3; urlAttempt += 1) {
             try {
-              await uploadFile({
-                file: selectedFile.file,
-                target,
-                onWaiting: () =>
-                  setFileStatus(selectedFile.clientId, "waiting", {
-                    uploadItemId: target?.uploadItemId ?? null,
-                    errorMessage: "Kapcsolatra vár, automatikusan folytatja..."
-                  }),
-                onResume: () =>
-                  setFileStatus(selectedFile.clientId, "uploading", {
-                    uploadItemId: target?.uploadItemId ?? null,
-                    errorMessage: null
-                  }),
-                onProgress: (bytesSent) =>
-                  setFileStatus(selectedFile.clientId, "uploading", {
-                    uploadItemId: target?.uploadItemId ?? null,
-                    uploadBytesSent: bytesSent
-                  })
-              });
+              if (!target.alreadyUploaded) {
+                await uploadFile({
+                  file: selectedFile.file,
+                  target,
+                  sessionId,
+                  onWaiting: () =>
+                    setFileStatus(selectedFile.clientId, "waiting", {
+                      uploadItemId: target?.uploadItemId ?? null,
+                      errorMessage: "Kapcsolatra vár, automatikusan folytatja..."
+                    }),
+                  onResume: () =>
+                    setFileStatus(selectedFile.clientId, "uploading", {
+                      uploadItemId: target?.uploadItemId ?? null,
+                      errorMessage: null
+                    }),
+                  onProgress: (bytesSent) =>
+                    setFileStatus(selectedFile.clientId, "uploading", {
+                      uploadItemId: target?.uploadItemId ?? null,
+                      uploadBytesSent: bytesSent
+                    })
+                });
+              }
               break;
             } catch (error) {
               if (error instanceof UploadUrlExpiredError && urlAttempt < 3) {
@@ -1004,9 +1114,9 @@ export function PhotoUploadForm({
       }
     }
 
-    await Promise.all(
-      Array.from({ length: Math.min(UPLOAD_CONCURRENCY, batch.length) }, () => worker())
-    );
+    const fileConcurrency = uploadTargets.some((target) => target?.uploadType === "multipart") ? 1 : UPLOAD_CONCURRENCY;
+
+    await Promise.all(Array.from({ length: Math.min(fileConcurrency, batch.length) }, () => worker()));
 
     return {
       completedCount: completedUploads,
@@ -1119,6 +1229,9 @@ export function PhotoUploadForm({
           <h2 className="mt-5 text-2xl font-semibold text-ink">{title}</h2>
           <p className="mt-2 max-w-md text-sm text-graphite/70">
             {description}
+          </p>
+          <p className="mt-2 max-w-md text-xs text-graphite/55">
+            A nagy videók darabolva töltődnek fel, és megszakadás után a kész részek kihagyásával folytathatók.
           </p>
           <span className="mt-5 inline-flex h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white">
             Fájlok kiválasztása

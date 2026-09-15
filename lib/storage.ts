@@ -744,6 +744,46 @@ export async function createPresignedMultipartUploadPartUrl({
   return getSignedUrl(getR2Client(), command, { expiresIn: 60 * 60 });
 }
 
+export async function listMultipartUploadParts({
+  r2Key,
+  uploadId
+}: {
+  r2Key: string;
+  uploadId: string;
+}) {
+  if (STORAGE_DRIVER !== "r2") {
+    throw new Error("Multipart upload is only available with R2 storage.");
+  }
+
+  const parts: Array<{ etag: string; partNumber: number; size: number }> = [];
+  let partNumberMarker: string | undefined;
+
+  do {
+    const listed = await getR2Client().send(
+      new ListPartsCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        UploadId: uploadId,
+        PartNumberMarker: partNumberMarker
+      })
+    );
+
+    for (const part of listed.Parts ?? []) {
+      if (part.ETag && part.PartNumber) {
+        parts.push({
+          etag: part.ETag,
+          partNumber: part.PartNumber,
+          size: Number(part.Size ?? 0)
+        });
+      }
+    }
+
+    partNumberMarker = listed.NextPartNumberMarker;
+  } while (partNumberMarker);
+
+  return parts.sort((left, right) => left.partNumber - right.partNumber);
+}
+
 export async function completeMultipartUpload({
   r2Key,
   uploadId,
@@ -773,30 +813,10 @@ export async function completeMultipartUpload({
   let completedParts = normalizedParts;
 
   if (completedParts.some((part) => !part.ETag)) {
-    const listedParts: Array<{ ETag: string; PartNumber: number }> = [];
-    let partNumberMarker: string | undefined;
-
-    do {
-      const listed = await client.send(
-        new ListPartsCommand({
-          Bucket: R2_BUCKET_NAME,
-          Key: r2Key,
-          UploadId: uploadId,
-          PartNumberMarker: partNumberMarker
-        })
-      );
-
-      for (const part of listed.Parts ?? []) {
-        if (part.ETag && part.PartNumber) {
-          listedParts.push({
-            ETag: part.ETag,
-            PartNumber: part.PartNumber
-          });
-        }
-      }
-
-      partNumberMarker = listed.NextPartNumberMarker;
-    } while (partNumberMarker);
+    const listedParts = (await listMultipartUploadParts({ r2Key, uploadId })).map((part) => ({
+      ETag: part.etag,
+      PartNumber: part.partNumber
+    }));
 
     const expectedPartNumbers = new Set(normalizedParts.map((part) => part.PartNumber));
     completedParts = listedParts
