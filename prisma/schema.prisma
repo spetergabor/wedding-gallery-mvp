@@ -1448,31 +1448,35 @@ model GalleryUploadSession {
 }
 
 model GalleryUploadItem {
-  id                 String               @id @default(cuid())
-  sessionId          String
-  clientId           String
-  filename           String
-  deliveryStage      String               @default("final")
-  r2Key              String?
-  imageUrl           String?
-  thumbnailUrl       String?
-  previewUrl         String?
-  mediaType          String               @default("image")
-  fileSize           Float                @default(0)
-  multipartUploadId  String?
-  multipartPartSize  Int?
-  multipartPartCount Int?
-  imageWidth         Int                  @default(0)
-  imageHeight        Int                  @default(0)
-  capturedAt         DateTime?
-  originalIndex      Int                  @default(0)
-  status             String               @default("pending")
-  errorMessage       String?
-  uploadedAt         DateTime?
-  completedAt        DateTime?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  session            GalleryUploadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id                           String               @id @default(cuid())
+  sessionId                    String
+  clientId                     String
+  filename                     String
+  deliveryStage                String               @default("final")
+  r2Key                        String?
+  imageUrl                     String?
+  thumbnailUrl                 String?
+  previewUrl                   String?
+  mediaType                    String               @default("image")
+  fileSize                     Float                @default(0)
+  multipartUploadId            String?
+  multipartPartSize            Int?
+  multipartPartCount           Int?
+  finalizationRunId            String?
+  finalizationStartedAt        DateTime?
+  finalizationLastDispatchedAt DateTime?
+  finalizationAttempts         Int                  @default(0)
+  imageWidth                   Int                  @default(0)
+  imageHeight                  Int                  @default(0)
+  capturedAt                   DateTime?
+  originalIndex                Int                  @default(0)
+  status                       String               @default("pending")
+  errorMessage                 String?
+  uploadedAt                   DateTime?
+  completedAt                  DateTime?
+  createdAt                    DateTime             @default(now())
+  updatedAt                    DateTime             @updatedAt
+  session                      GalleryUploadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, clientId])
   @@index([sessionId])

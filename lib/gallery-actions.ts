@@ -90,6 +90,8 @@ const MANUAL_ZIP_MULTIPART_PART_SIZE_BYTES = 128 * 1024 * 1024;
 const MEDIA_MULTIPART_THRESHOLD_BYTES = 256 * 1024 * 1024;
 const MEDIA_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024;
 const MAX_MULTIPART_PARTS = 10_000;
+const MULTIPART_FINALIZATION_STALE_MS = 5 * 60 * 1000;
+const MULTIPART_FINALIZATION_MAX_DISPATCH_ATTEMPTS = 3;
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -2245,7 +2247,10 @@ export async function completePhotoMultipartUploadAction(
     },
     data: {
       status: "finalizing",
-      errorMessage: null
+      errorMessage: null,
+      finalizationStartedAt: new Date(),
+      finalizationLastDispatchedAt: new Date(),
+      finalizationAttempts: { increment: 1 }
     }
   });
 
@@ -2263,6 +2268,17 @@ export async function completePhotoMultipartUploadAction(
     if (!dispatch.dispatched) {
       throw new Error("A háttérfeldolgozó nem érhető el.");
     }
+
+    await prisma.galleryUploadItem.updateMany({
+      where: {
+        id: uploadItemId,
+        sessionId,
+        status: "finalizing"
+      },
+      data: {
+        finalizationRunId: dispatch.runId
+      }
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "A videó lezárása nem indítható el.";
 
@@ -2307,7 +2323,12 @@ export async function getPhotoMultipartUploadStatusAction(
     select: {
       status: true,
       errorMessage: true,
-      uploadedAt: true
+      uploadedAt: true,
+      r2Key: true,
+      fileSize: true,
+      updatedAt: true,
+      finalizationLastDispatchedAt: true,
+      finalizationAttempts: true
     }
   });
 
@@ -2325,6 +2346,125 @@ export async function getPhotoMultipartUploadStatusAction(
       status: "failed" as const,
       message: item.errorMessage || "A videó összeillesztése nem sikerült."
     };
+  }
+
+  if (item.status === "finalizing") {
+    const staleBefore = new Date(Date.now() - MULTIPART_FINALIZATION_STALE_MS);
+    const lastActivityAt = item.finalizationLastDispatchedAt ?? item.updatedAt;
+
+    if (lastActivityAt <= staleBefore) {
+      if (item.r2Key) {
+        const completedSize = await getPhotoObjectByteLength(item.r2Key).catch((error) => {
+          console.warn("Could not verify stale multipart upload", {
+            galleryId,
+            sessionId,
+            uploadItemId,
+            error
+          });
+          return null;
+        });
+
+        if (completedSize !== null && completedSize > 0 && Math.round(completedSize) === Math.round(item.fileSize)) {
+          await prisma.galleryUploadItem.updateMany({
+            where: {
+              id: uploadItemId,
+              sessionId,
+              status: "finalizing"
+            },
+            data: {
+              status: "uploaded",
+              uploadedAt: new Date(),
+              errorMessage: null
+            }
+          });
+
+          return { ok: true, status: "completed" as const };
+        }
+      }
+
+      if (item.finalizationAttempts >= MULTIPART_FINALIZATION_MAX_DISPATCH_ATTEMPTS) {
+        const message =
+          "A videó összeillesztése többszöri próbálkozás után sem fejeződött be. Indítsd újra a feltöltést.";
+
+        await prisma.galleryUploadItem.updateMany({
+          where: {
+            id: uploadItemId,
+            sessionId,
+            status: "finalizing",
+            finalizationLastDispatchedAt: item.finalizationLastDispatchedAt
+          },
+          data: {
+            status: "failed",
+            errorMessage: message
+          }
+        });
+
+        return { ok: false, status: "failed" as const, message };
+      }
+
+      const claimedAt = new Date();
+      const claimed = await prisma.galleryUploadItem.updateMany({
+        where: {
+          id: uploadItemId,
+          sessionId,
+          status: "finalizing",
+          finalizationLastDispatchedAt: item.finalizationLastDispatchedAt,
+          updatedAt: item.updatedAt
+        },
+        data: {
+          finalizationLastDispatchedAt: claimedAt,
+          finalizationAttempts: { increment: 1 },
+          errorMessage: null
+        }
+      });
+
+      if (claimed.count > 0) {
+        try {
+          const dispatch = await dispatchPhotoMultipartFinalization({ galleryId, sessionId, uploadItemId });
+
+          if (!dispatch.dispatched) {
+            throw new Error("A háttérfeldolgozó nem érhető el.");
+          }
+
+          await prisma.galleryUploadItem.updateMany({
+            where: {
+              id: uploadItemId,
+              sessionId,
+              status: "finalizing",
+              finalizationLastDispatchedAt: claimedAt
+            },
+            data: {
+              finalizationRunId: dispatch.runId
+            }
+          });
+
+          console.info("Recovered stale photo multipart finalization", {
+            galleryId,
+            sessionId,
+            uploadItemId,
+            runId: dispatch.runId,
+            attempt: item.finalizationAttempts + 1
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "A videó lezárása nem indítható újra.";
+
+          await prisma.galleryUploadItem.updateMany({
+            where: {
+              id: uploadItemId,
+              sessionId,
+              status: "finalizing",
+              finalizationLastDispatchedAt: claimedAt
+            },
+            data: {
+              status: "failed",
+              errorMessage: message.slice(0, 500)
+            }
+          });
+
+          return { ok: false, status: "failed" as const, message: "A videó lezárása nem indítható újra." };
+        }
+      }
+    }
   }
 
   return { ok: true, status: "processing" as const };

@@ -5,7 +5,7 @@ import {
   processPhotoMultipartFinalization
 } from "@/lib/photo-multipart";
 
-const maxDuration = Number.parseInt(process.env.TRIGGER_MEDIA_UPLOAD_MAX_DURATION_SECONDS ?? "7200", 10);
+const maxDuration = Number.parseInt(process.env.TRIGGER_MEDIA_UPLOAD_MAX_DURATION_SECONDS ?? "900", 10);
 
 export const photoMultipartFinalizationTask = task({
   id: PHOTO_MULTIPART_FINALIZATION_TASK_ID,
@@ -15,7 +15,7 @@ export const photoMultipartFinalizationTask = task({
     concurrencyLimit: 2
   },
   machine: "small-1x",
-  maxDuration: Number.isFinite(maxDuration) ? maxDuration : 7200,
+  maxDuration: Number.isFinite(maxDuration) ? maxDuration : 900,
   retry: {
     maxAttempts: 3,
     factor: 2,

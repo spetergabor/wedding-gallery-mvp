@@ -79,7 +79,7 @@ export async function processPhotoMultipartFinalization({
       await prisma.galleryUploadItem.update({
         where: { id: item.id },
         data: {
-          status: "failed",
+          status: "finalizing",
           errorMessage: message
         }
       });
@@ -111,9 +111,8 @@ export async function dispatchPhotoMultipartFinalization(payload: PhotoMultipart
   if (process.env.TRIGGER_SECRET_KEY) {
     const { tasks } = await import("@trigger.dev/sdk/v3");
 
-    await tasks.trigger(PHOTO_MULTIPART_FINALIZATION_TASK_ID, payload, {
+    const handle = await tasks.trigger(PHOTO_MULTIPART_FINALIZATION_TASK_ID, payload, {
       queue: "photo-multipart-finalization",
-      concurrencyKey: `upload:${payload.uploadItemId}`,
       tags: [
         `gallery:${payload.galleryId}`,
         `upload-session:${payload.sessionId}`,
@@ -121,13 +120,13 @@ export async function dispatchPhotoMultipartFinalization(payload: PhotoMultipart
       ]
     });
 
-    return { driver: "trigger" as const, dispatched: true };
+    return { driver: "trigger" as const, dispatched: true, runId: handle.id };
   }
 
   if (!process.env.VERCEL) {
     await processPhotoMultipartFinalization(payload);
-    return { driver: "local" as const, dispatched: true };
+    return { driver: "local" as const, dispatched: true, runId: null };
   }
 
-  return { driver: "unavailable" as const, dispatched: false };
+  return { driver: "unavailable" as const, dispatched: false, runId: null };
 }
