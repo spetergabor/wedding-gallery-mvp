@@ -62,6 +62,7 @@ import { parseGallerySalePricingTiersFromForm, parsePriceCents } from "@/lib/gal
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { MINI_SESSION_WORKFLOW_CLIENT_SELECTION } from "@/lib/mini-session-workflow";
+import { dispatchPhotoMultipartFinalization } from "@/lib/photo-multipart";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
   abortMultipartUpload,
@@ -75,6 +76,7 @@ import {
   createVideoThumbnailObjectKey,
   deleteGalleryObjects,
   deletePhotoObject,
+  getPhotoObjectByteLength,
   getPhotoPublicUrl,
   getR2KeyFromPublicUrl,
   isR2StorageEnabled,
@@ -1887,6 +1889,45 @@ export async function createPhotoUploadTargetsAction(
           };
         }
 
+        if (useMultipart && existingUploadItem?.r2Key && !existingUploadItem.uploadedAt) {
+          const completedObjectSize = await getPhotoObjectByteLength(existingUploadItem.r2Key).catch(() => null);
+
+          if (
+            completedObjectSize !== null &&
+            completedObjectSize > 0 &&
+            Math.round(completedObjectSize) === Math.round(file.fileSize ?? 0)
+          ) {
+            const uploadedAt = new Date();
+
+            await prisma.galleryUploadItem.update({
+              where: { id: existingUploadItem.id },
+              data: {
+                status: "uploaded",
+                uploadedAt,
+                errorMessage: null
+              }
+            });
+
+            return {
+              uploadItemId: existingUploadItem.id,
+              clientId: file.clientId,
+              filename: file.filename,
+              r2Key: existingUploadItem.r2Key,
+              imageUrl: existingUploadItem.imageUrl || getPhotoPublicUrl(existingUploadItem.r2Key),
+              thumbnailUrl: existingUploadItem.thumbnailUrl || existingUploadItem.imageUrl || getPhotoPublicUrl(existingUploadItem.r2Key),
+              previewUrl: existingUploadItem.previewUrl || existingUploadItem.imageUrl || getPhotoPublicUrl(existingUploadItem.r2Key),
+              thumbnailR2Key: null,
+              previewR2Key: null,
+              mediaType,
+              alreadyCompleted: false,
+              alreadyUploaded: true,
+              replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
+              uploadType: "single" as const,
+              uploadUrl: ""
+            };
+          }
+        }
+
         if (
           existingUploadItem?.status !== "completed" &&
           existingUploadItem?.uploadedAt &&
@@ -2167,7 +2208,8 @@ export async function completePhotoMultipartUploadAction(
       r2Key: true,
       multipartUploadId: true,
       multipartPartCount: true,
-      uploadedAt: true
+      uploadedAt: true,
+      status: true
     }
   });
 
@@ -2176,7 +2218,11 @@ export async function completePhotoMultipartUploadAction(
   }
 
   if (item.uploadedAt) {
-    return { ok: true };
+    return { ok: true, status: "completed" as const };
+  }
+
+  if (item.status === "finalizing") {
+    return { ok: true, status: "processing" as const };
   }
 
   const uniquePartNumbers = Array.from(
@@ -2190,25 +2236,98 @@ export async function completePhotoMultipartUploadAction(
     return { ok: false, message: "A videó feltöltése még nem teljes." };
   }
 
-  await completeMultipartUpload({
-    r2Key: item.r2Key,
-    uploadId: item.multipartUploadId,
-    parts: uniquePartNumbers.map((partNumber) => ({ partNumber }))
-  });
-
-  await prisma.galleryUploadItem.updateMany({
+  const claimed = await prisma.galleryUploadItem.updateMany({
     where: {
       id: uploadItemId,
-      sessionId
+      sessionId,
+      uploadedAt: null,
+      status: { not: "finalizing" }
     },
     data: {
-      status: "uploaded",
-      uploadedAt: new Date(),
+      status: "finalizing",
       errorMessage: null
     }
   });
 
-  return { ok: true };
+  if (claimed.count === 0) {
+    return { ok: true, status: "processing" as const };
+  }
+
+  try {
+    const dispatch = await dispatchPhotoMultipartFinalization({
+      galleryId,
+      sessionId,
+      uploadItemId
+    });
+
+    if (!dispatch.dispatched) {
+      throw new Error("A háttérfeldolgozó nem érhető el.");
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "A videó lezárása nem indítható el.";
+
+    await prisma.galleryUploadItem.updateMany({
+      where: {
+        id: uploadItemId,
+        sessionId,
+        status: "finalizing"
+      },
+      data: {
+        status: "failed",
+        errorMessage: message.slice(0, 500)
+      }
+    });
+
+    console.error("Photo multipart finalization dispatch failed", {
+      galleryId,
+      sessionId,
+      uploadItemId,
+      error
+    });
+
+    return { ok: false, status: "failed" as const, message: "A videó lezárása nem indítható el." };
+  }
+
+  return { ok: true, status: "processing" as const };
+}
+
+export async function getPhotoMultipartUploadStatusAction(
+  galleryId: string,
+  sessionId: string,
+  uploadItemId: string
+) {
+  await requireGalleryAccess(galleryId);
+
+  const item = await prisma.galleryUploadItem.findFirst({
+    where: {
+      id: uploadItemId,
+      sessionId,
+      session: { galleryId }
+    },
+    select: {
+      status: true,
+      errorMessage: true,
+      uploadedAt: true
+    }
+  });
+
+  if (!item) {
+    return { ok: false, status: "failed" as const, message: "A feltöltés nem található." };
+  }
+
+  if (item.uploadedAt || item.status === "uploaded" || item.status === "completed") {
+    return { ok: true, status: "completed" as const };
+  }
+
+  if (item.status === "failed") {
+    return {
+      ok: false,
+      status: "failed" as const,
+      message: item.errorMessage || "A videó összeillesztése nem sikerült."
+    };
+  }
+
+  return { ok: true, status: "processing" as const };
 }
 
 export async function markPhotoUploadItemFailedAction({
@@ -2298,11 +2417,15 @@ export async function completePhotoUploadsAction(
     },
     select: {
       id: true,
-      status: true
+      status: true,
+      uploadedAt: true,
+      multipartUploadId: true
     }
   });
   const completableItemIds = new Set(
-    uploadItems.filter((item) => item.status !== "completed").map((item) => item.id)
+    uploadItems
+      .filter((item) => item.status !== "completed" && (!item.multipartUploadId || item.uploadedAt))
+      .map((item) => item.id)
   );
 
   const sortedUploads = validUploads.filter((upload) => upload.uploadItemId && completableItemIds.has(upload.uploadItemId)).sort((a, b) => {

@@ -10,6 +10,7 @@ import {
   createPhotoMultipartPartUploadUrlAction,
   createPhotoUploadSessionAction,
   createPhotoUploadTargetsAction,
+  getPhotoMultipartUploadStatusAction,
   markPhotoUploadItemFailedAction,
   refreshAdminSessionAction
 } from "@/lib/gallery-actions";
@@ -97,6 +98,8 @@ const MAX_CONNECTION_RESUME_ATTEMPTS = 60;
 const GALLERY_REFRESH_INTERVAL_MS = 2500;
 const CONNECTION_RETRY_DELAY_MS = 3000;
 const SESSION_KEEPALIVE_INTERVAL_MS = 2 * 60 * 1000;
+const MULTIPART_FINALIZATION_POLL_INTERVAL_MS = 5000;
+const MULTIPART_FINALIZATION_MAX_WAIT_MS = 2 * 60 * 60 * 1000;
 
 class UploadUrlExpiredError extends Error {
   constructor(message: string) {
@@ -752,6 +755,7 @@ export function PhotoUploadForm({
     target,
     sessionId,
     onWaiting,
+    onFinalizing,
     onResume,
     onProgress
   }: {
@@ -759,6 +763,7 @@ export function PhotoUploadForm({
     target: PreparedUpload;
     sessionId: string;
     onWaiting: () => void;
+    onFinalizing: () => void;
     onResume: () => void;
     onProgress: (bytesSent: number) => void;
   }) {
@@ -852,6 +857,37 @@ export function PhotoUploadForm({
 
       if (!multipartResult.ok) {
         throw new Error(multipartResult.message || `${file.name} darabolt feltöltése nem zárható le.`);
+      }
+
+      if (multipartResult.status !== "completed") {
+        onFinalizing();
+        const startedAt = Date.now();
+        let finalized = false;
+
+        while (Date.now() - startedAt < MULTIPART_FINALIZATION_MAX_WAIT_MS) {
+          await wait(MULTIPART_FINALIZATION_POLL_INTERVAL_MS);
+          const statusResult = await runWithConnectionResume({
+            operation: () => getPhotoMultipartUploadStatusAction(galleryId, sessionId, target.uploadItemId),
+            onWaiting,
+            onResume
+          });
+
+          if (statusResult.status === "completed") {
+            finalized = true;
+            onResume();
+            break;
+          }
+
+          if (!statusResult.ok || statusResult.status === "failed") {
+            throw new Error(statusResult.message || `${file.name} összeillesztése nem sikerült.`);
+          }
+
+          onFinalizing();
+        }
+
+        if (!finalized) {
+          throw new Error(`${file.name} összeillesztése túl sokáig tart. A feltöltés később folytatható.`);
+        }
       }
 
       onProgress(file.size);
@@ -1016,6 +1052,12 @@ export function PhotoUploadForm({
                     setFileStatus(selectedFile.clientId, "waiting", {
                       uploadItemId: target?.uploadItemId ?? null,
                       errorMessage: "Kapcsolatra vár, automatikusan folytatja..."
+                    }),
+                  onFinalizing: () =>
+                    setFileStatus(selectedFile.clientId, "waiting", {
+                      uploadItemId: target?.uploadItemId ?? null,
+                      uploadBytesSent: selectedFile.file.size,
+                      errorMessage: "A videó összeállítása a háttérben folyamatban van..."
                     }),
                   onResume: () =>
                     setFileStatus(selectedFile.clientId, "uploading", {

@@ -470,14 +470,38 @@ async function loadR2ObjectRange(r2Key: string, start: number, end: number) {
 }
 
 async function getR2ObjectByteLength(r2Key: string) {
-  const response = await getR2Client().send(
-    new HeadObjectCommand({
-      Bucket: R2_BUCKET_NAME,
-      Key: r2Key
-    })
+  const response = await withR2Timeout("R2 object metadata read", (signal) =>
+    getR2Client().send(
+      new HeadObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key
+      }),
+      { abortSignal: signal }
+    )
   );
 
   return response.ContentLength ?? 0;
+}
+
+export async function getPhotoObjectByteLength(r2Key: string) {
+  if (STORAGE_DRIVER !== "r2") {
+    return null;
+  }
+
+  try {
+    return await getR2ObjectByteLength(r2Key);
+  } catch (error) {
+    const statusCode =
+      typeof error === "object" && error !== null && "$metadata" in error
+        ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+        : undefined;
+
+    if (statusCode === 404) {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 async function* readR2ObjectInChunks(r2Key: string, byteLength?: number) {
@@ -759,13 +783,16 @@ export async function listMultipartUploadParts({
   let partNumberMarker: string | undefined;
 
   do {
-    const listed = await getR2Client().send(
-      new ListPartsCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: r2Key,
-        UploadId: uploadId,
-        PartNumberMarker: partNumberMarker
-      })
+    const listed = await withR2Timeout("R2 multipart parts list", (signal) =>
+      getR2Client().send(
+        new ListPartsCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          UploadId: uploadId,
+          PartNumberMarker: partNumberMarker
+        }),
+        { abortSignal: signal }
+      )
     );
 
     for (const part of listed.Parts ?? []) {
@@ -828,18 +855,21 @@ export async function completeMultipartUpload({
     throw new Error("R2 multipart upload parts could not be verified.");
   }
 
-  await client.send(
-    new CompleteMultipartUploadCommand({
-      Bucket: R2_BUCKET_NAME,
-      Key: r2Key,
-      UploadId: uploadId,
-      MultipartUpload: {
-        Parts: completedParts.map((part) => ({
-          ETag: part.ETag ?? undefined,
-          PartNumber: part.PartNumber
-        }))
-      }
-    })
+  await withR2Timeout("R2 multipart upload complete", (signal) =>
+    client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: r2Key,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: completedParts.map((part) => ({
+            ETag: part.ETag ?? undefined,
+            PartNumber: part.PartNumber
+          }))
+        }
+      }),
+      { abortSignal: signal }
+    )
   );
 }
 
