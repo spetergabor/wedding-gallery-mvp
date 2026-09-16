@@ -90,7 +90,7 @@ const MANUAL_ZIP_MULTIPART_PART_SIZE_BYTES = 128 * 1024 * 1024;
 const MEDIA_MULTIPART_THRESHOLD_BYTES = 256 * 1024 * 1024;
 const MEDIA_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024;
 const MAX_MULTIPART_PARTS = 10_000;
-const MULTIPART_FINALIZATION_STALE_MS = 5 * 60 * 1000;
+const MULTIPART_FINALIZATION_STALE_MS = 6 * 60 * 1000;
 const MULTIPART_FINALIZATION_MAX_DISPATCH_ATTEMPTS = 3;
 
 function formString(formData: FormData, key: string) {
@@ -2562,13 +2562,28 @@ export async function recoverStalePhotoMultipartUploadsAction(galleryId: string)
 
     if (result.ok) {
       completedCount += result.completedItemIds?.length ?? 0;
+    } else {
+      console.error("Recovered multipart upload could not be added to the gallery", {
+        galleryId,
+        sessionId,
+        uploadItemIds: items.map((item) => item.id),
+        message: result.message
+      });
     }
   }
 
   const pendingCount = await prisma.galleryUploadItem.count({
     where: {
-      status: "finalizing",
-      session: { galleryId }
+      session: { galleryId },
+      completedAt: null,
+      multipartUploadId: { not: null },
+      OR: [
+        { status: "finalizing" },
+        {
+          status: "uploaded",
+          uploadedAt: { not: null }
+        }
+      ]
     }
   });
 

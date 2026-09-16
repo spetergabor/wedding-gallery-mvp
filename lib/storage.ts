@@ -16,6 +16,7 @@ import {
   UploadPartCommand
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { normalizeSlug } from "@/lib/slug";
 
 export const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME ?? "wedding-gallery";
@@ -102,6 +103,11 @@ function getR2Client() {
   r2Client = new S3Client({
     region: "auto",
     endpoint,
+    maxAttempts: 2,
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout: Math.min(R2_REQUEST_TIMEOUT_MS, 10_000),
+      requestTimeout: R2_REQUEST_TIMEOUT_MS
+    }),
     credentials: {
       accessKeyId,
       secretAccessKey
