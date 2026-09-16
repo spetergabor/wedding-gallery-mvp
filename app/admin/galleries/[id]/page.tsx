@@ -17,6 +17,7 @@ import { GalleryDesignLiveControls } from "@/components/gallery-design-live-cont
 import { GalleryForm } from "@/components/gallery-form";
 import { GalleryTabController } from "@/components/gallery-tab-controller";
 import { MediaProcessingStatus } from "@/components/media-processing-status";
+import { MultipartUploadRecovery } from "@/components/multipart-upload-recovery";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { ProofingInviteComposer } from "@/components/proofing-invite-composer";
@@ -468,6 +469,7 @@ export default async function GalleryDetailPage({
 
   return (
     <AdminShell>
+      {resumableUploadSessions.length > 0 ? <MultipartUploadRecovery galleryId={gallery.id} /> : null}
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className={sectionMetaClass}>Galéria</p>

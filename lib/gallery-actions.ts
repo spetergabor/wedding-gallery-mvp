@@ -2470,6 +2470,115 @@ export async function getPhotoMultipartUploadStatusAction(
   return { ok: true, status: "processing" as const };
 }
 
+export async function recoverStalePhotoMultipartUploadsAction(galleryId: string) {
+  await requireGalleryAccess(galleryId);
+
+  const finalizingItems = await prisma.galleryUploadItem.findMany({
+    where: {
+      status: "finalizing",
+      session: { galleryId }
+    },
+    select: {
+      id: true,
+      sessionId: true
+    },
+    take: 10
+  });
+
+  await Promise.allSettled(
+    finalizingItems.map((item) => getPhotoMultipartUploadStatusAction(galleryId, item.sessionId, item.id))
+  );
+
+  const uploadedItems = await prisma.galleryUploadItem.findMany({
+    where: {
+      status: "uploaded",
+      uploadedAt: { not: null },
+      completedAt: null,
+      multipartUploadId: { not: null },
+      session: { galleryId }
+    },
+    orderBy: [{ sessionId: "asc" }, { originalIndex: "asc" }],
+    select: {
+      id: true,
+      sessionId: true,
+      clientId: true,
+      filename: true,
+      r2Key: true,
+      imageUrl: true,
+      thumbnailUrl: true,
+      previewUrl: true,
+      mediaType: true,
+      fileSize: true,
+      imageWidth: true,
+      imageHeight: true,
+      capturedAt: true,
+      originalIndex: true
+    },
+    take: 20
+  });
+  const itemsBySession = new Map<string, typeof uploadedItems>();
+
+  for (const item of uploadedItems) {
+    const sessionItems = itemsBySession.get(item.sessionId) ?? [];
+    sessionItems.push(item);
+    itemsBySession.set(item.sessionId, sessionItems);
+  }
+
+  let completedCount = 0;
+
+  for (const [sessionId, items] of itemsBySession) {
+    const uploads = items.flatMap((item): CompletedPhotoUpload[] => {
+      if (!item.r2Key || !item.imageUrl) {
+        return [];
+      }
+
+      return [
+        {
+          uploadItemId: item.id,
+          clientId: item.clientId,
+          filename: item.filename,
+          r2Key: item.r2Key,
+          imageUrl: item.imageUrl,
+          thumbnailUrl: item.thumbnailUrl || item.imageUrl,
+          previewUrl: item.previewUrl || item.imageUrl,
+          thumbnailR2Key: null,
+          previewR2Key: null,
+          mediaType: item.mediaType === "video" ? "video" : "image",
+          fileSize: item.fileSize,
+          imageWidth: item.imageWidth,
+          imageHeight: item.imageHeight,
+          capturedAt: item.capturedAt?.toISOString() ?? null,
+          originalIndex: item.originalIndex,
+          replacePhotoId: null
+        }
+      ];
+    });
+
+    if (uploads.length === 0) {
+      continue;
+    }
+
+    const result = await completePhotoUploadsAction(galleryId, sessionId, uploads, { revalidate: false });
+
+    if (result.ok) {
+      completedCount += result.completedItemIds?.length ?? 0;
+    }
+  }
+
+  const pendingCount = await prisma.galleryUploadItem.count({
+    where: {
+      status: "finalizing",
+      session: { galleryId }
+    }
+  });
+
+  return {
+    ok: true,
+    pendingCount,
+    completedCount
+  };
+}
+
 export async function markPhotoUploadItemFailedAction({
   galleryId,
   sessionId,
