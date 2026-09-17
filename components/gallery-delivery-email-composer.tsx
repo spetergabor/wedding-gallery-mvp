@@ -50,7 +50,6 @@ export function GalleryDeliveryEmailComposer({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const heading = language === "hu" ? "A végleges képek elkészültek" : "Deine fertigen Bilder sind bereit";
   const ctaLabel = language === "hu" ? "Galéria megnyitása" : "Galerie öffnen";
 
   useEffect(() => {
@@ -262,7 +261,7 @@ export function GalleryDeliveryEmailComposer({
                   ) : null}
                   <div className="px-6 py-7 sm:px-8">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brass">{galleryTitle}</p>
-                    <h3 className="mt-2 text-2xl font-semibold leading-tight text-ink">{heading}</h3>
+                    <h3 className="mt-2 text-2xl font-semibold leading-tight text-ink">{subject}</h3>
                     <div className="mt-5 whitespace-pre-wrap text-sm leading-6 text-graphite">{message}</div>
                     <span className="mt-6 inline-flex h-11 items-center rounded-md bg-ink px-5 text-sm font-semibold text-white">{ctaLabel}</span>
                     <p className="mt-6 break-all text-[11px] leading-5 text-graphite/55">{galleryUrl}</p>

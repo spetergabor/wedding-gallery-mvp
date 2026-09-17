@@ -1350,6 +1350,7 @@ function clientFinalDeliveryHtml({
   galleryUrl,
   downloadsEnabled,
   language,
+  subject,
   message,
   coverImageUrl,
   logoUrl
@@ -1357,6 +1358,7 @@ function clientFinalDeliveryHtml({
   const copy = copyForLanguage(language);
   const draft = getClientFinalDeliveryDraft({ galleryTitle, downloadsEnabled, language });
   const body = message?.trim() || draft.message;
+  const heading = subject?.trim() || draft.subject;
   return `
     <div style="margin:0; padding:28px 12px; background:#f5f3ef; font-family:Arial,sans-serif; color:#171717; line-height:1.6;">
       <div style="max-width:640px; margin:0 auto; overflow:hidden; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px;">
@@ -1364,7 +1366,7 @@ function clientFinalDeliveryHtml({
         ${coverImageUrl ? `<img src="${escapeHtml(coverImageUrl)}" alt="${escapeHtml(galleryTitle)}" style="display:block; width:100%; max-height:430px; object-fit:cover; border:0;">` : ""}
         <div style="padding:34px 34px 30px;">
           <p style="margin:0 0 9px; color:#a67c3b; font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;">${escapeHtml(galleryTitle)}</p>
-          <h1 style="margin:0 0 22px; font-size:28px; line-height:1.2;">${copy.finalDelivery.heading}</h1>
+          <h1 style="margin:0 0 22px; font-size:28px; line-height:1.2;">${escapeHtml(heading)}</h1>
           <div style="margin:0 0 26px; color:#444; font-size:16px;">${multilineHtml(body)}</div>
           <p style="margin:0 0 28px;">
             <a href="${escapeHtml(galleryUrl)}" style="display:inline-block; background:#171717; color:#fff; text-decoration:none; padding:13px 20px; border-radius:7px; font-weight:700;">${copy.finalDelivery.cta}</a>
