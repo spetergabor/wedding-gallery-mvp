@@ -19,7 +19,13 @@ import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type
 import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
-import { createZipPartRanges, enqueueGalleryZipJob, kickGalleryZipJobs, sendGalleryDownloadLinksForPackages } from "@/lib/jobs";
+import {
+  createZipPartRanges,
+  enqueueGalleryZipJob,
+  kickGalleryZipJobs,
+  preparePublicGalleryZipPackages,
+  sendGalleryDownloadLinksForPackages
+} from "@/lib/jobs";
 import {
   GALLERY_PURCHASE_KIND_PHOTOS,
   ensurePaidGalleryPurchaseFulfillmentForSession
@@ -378,16 +384,37 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
   }
 
   if (!activePackages) {
-    return {
-      ok: false,
-      message: "Das Download-Paket ist noch nicht vorbereitet. Bitte versuche es später erneut.",
-      downloadUrl: null,
-      filename: null,
-      cached: false,
-      packageId: null,
-      status: "not_ready",
-      packages: []
-    };
+    const prepared = await preparePublicGalleryZipPackages(galleryId, quality);
+
+    if (!prepared.ok) {
+      const messageByReason: Record<string, string> = {
+        "not-active": "Diese Galerie ist derzeit nicht verfügbar.",
+        "downloads-disabled": "Downloads sind für diese Galerie derzeit deaktiviert.",
+        "proofing-pending": "Die finalen Fotos sind noch nicht freigegeben.",
+        "no-photos": "Diese Galerie enthält noch keine Fotos."
+      };
+
+      return {
+        ok: false,
+        message: messageByReason[prepared.reason] ?? "Das Download-Paket konnte nicht vorbereitet werden.",
+        downloadUrl: null,
+        filename: null,
+        cached: false,
+        packageId: null,
+        status: "failed",
+        packages: []
+      };
+    }
+
+    activePackages = prepared.packages;
+    packageStatus = prepared.status;
+    cached = prepared.cached;
+
+    if (prepared.payloads.length > 0) {
+      after(async () => {
+        await kickGalleryZipJobs(prepared.payloads);
+      });
+    }
   }
 
   await prisma.galleryDownload.createMany({
