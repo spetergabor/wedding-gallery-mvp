@@ -13,6 +13,7 @@ import { DownloadLog } from "@/components/download-log";
 import { FavoriteListsLog } from "@/components/favorite-lists-log";
 import { GallerySectionSortableList } from "@/components/gallery-section-sortable-list";
 import { GalleryDangerZone } from "@/components/gallery-danger-zone";
+import { GalleryDeliveryEmailComposer } from "@/components/gallery-delivery-email-composer";
 import { GalleryDesignLiveControls } from "@/components/gallery-design-live-controls";
 import { GalleryForm } from "@/components/gallery-form";
 import { GalleryTabController } from "@/components/gallery-tab-controller";
@@ -31,7 +32,7 @@ import { adminOwnedWhere, albumDesignOwnedWhere, ownerAdminId } from "@/lib/admi
 import { customerTypeLabel } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { appBaseUrl, getClientProofingInviteDraft, publicGalleryUrl } from "@/lib/email";
+import { appBaseUrl, getClientFinalDeliveryDraft, getClientProofingInviteDraft, publicGalleryUrl } from "@/lib/email";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
@@ -287,10 +288,13 @@ export default async function GalleryDetailPage({
       },
       admin: {
         select: {
+          name: true,
+          email: true,
           siteSettings: {
             select: {
               publicSubdomain: true,
               businessName: true,
+              contactEmail: true,
               logoUrl: true,
               logoHeight: true
             }
@@ -439,6 +443,11 @@ export default async function GalleryDetailPage({
     }
   }
   const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
+  const deliveryEmailPhotos = gallery.photos.filter(
+    (photo) => photo.mediaType !== "video" && (!proofingGallery || photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL)
+  );
+  const deliveryEmailCoverPhoto =
+    deliveryEmailPhotos.find((photo) => photo.id === gallery.coverPhotoId) ?? deliveryEmailPhotos[0] ?? null;
   const designPreviewCoverPhoto =
     (coverPhoto?.mediaType !== "video" ? coverPhoto : null) ??
     gallery.photos.find((photo) => photo.mediaType !== "video") ??
@@ -459,6 +468,11 @@ export default async function GalleryDetailPage({
   const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
   const customerLanguage = normalizeCustomerLanguage(gallery.customer?.preferredLanguage);
   const galleryPublicUrl = publicGalleryUrl(gallery.slug, customerLanguage, publicSubdomain);
+  const deliveryEmailDraft = getClientFinalDeliveryDraft({
+    galleryTitle: gallery.title,
+    downloadsEnabled: gallery.downloadsEnabled,
+    language: customerLanguage
+  });
   const proofingInviteDraft = getClientProofingInviteDraft({
     galleryTitle: gallery.title,
     language: customerLanguage
@@ -509,6 +523,22 @@ export default async function GalleryDetailPage({
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <CopyPublicLinkButton slug={gallery.slug} url={galleryPublicUrl} variant="primary" />
+          <GalleryDeliveryEmailComposer
+            galleryId={gallery.id}
+            galleryTitle={gallery.title}
+            galleryUrl={galleryPublicUrl}
+            recipient={gallery.clientEmail || gallery.customer?.primaryEmail || ""}
+            replyTo={gallery.admin.siteSettings?.contactEmail || gallery.admin.email}
+            defaultSubject={deliveryEmailDraft.subject}
+            defaultMessage={deliveryEmailDraft.message}
+            coverImageUrl={deliveryEmailCoverPhoto?.previewUrl || deliveryEmailCoverPhoto?.imageUrl || null}
+            coverPositionX={gallery.coverPositionX ?? 50}
+            coverPositionY={gallery.coverPositionY ?? 50}
+            logoUrl={gallery.admin.siteSettings?.logoUrl ?? null}
+            photographerName={gallery.admin.siteSettings?.businessName || gallery.admin.name}
+            language={customerLanguage}
+            hasPhotos={deliveryEmailPhotos.length > 0}
+          />
           <ButtonLink href={galleryPublicUrl} variant="secondary">
             <ExternalLink size={16} />
             Publikus nézet

@@ -65,12 +65,16 @@ type ClientProofingInviteEmail = {
 
 type ClientFinalDeliveryEmail = {
   to: string;
+  replyTo?: string;
+  senderName?: string | null;
   galleryTitle: string;
   galleryUrl: string;
   downloadsEnabled: boolean;
   language?: CustomerLanguage;
   subject?: string;
   message?: string;
+  coverImageUrl?: string | null;
+  logoUrl?: string | null;
 };
 
 type MiniSessionWorkflowNotificationEmail = {
@@ -195,6 +199,7 @@ const CUSTOMER_EMAIL_COPY = {
       body: "die fertig bearbeiteten Bilder der Galerie sind jetzt für dich bereit.",
       linksEnabledBody: "Über den folgenden Link kannst du die Bilder ansehen und herunterladen.",
       linksDisabledBody: "Über den folgenden Link kannst du die Bilder ansehen.",
+      cta: "Galerie öffnen",
       fallback: "Falls der Button nicht funktioniert, kopiere diesen Link in den Browser:"
     },
     contract: {
@@ -281,6 +286,7 @@ const CUSTOMER_EMAIL_COPY = {
       body: "A galéria végleges képei már elérhetők számodra.",
       linksEnabledBody: "Az alábbi linken megtekintheted és letöltheted őket.",
       linksDisabledBody: "Az alábbi linken megtekintheted a képeket.",
+      cta: "Galéria megnyitása",
       fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
     },
     contract: {
@@ -373,6 +379,28 @@ export function getClientProofingInviteDraft({
   return {
     subject: `${copy.subject}: ${galleryTitle}`,
     message: [copy.intro, copy.body].join("\n\n")
+  };
+}
+
+export function getClientFinalDeliveryDraft({
+  galleryTitle,
+  downloadsEnabled,
+  language
+}: {
+  galleryTitle: string;
+  downloadsEnabled: boolean;
+  language?: CustomerLanguage;
+}) {
+  const copy = copyForLanguage(language).finalDelivery;
+
+  return {
+    subject: `${copy.subject}: ${galleryTitle}`,
+    message: [
+      copy.intro,
+      "",
+      copy.body,
+      downloadsEnabled ? copy.linksEnabledBody : copy.linksDisabledBody
+    ].join("\n")
   };
 }
 
@@ -1322,23 +1350,28 @@ function clientFinalDeliveryHtml({
   galleryUrl,
   downloadsEnabled,
   language,
-  message
+  message,
+  coverImageUrl,
+  logoUrl
 }: ClientFinalDeliveryEmail) {
   const copy = copyForLanguage(language);
-  const body = message?.trim() || copy.finalDelivery.body;
-  const cta = copy.finalDelivery.linksEnabledBody;
-  const ctaLabel = downloadsEnabled ? cta : copy.finalDelivery.linksDisabledBody;
+  const draft = getClientFinalDeliveryDraft({ galleryTitle, downloadsEnabled, language });
+  const body = message?.trim() || draft.message;
   return `
-    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.finalDelivery.heading}</h1>
-      <p style="margin: 0 0 18px;">${copy.finalDelivery.intro}</p>
-      <p style="margin: 0 0 18px; white-space: pre-line;">${escapeHtml(body)}</p>
-      <p style="margin: 0 0 18px;"><strong>${escapeHtml(galleryTitle)}</strong></p>
-      <p style="margin: 0 0 18px;">${downloadsEnabled ? copy.finalDelivery.linksEnabledBody : copy.finalDelivery.linksDisabledBody}</p>
-      <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(galleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${ctaLabel}</a>
-      </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">${copy.finalDelivery.fallback}<br>${escapeHtml(galleryUrl)}</p>
+    <div style="margin:0; padding:28px 12px; background:#f5f3ef; font-family:Arial,sans-serif; color:#171717; line-height:1.6;">
+      <div style="max-width:640px; margin:0 auto; overflow:hidden; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px;">
+        ${logoUrl ? `<div style="padding:26px 28px 22px; text-align:center;"><img src="${escapeHtml(logoUrl)}" alt="Logo" style="display:inline-block; max-width:220px; max-height:84px; width:auto; height:auto;"></div>` : ""}
+        ${coverImageUrl ? `<img src="${escapeHtml(coverImageUrl)}" alt="${escapeHtml(galleryTitle)}" style="display:block; width:100%; max-height:430px; object-fit:cover; border:0;">` : ""}
+        <div style="padding:34px 34px 30px;">
+          <p style="margin:0 0 9px; color:#a67c3b; font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;">${escapeHtml(galleryTitle)}</p>
+          <h1 style="margin:0 0 22px; font-size:28px; line-height:1.2;">${copy.finalDelivery.heading}</h1>
+          <div style="margin:0 0 26px; color:#444; font-size:16px;">${multilineHtml(body)}</div>
+          <p style="margin:0 0 28px;">
+            <a href="${escapeHtml(galleryUrl)}" style="display:inline-block; background:#171717; color:#fff; text-decoration:none; padding:13px 20px; border-radius:7px; font-weight:700;">${copy.finalDelivery.cta}</a>
+          </p>
+          <p style="margin:0; color:#777; font-size:12px; line-height:1.5;">${copy.finalDelivery.fallback}<br><a href="${escapeHtml(galleryUrl)}" style="color:#777; word-break:break-all;">${escapeHtml(galleryUrl)}</a></p>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -1351,22 +1384,21 @@ export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryE
     return false;
   }
 
+  const draft = getClientFinalDeliveryDraft(payload);
+  const subject = payload.subject?.trim() || draft.subject;
+  const message = payload.message?.trim() || draft.message;
   const response = await sendResendEmail(apiKey, {
-      from,
+      from: senderWithDisplayName(from, payload.senderName),
       to: payload.to,
-      subject: payload.subject?.trim() || `${copyForLanguage(payload.language).finalDelivery.subject}: ${payload.galleryTitle}`,
-      html: clientFinalDeliveryHtml(payload),
+      ...replyToPayload(payload.replyTo),
+      subject,
+      html: clientFinalDeliveryHtml({ ...payload, message }),
       text: [
-        payload.subject?.trim() || copyForLanguage(payload.language).finalDelivery.subject,
+        subject,
         "",
-        payload.message?.trim() || copyForLanguage(payload.language).finalDelivery.body,
+        message,
         "",
-        `Galerie: ${payload.galleryTitle}`,
-        payload.downloadsEnabled
-          ? copyForLanguage(payload.language).finalDelivery.linksEnabledBody
-          : copyForLanguage(payload.language).finalDelivery.linksDisabledBody,
-        "",
-        `Galerie öffnen: ${payload.galleryUrl}`
+        `${copyForLanguage(payload.language).finalDelivery.cta}: ${payload.galleryUrl}`
       ].join("\n")
   });
 
