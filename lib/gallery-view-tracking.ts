@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isAutomatedGalleryView } from "@/lib/gallery-view-request";
 
 const VIEW_DEDUPE_WINDOW_MS = 1000 * 60 * 60 * 12;
 
@@ -47,6 +48,14 @@ export async function recordGalleryView({
   galleryId: string;
   headers: Headers;
 }) {
+  if (isAutomatedGalleryView(headers)) {
+    return {
+      created: false,
+      viewId: null,
+      ignored: true
+    };
+  }
+
   const country = decodeLocationHeader(headers.get("x-vercel-ip-country"));
   const region = decodeLocationHeader(headers.get("x-vercel-ip-country-region"));
   const city = decodeLocationHeader(headers.get("x-vercel-ip-city"));
@@ -73,7 +82,8 @@ export async function recordGalleryView({
   if (recentView) {
     return {
       created: false,
-      viewId: recentView.id
+      viewId: recentView.id,
+      ignored: false
     };
   }
 
@@ -92,6 +102,7 @@ export async function recordGalleryView({
 
   return {
     created: true,
-    viewId: view.id
+    viewId: view.id,
+    ignored: false
   };
 }

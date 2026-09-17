@@ -1122,6 +1122,13 @@ export async function recordGalleryViewAction(galleryId: string) {
     headers: requestHeaders
   });
 
+  if (result.ignored || !result.viewId) {
+    return {
+      ok: false,
+      viewId: null
+    };
+  }
+
   if (isProofingGallery(gallery.galleryMode) && gallery.proofingStatus === PROOFING_STATUS_NOT_OPENED) {
     await prisma.gallery.update({
       where: { id: galleryId },
