@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
-import { CalendarDays, ClipboardList, FileText, GripVertical, Mail, MapPin, Phone, Plus, Trash2, X } from "lucide-react";
-import { createLeadAction, deleteLeadAction, moveLeadAction } from "@/lib/lead-actions";
+import { useRouter } from "next/navigation";
+import { CalendarDays, ClipboardList, FileText, GripVertical, Mail, MapPin, Phone, Plus, Trash2, UserPlus, X } from "lucide-react";
+import { convertWeddingLeadToCustomerAction, createLeadAction, deleteLeadAction, moveLeadAction } from "@/lib/lead-actions";
 import { LEAD_EVENT_TYPES, LEAD_STATUSES, leadEventTypeLabel, leadStatusLabel, type LeadStatus } from "@/lib/leads";
 import type { AdminLanguage } from "@/lib/admin-language";
 
@@ -42,6 +43,10 @@ const LEAD_PIPELINE_COPY = {
     inquiryData: "Ajánlatkérés adatai",
     message: "Üzenet",
     technicalDetails: "Technikai adatok",
+    createWeddingClient: "Esküvős ügyfél létrehozása",
+    creatingWeddingClient: "Ügyfél létrehozása...",
+    weddingClientEmailRequired: "Az ügyfél létrehozásához e-mail cím szükséges.",
+    createWeddingClientError: "Nem sikerült létrehozni az ügyfelet.",
     noNotes: "Nincs megjegyzés.",
     noValue: "Nincs megadva",
     eyebrow: "Érdeklődők",
@@ -67,6 +72,10 @@ const LEAD_PIPELINE_COPY = {
     inquiryData: "Anfragedaten",
     message: "Nachricht",
     technicalDetails: "Technische Daten",
+    createWeddingClient: "Hochzeitskunden anlegen",
+    creatingWeddingClient: "Kunde wird angelegt...",
+    weddingClientEmailRequired: "Zum Anlegen des Kunden ist eine E-Mail-Adresse erforderlich.",
+    createWeddingClientError: "Der Kunde konnte nicht angelegt werden.",
     noNotes: "Keine Notiz vorhanden.",
     noValue: "Nicht angegeben",
     eyebrow: "Anfragen",
@@ -92,6 +101,10 @@ const LEAD_PIPELINE_COPY = {
     inquiryData: "Inquiry data",
     message: "Message",
     technicalDetails: "Technical data",
+    createWeddingClient: "Create wedding client",
+    creatingWeddingClient: "Creating client...",
+    weddingClientEmailRequired: "An email address is required to create the client.",
+    createWeddingClientError: "Could not create the client.",
     noNotes: "No notes yet.",
     noValue: "Not set",
     eyebrow: "Leads",
@@ -367,11 +380,14 @@ function AddLeadForm({
 }
 
 export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardProps) {
+  const router = useRouter();
   const [leads, setLeads] = useState(initialLeads);
   const [activeFormStatus, setActiveFormStatus] = useState<LeadStatus | null>(null);
   const [selectedLead, setSelectedLead] = useState<LeadCard | null>(null);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ status: LeadStatus; index: number } | null>(null);
+  const [isConverting, startConverting] = useTransition();
+  const [conversionError, setConversionError] = useState("");
   const copy = LEAD_PIPELINE_COPY[language];
   const selectedLeadNotes = selectedLead ? formatLeadNotes(selectedLead.notes) : "";
   const selectedLeadNoteSections = selectedLead ? parseLeadNotes(selectedLead.notes) : null;
@@ -437,6 +453,25 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
     void deleteLeadAction(leadId);
   }
 
+  function handleConvertToWeddingCustomer(lead: LeadCard) {
+    setConversionError("");
+
+    startConverting(async () => {
+      const result = await convertWeddingLeadToCustomerAction(lead.id);
+
+      if (!result.ok || !result.customerId) {
+        setConversionError(result.message ?? copy.createWeddingClientError);
+        return;
+      }
+
+      if (result.created) {
+        setLeads((current) => current.filter((item) => item.id !== lead.id));
+      }
+      setSelectedLead(null);
+      router.push(`/admin/clients/${result.customerId}?createdFromLead=${result.created ? "1" : "0"}`);
+    });
+  }
+
   return (
     <section id="lead-pipeline" className="mt-8 rounded-md border border-ink/12 bg-white">
       <div className="flex flex-col justify-between gap-3 border-b border-ink/10 px-5 py-4 sm:flex-row sm:items-center">
@@ -487,10 +522,14 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
                       role="button"
                       tabIndex={0}
                       draggable
-                      onClick={() => setSelectedLead(lead)}
+                      onClick={() => {
+                        setConversionError("");
+                        setSelectedLead(lead);
+                      }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
+                          setConversionError("");
                           setSelectedLead(lead);
                         }
                       }}
@@ -699,7 +738,11 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
                 <div className="rounded-md border border-ink/10 bg-white p-4 text-sm text-graphite">{copy.noNotes}</div>
               ) : null}
 
-              <div className="flex justify-end gap-2 border-t border-ink/10 pt-4">
+              {conversionError ? (
+                <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{conversionError}</p>
+              ) : null}
+
+              <div className="flex flex-col-reverse gap-2 border-t border-ink/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
                   onClick={() => handleDelete(selectedLead.id)}
@@ -708,6 +751,23 @@ export function LeadPipelineBoard({ initialLeads, language }: LeadPipelineBoardP
                   <Trash2 size={15} />
                   {copy.deleteLead}
                 </button>
+                {selectedLead.eventType === "wedding" ? (
+                  <div className="sm:ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleConvertToWeddingCustomer(selectedLead)}
+                      disabled={isConverting || !selectedLead.email}
+                      title={!selectedLead.email ? copy.weddingClientEmailRequired : undefined}
+                      className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
+                    >
+                      <UserPlus size={16} />
+                      {isConverting ? copy.creatingWeddingClient : copy.createWeddingClient}
+                    </button>
+                    {!selectedLead.email ? (
+                      <p className="mt-1.5 text-xs text-red-700 sm:text-right">{copy.weddingClientEmailRequired}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

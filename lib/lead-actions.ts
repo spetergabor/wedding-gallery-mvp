@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
+import { createCustomerPortalToken } from "@/lib/customer-portal";
 import { ensureLeadPipelineSchema, normalizeLeadEventType, normalizeLeadStatus } from "@/lib/leads";
 import { prisma } from "@/lib/prisma";
 
@@ -131,4 +132,93 @@ export async function deleteLeadAction(leadId: string) {
   await prisma.lead.delete({ where: { id: lead.id } });
   revalidatePath("/admin/dashboard");
   return { ok: true };
+}
+
+function customerStatusForLead(status: string) {
+  if (status === "booked") {
+    return "booked";
+  }
+
+  if (status === "booking") {
+    return "offer_sent";
+  }
+
+  return "lead";
+}
+
+export async function convertWeddingLeadToCustomerAction(leadId: string) {
+  const admin = await requireAdmin();
+  await ensureLeadPipelineSchema(prisma);
+  const adminId = ownerAdminId(admin);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const lead = await tx.lead.findFirst({
+      where: {
+        id: leadId,
+        ...adminOwnedWhere(admin)
+      }
+    });
+
+    if (!lead || lead.eventType !== "wedding") {
+      return { ok: false as const, message: "Ez a lead nem alakítható esküvős ügyféllé." };
+    }
+
+    const primaryEmail = lead.email?.trim().toLowerCase();
+
+    if (!primaryEmail) {
+      return { ok: false as const, message: "Az ügyfél létrehozásához előbb adj meg e-mail címet a leadnél." };
+    }
+
+    const existingCustomer = await tx.customer.findFirst({
+      where: {
+        adminId,
+        primaryEmail: {
+          equals: primaryEmail,
+          mode: "insensitive"
+        }
+      },
+      select: { id: true }
+    });
+
+    if (existingCustomer) {
+      return {
+        ok: true as const,
+        customerId: existingCustomer.id,
+        created: false
+      };
+    }
+
+    const customer = await tx.customer.create({
+      data: {
+        adminId,
+        customerType: "wedding_couple",
+        coupleName: lead.name,
+        primaryEmail,
+        phone: lead.phone,
+        weddingDate: lead.eventDate,
+        venue: lead.venue,
+        preferredLanguage: "de",
+        portalToken: createCustomerPortalToken(),
+        status: customerStatusForLead(lead.status),
+        notes: lead.notes
+      },
+      select: { id: true }
+    });
+
+    await tx.lead.delete({ where: { id: lead.id } });
+
+    return {
+      ok: true as const,
+      customerId: customer.id,
+      created: true
+    };
+  });
+
+  if (result.ok) {
+    revalidatePath("/admin/dashboard");
+    revalidatePath("/admin/clients");
+    revalidatePath(`/admin/clients/${result.customerId}`);
+  }
+
+  return result;
 }
