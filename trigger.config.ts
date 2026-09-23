@@ -6,6 +6,7 @@ const maxDuration = Number.parseInt(process.env.TRIGGER_MAX_DURATION_SECONDS ?? 
 
 export default defineConfig({
   project: process.env.TRIGGER_PROJECT_REF ?? "proj_ernxqehukwacwhubgqsp",
+  runtime: "node-22",
   dirs: ["./trigger"],
   maxDuration: Number.isFinite(maxDuration) ? maxDuration : 7200,
   machine: "small-1x",
