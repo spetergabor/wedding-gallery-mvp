@@ -86,6 +86,15 @@ export async function processPhotoMultipartFinalization({
   });
 
   try {
+    console.info("Photo multipart finalization started", {
+      galleryId,
+      sessionId,
+      uploadItemId,
+      filename: item.filename,
+      fileSize: item.fileSize,
+      partCount: item.multipartPartCount
+    });
+
     await completeMultipartUpload({
       r2Key: item.r2Key,
       uploadId: item.multipartUploadId,
@@ -123,6 +132,14 @@ export async function processPhotoMultipartFinalization({
       uploadedAt: new Date(),
       errorMessage: null
     }
+  });
+
+  console.info("Photo multipart finalization completed", {
+    galleryId,
+    sessionId,
+    uploadItemId,
+    filename: item.filename,
+    fileSize: item.fileSize
   });
 
   return { ok: true, alreadyCompleted: false };

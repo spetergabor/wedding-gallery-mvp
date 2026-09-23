@@ -51,6 +51,16 @@ const MULTIPART_UPLOAD_PART_SIZE = readPositiveMegabytes(process.env.R2_MULTIPAR
 const R2_OBJECT_READ_CHUNK_SIZE = readPositiveMegabytes(process.env.R2_OBJECT_READ_CHUNK_SIZE_MB, 64, 1);
 const R2_OBJECT_READ_RETRIES = readPositiveInteger(process.env.R2_OBJECT_READ_RETRIES, 4, 1);
 const R2_REQUEST_TIMEOUT_MS = readPositiveInteger(process.env.R2_REQUEST_TIMEOUT_MS, 120_000, 5_000);
+const R2_OBJECT_METADATA_TIMEOUT_MS = readPositiveInteger(
+  process.env.R2_OBJECT_METADATA_TIMEOUT_MS,
+  30_000,
+  5_000
+);
+const R2_MULTIPART_LIST_TIMEOUT_MS = readPositiveInteger(
+  process.env.R2_MULTIPART_LIST_TIMEOUT_MS,
+  90_000,
+  10_000
+);
 const R2_MULTIPART_COMPLETE_TIMEOUT_MS = readPositiveInteger(
   process.env.R2_MULTIPART_COMPLETE_TIMEOUT_MS,
   15 * 60 * 1000,
@@ -490,14 +500,17 @@ async function loadR2ObjectRange(r2Key: string, start: number, end: number) {
 }
 
 async function getR2ObjectByteLength(r2Key: string) {
-  const response = await withR2Timeout("R2 object metadata read", (signal) =>
-    getR2Client().send(
-      new HeadObjectCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: r2Key
-      }),
-      { abortSignal: signal }
-    )
+  const response = await withR2Timeout(
+    "R2 object metadata read",
+    (signal) =>
+      getR2Client().send(
+        new HeadObjectCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key
+        }),
+        { abortSignal: signal }
+      ),
+    R2_OBJECT_METADATA_TIMEOUT_MS
   );
 
   return response.ContentLength ?? 0;
@@ -804,17 +817,31 @@ export async function listMultipartUploadParts({
   let partNumberMarker: string | undefined;
 
   do {
-    const listed = await withR2Timeout("R2 multipart parts list", (signal) =>
-      getR2Client().send(
-        new ListPartsCommand({
-          Bucket: R2_BUCKET_NAME,
-          Key: r2Key,
-          UploadId: uploadId,
-          PartNumberMarker: partNumberMarker
-        }),
-        { abortSignal: signal }
-      )
+    const startedAt = Date.now();
+    console.info("R2 multipart parts list started", {
+      r2Key,
+      partNumberMarker: partNumberMarker ?? null
+    });
+    const listed = await withR2Timeout(
+      "R2 multipart parts list",
+      (signal) =>
+        getR2Client().send(
+          new ListPartsCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: r2Key,
+            UploadId: uploadId,
+            PartNumberMarker: partNumberMarker
+          }),
+          { abortSignal: signal }
+        ),
+      R2_MULTIPART_LIST_TIMEOUT_MS
     );
+    console.info("R2 multipart parts list finished", {
+      r2Key,
+      durationMs: Date.now() - startedAt,
+      partCount: listed.Parts?.length ?? 0,
+      truncated: listed.IsTruncated ?? false
+    });
 
     for (const part of listed.Parts ?? []) {
       if (part.ETag && part.PartNumber) {
@@ -876,6 +903,12 @@ export async function completeMultipartUpload({
     throw new Error("R2 multipart upload parts could not be verified.");
   }
 
+  const completionStartedAt = Date.now();
+  console.info("R2 multipart completion started", {
+    r2Key,
+    partCount: completedParts.length
+  });
+
   await withR2Timeout(
     "R2 multipart upload complete",
     (signal) =>
@@ -895,6 +928,12 @@ export async function completeMultipartUpload({
       ),
     R2_MULTIPART_COMPLETE_TIMEOUT_MS
   );
+
+  console.info("R2 multipart completion finished", {
+    r2Key,
+    durationMs: Date.now() - completionStartedAt,
+    partCount: completedParts.length
+  });
 }
 
 export async function abortMultipartUpload({
