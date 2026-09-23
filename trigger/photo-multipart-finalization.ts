@@ -1,11 +1,10 @@
 import { task } from "@trigger.dev/sdk/v3";
 import {
+  PHOTO_MULTIPART_FINALIZATION_MAX_DURATION_SECONDS,
   PHOTO_MULTIPART_FINALIZATION_TASK_ID,
   type PhotoMultipartFinalizationPayload,
   processPhotoMultipartFinalization
 } from "@/lib/photo-multipart";
-
-const maxDuration = Number.parseInt(process.env.TRIGGER_MEDIA_UPLOAD_MAX_DURATION_SECONDS ?? "300", 10);
 
 export const photoMultipartFinalizationTask = task({
   id: PHOTO_MULTIPART_FINALIZATION_TASK_ID,
@@ -15,7 +14,7 @@ export const photoMultipartFinalizationTask = task({
     concurrencyLimit: 2
   },
   machine: "small-1x",
-  maxDuration: Number.isFinite(maxDuration) ? maxDuration : 300,
+  maxDuration: PHOTO_MULTIPART_FINALIZATION_MAX_DURATION_SECONDS,
   retry: {
     maxAttempts: 3,
     factor: 2,

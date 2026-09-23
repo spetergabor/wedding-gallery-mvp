@@ -51,13 +51,25 @@ const MULTIPART_UPLOAD_PART_SIZE = readPositiveMegabytes(process.env.R2_MULTIPAR
 const R2_OBJECT_READ_CHUNK_SIZE = readPositiveMegabytes(process.env.R2_OBJECT_READ_CHUNK_SIZE_MB, 64, 1);
 const R2_OBJECT_READ_RETRIES = readPositiveInteger(process.env.R2_OBJECT_READ_RETRIES, 4, 1);
 const R2_REQUEST_TIMEOUT_MS = readPositiveInteger(process.env.R2_REQUEST_TIMEOUT_MS, 120_000, 5_000);
+const R2_MULTIPART_COMPLETE_TIMEOUT_MS = readPositiveInteger(
+  process.env.R2_MULTIPART_COMPLETE_TIMEOUT_MS,
+  15 * 60 * 1000,
+  120_000
+);
 
 async function withR2Timeout<T>(label: string, operation: (signal: AbortSignal) => Promise<T>, timeoutMs = R2_REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const operationPromise = operation(controller.signal);
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds.`));
+    }, timeoutMs);
+  });
 
   try {
-    return await operation(controller.signal);
+    return await Promise.race([operationPromise, timeoutPromise]);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
@@ -65,7 +77,9 @@ async function withR2Timeout<T>(label: string, operation: (signal: AbortSignal) 
 
     throw error;
   } finally {
-    clearTimeout(timeout);
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 
@@ -106,7 +120,7 @@ function getR2Client() {
     maxAttempts: 2,
     requestHandler: new NodeHttpHandler({
       connectionTimeout: Math.min(R2_REQUEST_TIMEOUT_MS, 10_000),
-      requestTimeout: R2_REQUEST_TIMEOUT_MS
+      requestTimeout: Math.max(R2_REQUEST_TIMEOUT_MS, R2_MULTIPART_COMPLETE_TIMEOUT_MS)
     }),
     credentials: {
       accessKeyId,
@@ -686,7 +700,8 @@ export async function savePhotoStream({
             }
           }),
           { abortSignal: signal }
-        )
+        ),
+      R2_MULTIPART_COMPLETE_TIMEOUT_MS
     );
 
     return {
@@ -861,21 +876,24 @@ export async function completeMultipartUpload({
     throw new Error("R2 multipart upload parts could not be verified.");
   }
 
-  await withR2Timeout("R2 multipart upload complete", (signal) =>
-    client.send(
-      new CompleteMultipartUploadCommand({
-        Bucket: R2_BUCKET_NAME,
-        Key: r2Key,
-        UploadId: uploadId,
-        MultipartUpload: {
-          Parts: completedParts.map((part) => ({
-            ETag: part.ETag ?? undefined,
-            PartNumber: part.PartNumber
-          }))
-        }
-      }),
-      { abortSignal: signal }
-    )
+  await withR2Timeout(
+    "R2 multipart upload complete",
+    (signal) =>
+      client.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: R2_BUCKET_NAME,
+          Key: r2Key,
+          UploadId: uploadId,
+          MultipartUpload: {
+            Parts: completedParts.map((part) => ({
+              ETag: part.ETag ?? undefined,
+              PartNumber: part.PartNumber
+            }))
+          }
+        }),
+        { abortSignal: signal }
+      ),
+    R2_MULTIPART_COMPLETE_TIMEOUT_MS
   );
 }
 

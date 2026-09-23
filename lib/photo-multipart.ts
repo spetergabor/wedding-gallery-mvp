@@ -3,6 +3,27 @@ import { completeMultipartUpload, getPhotoObjectByteLength } from "@/lib/storage
 
 export const PHOTO_MULTIPART_FINALIZATION_TASK_ID = "photo-multipart-finalization";
 
+const DEFAULT_PHOTO_MULTIPART_FINALIZATION_MAX_DURATION_SECONDS = 20 * 60;
+const PHOTO_MULTIPART_FINALIZATION_STALE_GRACE_SECONDS = 2 * 60;
+
+function positiveInteger(value: string | undefined, fallback: number, minimum: number) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  return Number.isFinite(parsed) && parsed >= minimum ? parsed : fallback;
+}
+
+export const PHOTO_MULTIPART_FINALIZATION_MAX_DURATION_SECONDS = positiveInteger(
+  process.env.TRIGGER_MEDIA_UPLOAD_MAX_DURATION_SECONDS,
+  DEFAULT_PHOTO_MULTIPART_FINALIZATION_MAX_DURATION_SECONDS,
+  5 * 60
+);
+
+// The web app may redispatch a finalization job if the original Trigger run
+// disappears. Keep this later than the task timeout so a healthy large-video
+// finalization is never duplicated while R2 is still assembling the object.
+export const PHOTO_MULTIPART_FINALIZATION_STALE_MS =
+  (PHOTO_MULTIPART_FINALIZATION_MAX_DURATION_SECONDS + PHOTO_MULTIPART_FINALIZATION_STALE_GRACE_SECONDS) * 1000;
+
 export type PhotoMultipartFinalizationPayload = {
   galleryId: string;
   sessionId: string;

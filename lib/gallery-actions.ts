@@ -62,7 +62,10 @@ import { parseGallerySalePricingTiersFromForm, parsePriceCents } from "@/lib/gal
 import { paidGalleryScope } from "@/lib/gallery-sales-shared";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { MINI_SESSION_WORKFLOW_CLIENT_SELECTION } from "@/lib/mini-session-workflow";
-import { dispatchPhotoMultipartFinalization } from "@/lib/photo-multipart";
+import {
+  dispatchPhotoMultipartFinalization,
+  PHOTO_MULTIPART_FINALIZATION_STALE_MS
+} from "@/lib/photo-multipart";
 import { isAnyRateLimited } from "@/lib/rate-limit";
 import {
   abortMultipartUpload,
@@ -90,7 +93,6 @@ const MANUAL_ZIP_MULTIPART_PART_SIZE_BYTES = 128 * 1024 * 1024;
 const MEDIA_MULTIPART_THRESHOLD_BYTES = 256 * 1024 * 1024;
 const MEDIA_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024;
 const MAX_MULTIPART_PARTS = 10_000;
-const MULTIPART_FINALIZATION_STALE_MS = 6 * 60 * 1000;
 const MULTIPART_FINALIZATION_MAX_DISPATCH_ATTEMPTS = 3;
 
 function formString(formData: FormData, key: string) {
@@ -2522,7 +2524,7 @@ export async function getPhotoMultipartUploadStatusAction(
   }
 
   if (item.status === "finalizing") {
-    const staleBefore = new Date(Date.now() - MULTIPART_FINALIZATION_STALE_MS);
+    const staleBefore = new Date(Date.now() - PHOTO_MULTIPART_FINALIZATION_STALE_MS);
     const lastActivityAt = item.finalizationLastDispatchedAt ?? item.updatedAt;
 
     if (lastActivityAt <= staleBefore) {
