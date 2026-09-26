@@ -62,6 +62,8 @@ type MiniSessionLike = {
   }>;
   eventDays?: Array<{
     date: Date;
+    startsAt?: string;
+    endsAt?: string;
   }>;
 };
 
@@ -193,6 +195,34 @@ export function formatMiniSessionEventDates(
   return dates.length > 0 ? dates.join(", ") : formatMiniSessionDateRange(startsAt, endsAt, language);
 }
 
+export function formatMiniSessionEventSchedule(
+  eventDays: Array<{ date: Date; startsAt?: string; endsAt?: string }> | null | undefined,
+  startsAt: Date,
+  endsAt: Date,
+  language: MiniSessionLanguage = "hu"
+) {
+  const fallbackStartTime = miniSessionTimeInput(startsAt);
+  const fallbackEndTime = miniSessionTimeInput(endsAt);
+  const days = Array.from(
+    new Map(
+      (eventDays ?? [])
+        .slice()
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .map((eventDay) => {
+          const dateKey = miniSessionDateKey(eventDay.date);
+          const dayStartsAt = isTimeValue(eventDay.startsAt ?? "") ? eventDay.startsAt! : fallbackStartTime;
+          const dayEndsAt = isTimeValue(eventDay.endsAt ?? "") ? eventDay.endsAt! : fallbackEndTime;
+
+          return [dateKey, `${formatMiniSessionDate(eventDay.date, language)} · ${dayStartsAt}-${dayEndsAt}`];
+        })
+    ).values()
+  );
+
+  return days.length > 0
+    ? days.join(", ")
+    : `${formatMiniSessionDateRange(startsAt, endsAt, language)} · ${fallbackStartTime}-${fallbackEndTime}`;
+}
+
 export function formatMiniSessionTime(date: Date, language: MiniSessionLanguage = "hu") {
   return date.toLocaleTimeString(dateLocaleForCustomer(language), {
     hour: "2-digit",
@@ -298,15 +328,22 @@ export function createMiniSessionSlots(
     return slots;
   }
 
-  const eventDateKeys = Array.from(
-    new Set((session.eventDays ?? []).map((eventDay) => miniSessionDateKey(eventDay.date)))
-  ).sort();
+  const eventDays = Array.from(
+    new Map(
+      (session.eventDays ?? [])
+        .slice()
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .map((eventDay) => [miniSessionDateKey(eventDay.date), eventDay])
+    ).entries()
+  );
 
-  if (eventDateKeys.length > 0) {
-    const startTime = miniSessionTimeInput(session.startsAt);
-    const endTime = miniSessionTimeInput(session.endsAt);
+  if (eventDays.length > 0) {
+    const fallbackStartTime = miniSessionTimeInput(session.startsAt);
+    const fallbackEndTime = miniSessionTimeInput(session.endsAt);
 
-    return eventDateKeys.flatMap((dateKey) => {
+    return eventDays.flatMap(([dateKey, eventDay]) => {
+      const startTime = isTimeValue(eventDay.startsAt ?? "") ? eventDay.startsAt! : fallbackStartTime;
+      const endTime = isTimeValue(eventDay.endsAt ?? "") ? eventDay.endsAt! : fallbackEndTime;
       const startsAt = parseMiniSessionLocalDateTime(dateKey, startTime);
       const endsAt = parseMiniSessionLocalDateTime(dateKey, endTime);
 

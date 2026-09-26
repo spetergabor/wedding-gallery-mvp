@@ -10,26 +10,41 @@ import {
 const fieldClass =
   "h-12 w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 
-function uniqueDates(values: string[]) {
-  const dates = Array.from(new Set(values.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value)))).sort();
-  return dates.length > 0 ? dates : [""];
+export type MiniSessionEventDayFieldValue = {
+  date: string;
+  startsAt: string;
+  endsAt: string;
+};
+
+const emptyEventDay = (): MiniSessionEventDayFieldValue => ({ date: "", startsAt: "10:00", endsAt: "18:00" });
+
+function normalizeEventDays(values: MiniSessionEventDayFieldValue[]) {
+  const days = Array.from(
+    new Map(
+      values
+        .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value.date))
+        .map((value) => [value.date, value])
+    ).values()
+  ).sort((a, b) => a.date.localeCompare(b.date));
+
+  return days.length > 0 ? days : [emptyEventDay()];
 }
 
-export function MiniSessionEventDaysField({ defaultDates = [] }: { defaultDates?: string[] }) {
-  const [dates, setDates] = useState(() => uniqueDates(defaultDates));
+export function MiniSessionEventDaysField({ defaultDays = [] }: { defaultDays?: MiniSessionEventDayFieldValue[] }) {
+  const [days, setDays] = useState(() => normalizeEventDays(defaultDays));
 
-  function updateDate(index: number, value: string) {
-    setDates((current) => current.map((date, dateIndex) => (dateIndex === index ? value : date)));
+  function updateDay(index: number, field: keyof MiniSessionEventDayFieldValue, value: string) {
+    setDays((current) => current.map((day, dayIndex) => (dayIndex === index ? { ...day, [field]: value } : day)));
   }
 
   function addDate() {
-    setDates((current) => [...current, ""]);
+    setDays((current) => [...current, emptyEventDay()]);
   }
 
   function removeDate(index: number) {
-    setDates((current) => {
+    setDays((current) => {
       const next = current.filter((_, dateIndex) => dateIndex !== index);
-      return next.length > 0 ? next : [""];
+      return next.length > 0 ? next : [emptyEventDay()];
     });
   }
 
@@ -41,22 +56,47 @@ export function MiniSessionEventDaysField({ defaultDates = [] }: { defaultDates?
           Csak a külön hozzáadott napokon jelennek meg idősávok. A napok közötti időszak nem lesz foglalható.
         </p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {dates.map((date, index) => (
-          <div key={index} className="flex gap-2">
-            <input
-              name="sessionDates"
-              type="date"
-              value={date}
-              onChange={(event) => updateDate(index, event.target.value)}
-              required
-              className={fieldClass}
-              aria-label={`${index + 1}. foglalható nap`}
-            />
+      <div className="space-y-2">
+        {days.map((day, index) => (
+          <div key={index} className="grid gap-2 rounded-md border border-ink/10 bg-paper p-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_48px] sm:items-end">
+            <label className="block space-y-1">
+              <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-graphite/55">Nap</span>
+              <input
+                name="sessionDates"
+                type="date"
+                value={day.date}
+                onChange={(event) => updateDay(index, "date", event.target.value)}
+                required
+                className={fieldClass}
+                aria-label={`${index + 1}. foglalható nap`}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-graphite/55">Mettől</span>
+              <input
+                name="sessionStartTimes"
+                type="time"
+                value={day.startsAt}
+                onChange={(event) => updateDay(index, "startsAt", event.target.value)}
+                required
+                className={fieldClass}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-graphite/55">Meddig</span>
+              <input
+                name="sessionEndTimes"
+                type="time"
+                value={day.endsAt}
+                onChange={(event) => updateDay(index, "endsAt", event.target.value)}
+                required
+                className={fieldClass}
+              />
+            </label>
             <button
               type="button"
               onClick={() => removeDate(index)}
-              disabled={dates.length === 1}
+              disabled={days.length === 1}
               className="inline-flex size-12 shrink-0 items-center justify-center rounded-md border border-ink/10 text-graphite transition hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-35"
               aria-label="Nap eltávolítása"
             >
@@ -80,11 +120,15 @@ export function MiniSessionEventDaysField({ defaultDates = [] }: { defaultDates?
 export function MiniSessionScheduleFields({
   defaultMode,
   defaultRecurringDate,
-  defaultEventDates
+  defaultRecurringStartTime,
+  defaultRecurringEndTime,
+  defaultEventDays
 }: {
   defaultMode: string;
   defaultRecurringDate: string;
-  defaultEventDates: string[];
+  defaultRecurringStartTime: string;
+  defaultRecurringEndTime: string;
+  defaultEventDays: MiniSessionEventDayFieldValue[];
 }) {
   const [mode, setMode] = useState(
     defaultMode === MINI_SESSION_BOOKING_MODE_RECURRING
@@ -108,12 +152,22 @@ export function MiniSessionScheduleFields({
       </label>
 
       {mode === MINI_SESSION_BOOKING_MODE_RECURRING ? (
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
-          <input name="date" type="date" defaultValue={defaultRecurringDate} required className={fieldClass} />
-        </label>
+        <div className="grid gap-4 sm:col-span-2 sm:grid-cols-3">
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
+            <input name="date" type="date" defaultValue={defaultRecurringDate} required className={fieldClass} />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Alap kezdés</span>
+            <input name="startTime" type="time" defaultValue={defaultRecurringStartTime} required className={fieldClass} />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Alap zárás</span>
+            <input name="endTime" type="time" defaultValue={defaultRecurringEndTime} required className={fieldClass} />
+          </label>
+        </div>
       ) : (
-        <MiniSessionEventDaysField defaultDates={defaultEventDates} />
+        <MiniSessionEventDaysField defaultDays={defaultEventDays} />
       )}
     </div>
   );

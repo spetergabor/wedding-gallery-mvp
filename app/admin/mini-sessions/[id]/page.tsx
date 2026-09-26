@@ -34,9 +34,9 @@ import {
   filterMiniSessionSlotsByBookingNotice,
   formatMiniSessionDate,
   formatMiniSessionEventDates,
+  formatMiniSessionEventSchedule,
   formatMiniSessionSlot,
   formatMiniSessionSlotWithDate,
-  formatMiniSessionTime,
   miniSessionDateInput,
   miniSessionEndDateInput,
   miniSessionLanguageLabel,
@@ -561,6 +561,7 @@ export default async function AdminMiniSessionDetailPage({
   const showSlotDates =
     isRecurring || session.eventDays.length > 1 || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
   const sessionDateLabel = formatMiniSessionEventDates(session.eventDays, session.startsAt, session.endsAt);
+  const sessionScheduleLabel = formatMiniSessionEventSchedule(session.eventDays, session.startsAt, session.endsAt);
   const availabilityRulesByWeekday = new Map(session.availabilityRules.map((rule) => [rule.weekday, rule]));
   const publicChecklist = [
     { label: "Publikusan aktív", ok: session.isActive },
@@ -635,7 +636,7 @@ export default async function AdminMiniSessionDetailPage({
                 <CalendarClock size={15} />
                 {isRecurring
                   ? `Foglalható ${session.bookingWindowDays} napra előre`
-                  : `${sessionDateLabel} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
+                  : sessionScheduleLabel}
               </span>
               <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
               <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
@@ -1209,7 +1210,13 @@ export default async function AdminMiniSessionDetailPage({
               <MiniSessionScheduleFields
                 defaultMode={session.bookingMode}
                 defaultRecurringDate={miniSessionDateInput(session)}
-                defaultEventDates={session.eventDays.map((eventDay) => miniSessionDateKey(eventDay.date))}
+                defaultRecurringStartTime={miniSessionTimeInput(session.startsAt)}
+                defaultRecurringEndTime={miniSessionTimeInput(session.endsAt)}
+                defaultEventDays={session.eventDays.map((eventDay) => ({
+                  date: miniSessionDateKey(eventDay.date),
+                  startsAt: eventDay.startsAt,
+                  endsAt: eventDay.endsAt
+                }))}
               />
               <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite sm:col-span-2">
                 <input
@@ -1229,15 +1236,7 @@ export default async function AdminMiniSessionDetailPage({
                 <span className="text-sm font-medium text-graphite">Hol</span>
                 <input name="location" defaultValue={session.location} required className={fieldClass} />
               </label>
-              <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 xl:grid-cols-4">
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-graphite">Mettől</span>
-                  <input name="startTime" type="time" defaultValue={miniSessionTimeInput(session.startsAt)} required className={fieldClass} />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-graphite">Meddig</span>
-                  <input name="endTime" type="time" defaultValue={miniSessionTimeInput(session.endsAt)} required className={fieldClass} />
-                </label>
+              <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
                 <label className="block space-y-2">
                   <span className="text-sm font-medium text-graphite">Időtartam</span>
                   <input name="durationMinutes" type="number" min="5" step="5" defaultValue={session.durationMinutes} required className={fieldClass} />

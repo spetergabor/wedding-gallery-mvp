@@ -118,15 +118,18 @@ function miniSessionBookingModeFromForm(formData: FormData) {
     : MINI_SESSION_BOOKING_MODE_SINGLE_DAY;
 }
 
-function miniSessionEventDateKeysFromForm(formData: FormData) {
-  return Array.from(
-    new Set(
-      formData
-        .getAll("sessionDates")
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
-    )
-  ).sort();
+function miniSessionEventDaysFromForm(formData: FormData) {
+  const dates = formData.getAll("sessionDates");
+  const startsAt = formData.getAll("sessionStartTimes");
+  const endsAt = formData.getAll("sessionEndTimes");
+
+  return dates
+    .map((value, index) => ({
+      date: typeof value === "string" ? value.trim() : "",
+      startsAt: typeof startsAt[index] === "string" ? startsAt[index].trim() : "",
+      endsAt: typeof endsAt[index] === "string" ? endsAt[index].trim() : ""
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function miniSessionAvailabilityRulesFromForm(formData: FormData) {
@@ -337,13 +340,20 @@ export async function createMiniSessionAction(formData: FormData) {
   const title = formString(formData, "title");
   const location = formString(formData, "location");
   const recurringStartDate = formString(formData, "date");
-  const startTime = formString(formData, "startTime");
-  const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
   const bookingMode = miniSessionBookingModeFromForm(formData);
-  const eventDateKeys = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? [] : miniSessionEventDateKeysFromForm(formData);
-  const date = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? recurringStartDate : eventDateKeys[0] ?? "";
-  const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : eventDateKeys.at(-1) ?? date;
+  const eventDayInputs = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? [] : miniSessionEventDaysFromForm(formData);
+  const date = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? recurringStartDate : eventDayInputs[0]?.date ?? "";
+  const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : eventDayInputs.at(-1)?.date ?? date;
+  const startTime = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING
+    ? formString(formData, "startTime")
+    : eventDayInputs[0]?.startsAt ?? "";
+  const endTime = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING
+    ? formString(formData, "endTime")
+    : eventDayInputs.at(-1)?.endsAt ?? "";
+  const firstDayEndTime = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING
+    ? endTime
+    : eventDayInputs[0]?.endsAt ?? "";
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
@@ -353,11 +363,21 @@ export async function createMiniSessionAction(formData: FormData) {
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseMiniSessionLocalDateTime(date, startTime);
-  const sameDayEndsAt = parseMiniSessionLocalDateTime(date, endTime);
+  const sameDayEndsAt = parseMiniSessionLocalDateTime(date, firstDayEndTime);
   const endsAt = parseMiniSessionLocalDateTime(endDate, endTime);
-  const eventDays = eventDateKeys.flatMap((eventDate) => {
-    const parsedDate = parseMiniSessionLocalDateTime(eventDate, "12:00");
-    return parsedDate ? [{ date: parsedDate }] : [];
+  const eventDaysAreValid =
+    eventDayInputs.length > 0 &&
+    new Set(eventDayInputs.map((eventDay) => eventDay.date)).size === eventDayInputs.length &&
+    eventDayInputs.every(
+      (eventDay) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(eventDay.date) &&
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(eventDay.startsAt) &&
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(eventDay.endsAt) &&
+        eventDay.endsAt > eventDay.startsAt
+    );
+  const eventDays = eventDayInputs.flatMap((eventDay) => {
+    const parsedDate = parseMiniSessionLocalDateTime(eventDay.date, "12:00");
+    return parsedDate ? [{ date: parsedDate, startsAt: eventDay.startsAt, endsAt: eventDay.endsAt }] : [];
   });
 
   if (
@@ -369,7 +389,7 @@ export async function createMiniSessionAction(formData: FormData) {
     !endsAt ||
     sameDayEndsAt <= startsAt ||
     endsAt <= startsAt ||
-    (bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING && eventDays.length === 0)
+    (bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING && (!eventDaysAreValid || eventDays.length !== eventDayInputs.length))
   ) {
     redirect("/admin/mini-sessions?error=missing");
   }
@@ -629,13 +649,20 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const title = formString(formData, "title");
   const location = formString(formData, "location");
   const recurringStartDate = formString(formData, "date");
-  const startTime = formString(formData, "startTime");
-  const endTime = formString(formData, "endTime");
   const durationMinutes = Math.max(5, parseInteger(formString(formData, "durationMinutes"), 20));
   const bookingMode = miniSessionBookingModeFromForm(formData);
-  const eventDateKeys = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? [] : miniSessionEventDateKeysFromForm(formData);
-  const date = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? recurringStartDate : eventDateKeys[0] ?? "";
-  const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : eventDateKeys.at(-1) ?? date;
+  const eventDayInputs = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? [] : miniSessionEventDaysFromForm(formData);
+  const date = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? recurringStartDate : eventDayInputs[0]?.date ?? "";
+  const endDate = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? date : eventDayInputs.at(-1)?.date ?? date;
+  const startTime = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING
+    ? formString(formData, "startTime")
+    : eventDayInputs[0]?.startsAt ?? "";
+  const endTime = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING
+    ? formString(formData, "endTime")
+    : eventDayInputs.at(-1)?.endsAt ?? "";
+  const firstDayEndTime = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING
+    ? endTime
+    : eventDayInputs[0]?.endsAt ?? "";
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
@@ -645,11 +672,21 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
   const startsAt = parseMiniSessionLocalDateTime(date, startTime);
-  const sameDayEndsAt = parseMiniSessionLocalDateTime(date, endTime);
+  const sameDayEndsAt = parseMiniSessionLocalDateTime(date, firstDayEndTime);
   const endsAt = parseMiniSessionLocalDateTime(endDate, endTime);
-  const eventDays = eventDateKeys.flatMap((eventDate) => {
-    const parsedDate = parseMiniSessionLocalDateTime(eventDate, "12:00");
-    return parsedDate ? [{ date: parsedDate }] : [];
+  const eventDaysAreValid =
+    eventDayInputs.length > 0 &&
+    new Set(eventDayInputs.map((eventDay) => eventDay.date)).size === eventDayInputs.length &&
+    eventDayInputs.every(
+      (eventDay) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(eventDay.date) &&
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(eventDay.startsAt) &&
+        /^([01]\d|2[0-3]):[0-5]\d$/.test(eventDay.endsAt) &&
+        eventDay.endsAt > eventDay.startsAt
+    );
+  const eventDays = eventDayInputs.flatMap((eventDay) => {
+    const parsedDate = parseMiniSessionLocalDateTime(eventDay.date, "12:00");
+    return parsedDate ? [{ date: parsedDate, startsAt: eventDay.startsAt, endsAt: eventDay.endsAt }] : [];
   });
 
   if (
@@ -661,7 +698,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
     !endsAt ||
     sameDayEndsAt <= startsAt ||
     endsAt <= startsAt ||
-    (bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING && eventDays.length === 0)
+    (bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING && (!eventDaysAreValid || eventDays.length !== eventDayInputs.length))
   ) {
     redirect(`/admin/mini-sessions/${id}?tab=settings&error=missing`);
   }

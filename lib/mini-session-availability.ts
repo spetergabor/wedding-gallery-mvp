@@ -30,6 +30,8 @@ type MiniSessionAvailabilityInput = {
   }>;
   eventDays?: Array<{
     date: Date;
+    startsAt?: string;
+    endsAt?: string;
   }>;
 };
 
