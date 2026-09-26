@@ -8,7 +8,7 @@ import { miniSessionBookingCalendarUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import { rescheduleMiniSessionBookingAction } from "@/lib/mini-session-actions";
 import {
-  formatMiniSessionDateRange,
+  formatMiniSessionEventDates,
   formatMiniSessionSlot,
   formatMiniSessionSlotWithDate,
   groupMiniSessionSlotsByDate,
@@ -67,6 +67,9 @@ export default async function RescheduleMiniSessionBookingPage({
       miniSession: {
         include: {
           availabilityRules: true,
+          eventDays: {
+            orderBy: { date: "asc" }
+          },
           admin: {
             select: {
               siteSettings: {
@@ -132,7 +135,14 @@ export default async function RescheduleMiniSessionBookingPage({
               {booking.miniSession.location}
             </p>
             <p className="mt-1 text-xs text-graphite/60">
-              {isRecurring ? copy.available : formatMiniSessionDateRange(booking.miniSession.startsAt, booking.miniSession.endsAt, language)}
+              {isRecurring
+                ? copy.available
+                : formatMiniSessionEventDates(
+                    booking.miniSession.eventDays,
+                    booking.miniSession.startsAt,
+                    booking.miniSession.endsAt,
+                    language
+                  )}
             </p>
           </div>
         </div>

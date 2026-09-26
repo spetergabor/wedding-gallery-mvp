@@ -9,6 +9,7 @@ import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionBookingFilters } from "@/components/mini-session-booking-filters";
+import { MiniSessionScheduleFields } from "@/components/mini-session-event-days-field";
 import { MiniSessionTabController } from "@/components/mini-session-tab-controller";
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
@@ -32,7 +33,7 @@ import {
   createMiniSessionSlots,
   filterMiniSessionSlotsByBookingNotice,
   formatMiniSessionDate,
-  formatMiniSessionDateRange,
+  formatMiniSessionEventDates,
   formatMiniSessionSlot,
   formatMiniSessionSlotWithDate,
   formatMiniSessionTime,
@@ -42,7 +43,6 @@ import {
   miniSessionMinBookingNoticeLabel,
   miniSessionModeLabel,
   MINI_SESSION_BOOKING_MODE_RECURRING,
-  MINI_SESSION_BOOKING_MODE_SINGLE_DAY,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
@@ -52,6 +52,7 @@ import {
   MINI_SESSION_LANGUAGES,
   MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
   MINI_SESSION_WEEKDAYS,
+  miniSessionDateKey,
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
@@ -469,6 +470,9 @@ export default async function AdminMiniSessionDetailPage({
       availabilityRules: {
         orderBy: [{ weekday: "asc" }, { startsAt: "asc" }]
       },
+      eventDays: {
+        orderBy: { date: "asc" }
+      },
       bookings: {
         orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
         include: {
@@ -554,8 +558,9 @@ export default async function AdminMiniSessionDetailPage({
   const embedUrl = miniSessionEmbedUrl(session.slug, publicSubdomain);
   const embedCode = miniSessionEmbedCode(session.slug, session.title, publicSubdomain);
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
-  const showSlotDates = isRecurring || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
-  const sessionDateLabel = formatMiniSessionDateRange(session.startsAt, session.endsAt);
+  const showSlotDates =
+    isRecurring || session.eventDays.length > 1 || miniSessionDateInput(session) !== miniSessionEndDateInput(session);
+  const sessionDateLabel = formatMiniSessionEventDates(session.eventDays, session.startsAt, session.endsAt);
   const availabilityRulesByWeekday = new Map(session.availabilityRules.map((rule) => [rule.weekday, rule]));
   const publicChecklist = [
     { label: "Publikusan aktív", ok: session.isActive },
@@ -1201,13 +1206,11 @@ export default async function AdminMiniSessionDetailPage({
                   ))}
                 </select>
               </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Foglaló típusa</span>
-                <select name="bookingMode" defaultValue={session.bookingMode} className={fieldClass}>
-                  <option value={MINI_SESSION_BOOKING_MODE_SINGLE_DAY}>Mini session nap</option>
-                  <option value={MINI_SESSION_BOOKING_MODE_RECURRING}>Állandó szolgáltatás</option>
-                </select>
-              </label>
+              <MiniSessionScheduleFields
+                defaultMode={session.bookingMode}
+                defaultRecurringDate={miniSessionDateInput(session)}
+                defaultEventDates={session.eventDays.map((eventDay) => miniSessionDateKey(eventDay.date))}
+              />
               <label className="flex items-start gap-3 rounded-md border border-ink/10 bg-paper px-4 py-4 text-sm text-graphite sm:col-span-2">
                 <input
                   name="postProductionWorkflowEnabled"
@@ -1221,14 +1224,6 @@ export default async function AdminMiniSessionDetailPage({
                     Bekapcsolva minden új foglalásból ügyfél és projekt készül, valamint elérhető a teljes utómunka-folyamat. Kikapcsolva az új foglalás csak időpont marad. A korábban létrehozott ügyfelek nem törlődnek.
                   </span>
                 </span>
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Kezdő dátum</span>
-                <input name="date" type="date" defaultValue={miniSessionDateInput(session)} required className={fieldClass} />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Záró dátum (mini sessionnél)</span>
-                <input name="endDate" type="date" defaultValue={miniSessionEndDateInput(session)} className={fieldClass} />
               </label>
               <label className="block space-y-2 sm:col-span-2">
                 <span className="text-sm font-medium text-graphite">Hol</span>

@@ -27,6 +27,7 @@ import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionCoverUploadBox } from "@/components/mini-session-cover-upload-box";
+import { MiniSessionEventDaysField } from "@/components/mini-session-event-days-field";
 import { MiniSessionBookingFilters } from "@/components/mini-session-booking-filters";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
@@ -43,7 +44,7 @@ import {
   createMiniSessionSlots,
   filterMiniSessionSlotsByBookingNotice,
   formatMiniSessionDate,
-  formatMiniSessionDateRange,
+  formatMiniSessionEventDates,
   formatMiniSessionTime,
   miniSessionModeLabel,
   MINI_SESSION_BOOKING_MODE_RECURRING,
@@ -457,7 +458,7 @@ function MiniSessionCreateForm() {
       <input type="hidden" name="bookingWindowDays" value="60" />
       <CreateSettingsSection
         title="Alapadatok"
-        description="A név, dátum és helyszín alapján készül a publikus mini session oldal. Többnapos eseménynél add meg a záró dátumot is."
+        description="A név, a külön kiválasztott foglalható napok és a helyszín alapján készül a publikus mini session oldal."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block space-y-2">
@@ -478,14 +479,7 @@ function MiniSessionCreateForm() {
               ))}
             </select>
           </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Kezdő dátum</span>
-            <input name="date" type="date" required className={fieldClass} />
-          </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Záró dátum (opcionális)</span>
-            <input name="endDate" type="date" className={fieldClass} />
-          </label>
+          <MiniSessionEventDaysField />
           <label className="block space-y-2 md:col-span-2">
             <span className="text-sm font-medium text-graphite">Helyszín</span>
             <input name="location" required className={fieldClass} placeholder="Helyszín" />
@@ -588,6 +582,9 @@ export default async function AdminMiniSessionsPage({
       include: {
         availabilityRules: {
           orderBy: [{ weekday: "asc" }, { startsAt: "asc" }]
+        },
+        eventDays: {
+          orderBy: { date: "asc" }
         },
         bookings: {
           orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
@@ -1023,7 +1020,7 @@ export default async function AdminMiniSessionsPage({
                             <CalendarClock size={15} />
                             {isRecurring
                               ? `Foglalható ${session.bookingWindowDays} napra előre`
-                              : `${formatMiniSessionDateRange(session.startsAt, session.endsAt)} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
+                              : `${formatMiniSessionEventDates(session.eventDays, session.startsAt, session.endsAt)} · ${formatMiniSessionTime(session.startsAt)}-${formatMiniSessionTime(session.endsAt)}`}
                           </span>
                           <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
                           <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>

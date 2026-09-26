@@ -60,6 +60,9 @@ type MiniSessionLike = {
     endsAt: string;
     isActive: boolean;
   }>;
+  eventDays?: Array<{
+    date: Date;
+  }>;
 };
 
 function slotToken(date: Date) {
@@ -172,6 +175,24 @@ export function formatMiniSessionDateRange(startsAt: Date, endsAt: Date, languag
   return `${startDate} - ${endDate}`;
 }
 
+export function formatMiniSessionEventDates(
+  eventDays: Array<{ date: Date }> | null | undefined,
+  startsAt: Date,
+  endsAt: Date,
+  language: MiniSessionLanguage = "hu"
+) {
+  const dates = Array.from(
+    new Map(
+      (eventDays ?? [])
+        .slice()
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .map((eventDay) => [miniSessionDateKey(eventDay.date), formatMiniSessionDate(eventDay.date, language)])
+    ).values()
+  );
+
+  return dates.length > 0 ? dates.join(", ") : formatMiniSessionDateRange(startsAt, endsAt, language);
+}
+
 export function formatMiniSessionTime(date: Date, language: MiniSessionLanguage = "hu") {
   return date.toLocaleTimeString(dateLocaleForCustomer(language), {
     hour: "2-digit",
@@ -275,6 +296,22 @@ export function createMiniSessionSlots(
     }
 
     return slots;
+  }
+
+  const eventDateKeys = Array.from(
+    new Set((session.eventDays ?? []).map((eventDay) => miniSessionDateKey(eventDay.date)))
+  ).sort();
+
+  if (eventDateKeys.length > 0) {
+    const startTime = miniSessionTimeInput(session.startsAt);
+    const endTime = miniSessionTimeInput(session.endsAt);
+
+    return eventDateKeys.flatMap((dateKey) => {
+      const startsAt = parseMiniSessionLocalDateTime(dateKey, startTime);
+      const endsAt = parseMiniSessionLocalDateTime(dateKey, endTime);
+
+      return startsAt && endsAt ? createSlotsFromWindow(startsAt, endsAt, session.durationMinutes) : [];
+    });
   }
 
   return createDailySlotsFromDateRange(session.startsAt, session.endsAt, session.durationMinutes);

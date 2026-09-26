@@ -28,6 +28,9 @@ type MiniSessionAvailabilityInput = {
     endsAt: string;
     isActive: boolean;
   }>;
+  eventDays?: Array<{
+    date: Date;
+  }>;
 };
 
 type MiniSessionAvailabilityOptions = {

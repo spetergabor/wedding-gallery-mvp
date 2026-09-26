@@ -7,7 +7,7 @@ import { miniSessionBookingCalendarUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import { bookMiniSessionAction } from "@/lib/mini-session-actions";
 import {
-  formatMiniSessionDateRange,
+  formatMiniSessionEventDates,
   formatMiniSessionSlot,
   groupMiniSessionSlotsByDate,
   MINI_SESSION_BOOKING_MODE_RECURRING,
@@ -72,6 +72,9 @@ export default async function MiniSessionEmbedPage({
     where: { slug },
     include: {
       availabilityRules: true,
+      eventDays: {
+        orderBy: { date: "asc" }
+      },
       admin: {
         select: {
           siteSettings: {
@@ -103,7 +106,9 @@ export default async function MiniSessionEmbedPage({
   }));
   const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
   const brandName = session.admin.siteSettings?.businessName || "Spetly";
-  const dateLabel = isRecurring ? copy.recurringMeta : formatMiniSessionDateRange(session.startsAt, session.endsAt, language);
+  const dateLabel = isRecurring
+    ? copy.recurringMeta
+    : formatMiniSessionEventDates(session.eventDays, session.startsAt, session.endsAt, language);
   const publicSubdomain = session.admin.siteSettings?.publicSubdomain ?? null;
   const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(session.slug, flags.calendar, publicSubdomain) : null;
 

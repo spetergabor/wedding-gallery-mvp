@@ -643,6 +643,7 @@ model MiniSession {
   admin                         Admin                     @relation(fields: [adminId], references: [id], onDelete: Cascade)
   bookings                      MiniSessionBooking[]
   availabilityRules             MiniSessionAvailability[]
+  eventDays                     MiniSessionEventDay[]
 
   @@index([adminId])
   @@index([slug])
@@ -650,6 +651,19 @@ model MiniSession {
   @@index([sessionDate])
   @@index([startsAt])
   @@index([isActive])
+}
+
+model MiniSessionEventDay {
+  id            String      @id @default(cuid())
+  miniSessionId String
+  date          DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  miniSession   MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([miniSessionId, date])
+  @@index([miniSessionId])
+  @@index([date])
 }
 
 model MiniSessionAvailability {
