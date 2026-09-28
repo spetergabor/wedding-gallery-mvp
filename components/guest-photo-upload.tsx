@@ -663,7 +663,11 @@ export function GuestPhotoUpload({
 
   useEffect(() => {
     getOrCreateGuestKey();
-    const intervalId = window.setInterval(() => void refreshPhotos(), 8000);
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshPhotos();
+      }
+    }, 8000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         void refreshPhotos();

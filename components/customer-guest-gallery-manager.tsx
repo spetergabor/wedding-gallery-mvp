@@ -126,8 +126,23 @@ export function CustomerGuestGalleryManager({
   useEffect(() => {
     if (!zipState?.active) return;
 
-    const intervalId = window.setInterval(() => router.refresh(), 4000);
-    return () => window.clearInterval(intervalId);
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        router.refresh();
+      }
+    };
+    const intervalId = window.setInterval(refresh, 4000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [router, zipState?.active]);
 
   useEffect(() => {

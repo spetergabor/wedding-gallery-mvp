@@ -19,14 +19,27 @@ export function ZipStatusAutoRefresh({
       return;
     }
 
-    const intervalId = window.setInterval(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
       startTransition(() => {
         router.refresh();
       });
-    }, intervalMs);
+    };
+    const intervalId = window.setInterval(refresh, intervalMs);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [enabled, intervalMs, router]);
 

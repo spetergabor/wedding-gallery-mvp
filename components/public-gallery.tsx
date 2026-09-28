@@ -818,12 +818,25 @@ export function PublicGallery({
       setPaidDownloadState(result as PaidGalleryDownloadState);
     }
 
-    const interval = window.setInterval(refreshPaidDownloadState, 4000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPaidDownloadState();
+      }
+    };
+    const interval = window.setInterval(refreshWhenVisible, 4000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshPaidDownloadState();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     void refreshPaidDownloadState();
 
     return () => {
       isMounted = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [galleryId, paidDownloadState?.paid, paidDownloadState?.status, paidGallery, sale?.purchaseSessionId]);
 
@@ -984,12 +997,25 @@ export function PublicGallery({
       );
     }
 
-    const interval = window.setInterval(checkPackage, 3000);
+    const checkPackageWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void checkPackage();
+      }
+    };
+    const interval = window.setInterval(checkPackageWhenVisible, 3000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void checkPackage();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     void checkPackage();
 
     return () => {
       isMounted = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [copy.downloadLinksSent, copy.zipProcessing, copy.zipWaiting, isEmailOpen, isZipping, title, zipPackageId]);
 
