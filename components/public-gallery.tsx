@@ -304,7 +304,6 @@ type PublicPhoto = {
   thumbnailUrl: string;
   previewUrl: string;
   mediaType: string;
-  processingStatus: string;
   imageWidth: number;
   imageHeight: number;
 };

@@ -42,6 +42,31 @@ import {
 
 const GUEST_PHOTO_INITIAL_PAGE_SIZE = 48;
 const DEFAULT_PHOTOGRAPHER_WEBSITE_URL = "https://www.hochzeitsfotografgraz.at";
+const PUBLIC_GALLERY_PHOTO_SELECT = {
+  id: true,
+  sectionId: true,
+  filename: true,
+  imageUrl: true,
+  thumbnailUrl: true,
+  previewUrl: true,
+  mediaType: true,
+  imageWidth: true,
+  imageHeight: true
+} as const;
+
+const PUBLIC_GUEST_PHOTO_SELECT = {
+  id: true,
+  filename: true,
+  imageUrl: true,
+  thumbnailUrl: true,
+  previewUrl: true,
+  imageWidth: true,
+  imageHeight: true,
+  guestName: true,
+  processingStatus: true,
+  visibleAt: true,
+  createdAt: true
+} as const;
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -95,67 +120,160 @@ export default async function PublicGalleryPage({
 }) {
   const { slug } = await params;
   const flags = await searchParams;
-  const gallery = await prisma.gallery.findUnique({
+  const galleryAccess = await prisma.gallery.findUnique({
     where: { slug },
-    include: {
-      sections: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
-      photos: {
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        include: {
-          section: {
-            select: {
-              id: true,
-              title: true,
-              slug: true
-            }
-          }
-        }
-      },
-      guestUploads: {
-        where: { status: "visible", customerDeletedAt: null },
-        orderBy: [{ visibleAt: "asc" }, { id: "asc" }],
-        take: GUEST_PHOTO_INITIAL_PAGE_SIZE + 1
-      },
-      _count: {
-        select: {
-          guestUploads: { where: { status: "visible", customerDeletedAt: null } }
-        }
-      },
+    select: {
+      id: true,
+      adminId: true,
+      title: true,
+      slug: true,
+      password: true,
+      isActive: true,
+      galleryMode: true,
+      proofingStatus: true,
+      guestGalleryExpiresAt: true,
+      guestGalleryArchivedAt: true,
       customer: {
         select: { preferredLanguage: true }
       }
     }
   });
 
-  if (!gallery || !gallery.isActive || isGuestGalleryExpired(gallery)) {
+  if (!galleryAccess || !galleryAccess.isActive || isGuestGalleryExpired(galleryAccess)) {
     notFound();
   }
 
-  const settings = await prisma.siteSettings.findFirst({
-    where: {
-      OR: [
-        ...(gallery.adminId ? [{ adminId: gallery.adminId }] : []),
-        ...(gallery.adminId ? [] : [{ id: "default" }])
-      ]
-    },
-    select: {
-      businessName: true,
-      logoUrl: true,
-      logoHeight: true,
-      contactEmail: true,
-      websiteUrl: true,
-      instagramUrl: true,
-      facebookUrl: true
-    }
-  });
+  const language = normalizeCustomerLanguage(galleryAccess.customer?.preferredLanguage ?? flags.lang);
+  const canView = await canViewGallery(slug, galleryAccess.password);
 
-  const canView = await canViewGallery(slug, gallery.password);
-  const proofingGallery = isProofingGallery(gallery.galleryMode);
+  if (!canView) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-paper px-5">
+        <section className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-7 text-center shadow-soft">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-ink text-white">
+            <Lock size={20} />
+          </div>
+          <h1 className="mt-5 text-2xl font-semibold text-ink">{galleryAccess.title}</h1>
+          <p className="mt-2 text-sm text-graphite/70">{language === "hu" ? "Ez a galéria PIN-kóddal védett." : "Diese Galerie ist mit PIN-Code geschützt."}</p>
+
+          {flags.error ? (
+            <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {flags.error === "rate"
+                ? language === "hu"
+                  ? "Túl sok próbálkozás történt. Várj pár percet, és próbáld újra."
+                  : "Zu viele Versuche. Bitte warte kurz und versuche es erneut."
+                : language === "hu"
+                  ? "A PIN-kód nem megfelelő."
+                  : "Der PIN-Code ist nicht korrekt."}
+            </div>
+          ) : null}
+
+          <form action={unlockGalleryAction.bind(null, slug)} className="mt-6 space-y-4">
+            <input type="hidden" name="lang" value={language} />
+            <input
+              name="password"
+              type="password"
+              required
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder={language === "hu" ? "PIN-kód" : "PIN-Code"}
+              className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-left outline-none transition focus:border-ink/50"
+            />
+            <FormSubmitButton
+              type="submit"
+              className="w-full"
+              pendingLabel={language === "hu" ? "Megnyitás..." : "Öffnen..."}
+            >
+              {language === "hu" ? "Galéria megnyitása" : "Galerie öffnen"}
+            </FormSubmitButton>
+          </form>
+        </section>
+      </main>
+    );
+  }
+
+  const proofingGallery = isProofingGallery(galleryAccess.galleryMode);
   const publicDeliveryStage =
-    proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+    proofingGallery && galleryAccess.proofingStatus !== PROOFING_STATUS_DELIVERED
       ? PHOTO_DELIVERY_STAGE_RAW
       : PHOTO_DELIVERY_STAGE_FINAL;
-  const visiblePhotos = gallery.photos.filter((photo) => !photo.isClientHidden && photo.deliveryStage === publicDeliveryStage);
+
+  const [galleryData, settings] = await Promise.all([
+    prisma.gallery.findUnique({
+      where: { id: galleryAccess.id },
+      select: {
+        eventDate: true,
+        galleryDesign: true,
+        galleryTextColor: true,
+        galleryBodyTextColor: true,
+        galleryBackgroundColor: true,
+        galleryTitleFont: true,
+        galleryBodyFont: true,
+        galleryTitleSize: true,
+        showGalleryLogo: true,
+        galleryLogoSize: true,
+        classicGradientIntensity: true,
+        showContactBox: true,
+        deliveryMode: true,
+        salePriceCents: true,
+        saleUnitPriceCents: true,
+        salePricingTiers: true,
+        saleCurrency: true,
+        proofingStatus: true,
+        downloadsEnabled: true,
+        guestUploadsEnabled: true,
+        guestGalleryRevision: true,
+        coverPhotoId: true,
+        coverPositionX: true,
+        coverPositionY: true,
+        publicColumnCount: true,
+        publicGridGap: true,
+        publicImageRadius: true,
+        sections: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: { id: true, title: true, slug: true }
+        },
+        photos: {
+          where: {
+            isClientHidden: false,
+            deliveryStage: publicDeliveryStage
+          },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: PUBLIC_GALLERY_PHOTO_SELECT
+        },
+        guestUploads: {
+          where: { status: "visible", customerDeletedAt: null },
+          orderBy: [{ visibleAt: "asc" }, { id: "asc" }],
+          take: GUEST_PHOTO_INITIAL_PAGE_SIZE + 1,
+          select: PUBLIC_GUEST_PHOTO_SELECT
+        },
+        _count: {
+          select: {
+            guestUploads: { where: { status: "visible", customerDeletedAt: null } }
+          }
+        }
+      }
+    }),
+    prisma.siteSettings.findFirst({
+      where: { adminId: galleryAccess.adminId },
+      select: {
+        businessName: true,
+        logoUrl: true,
+        logoHeight: true,
+        contactEmail: true,
+        websiteUrl: true,
+        instagramUrl: true,
+        facebookUrl: true
+      }
+    })
+  ]);
+
+  if (!galleryData) {
+    notFound();
+  }
+
+  const gallery = { ...galleryAccess, ...galleryData };
+  const visiblePhotos = gallery.photos;
   const visibleVideos = visiblePhotos.filter((photo) => photo.mediaType === "video");
   const visibleImages = visiblePhotos.filter((photo) => photo.mediaType !== "video");
   const publicPhotos = [...visibleVideos, ...visibleImages];
@@ -184,7 +302,6 @@ export default async function PublicGalleryPage({
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
   const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
-  const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage ?? flags.lang);
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
   const publicGalleryPath = `/g/${gallery.slug}`;
   const galleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
@@ -307,52 +424,6 @@ export default async function PublicGalleryPage({
             }
       )
     : publicPhotos;
-  if (!canView) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-paper px-5">
-        <section className="w-full max-w-md rounded-lg border border-ink/10 bg-white p-7 text-center shadow-soft">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-ink text-white">
-            <Lock size={20} />
-          </div>
-          <h1 className="mt-5 text-2xl font-semibold text-ink">{gallery.title}</h1>
-          <p className="mt-2 text-sm text-graphite/70">{language === "hu" ? "Ez a galéria PIN-kóddal védett." : "Diese Galerie ist mit PIN-Code geschützt."}</p>
-
-          {flags.error ? (
-            <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {flags.error === "rate"
-                ? language === "hu"
-                  ? "Túl sok próbálkozás történt. Várj pár percet, és próbáld újra."
-                  : "Zu viele Versuche. Bitte warte kurz und versuche es erneut."
-                : language === "hu"
-                  ? "A PIN-kód nem megfelelő."
-                  : "Der PIN-Code ist nicht korrekt."}
-            </div>
-          ) : null}
-
-          <form action={unlockGalleryAction.bind(null, slug)} className="mt-6 space-y-4">
-            <input type="hidden" name="lang" value={language} />
-            <input
-              name="password"
-              type="password"
-              required
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder={language === "hu" ? "PIN-kód" : "PIN-Code"}
-              className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-left outline-none transition focus:border-ink/50"
-            />
-            <FormSubmitButton
-              type="submit"
-              className="w-full"
-              pendingLabel={language === "hu" ? "Megnyitás..." : "Öffnen..."}
-            >
-              {language === "hu" ? "Galéria megnyitása" : "Galerie öffnen"}
-            </FormSubmitButton>
-          </form>
-        </section>
-      </main>
-    );
-  }
-
   const latestGuestPhoto = hasMoreInitialGuestPhotos
     ? await prisma.galleryGuestUpload.findFirst({
         where: { galleryId: gallery.id, status: "visible", customerDeletedAt: null, visibleAt: { not: null } },
