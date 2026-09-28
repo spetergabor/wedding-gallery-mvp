@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import Image from "next/image";
 import { Globe2, Instagram, Lock, Mail, type LucideIcon } from "lucide-react";
 import { GalleryViewTracker } from "@/components/gallery-view-tracker";
@@ -67,6 +68,22 @@ const PUBLIC_GUEST_PHOTO_SELECT = {
   visibleAt: true,
   createdAt: true
 } as const;
+
+const getCachedPublicGalleryPhotos = unstable_cache(
+  async (galleryId: string, deliveryStage: string) => {
+    return prisma.photo.findMany({
+      where: {
+        galleryId,
+        isClientHidden: false,
+        deliveryStage
+      },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: PUBLIC_GALLERY_PHOTO_SELECT
+    });
+  },
+  ["public-gallery-photos-v1"],
+  { revalidate: 5 * 60 }
+);
 
 function formatEventDate(date: Date | null, language: "de" | "hu") {
   if (!date) {
@@ -198,7 +215,7 @@ export default async function PublicGalleryPage({
       ? PHOTO_DELIVERY_STAGE_RAW
       : PHOTO_DELIVERY_STAGE_FINAL;
 
-  const [galleryData, settings] = await Promise.all([
+  const [galleryData, settings, publicGalleryPhotosFromCache] = await Promise.all([
     prisma.gallery.findUnique({
       where: { id: galleryAccess.id },
       select: {
@@ -233,14 +250,6 @@ export default async function PublicGalleryPage({
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
           select: { id: true, title: true, slug: true }
         },
-        photos: {
-          where: {
-            isClientHidden: false,
-            deliveryStage: publicDeliveryStage
-          },
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          select: PUBLIC_GALLERY_PHOTO_SELECT
-        },
         guestUploads: {
           where: { status: "visible", customerDeletedAt: null },
           orderBy: [{ visibleAt: "asc" }, { id: "asc" }],
@@ -265,14 +274,15 @@ export default async function PublicGalleryPage({
         instagramUrl: true,
         facebookUrl: true
       }
-    })
+    }),
+    getCachedPublicGalleryPhotos(galleryAccess.id, publicDeliveryStage)
   ]);
 
   if (!galleryData) {
     notFound();
   }
 
-  const gallery = { ...galleryAccess, ...galleryData };
+  const gallery = { ...galleryAccess, ...galleryData, photos: publicGalleryPhotosFromCache };
   const visiblePhotos = gallery.photos;
   const visibleVideos = visiblePhotos.filter((photo) => photo.mediaType === "video");
   const visibleImages = visiblePhotos.filter((photo) => photo.mediaType !== "video");
