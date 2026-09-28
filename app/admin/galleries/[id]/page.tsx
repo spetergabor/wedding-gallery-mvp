@@ -197,19 +197,42 @@ export default async function GalleryDetailPage({
       },
       downloadPackages: {
         orderBy: { createdAt: "desc" },
-        take: 120
+        take: 120,
+        select: {
+          id: true,
+          groupId: true,
+          scope: true,
+          status: true,
+          photoCount: true,
+          processedCount: true,
+          processedBytes: true,
+          partIndex: true,
+          partCount: true,
+          fileSize: true,
+          r2Key: true,
+          downloadUrl: true,
+          errorMessage: true,
+          generatedAt: true,
+          createdAt: true,
+          updatedAt: true
+        }
       },
       favoriteLists: {
         orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
-        include: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          submittedAt: true,
+          updatedAt: true,
           items: {
             orderBy: { createdAt: "asc" },
-            include: {
+            select: {
+              id: true,
               photo: {
                 select: {
                   id: true,
-                  filename: true,
-                  thumbnailUrl: true
+                  filename: true
                 }
               }
             }
@@ -217,6 +240,7 @@ export default async function GalleryDetailPage({
         }
       },
       mediaProcessingJobs: {
+        where: { status: { in: ["pending", "processing", "failed"] } },
         orderBy: { updatedAt: "desc" },
         select: {
           id: true,
@@ -229,10 +253,31 @@ export default async function GalleryDetailPage({
           updatedAt: true
         }
       },
-      sections: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      sections: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true, title: true }
+      },
       photos: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        include: {
+        select: {
+          id: true,
+          sectionId: true,
+          filename: true,
+          imageUrl: true,
+          thumbnailUrl: true,
+          previewUrl: true,
+          deliveryStage: true,
+          mediaType: true,
+          processingStatus: true,
+          processingError: true,
+          processingRequestedAt: true,
+          processingCompletedAt: true,
+          fileSize: true,
+          imageWidth: true,
+          imageHeight: true,
+          sortOrder: true,
+          isClientHidden: true,
+          clientHiddenAt: true,
           section: {
             select: {
               id: true,
