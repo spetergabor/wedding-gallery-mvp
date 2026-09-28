@@ -12,6 +12,7 @@ import {
   type AlbumDesignSpreadExportData
 } from "@/lib/album-design-export";
 import { requireAdmin } from "@/lib/auth";
+import { createAlbumReviewTitle } from "@/lib/album-review-title";
 import { ALBUM_LAYOUT_TEMPLATES, getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE, GALLERY_MODE_FULL } from "@/lib/proofing";
@@ -1055,7 +1056,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
     data: {
       customerId: albumDesignCustomerId,
       projectId: albumDesign.projectId,
-      title: `${albumDesign.title} ellenőrző`,
+      title: createAlbumReviewTitle(albumDesign.title),
       status: "ready",
       clientEmail: albumDesign.customer.primaryEmail,
       accessToken: createAlbumAccessToken()

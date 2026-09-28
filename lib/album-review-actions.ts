@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { dispatchAdminNotification } from "@/lib/admin-notification-preferences";
 import { albumReviewAccessWhere, customerAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { createAlbumReviewTitle } from "@/lib/album-review-title";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { prisma } from "@/lib/prisma";
 import {
@@ -98,7 +99,6 @@ async function requireAlbumReviewAccess(customerId: string, reviewId: string) {
 
 export async function createAlbumReviewAction(customerId: string | null, formData: FormData) {
   const admin = await requireAdmin();
-  const title = formString(formData, "title") || "Album ellenőrző";
   const requestedProjectId = formString(formData, "projectId");
   const targetCustomerId = customerId || formString(formData, "customerId");
 
@@ -108,7 +108,7 @@ export async function createAlbumReviewAction(customerId: string | null, formDat
 
   const customer = await prisma.customer.findFirst({
     where: customerAccessWhere(admin, targetCustomerId),
-    select: { id: true, primaryEmail: true }
+    select: { id: true, coupleName: true, primaryEmail: true }
   });
 
   if (!customer) {
@@ -125,7 +125,7 @@ export async function createAlbumReviewAction(customerId: string | null, formDat
     data: {
       customerId: customer.id,
       projectId,
-      title,
+      title: createAlbumReviewTitle(customer.coupleName),
       clientEmail: customer.primaryEmail,
       accessToken: createAlbumAccessToken()
     }

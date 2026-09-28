@@ -773,7 +773,7 @@ model AlbumReview {
   id          String              @id @default(cuid())
   customerId  String
   projectId   String?
-  title       String              @default("Album ellenőrző")
+  title       String              @default("Fotobuch-Vorschau")
   status      String              @default("draft")
   accessToken String              @unique
   clientEmail String?

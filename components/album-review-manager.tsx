@@ -115,15 +115,10 @@ export function AlbumReviewManager({
           <div>
             <p className="text-sm font-semibold text-ink">Új külső ellenőrző</p>
             <p className="mt-1 max-w-xl text-sm leading-6 text-graphite/70">
-              Adj neki egy egyértelmű nevet, kapcsold album projekthez, majd a következő lépésben töltsd fel az oldalpár JPG-ket.
+              A neve automatikusan a pár neve és a német „Fotobuch-Vorschau” megnevezés lesz. Kapcsold album projekthez, majd töltsd fel az oldalpár JPG-ket.
             </p>
           </div>
           <form action={createAlbumReviewAction.bind(null, customerId)} className="grid gap-2">
-            <input
-              name="title"
-              placeholder="pl. Album v1"
-              className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
-            />
             {!customerId ? (
               <select
                 name="customerId"
