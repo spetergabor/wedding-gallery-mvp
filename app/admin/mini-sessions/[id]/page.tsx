@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Code2, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Code2, CopyPlus, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -21,6 +21,7 @@ import {
   createAdminMiniSessionBookingAction,
   deleteMiniSessionAction,
   deleteMiniSessionCoverAction,
+  duplicateMiniSessionAction,
   resendMiniSessionBookingConfirmationAction,
   resendMiniSessionAdminNotificationAction,
   rescheduleMiniSessionBookingByAdminAction,
@@ -447,6 +448,7 @@ export default async function AdminMiniSessionDetailPage({
     tab?: string;
     error?: string;
     created?: string;
+    duplicated?: string;
     updated?: string;
     bookingCancelled?: string;
     bookingStatusUpdated?: string;
@@ -599,6 +601,11 @@ export default async function AdminMiniSessionDetailPage({
         {flags.error === "notice" ? <Alert title="Ez az idősáv már nem foglalható." variant="error">Az időpont múltbeli, vagy túl közel van a beállított minimum előfoglalási időhöz.</Alert> : null}
         {flags.error === "taken" ? <Alert title="Ez az idősáv már foglalt." variant="error">Frissítsd a listát vagy válassz másik idősávot.</Alert> : null}
         {flags.created ? <Alert title="Foglaló létrehozva." variant="success" /> : null}
+        {flags.duplicated ? (
+          <Alert title="Mini session nap duplikálva." variant="success">
+            Az új példány rejtett. Módosítsd a helyszínt, a dátumot vagy a publikus linket, majd kapcsold aktívra.
+          </Alert>
+        ) : null}
         {flags.updated ? <Alert title="Foglaló frissítve." variant="success" /> : null}
         {flags.bookingCancelled ? <Alert title="Idősáv törölve, újra foglalható." variant="success" /> : null}
         {flags.bookingStatusUpdated ? <Alert title="Foglalás állapota frissítve." variant="success" /> : null}
@@ -645,7 +652,19 @@ export default async function AdminMiniSessionDetailPage({
             </div>
             <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-5 xl:w-auto xl:flex xl:flex-nowrap">
+          <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 xl:w-auto xl:flex xl:flex-nowrap">
+            {!isRecurring ? (
+              <form action={duplicateMiniSessionAction.bind(null, session.id)} className="w-full xl:w-auto">
+                <FormSubmitButton
+                  variant="secondary"
+                  pendingLabel="Másolás..."
+                  className={headerActionButtonClass}
+                >
+                  <CopyPlus size={14} />
+                  Duplikálás
+                </FormSubmitButton>
+              </form>
+            ) : null}
             <Link className={headerActionLinkClass} href={publicUrl} target="_blank">
               <ExternalLink size={14} />
               Megnyitás

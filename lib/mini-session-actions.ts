@@ -162,6 +162,41 @@ function createGalleryClientAccessToken() {
   return randomBytes(24).toString("base64url");
 }
 
+async function createDuplicateMiniSessionSlug(sourceSlug: string) {
+  const rootSlug = sourceSlug.replace(/-copy(?:-\d+)?$/i, "");
+  const baseSlug = normalizeSlug(`${rootSlug}-copy`) || `mini-session-copy-${randomBytes(4).toString("hex")}`;
+  const existing = await prisma.miniSession.findMany({
+    where: {
+      OR: [{ slug: baseSlug }, { slug: { startsWith: `${baseSlug}-` } }]
+    },
+    select: { slug: true }
+  });
+  const usedSlugs = new Set(existing.map((session) => session.slug));
+
+  if (!usedSlugs.has(baseSlug)) {
+    return baseSlug;
+  }
+
+  let copyNumber = 2;
+
+  while (usedSlugs.has(`${baseSlug}-${copyNumber}`)) {
+    copyNumber += 1;
+  }
+
+  return `${baseSlug}-${copyNumber}`;
+}
+
+async function deleteMiniSessionCoverIfUnused(r2Key: string) {
+  const referencingSession = await prisma.miniSession.findFirst({
+    where: { coverImageR2Key: r2Key },
+    select: { id: true }
+  });
+
+  if (!referencingSession) {
+    await deletePhotoObject(r2Key);
+  }
+}
+
 function miniSessionBookingWorkflowUrl(miniSessionId: string, bookingId: string) {
   return `/admin/mini-sessions/${miniSessionId}/bookings/${bookingId}`;
 }
@@ -439,6 +474,77 @@ export async function createMiniSessionAction(formData: FormData) {
 
   revalidatePath("/admin/mini-sessions");
   redirect(`/admin/mini-sessions/${miniSession.id}?created=1`);
+}
+
+export async function duplicateMiniSessionAction(id: string) {
+  const admin = await requireAdmin();
+  const source = await prisma.miniSession.findFirst({
+    where: {
+      id,
+      bookingMode: { not: MINI_SESSION_BOOKING_MODE_RECURRING },
+      ...adminOwnedWhere(admin)
+    },
+    include: {
+      availabilityRules: {
+        orderBy: [{ weekday: "asc" }, { startsAt: "asc" }]
+      },
+      eventDays: {
+        orderBy: { date: "asc" }
+      }
+    }
+  });
+
+  if (!source) {
+    redirect("/admin/mini-sessions?tab=mini");
+  }
+
+  const slug = await createDuplicateMiniSessionSlug(source.slug);
+  const duplicate = await prisma.miniSession.create({
+    data: {
+      adminId: source.adminId,
+      title: source.title,
+      slug,
+      location: source.location,
+      bookingMode: source.bookingMode,
+      bookingWindowDays: source.bookingWindowDays,
+      sessionDate: source.sessionDate,
+      startsAt: source.startsAt,
+      endsAt: source.endsAt,
+      durationMinutes: source.durationMinutes,
+      minBookingNoticeMinutes: source.minBookingNoticeMinutes,
+      language: source.language,
+      isActive: false,
+      createCustomerOnBooking: source.createCustomerOnBooking,
+      postProductionWorkflowEnabled: source.postProductionWorkflowEnabled,
+      notes: source.notes,
+      stylingNotes: source.stylingNotes,
+      coverImageUrl: source.coverImageUrl,
+      coverImageR2Key: source.coverImageR2Key,
+      availabilityRules: source.availabilityRules.length > 0
+        ? {
+            create: source.availabilityRules.map((rule) => ({
+              weekday: rule.weekday,
+              startsAt: rule.startsAt,
+              endsAt: rule.endsAt,
+              isActive: rule.isActive
+            }))
+          }
+        : undefined,
+      eventDays: source.eventDays.length > 0
+        ? {
+            create: source.eventDays.map((eventDay) => ({
+              date: eventDay.date,
+              startsAt: eventDay.startsAt,
+              endsAt: eventDay.endsAt
+            }))
+          }
+        : undefined
+    },
+    select: { id: true }
+  });
+
+  revalidatePath("/admin/mini-sessions");
+  redirect(`/admin/mini-sessions/${duplicate.id}?tab=settings&duplicated=1`);
 }
 
 export async function createAdminCalendarBlockAction(formData: FormData) {
@@ -780,7 +886,7 @@ export async function updateMiniSessionCoverAction(id: string, formData: FormDat
   }
 
   if (current.coverImageR2Key && current.coverImageR2Key !== uploadedCover.r2Key) {
-    await deletePhotoObject(current.coverImageR2Key);
+    await deleteMiniSessionCoverIfUnused(current.coverImageR2Key);
   }
 
   revalidatePath("/admin/mini-sessions");
@@ -809,7 +915,7 @@ export async function deleteMiniSessionCoverAction(id: string) {
   });
 
   if (current.coverImageR2Key) {
-    await deletePhotoObject(current.coverImageR2Key);
+    await deleteMiniSessionCoverIfUnused(current.coverImageR2Key);
   }
 
   revalidatePath("/admin/mini-sessions");
@@ -834,7 +940,7 @@ export async function deleteMiniSessionAction(id: string) {
   });
 
   if (miniSession.coverImageR2Key) {
-    await deletePhotoObject(miniSession.coverImageR2Key);
+    await deleteMiniSessionCoverIfUnused(miniSession.coverImageR2Key);
   }
 
   revalidatePath("/admin/mini-sessions");

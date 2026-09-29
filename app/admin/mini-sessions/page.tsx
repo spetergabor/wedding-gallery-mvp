@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  CopyPlus,
   Download,
   ExternalLink,
   ListChecks,
@@ -38,6 +39,7 @@ import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
   createMiniSessionAction,
   deleteAdminCalendarBlockAction,
+  duplicateMiniSessionAction,
   updateMiniSessionBookingStatusAction
 } from "@/lib/mini-session-actions";
 import {
@@ -1026,11 +1028,23 @@ export default async function AdminMiniSessionsPage({
                           </p>
                         ) : null}
                       </div>
-                      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-5 xl:w-auto xl:flex xl:flex-nowrap">
+                      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 xl:w-auto xl:flex xl:flex-nowrap">
                         <Link className="inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-ink px-2.5 text-xs font-medium text-white transition hover:bg-graphite sm:px-3 sm:text-sm xl:w-auto" href={`/admin/mini-sessions/${session.id}`}>
                           <Settings2 size={14} />
                           Kezelés
                         </Link>
+                        {!isRecurring ? (
+                          <form action={duplicateMiniSessionAction.bind(null, session.id)} className="w-full xl:w-auto">
+                            <FormSubmitButton
+                              variant="secondary"
+                              pendingLabel="Másolás..."
+                              className={sessionActionButtonClass}
+                            >
+                              <CopyPlus size={14} />
+                              Duplikálás
+                            </FormSubmitButton>
+                          </form>
+                        ) : null}
                         <Link className={sessionActionLinkClass} href={publicUrl} target="_blank">
                           <ExternalLink size={14} />
                           Megnyitás
