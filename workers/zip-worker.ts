@@ -20,7 +20,14 @@ function errorMessage(error: unknown) {
 }
 
 const workerName = process.env.ZIP_WORKER_NAME?.trim() || `zip-worker-${process.pid}`;
-const pollIntervalMs = readPositiveInteger(process.env.ZIP_WORKER_POLL_INTERVAL_MS, 5000, 500);
+// The external worker is only a safety fallback. Production ZIP jobs are
+// dispatched immediately through Trigger.dev, so an idle worker must not keep
+// Neon busy with a database query every few seconds.
+const pollIntervalMs = readPositiveInteger(
+  process.env.ZIP_WORKER_POLL_INTERVAL_MS,
+  5 * 60 * 1000,
+  60 * 1000
+);
 const errorBackoffMs = readPositiveInteger(process.env.ZIP_WORKER_ERROR_BACKOFF_MS, 15000, 1000);
 const batchSize = readPositiveInteger(process.env.ZIP_WORKER_BATCH_SIZE, 1, 1);
 const maintenanceEveryMs = readPositiveInteger(process.env.ZIP_WORKER_MAINTENANCE_INTERVAL_MS, 5 * 60 * 1000, 30_000);
