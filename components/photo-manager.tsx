@@ -5,8 +5,10 @@ import {
   reorderGalleryPhotosAction
 } from "@/lib/gallery-actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PhotoSortableGrid, type PhotoManagerSet, type SortablePhoto } from "@/components/photo-sortable-grid";
+import { lightroomFilenameList } from "@/lib/photo-filename";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
@@ -60,6 +62,9 @@ export function PhotoManager({
   const rawCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW).length;
   const finalCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL).length;
   const selectedCount = photos.filter((photo) => selectedSet.has(photo.id)).length;
+  const selectedLightroomList = lightroomFilenameList(
+    photos.filter((photo) => selectedSet.has(photo.id)).map((photo) => photo.filename)
+  );
   const duplicateCount = countDuplicatePhotos(photos);
   const normalizedActiveSet = normalizePhotoManagerSet(activeSet);
   const normalizedSearch = (activeSearch ?? "").trim();
@@ -159,6 +164,21 @@ export function PhotoManager({
             );
           })}
         </nav>
+      ) : null}
+      {proofingGallery && normalizedActiveSet === "selected" && selectedLightroomList ? (
+        <div className="mb-5 flex flex-col justify-between gap-3 rounded-lg border border-gold/25 bg-gold/5 p-4 shadow-soft sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm font-semibold text-ink">Lightroom-kompatibilis válogatás</p>
+            <p className="mt-1 text-xs leading-5 text-graphite/70">
+              A {selectedCount} kiválasztott kép fájlnevét kiterjesztés nélkül, Lightroom kereséshez megfelelő formában másolja.
+            </p>
+          </div>
+          <CopyLinkButton
+            url={selectedLightroomList}
+            label="Lightroom lista másolása"
+            className="w-full shrink-0 sm:w-auto"
+          />
+        </div>
       ) : null}
       <form method="get" className="mb-5 rounded-lg border border-ink/10 bg-white p-3 shadow-soft">
         <input type="hidden" name="tab" value="photos" />
