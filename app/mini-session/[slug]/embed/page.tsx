@@ -2,6 +2,7 @@ import { CalendarClock, CalendarPlus, MapPin } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
+import { MiniSessionBookingConfirmationModal } from "@/components/mini-session-booking-confirmation-modal";
 import { MiniSessionEmbedBookingWizard } from "@/components/mini-session-embed-booking-wizard";
 import { miniSessionBookingCalendarUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
@@ -28,7 +29,7 @@ const EMBED_COPY = {
     text: "Válassz egy szabad időpontot, majd add meg az adataidat a foglalás véglegesítéséhez.",
     recurringMeta: "Folyamatosan foglalható",
     bookedTitle: "Köszönöm, a foglalásod rögzítve lett.",
-    bookedText: "A megerősítő e-mail hamarosan megérkezik.",
+    bookedText: "A foglalás sikeres és érvényes. A visszaigazolást e-mailben is elküldtük; ha nem találod, nézd meg a spam vagy promóciók mappát is.",
     addCalendar: "Naptárhoz adás",
     inactive: "Ez a foglaló jelenleg nem elérhető.",
     soldOut: "Minden időpont betelt.",
@@ -45,7 +46,7 @@ const EMBED_COPY = {
     text: "Wähle einen freien Termin und gib deine Daten ein, um die Buchung abzuschließen.",
     recurringMeta: "Laufend buchbar",
     bookedTitle: "Danke, deine Buchung wurde gespeichert.",
-    bookedText: "Die Bestätigung per E-Mail kommt in Kürze.",
+    bookedText: "Die Buchung ist erfolgreich und verbindlich. Wir haben die Bestätigung per E-Mail geschickt; falls du sie nicht findest, prüfe bitte auch den Spam- oder Werbeordner.",
     addCalendar: "Zum Kalender hinzufügen",
     inactive: "Diese Buchung ist derzeit nicht verfügbar.",
     soldOut: "Alle Termine sind ausgebucht.",
@@ -114,6 +115,9 @@ export default async function MiniSessionEmbedPage({
 
   return (
     <main className="min-h-screen bg-transparent text-ink">
+      {flags.booked ? (
+        <MiniSessionBookingConfirmationModal language={language} calendarHref={calendarHref} />
+      ) : null}
       <section className="mx-auto max-w-2xl p-4 sm:p-5">
         <div className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
           <header className="border-b border-ink/10 bg-white p-5 text-center">

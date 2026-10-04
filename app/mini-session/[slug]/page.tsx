@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MiniSessionBookingConfirmationModal } from "@/components/mini-session-booking-confirmation-modal";
 import { MiniSessionSlotCalendar } from "@/components/mini-session-slot-calendar";
 import { miniSessionBookingCalendarUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
@@ -26,7 +27,7 @@ const MINI_SESSION_PAGE_COPY = {
     intro: "Válassz egy szabad idősávot, add meg az adataidat, és e-mailben küldjük a megerősítést.",
     recurringMeta: "Folyamatosan foglalható",
     bookedTitle: "Köszönöm, a foglalásod rögzítve lett.",
-    bookedText: "A megerősítő e-mail hamarosan megérkezik.",
+    bookedText: "A foglalás sikeres és érvényes. A visszaigazolást e-mailben is elküldtük; ha nem találod, nézd meg a spam vagy promóciók mappát is.",
     manage: "Fotózás kezelése",
     addCalendar: "Naptárhoz adás",
     cancelledTitle: "A foglalás törölve lett.",
@@ -56,7 +57,7 @@ const MINI_SESSION_PAGE_COPY = {
     intro: "Wähle einen freien Zeitslot, gib deine Daten ein und du erhältst die Bestätigung per E-Mail.",
     recurringMeta: "Laufend buchbar",
     bookedTitle: "Danke, deine Buchung wurde gespeichert.",
-    bookedText: "Die Bestätigung per E-Mail kommt in Kürze.",
+    bookedText: "Die Buchung ist erfolgreich und verbindlich. Wir haben die Bestätigung per E-Mail geschickt; falls du sie nicht findest, prüfe bitte auch den Spam- oder Werbeordner.",
     manage: "Shooting verwalten",
     addCalendar: "Zum Kalender hinzufügen",
     cancelledTitle: "Die Buchung wurde storniert.",
@@ -147,6 +148,9 @@ export default async function PublicMiniSessionPage({
 
   return (
     <main className="min-h-screen bg-paper text-ink">
+      {flags.booked ? (
+        <MiniSessionBookingConfirmationModal language={language} manageHref={manageHref} calendarHref={calendarHref} />
+      ) : null}
       <section className={`relative overflow-hidden border-b border-ink/10 ${hasCoverImage ? "bg-ink text-white" : "bg-white"}`}>
         {session.coverImageUrl ? (
           <div className="absolute inset-0">
