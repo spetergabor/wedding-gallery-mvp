@@ -22,6 +22,7 @@ import { GalleryForm } from "@/components/gallery-form";
 import { GalleryTabController } from "@/components/gallery-tab-controller";
 import { MediaProcessingStatus } from "@/components/media-processing-status";
 import { MultipartUploadRecovery } from "@/components/multipart-upload-recovery";
+import { PhotoDownloadLog } from "@/components/photo-download-log";
 import { PhotoManager } from "@/components/photo-manager";
 import { PhotoUploadForm } from "@/components/photo-upload-form";
 import { ProofingInviteComposer } from "@/components/proofing-invite-composer";
@@ -196,6 +197,21 @@ export default async function GalleryDetailPage({
               updatedAt: true
             }
           }
+        }
+      },
+      photoDownloads: {
+        orderBy: { createdAt: "desc" },
+        take: 500,
+        select: {
+          id: true,
+          photoId: true,
+          email: true,
+          filename: true,
+          source: true,
+          country: true,
+          region: true,
+          city: true,
+          createdAt: true
         }
       },
       downloadPackages: {
@@ -966,6 +982,7 @@ export default async function GalleryDetailPage({
               description="Összesített helyszínek kizárólag ennek a galériának a publikus megnyitásaiból. Görgetéssel vagy csippentéssel nagyítható."
             />
             <div className="border-t border-ink/10 pt-6"><p className={sectionMetaClass}>Letöltések</p></div>
+            <PhotoDownloadLog downloads={gallery.photoDownloads} />
             <ZipPreparationStatus galleryId={gallery.id} packages={publicDownloadPackages} photoCount={gallery.photos.length} canPrepareZip={canPrepareZip} />
             <DownloadLog galleryId={gallery.id} downloads={publicDownloadEntries} packages={publicDownloadPackages.slice(0, 8)} />
           </div>

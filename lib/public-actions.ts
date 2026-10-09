@@ -1,6 +1,6 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -16,7 +16,7 @@ import {
   publicDownloadScopeForQuality
 } from "@/lib/download-packages";
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY, normalizeGalleryDownloadQuality, type GalleryDownloadQuality } from "@/lib/download-quality";
-import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
+import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
 import { recordGalleryView } from "@/lib/gallery-view-tracking";
 import { adminGalleryUrl, sendAdminFavoriteListSubmittedEmail } from "@/lib/email";
 import {
@@ -31,6 +31,7 @@ import {
   ensurePaidGalleryPurchaseFulfillmentForSession
 } from "@/lib/gallery-sales";
 import { isAnyRateLimited } from "@/lib/rate-limit";
+import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
 import { MINI_SESSION_WORKFLOW_FINAL_UPLOAD } from "@/lib/mini-session-workflow";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -44,6 +45,32 @@ import {
 
 function galleryCookie(slug: string) {
   return `wgm_gallery_${slug}`;
+}
+
+const PHOTO_DOWNLOAD_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 90;
+
+function photoDownloadSessionCookie(galleryId: string) {
+  return `wgm_photo_download_${galleryId}`;
+}
+
+function photoDownloadSessionTokenHash(token: string) {
+  const secret = process.env.AUTH_SECRET ?? "dev-photo-download-session";
+  return createHash("sha256").update(secret).update("|").update(token).digest("hex");
+}
+
+function cleanRequestHeader(value: string | null, maxLength = 500) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : null;
+}
+
+function decodeLocationHeader(value: string | null) {
+  const cleaned = cleanRequestHeader(value, 120);
+  if (!cleaned) return null;
+  try {
+    return decodeURIComponent(cleaned.replace(/\+/g, " "));
+  } catch {
+    return cleaned;
+  }
 }
 
 function normalizeEmail(email: string) {
@@ -201,6 +228,181 @@ export async function recordGalleryDownloadAction(galleryId: string, email: stri
     ok: true,
     message: "E-Mail gespeichert."
   };
+}
+
+export async function requestGalleryPhotoDownloadAction(
+  galleryId: string,
+  photoId: string,
+  input: {
+    email?: string;
+    purchaseSessionId?: string | null;
+    source?: "lightbox" | "purchase_panel";
+  } = {}
+) {
+  if (
+    await isAnyRateLimited([
+      { scope: "public:gallery-photo-download", limit: 2000, windowSeconds: 60 * 60, identifier: galleryId }
+    ])
+  ) {
+    return { ok: false, reason: "rate_limited", message: "Zu viele Download-Anfragen. Bitte versuche es später erneut." } as const;
+  }
+
+  const photo = await prisma.photo.findFirst({
+    where: {
+      id: photoId,
+      galleryId,
+      mediaType: { not: "video" },
+      processingStatus: "ready",
+      isClientHidden: false
+    },
+    select: {
+      id: true,
+      filename: true,
+      r2Key: true,
+      deliveryStage: true,
+      gallery: {
+        select: {
+          id: true,
+          slug: true,
+          password: true,
+          isActive: true,
+          galleryMode: true,
+          deliveryMode: true,
+          proofingStatus: true,
+          downloadsEnabled: true
+        }
+      }
+    }
+  });
+
+  if (!photo || !photo.r2Key || !photo.gallery.isActive) {
+    return { ok: false, reason: "not_found", message: "Das Foto ist nicht verfügbar." } as const;
+  }
+
+  if (!(await canViewGallery(photo.gallery.slug, photo.gallery.password))) {
+    return { ok: false, reason: "access_denied", message: "Die Galerie ist nicht freigeschaltet." } as const;
+  }
+
+  if (
+    isProofingGallery(photo.gallery.galleryMode) &&
+    (photo.gallery.proofingStatus !== PROOFING_STATUS_DELIVERED || photo.deliveryStage !== PHOTO_DELIVERY_STAGE_FINAL)
+  ) {
+    return { ok: false, reason: "not_delivered", message: "Die finalen Fotos sind noch nicht freigegeben." } as const;
+  }
+
+  const deliveryMode = normalizeGalleryDeliveryMode(photo.gallery.deliveryMode);
+  const paidGallery = deliveryMode === GALLERY_DELIVERY_PAID;
+
+  if (!paidGallery && (!photo.gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(deliveryMode))) {
+    return { ok: false, reason: "downloads_disabled", message: "Downloads sind für diese Galerie deaktiviert." } as const;
+  }
+
+  const cookieStore = await cookies();
+  const cookieName = photoDownloadSessionCookie(galleryId);
+  const sessionToken = cookieStore.get(cookieName)?.value?.trim() ?? "";
+  const now = new Date();
+  let downloadSession = sessionToken
+    ? await prisma.galleryDownloadSession.findFirst({
+        where: {
+          galleryId,
+          tokenHash: photoDownloadSessionTokenHash(sessionToken),
+          expiresAt: { gt: now }
+        },
+        select: { id: true, email: true }
+      })
+    : null;
+  let email = downloadSession?.email ?? "";
+  let purchaseId: string | null = null;
+
+  if (paidGallery) {
+    const purchaseSessionId = input.purchaseSessionId?.trim() ?? "";
+    if (!purchaseSessionId) {
+      return { ok: false, reason: "purchase_required", message: "Der Kauf konnte nicht bestätigt werden." } as const;
+    }
+
+    const purchase = await ensurePaidGalleryPurchaseFulfillmentForSession(galleryId, purchaseSessionId);
+    if (!purchase.ok) {
+      return { ok: false, reason: "purchase_required", message: "Der Kauf konnte nicht bestätigt werden." } as const;
+    }
+
+    if (purchase.purchaseKind === GALLERY_PURCHASE_KIND_PHOTOS && !purchase.purchasedPhotoIds.includes(photo.id)) {
+      return { ok: false, reason: "photo_not_purchased", message: "Dieses Foto wurde nicht gekauft." } as const;
+    }
+
+    email = normalizeEmail(purchase.email);
+    purchaseId = purchase.purchaseId;
+  } else if (!email) {
+    const submittedEmail = normalizeEmail(input.email ?? "");
+    if (!submittedEmail) {
+      return { ok: false, reason: "email_required", message: "Bitte gib deine E-Mail-Adresse ein." } as const;
+    }
+    if (!isValidEmail(submittedEmail)) {
+      return { ok: false, reason: "invalid_email", message: "Bitte gib eine gültige E-Mail-Adresse ein." } as const;
+    }
+    email = submittedEmail;
+  }
+
+  const filename = (photo.filename || "photo.jpg").replace(/[\r\n"\\/:*?<>|]/g, "-").slice(0, 240);
+  const downloadUrl = await createPresignedPhotoDownloadUrl({
+    r2Key: photo.r2Key,
+    filename,
+    expiresIn: 2 * 60
+  });
+  const requestHeaders = await headers();
+  const expiresAt = new Date(now.getTime() + PHOTO_DOWNLOAD_SESSION_MAX_AGE_SECONDS * 1000);
+  let nextSessionToken: string | null = null;
+
+  if (!downloadSession) {
+    nextSessionToken = randomBytes(32).toString("base64url");
+    downloadSession = await prisma.galleryDownloadSession.create({
+      data: {
+        galleryId,
+        email,
+        tokenHash: photoDownloadSessionTokenHash(nextSessionToken),
+        expiresAt
+      },
+      select: { id: true, email: true }
+    });
+  } else {
+    await prisma.galleryDownloadSession.update({
+      where: { id: downloadSession.id },
+      data: { lastSeenAt: now, expiresAt }
+    });
+  }
+
+  await prisma.galleryPhotoDownload.create({
+    data: {
+      galleryId,
+      photoId: photo.id,
+      sessionId: downloadSession.id,
+      purchaseId,
+      email,
+      filename: photo.filename,
+      source: input.source === "purchase_panel" ? "purchase_panel" : "lightbox",
+      country: decodeLocationHeader(requestHeaders.get("x-vercel-ip-country")),
+      region: decodeLocationHeader(requestHeaders.get("x-vercel-ip-country-region")),
+      city: decodeLocationHeader(requestHeaders.get("x-vercel-ip-city")),
+      userAgent: cleanRequestHeader(requestHeaders.get("user-agent"))
+    }
+  });
+
+  const cookieToken = nextSessionToken ?? sessionToken;
+  if (cookieToken) {
+    cookieStore.set(cookieName, cookieToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: `/g/${photo.gallery.slug}`,
+      maxAge: PHOTO_DOWNLOAD_SESSION_MAX_AGE_SECONDS
+    });
+  }
+
+  return {
+    ok: true,
+    reason: "ready",
+    downloadUrl,
+    filename
+  } as const;
 }
 
 export async function requestGalleryDownloadPackageAction(galleryId: string, email: string = "", requestedQuality: string = DEFAULT_GALLERY_DOWNLOAD_QUALITY) {

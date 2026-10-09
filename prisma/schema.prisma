@@ -1131,6 +1131,8 @@ model Gallery {
   photos                         Photo[]
   downloads                      GalleryDownload[]
   downloadPackages               GalleryDownloadPackage[]
+  photoDownloadSessions          GalleryDownloadSession[]
+  photoDownloads                 GalleryPhotoDownload[]
   views                          GalleryView[]
   favoriteLists                  GalleryFavoriteList[]
   sourceAlbumDesigns             AlbumDesign[]            @relation("AlbumDesignSourceGallery")
@@ -1201,29 +1203,30 @@ model GalleryGuestUpload {
 }
 
 model GalleryPurchase {
-  id                      String    @id @default(cuid())
+  id                      String                 @id @default(cuid())
   galleryId               String
   adminId                 String
   email                   String
   name                    String?
   stripeAccountId         String
-  stripeCheckoutSessionId String?   @unique
+  stripeCheckoutSessionId String?                @unique
   stripePaymentIntentId   String?
   amountTotal             Int
   currency                String
-  purchaseKind            String    @default("gallery")
+  purchaseKind            String                 @default("gallery")
   purchasedPhotoIds       Json?
-  itemCount               Int       @default(0)
-  status                  String    @default("pending")
+  itemCount               Int                    @default(0)
+  status                  String                 @default("pending")
   downloadScope           String?
   paidAt                  DateTime?
   fulfilledAt             DateTime?
   fulfillmentEmailSentAt  DateTime?
   fulfillmentError        String?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  gallery                 Gallery   @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  admin                   Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  gallery                 Gallery                @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  admin                   Admin                  @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  photoDownloads          GalleryPhotoDownload[]
 
   @@index([galleryId])
   @@index([adminId])
@@ -1278,6 +1281,7 @@ model Photo {
   favoriteItems         GalleryFavoriteItem[]
   processingJobs        MediaProcessingJob[]
   albumDesignItems      AlbumDesignSpreadItem[]
+  downloads             GalleryPhotoDownload[]
 
   @@index([galleryId])
   @@index([sectionId])
@@ -1334,6 +1338,47 @@ model GalleryDownload {
   @@index([packageId])
   @@index([email])
   @@index([status])
+}
+
+model GalleryDownloadSession {
+  id         String                 @id @default(cuid())
+  galleryId  String
+  email      String
+  tokenHash  String                 @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime               @default(now())
+  createdAt  DateTime               @default(now())
+  gallery    Gallery                @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  downloads  GalleryPhotoDownload[]
+
+  @@index([galleryId, email])
+  @@index([expiresAt])
+}
+
+model GalleryPhotoDownload {
+  id         String                  @id @default(cuid())
+  galleryId  String
+  photoId    String?
+  sessionId  String?
+  purchaseId String?
+  email      String
+  filename   String
+  source     String                  @default("lightbox")
+  country    String?
+  region     String?
+  city       String?
+  userAgent  String?
+  createdAt  DateTime                @default(now())
+  gallery    Gallery                 @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  photo      Photo?                  @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  session    GalleryDownloadSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  purchase   GalleryPurchase?        @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@index([galleryId, createdAt])
+  @@index([photoId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([purchaseId])
+  @@index([email])
 }
 
 model GalleryDownloadPackage {

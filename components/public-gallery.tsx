@@ -13,6 +13,7 @@ import {
   getPaidGalleryPurchaseDownloadState,
   requestFavoriteListDownloadPackageAction,
   requestGalleryDownloadPackageAction,
+  requestGalleryPhotoDownloadAction,
   submitFavoriteListAction,
   toggleFavoritePhotoAction
 } from "@/lib/public-actions";
@@ -99,6 +100,10 @@ const GALLERY_COPY = {
     zipPrepareFailed: "Die ZIP-Datei konnte nicht vorbereitet werden.",
     zipCreateFailed: "Die ZIP-Datei konnte nicht erstellt werden.",
     photoDownloadFailed: "Das Foto konnte nicht heruntergeladen werden.",
+    singlePhotoDownloadTitle: "Foto herunterladen",
+    singlePhotoDownloadIntro: "Gib deine E-Mail-Adresse beim ersten einzelnen Download ein. Weitere Fotos aus dieser Galerie kannst du in diesem Browser danach ohne erneute Eingabe herunterladen.",
+    singlePhotoDownloadPrivacy: "Die E-Mail-Adresse wird verwendet, um die Downloads dieser Galerie zuzuordnen.",
+    singlePhotoDownloadButton: "Foto herunterladen",
     selectionNotFound: "Die Auswahl konnte nicht gefunden werden.",
     favoriteListNotFound: "Die Favoritenliste konnte nicht gefunden werden.",
     defaultSelectionName: "Auswahl",
@@ -232,6 +237,10 @@ const GALLERY_COPY = {
     zipPrepareFailed: "A ZIP fájlt nem sikerült előkészíteni.",
     zipCreateFailed: "A ZIP fájlt nem sikerült létrehozni.",
     photoDownloadFailed: "A fotót nem sikerült letölteni.",
+    singlePhotoDownloadTitle: "Fotó letöltése",
+    singlePhotoDownloadIntro: "Az első egyedi letöltésnél add meg az e-mail-címed. Ezután ebből a galériából ugyanebben a böngészőben már nem kell újra megadnod.",
+    singlePhotoDownloadPrivacy: "Az e-mail-címet a galériából indított letöltések azonosítására használjuk.",
+    singlePhotoDownloadButton: "Fotó letöltése",
     selectionNotFound: "A válogatást nem sikerült megtalálni.",
     favoriteListNotFound: "A kedvenclistát nem sikerült megtalálni.",
     defaultSelectionName: "Válogatás",
@@ -599,6 +608,9 @@ export function PublicGallery({
   const [favoriteSuccess, setFavoriteSuccess] = useState("");
   const [columnCount, setColumnCount] = useState(1);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState<string | null>(null);
+  const [singleDownloadPrompt, setSingleDownloadPrompt] = useState<{ photo: PublicPhoto; source: "lightbox" | "purchase_panel" } | null>(null);
+  const [singleDownloadEmail, setSingleDownloadEmail] = useState("");
+  const [singleDownloadError, setSingleDownloadError] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [cartPhotoIds, setCartPhotoIds] = useState<string[]>([]);
   const [isSelectionSummaryOpen, setIsSelectionSummaryOpen] = useState(false);
@@ -1086,32 +1098,59 @@ export function PublicGallery({
     );
   }
 
-  async function downloadSinglePhoto(photo: PublicPhoto) {
+  function triggerPhotoDownload(downloadUrl: string, filename: string) {
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async function downloadSinglePhoto(
+    photo: PublicPhoto,
+    source: "lightbox" | "purchase_panel" = "lightbox",
+    emailOverride?: string
+  ) {
     if (downloadingPhotoId || !canDownloadPhoto(photo)) {
       return;
     }
 
     setDownloadingPhotoId(photo.id);
+    setSingleDownloadError("");
 
     try {
-      const response = await fetch(photo.imageUrl, { cache: "no-store" });
+      const result = await requestGalleryPhotoDownloadAction(galleryId, photo.id, {
+        email: emailOverride,
+        purchaseSessionId: sale?.purchaseSessionId,
+        source
+      });
 
-      if (!response.ok) {
-        throw new Error(copy.photoDownloadFailed);
+      if (!result.ok) {
+        if (result.reason === "email_required") {
+          setSingleDownloadPrompt({ photo, source });
+          setSingleDownloadEmail(email || favoriteEmail || "");
+          return;
+        }
+        setSingleDownloadError(result.message || copy.photoDownloadFailed);
+        return;
       }
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = photoFileName(photo, selectedIndex ?? 0);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setSingleDownloadPrompt(null);
+      setSingleDownloadEmail("");
+      triggerPhotoDownload(result.downloadUrl, result.filename || photoFileName(photo, selectedIndex ?? 0));
+    } catch {
+      setSingleDownloadError(copy.photoDownloadFailed);
     } finally {
       setDownloadingPhotoId(null);
     }
+  }
+
+  async function submitSinglePhotoDownloadEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!singleDownloadPrompt) return;
+    await downloadSinglePhoto(singleDownloadPrompt.photo, singleDownloadPrompt.source, singleDownloadEmail);
   }
 
   async function toggleFavorite(photoId: string, emailOverride?: string, listIdOverride?: string) {
@@ -1468,7 +1507,7 @@ export function PublicGallery({
                   <button
                     key={photo.id}
                     type="button"
-                    onClick={() => void downloadSinglePhoto(photo)}
+                    onClick={() => void downloadSinglePhoto(photo, "purchase_panel")}
                     disabled={downloadingPhotoId === photo.id}
                     className="inline-flex min-h-10 items-center justify-between gap-3 rounded-md border border-sage/20 bg-white px-3 text-left text-xs font-semibold text-ink transition hover:border-sage/40 hover:bg-paper disabled:opacity-60"
                   >
@@ -2339,6 +2378,85 @@ export function PublicGallery({
               </Button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {singleDownloadPrompt ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-ink/60 px-4 py-5 backdrop-blur-sm">
+          <form onSubmit={submitSinglePhotoDownloadEmail} className="w-full max-w-md rounded-lg bg-white p-5 shadow-soft sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex size-11 items-center justify-center rounded-md bg-paper text-graphite">
+                  <Download size={20} />
+                </div>
+                <h2 className="mt-4 text-xl font-semibold text-ink">{copy.singlePhotoDownloadTitle}</h2>
+                <p className="mt-2 text-sm leading-6 text-graphite/70">{copy.singlePhotoDownloadIntro}</p>
+              </div>
+              <button
+                type="button"
+                title={copy.close}
+                onClick={() => {
+                  setSingleDownloadPrompt(null);
+                  setSingleDownloadError("");
+                }}
+                className="flex size-9 shrink-0 items-center justify-center rounded-md text-graphite hover:bg-ink/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <label className="mt-5 block space-y-2">
+              <span className="text-sm font-medium text-graphite">{copy.email}</span>
+              <input
+                value={singleDownloadEmail}
+                onChange={(event) => setSingleDownloadEmail(event.target.value)}
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="email@example.com"
+                className="h-12 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <p className="mt-3 text-xs leading-5 text-graphite/60">{copy.singlePhotoDownloadPrivacy}</p>
+
+            {singleDownloadError ? (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {singleDownloadError}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <FormSubmitButton
+                type="submit"
+                className="sm:flex-1"
+                busy={downloadingPhotoId === singleDownloadPrompt.photo.id}
+                pendingLabel={copy.loading}
+                disabled={downloadingPhotoId === singleDownloadPrompt.photo.id}
+              >
+                <Download size={16} />
+                {copy.singlePhotoDownloadButton}
+              </FormSubmitButton>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setSingleDownloadPrompt(null);
+                  setSingleDownloadError("");
+                }}
+              >
+                {copy.cancel}
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {!singleDownloadPrompt && singleDownloadError ? (
+        <div role="alert" className="fixed bottom-5 left-1/2 z-[70] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 items-start justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-soft">
+          <span>{singleDownloadError}</span>
+          <button type="button" title={copy.close} onClick={() => setSingleDownloadError("")} className="shrink-0 rounded p-1 hover:bg-red-100">
+            <X size={16} />
+          </button>
         </div>
       ) : null}
 
