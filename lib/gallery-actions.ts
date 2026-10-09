@@ -37,6 +37,9 @@ import {
   isProofingGallery,
   normalizePhotoDeliveryStage
 } from "@/lib/proofing";
+import { loadGalleryEmailCover } from "@/lib/gallery-email-cover";
+import { galleryEmailRecipient } from "@/lib/gallery-email-recipient";
+import { galleryEmailIdentity } from "@/lib/gallery-email-identity";
 import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
 import {
   galleryDeliveryAllowsDownloads,
@@ -243,12 +246,14 @@ async function sendProofingInviteForGallery(
   {
     force = false,
     subject,
-    message
+    message,
+    recipient: recipientInput
   }: {
     force?: boolean;
     subject?: string;
     message?: string;
-  } = {}
+    recipient: string;
+  }
 ) {
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
@@ -266,9 +271,13 @@ async function sendProofingInviteForGallery(
       },
       admin: {
         select: {
+          name: true,
+          email: true,
           siteSettings: {
             select: {
-              publicSubdomain: true
+              publicSubdomain: true,
+              businessName: true,
+              contactEmail: true
             }
           }
         }
@@ -280,9 +289,9 @@ async function sendProofingInviteForGallery(
     return { ok: false, reason: "not-proofing" };
   }
 
-  const recipient = normalizeEmail(gallery.clientEmail);
+  const recipient = galleryEmailRecipient(recipientInput);
 
-  if (!isValidEmail(recipient)) {
+  if (!recipient) {
     return { ok: false, reason: "missing-email" };
   }
 
@@ -295,8 +304,10 @@ async function sendProofingInviteForGallery(
     const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
     const sent = await sendClientProofingInviteEmail({
       to: recipient,
+      ...galleryEmailIdentity(gallery.admin),
       galleryTitle: gallery.title,
       proofingGalleryUrl: publicGalleryUrl(gallery.slug, language, publicSubdomain),
+      cover: await loadGalleryEmailCover(galleryId, publicGalleryUrl(gallery.slug, language, publicSubdomain), "proofing"),
       language,
       subject,
       message
@@ -313,7 +324,6 @@ async function sendProofingInviteForGallery(
     await prisma.gallery.update({
       where: { id: galleryId },
       data: {
-        clientEmail: recipient,
         proofingInviteSentAt: new Date(),
         proofingInviteSentTo: recipient,
         proofingInviteEmailError: null
@@ -333,13 +343,14 @@ async function sendProofingInviteForGallery(
   }
 }
 
-async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = false }: { force?: boolean } = {}) {
+async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = false, subject, message, recipient: recipientInput }: { force?: boolean; subject: string; message: string; recipient: string }) {
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
     select: {
       title: true,
       slug: true,
       galleryMode: true,
+      proofingStatus: true,
       clientEmail: true,
       downloadsEnabled: true,
       finalDeliveryEmailSentAt: true,
@@ -380,13 +391,13 @@ async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = fal
     }
   });
 
-  if (!gallery || !isProofingGallery(gallery.galleryMode)) {
+  if (!gallery || !isProofingGallery(gallery.galleryMode) || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED) {
     return { ok: false, reason: "not-proofing" };
   }
 
-  const recipient = normalizeEmail(gallery.clientEmail);
+  const recipient = galleryEmailRecipient(recipientInput);
 
-  if (!isValidEmail(recipient)) {
+  if (!recipient) {
     await prisma.gallery.update({
       where: { id: galleryId },
       data: { finalDeliveryEmailError: "Hiányzó vagy érvénytelen ügyfél email cím." }
@@ -404,14 +415,17 @@ async function sendFinalDeliveryEmailForGallery(galleryId: string, { force = fal
     const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) ?? gallery.photos[0] ?? null;
     const sent = await sendClientFinalDeliveryEmail({
       to: recipient,
-      replyTo: gallery.admin.siteSettings?.contactEmail || gallery.admin.email,
-      senderName: gallery.admin.siteSettings?.businessName || gallery.admin.name,
+      ...galleryEmailIdentity(gallery.admin),
       galleryTitle: gallery.title,
       galleryUrl: publicGalleryUrl(gallery.slug, language, publicSubdomain),
+      cover: await loadGalleryEmailCover(galleryId, publicGalleryUrl(gallery.slug, language, publicSubdomain), "final"),
       downloadsEnabled: gallery.downloadsEnabled,
+      subject,
+      message,
       language,
       coverImageUrl: coverPhoto?.previewUrl || coverPhoto?.imageUrl || null,
-      logoUrl: gallery.admin.siteSettings?.logoUrl ?? null
+      logoUrl: gallery.admin.siteSettings?.logoUrl ?? null,
+      template: "rich"
     });
 
     if (!sent) {
@@ -951,11 +965,14 @@ export async function disableLightroomUploadTargetAction(galleryId: string) {
 export async function sendProofingInviteDraftAction(
   galleryId: string,
   input: {
+    recipient: string;
     subject: string;
     message: string;
   }
 ) {
   await requireGalleryAccess(galleryId);
+  const recipient = galleryEmailRecipient(input.recipient);
+  if (!recipient) return { ok: false, message: "Adj meg egy érvényes címzett e-mail-címet." } as const;
 
   const subject = input.subject.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
   const message = input.message.trim().slice(0, 5000);
@@ -970,6 +987,7 @@ export async function sendProofingInviteDraftAction(
 
   const result = await sendProofingInviteForGallery(galleryId, {
     force: true,
+    recipient,
     subject,
     message
   });
@@ -1012,14 +1030,18 @@ export async function sendProofingInviteDraftAction(
   return { ok: false, reason: "failed", message: "A válogató e-mail küldése nem sikerült." } as const;
 }
 
-export async function sendFinalDeliveryEmailAction(galleryId: string) {
+export async function sendFinalDeliveryEmailDraftAction(galleryId: string, input: { subject: string; message: string; recipient: string }) {
   await requireGalleryAccess(galleryId);
-
-  const result = await sendFinalDeliveryEmailForGallery(galleryId, { force: true });
-  const status = result.ok ? "sent" : result.reason === "missing-email" ? "missing-email" : "failed";
-
+  const recipient = galleryEmailRecipient(input.recipient);
+  if (!recipient) return { ok: false, message: "Adj meg egy érvényes címzett e-mail-címet." } as const;
+  const subject = input.subject.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+  const message = input.message.trim().slice(0, 5000);
+  if (!subject || !message) return { ok: false, message: "A tárgy és az üzenet nem lehet üres." } as const;
+  const result = await sendFinalDeliveryEmailForGallery(galleryId, { force: true, subject, message, recipient });
   revalidatePath(`/admin/galleries/${galleryId}`);
-  redirect(`/admin/galleries/${galleryId}?tab=activity&deliveryEmail=${status}`);
+  return result.ok
+    ? { ok: true, message: "Az átadó e-mail elküldve." } as const
+    : { ok: false, message: result.reason === "not-proofing" ? "Előbb add át a kész képeket, majd szerkeszd meg a levelet." : "Az átadó e-mail küldése nem sikerült. Ellenőrizd az ügyfél címét." } as const;
 }
 
 export async function sendGalleryDeliveryEmailDraftAction(
@@ -1116,7 +1138,7 @@ export async function sendGalleryDeliveryEmailDraftAction(
   try {
     const sent = await sendClientFinalDeliveryEmail({
       to: recipient,
-      replyTo: replyTo || undefined,
+      replyTo,
       senderName: gallery.admin.siteSettings?.businessName || gallery.admin.name,
       galleryTitle: gallery.title,
       galleryUrl,
@@ -1252,32 +1274,8 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
   }
 
   if (status === PROOFING_STATUS_DELIVERED) {
-    const [galleryBeforeDelivery, finalPhotoCount] = await Promise.all([
-      prisma.gallery.findUnique({
-        where: { id: galleryId },
-        select: { clientEmail: true }
-      }),
-      prisma.photo.count({
-        where: {
-          galleryId,
-          deliveryStage: PHOTO_DELIVERY_STAGE_FINAL
-        }
-      })
-    ]);
-
-    if (finalPhotoCount === 0) {
-      redirect(`/admin/galleries/${galleryId}?tab=activity&deliveryEmail=no-final-photos`);
-    }
-
-    const recipient = normalizeEmail(galleryBeforeDelivery?.clientEmail);
-
-    if (!isValidEmail(recipient)) {
-      await prisma.gallery.update({
-        where: { id: galleryId },
-        data: { finalDeliveryEmailError: "Hiányzó vagy érvénytelen ügyfél email cím." }
-      });
-      redirect(`/admin/galleries/${galleryId}?tab=activity&deliveryEmail=missing-email`);
-    }
+    const finalPhotoCount = await prisma.photo.count({ where: { galleryId, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL } });
+    if (finalPhotoCount === 0) redirect(`/admin/galleries/${galleryId}?tab=activity&deliveryEmail=no-final-photos`);
   }
 
   const gallery = await prisma.gallery.update({
@@ -1295,10 +1293,7 @@ export async function updateGalleryProofingStatusAction(galleryId: string, statu
 
   if (status === PROOFING_STATUS_DELIVERED && isProofingGallery(gallery.galleryMode)) {
     await invalidatePublicGalleryDownloadPackages(galleryId);
-    const emailResult = await sendFinalDeliveryEmailForGallery(galleryId);
-    const deliveryEmail = emailResult.ok ? "sent" : emailResult.reason === "missing-email" ? "missing-email" : "failed";
-
-    redirect(`/admin/galleries/${galleryId}?tab=activity&proofingStatus=1&deliveryEmail=${deliveryEmail}&zip=manual-required`);
+    redirect(`/admin/galleries/${galleryId}?tab=activity&proofingStatus=1&finalDeliveryPrompt=1&zip=manual-required`);
   }
 
   redirect(`/admin/galleries/${galleryId}?tab=activity&proofingStatus=1`);

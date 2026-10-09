@@ -1,5 +1,8 @@
 "use server";
 
+import { loadGalleryEmailCover } from "@/lib/gallery-email-cover";
+import { galleryEmailRecipient } from "@/lib/gallery-email-recipient";
+import { galleryEmailIdentity } from "@/lib/gallery-email-identity";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
@@ -2703,7 +2706,9 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string, fo
           adminId: true,
           admin: {
             select: {
-              siteSettings: { select: { publicSubdomain: true } }
+              name: true,
+              email: true,
+              siteSettings: { select: { publicSubdomain: true, businessName: true, contactEmail: true } }
             }
           }
         }
@@ -2728,15 +2733,15 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string, fo
     redirect(`${workflowUrl}?error=final-photos-required`);
   }
 
-  const recipient = normalizeEmail(gallery.clientEmail || booking.email);
+  const recipient = galleryEmailRecipient(formData?.get("recipient"));
   const customSubject = formData ? formString(formData, "subject").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").slice(0, 200) : "";
   const customMessage = formData ? formString(formData, "message").slice(0, 5000) : "";
 
-  if (formData && (!customSubject || !customMessage)) {
+  if (!formData || !customSubject || !customMessage) {
     redirect(`${workflowUrl}?error=notification-content`);
   }
 
-  if (!isValidEmail(recipient)) {
+  if (!recipient) {
     redirect(`${workflowUrl}?error=client-email`);
   }
 
@@ -2745,7 +2750,6 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string, fo
     data: {
       isActive: true,
       downloadsEnabled: true,
-      clientEmail: recipient,
       finalDeliveryEmailError: null
     }
   });
@@ -2756,6 +2760,7 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string, fo
     language,
     booking.miniSession.admin.siteSettings?.publicSubdomain ?? null
   );
+  const cover = await loadGalleryEmailCover(gallery.id, galleryUrl, "final");
   const delivery = await runLoggedDelivery({
     adminId: booking.miniSession.adminId,
     channel: DELIVERY_CHANNEL_EMAIL,
@@ -2769,12 +2774,15 @@ export async function deliverMiniSessionFinalGalleryAction(bookingId: string, fo
     send: () =>
       sendClientFinalDeliveryEmail({
         to: recipient,
+        ...galleryEmailIdentity(booking.miniSession.admin),
+        cover,
         galleryTitle: gallery.title,
         galleryUrl,
         downloadsEnabled: true,
         language,
         subject: customSubject || undefined,
-        message: customMessage || undefined
+        message: customMessage || undefined,
+        template: "rich"
       })
   });
 

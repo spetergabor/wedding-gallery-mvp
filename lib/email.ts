@@ -1,3 +1,5 @@
+import type { GalleryEmailCover } from "@/lib/gallery-email-cover";
+import { galleryEmailHtml, galleryMessageText, getFinalGalleryEmailDraft } from "@/lib/gallery-email-template";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 import { lightroomFilenameList } from "@/lib/photo-filename";
@@ -55,7 +57,10 @@ type CustomerInvoiceEmail = {
 };
 
 type ClientProofingInviteEmail = {
+  cover?: GalleryEmailCover | null;
   to: string;
+  senderName: string;
+  replyTo: string;
   galleryTitle: string;
   proofingGalleryUrl: string;
   language?: CustomerLanguage;
@@ -64,9 +69,10 @@ type ClientProofingInviteEmail = {
 };
 
 type ClientFinalDeliveryEmail = {
+  cover?: GalleryEmailCover | null;
   to: string;
-  replyTo?: string;
-  senderName?: string | null;
+  senderName: string;
+  replyTo: string;
   galleryTitle: string;
   galleryUrl: string;
   downloadsEnabled: boolean;
@@ -75,6 +81,7 @@ type ClientFinalDeliveryEmail = {
   message?: string;
   coverImageUrl?: string | null;
   logoUrl?: string | null;
+  template?: "branded" | "rich";
 };
 
 type MiniSessionWorkflowNotificationEmail = {
@@ -272,17 +279,17 @@ const CUSTOMER_EMAIL_COPY = {
   },
   hu: {
     proofingInvite: {
-      subject: "Kész a képeid kiválasztása",
-      heading: "Kész a képek kiválasztása",
-      intro: "Kedves vendég,",
-      body: "Ez a galéria fel van készítve a kiválasztáshoz. A linkkel jelöld ki a kedvenceidet, majd küldd el a választásodat.",
+      subject: "Válogatásra várnak a képeid",
+      heading: "Válogatásra várnak a képeid",
+      intro: "Szia!",
+      body: "Elkészítettem a válogatós galériádat. Az alábbi linken megjelölheted a kedvenc képeidet, majd elküldheted nekem a válogatásodat.",
       cta: "Képek kiválasztása",
       fallback: "Ha nem működik a gomb, ezt másold be a böngészőbe:"
     },
     finalDelivery: {
-      subject: "A végleges képek készre vannak",
-      heading: "A végleges képek készre vannak",
-      intro: "Kedves vendég,",
+      subject: "Elkészültek a képeid",
+      heading: "Elkészültek a képeid",
+      intro: "Szia!",
       body: "A galéria végleges képei már elérhetők számodra.",
       linksEnabledBody: "Az alábbi linken megtekintheted és letöltheted őket.",
       linksDisabledBody: "Az alábbi linken megtekintheted a képeket.",
@@ -377,7 +384,7 @@ export function getClientProofingInviteDraft({
   const copy = copyForLanguage(language).proofingInvite;
 
   return {
-    subject: `${copy.subject}: ${galleryTitle}`,
+    subject: `${galleryTitle} – ${copy.subject}`,
     message: [copy.intro, copy.body].join("\n\n")
   };
 }
@@ -538,7 +545,7 @@ function senderWithDisplayName(sender: string, displayName?: string | null) {
   const name = emailDisplayName(displayName);
   const address = emailAddressFromSender(sender);
 
-  return name && address ? `${name} <${address}>` : sender;
+  return name && address ? `"${name}" <${address}>` : sender;
 }
 
 function replyToPayload(replyTo?: string) {
@@ -1288,27 +1295,14 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
   return true;
 }
 
-function clientProofingInviteHtml({
-  galleryTitle,
-  proofingGalleryUrl,
-  language,
-  message
-}: ClientProofingInviteEmail) {
-  const copy = copyForLanguage(language);
-  const draft = getClientProofingInviteDraft({ galleryTitle, language });
-  const emailMessage = message?.trim() || draft.message;
 
-  return `
-    <div style="font-family: Arial, sans-serif; color: #171717; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">${copy.proofingInvite.heading}</h1>
-      <p style="margin: 0 0 18px;">${multilineHtml(emailMessage)}</p>
-      <p style="margin: 0 0 18px;"><strong>${escapeHtml(galleryTitle)}</strong></p>
-      <p style="margin: 0 0 20px;">
-        <a href="${escapeHtml(proofingGalleryUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">${copy.proofingInvite.cta}</a>
-      </p>
-      <p style="margin: 0; color: #777; font-size: 13px;">${copy.proofingInvite.fallback}<br>${escapeHtml(proofingGalleryUrl)}</p>
-    </div>
-  `;
+function clientProofingInviteHtml(payload: ClientProofingInviteEmail) {
+  return galleryEmailHtml({
+    ...payload,
+    message: payload.message?.trim() || getClientProofingInviteDraft(payload).message,
+    url: payload.proofingGalleryUrl,
+    cta: copyForLanguage(payload.language).proofingInvite.cta
+  });
 }
 
 export async function sendClientProofingInviteEmail(payload: ClientProofingInviteEmail) {
@@ -1323,17 +1317,21 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
   const subject = payload.subject?.trim() || draft.subject;
   const message = payload.message?.trim() || draft.message;
   const response = await sendResendEmail(apiKey, {
-      from,
+      from: senderWithDisplayName(from, payload.senderName || payload.galleryTitle),
+      ...replyToPayload(payload.replyTo),
       to: payload.to,
       subject,
       html: clientProofingInviteHtml({ ...payload, message }),
       text: [
         subject,
         "",
-        message,
+        galleryMessageText(message),
         "",
         payload.galleryTitle,
-        `${copyForLanguage(payload.language).proofingInvite.cta}: ${payload.proofingGalleryUrl}`
+        `${copyForLanguage(payload.language).proofingInvite.cta}: ${payload.proofingGalleryUrl}`,
+        "",
+        payload.senderName,
+        payload.replyTo
       ].join("\n")
   });
 
@@ -1345,33 +1343,33 @@ export async function sendClientProofingInviteEmail(payload: ClientProofingInvit
   return true;
 }
 
-function clientFinalDeliveryHtml({
-  galleryTitle,
-  galleryUrl,
-  downloadsEnabled,
-  language,
-  subject,
-  message,
-  coverImageUrl,
-  logoUrl
-}: ClientFinalDeliveryEmail) {
-  const copy = copyForLanguage(language);
-  const draft = getClientFinalDeliveryDraft({ galleryTitle, downloadsEnabled, language });
-  const body = message?.trim() || draft.message;
-  const heading = subject?.trim() || draft.subject;
+function clientFinalDeliveryHtml(payload: ClientFinalDeliveryEmail) {
+  if (payload.template === "rich") {
+    return galleryEmailHtml({
+      ...payload,
+      message: payload.message?.trim() || getFinalGalleryEmailDraft(payload.galleryTitle, payload.language, payload.downloadsEnabled).message,
+      url: payload.galleryUrl,
+      cta: asEmailLanguage(payload.language) === "hu" ? "Galéria megnyitása" : "Galerie öffnen"
+    });
+  }
+
+  const copy = copyForLanguage(payload.language);
+  const draft = getClientFinalDeliveryDraft(payload);
+  const body = payload.message?.trim() || draft.message;
+  const heading = payload.subject?.trim() || draft.subject;
   return `
     <div style="margin:0; padding:28px 12px; background:#f5f3ef; font-family:Arial,sans-serif; color:#171717; line-height:1.6;">
       <div style="max-width:640px; margin:0 auto; overflow:hidden; background:#ffffff; border:1px solid #e8e4dc; border-radius:12px;">
-        ${logoUrl ? `<div style="padding:26px 28px 22px; text-align:center;"><img src="${escapeHtml(logoUrl)}" alt="Logo" style="display:inline-block; max-width:220px; max-height:84px; width:auto; height:auto;"></div>` : ""}
-        ${coverImageUrl ? `<img src="${escapeHtml(coverImageUrl)}" alt="${escapeHtml(galleryTitle)}" style="display:block; width:100%; max-height:430px; object-fit:cover; border:0;">` : ""}
+        ${payload.logoUrl ? `<div style="padding:26px 28px 22px; text-align:center;"><img src="${escapeHtml(payload.logoUrl)}" alt="Logo" style="display:inline-block; max-width:220px; max-height:84px; width:auto; height:auto;"></div>` : ""}
+        ${payload.coverImageUrl ? `<img src="${escapeHtml(payload.coverImageUrl)}" alt="${escapeHtml(payload.galleryTitle)}" style="display:block; width:100%; max-height:430px; object-fit:cover; border:0;">` : ""}
         <div style="padding:34px 34px 30px;">
-          <p style="margin:0 0 9px; color:#a67c3b; font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;">${escapeHtml(galleryTitle)}</p>
+          <p style="margin:0 0 9px; color:#a67c3b; font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;">${escapeHtml(payload.galleryTitle)}</p>
           <h1 style="margin:0 0 22px; font-size:28px; line-height:1.2;">${escapeHtml(heading)}</h1>
           <div style="margin:0 0 26px; color:#444; font-size:16px;">${multilineHtml(body)}</div>
           <p style="margin:0 0 28px;">
-            <a href="${escapeHtml(galleryUrl)}" style="display:inline-block; background:#171717; color:#fff; text-decoration:none; padding:13px 20px; border-radius:7px; font-weight:700;">${copy.finalDelivery.cta}</a>
+            <a href="${escapeHtml(payload.galleryUrl)}" style="display:inline-block; background:#171717; color:#fff; text-decoration:none; padding:13px 20px; border-radius:7px; font-weight:700;">${copy.finalDelivery.cta}</a>
           </p>
-          <p style="margin:0; color:#777; font-size:12px; line-height:1.5;">${copy.finalDelivery.fallback}<br><a href="${escapeHtml(galleryUrl)}" style="color:#777; word-break:break-all;">${escapeHtml(galleryUrl)}</a></p>
+          <p style="margin:0; color:#777; font-size:12px; line-height:1.5;">${copy.finalDelivery.fallback}<br><a href="${escapeHtml(payload.galleryUrl)}" style="color:#777; word-break:break-all;">${escapeHtml(payload.galleryUrl)}</a></p>
         </div>
       </div>
     </div>
@@ -1390,18 +1388,23 @@ export async function sendClientFinalDeliveryEmail(payload: ClientFinalDeliveryE
   const subject = payload.subject?.trim() || draft.subject;
   const message = payload.message?.trim() || draft.message;
   const response = await sendResendEmail(apiKey, {
-      from: senderWithDisplayName(from, payload.senderName),
-      to: payload.to,
-      ...replyToPayload(payload.replyTo),
-      subject,
-      html: clientFinalDeliveryHtml({ ...payload, message }),
-      text: [
+    from: senderWithDisplayName(from, payload.senderName),
+    to: payload.to,
+    ...replyToPayload(payload.replyTo),
+    subject,
+    html: clientFinalDeliveryHtml({ ...payload, message }),
+    text: [
         subject,
         "",
-        message,
+        galleryMessageText(message),
         "",
-        `${copyForLanguage(payload.language).finalDelivery.cta}: ${payload.galleryUrl}`
-      ].join("\n")
+        `Galerie: ${payload.galleryTitle}`,
+        "",
+        `${asEmailLanguage(payload.language) === "hu" ? "Galéria megnyitása" : "Galerie öffnen"}: ${payload.galleryUrl}`,
+        "",
+        payload.senderName,
+        payload.replyTo
+    ].join("\n")
   });
 
   if (!response.ok) {

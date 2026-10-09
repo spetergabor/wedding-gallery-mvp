@@ -61,7 +61,7 @@ function nextStepForStatus(status: string, metrics: ProofingStatusPanelProps["me
   if (status === PROOFING_STATUS_DELIVERED) {
     return metrics.finalDeliveryEmailSentAt
       ? "A kész képek átadása és az email értesítés megtörtént."
-      : "A kész képek át vannak adva, az email újraküldhető.";
+      : "A kész képek át vannak adva. Az értesítő e-mail még nincs elküldve.";
   }
 
   return "Ellenőrizd a válogatási státuszt és a feltöltött képeket.";

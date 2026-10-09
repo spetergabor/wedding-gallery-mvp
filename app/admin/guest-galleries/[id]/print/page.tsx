@@ -1,5 +1,7 @@
 import QRCode from "qrcode";
 import Link from "next/link";
+import { Download } from "lucide-react";
+import { guestGalleryCardText } from "@/lib/guest-gallery-card-text";
 import { PrintPageButton } from "@/components/print-page-button";
 import { galleryAccessWhere, ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
@@ -48,11 +50,7 @@ export default async function GuestGalleryPrintPage({
     siteSettings?.publicSubdomain
   );
   const guestUrl = `${publicUrl}#guest-photos`;
-  const cardLanguage = gallery.customer?.preferredLanguage === "hu" ? "hu" : "de";
-  const cardText =
-    cardLanguage === "hu"
-      ? "Te is készítettél képeket? Töltsd fel, és nézd meg a vendégek közös pillanatait!"
-      : "Du hast auch Fotos gemacht? Lade sie hoch und entdecke die gemeinsamen Momente aller Gäste!";
+  const cardText = guestGalleryCardText(gallery.customer?.preferredLanguage);
   const qrCodeDataUrl = await QRCode.toDataURL(guestUrl, {
     errorCorrectionLevel: "M",
     margin: 1,
@@ -63,7 +61,7 @@ export default async function GuestGalleryPrintPage({
 
   return (
     <main className="min-h-screen bg-paper px-5 py-6 text-ink print:bg-white print:p-0">
-      <div className="mx-auto mb-6 flex max-w-[190mm] items-center justify-between gap-4 print:hidden">
+      <div className="mx-auto mb-6 flex flex-wrap max-w-[190mm] items-center justify-between gap-4 print:hidden">
         <div>
           <Link href={`/admin/guest-galleries/${gallery.id}`} className="text-sm font-medium text-graphite/70 hover:text-ink">
             ← Vissza a vendéggalériához
@@ -71,7 +69,13 @@ export default async function GuestGalleryPrintPage({
           <h1 className="mt-2 text-2xl font-semibold">Nyomtatható QR-kártyák</h1>
           <p className="mt-1 text-sm text-graphite/65">A4-es lapon 8 darab, 85 × 55 mm-es kártya.</p>
         </div>
-        <PrintPageButton label="Kártyák nyomtatása" />
+        <div className="flex flex-wrap gap-2">
+          <a href={`/api/admin/guest-galleries/${gallery.id}/cards/pdf`} download className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium transition hover:bg-paper">
+            <Download size={16} />
+            PDF letöltése
+          </a>
+          <PrintPageButton label="Kártyák nyomtatása" />
+        </div>
       </div>
 
       <section className="mx-auto grid w-fit grid-cols-2 gap-[5mm] print:gap-[5mm]">

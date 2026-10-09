@@ -1,14 +1,25 @@
 "use client";
 
+import type { GalleryEmailCover } from "@/lib/gallery-email-cover";
 import { useEffect, useState } from "react";
 import { ExternalLink, Mail, Send, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
-import { sendProofingInviteDraftAction } from "@/lib/gallery-actions";
+import { GalleryEmailEditor } from "@/components/gallery-email-editor";
+import { galleryEmailRecipient } from "@/lib/gallery-email-recipient";
+import { galleryEmailCta } from "@/lib/gallery-email-template";
+import type { CustomerLanguage } from "@/lib/customer-language";
+import { sendFinalDeliveryEmailDraftAction, sendProofingInviteDraftAction } from "@/lib/gallery-actions";
 
 type ProofingInviteComposerProps = {
+  kind?: "proofing" | "final";
+  galleryTitle: string;
+  language?: CustomerLanguage;
+  cover?: GalleryEmailCover | null;
   galleryId: string;
   recipient: string | null;
+  senderName: string;
+  replyTo: string;
   galleryUrl: string;
   defaultSubject: string;
   defaultMessage: string;
@@ -18,8 +29,14 @@ type ProofingInviteComposerProps = {
 };
 
 export function ProofingInviteComposer({
+  kind = "proofing",
+  galleryTitle,
+  language,
+  cover,
   galleryId,
   recipient,
+  senderName,
+  replyTo,
   galleryUrl,
   defaultSubject,
   defaultMessage,
@@ -29,6 +46,7 @@ export function ProofingInviteComposer({
 }: ProofingInviteComposerProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(autoOpen);
+  const [recipientEmail, setRecipientEmail] = useState(recipient ?? "");
   const [subject, setSubject] = useState(defaultSubject);
   const [message, setMessage] = useState(defaultMessage);
   const [isSending, setIsSending] = useState(false);
@@ -55,19 +73,19 @@ export function ProofingInviteComposer({
     };
   }, [isOpen, isSending]);
 
+  const promptFlag = kind === "final" ? "finalDeliveryPrompt" : "proofingInvitePrompt";
+
   function clearPromptFlag() {
     const url = new URL(window.location.href);
-    if (!url.searchParams.has("proofingInvitePrompt")) {
+    if (!url.searchParams.has(promptFlag)) {
       return;
     }
 
-    url.searchParams.delete("proofingInvitePrompt");
+    url.searchParams.delete(promptFlag);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
   function openComposer() {
-    setSubject(defaultSubject);
-    setMessage(defaultMessage);
     setError("");
     setIsOpen(true);
   }
@@ -87,8 +105,8 @@ export function ProofingInviteComposer({
       return;
     }
 
-    if (!recipient) {
-      setError("Hiányzik az ügyfél e-mail címe. Add meg a galéria beállításaiban, majd próbáld újra.");
+    if (!galleryEmailRecipient(recipientEmail)) {
+      setError("Adj meg egy érvényes címzett e-mail-címet.");
       return;
     }
 
@@ -101,7 +119,7 @@ export function ProofingInviteComposer({
     setError("");
 
     try {
-      const result = await sendProofingInviteDraftAction(galleryId, { subject, message });
+      const result = await (kind === "final" ? sendFinalDeliveryEmailDraftAction : sendProofingInviteDraftAction)(galleryId, { subject, message, recipient: recipientEmail });
 
       if (!result.ok) {
         setError(result.message);
@@ -110,10 +128,10 @@ export function ProofingInviteComposer({
 
       setIsOpen(false);
       clearPromptFlag();
-      router.push(`/admin/galleries/${galleryId}?tab=activity&proofingInvite=sent`);
+      router.push(`/admin/galleries/${galleryId}?tab=activity&${kind === "final" ? "deliveryEmail" : "proofingInvite"}=sent`);
       router.refresh();
     } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "A válogató e-mail küldése nem sikerült.");
+      setError(sendError instanceof Error ? sendError.message : "Az e-mail küldése nem sikerült.");
     } finally {
       setIsSending(false);
     }
@@ -122,9 +140,9 @@ export function ProofingInviteComposer({
   return (
     <>
       {showTrigger ? (
-        <Button type="button" variant="secondary" disabled={!recipient} onClick={openComposer} className={!recipient ? "opacity-60" : ""}>
+        <Button type="button" variant="secondary" onClick={openComposer}>
           <Mail size={16} />
-          {alreadySent ? "Válogató e-mail újraküldése" : "Válogató e-mail küldése"}
+          {kind === "final" ? (alreadySent ? "Átadó e-mail szerkesztése és újraküldése" : "Átadó e-mail szerkesztése") : (alreadySent ? "Válogató e-mail újraküldése" : "Válogató e-mail küldése")}
         </Button>
       ) : null}
 
@@ -133,16 +151,16 @@ export function ProofingInviteComposer({
           <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="proofing-invite-title"
-            className="max-h-[92vh] w-full overflow-y-auto rounded-t-xl bg-white shadow-2xl sm:max-w-2xl sm:rounded-xl"
+            aria-labelledby={`gallery-email-title-${kind}`}
+            className="max-h-[92vh] w-full overflow-y-auto rounded-t-xl bg-white shadow-2xl sm:max-w-6xl sm:rounded-xl"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 border-b border-ink/10 px-5 py-5 sm:px-6">
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-brass">Válogató e-mail</p>
-                <h2 id="proofing-invite-title" className="mt-2 text-xl font-semibold text-ink">Mehet az e-mail az ügyfélnek?</h2>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-brass">{kind === "final" ? "Átadó e-mail" : "Válogató e-mail"}</p>
+                <h2 id={`gallery-email-title-${kind}`} className="mt-2 text-xl font-semibold text-ink">Mehet az e-mail az ügyfélnek?</h2>
                 <p className="mt-1 text-sm leading-6 text-graphite/70">
-                  Ellenőrizd és szerkeszd a levelet. Küldés nélkül is bezárhatod, később a Válogatás fülről újra megnyitható.
+                  Szerkeszd a levelet, és ellenőrizd az élő előnézetet. Csak az E-mail küldése gombbal megy ki.
                 </p>
               </div>
               <button
@@ -158,39 +176,22 @@ export function ProofingInviteComposer({
 
             <div className="space-y-5 px-5 py-5 sm:px-6">
               <div className="rounded-md border border-ink/10 bg-paper px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">Címzett</p>
-                <p className="mt-1 break-all text-sm font-medium text-ink">{recipient || "Nincs megadva ügyfél e-mail"}</p>
+                <label className="block text-sm font-medium text-ink">Címzett e-mail-címe
+                  <input type="email" name="recipient" value={recipientEmail} onChange={event => setRecipientEmail(event.target.value)} disabled={isSending} maxLength={254} autoComplete="email" placeholder="nev@pelda.hu" className="mt-2 h-12 w-full rounded-md border border-ink/15 bg-white px-3 text-sm" />
+                </label>
+                <p className="mt-2 text-xs leading-5 text-graphite/60">Ehhez a küldéshez szabadon átírhatod. Az ügyfél és a galéria mentett e-mail-címe nem változik.</p>
               </div>
 
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Tárgy</span>
-                <input
-                  value={subject}
-                  onChange={(event) => setSubject(event.target.value)}
-                  maxLength={200}
-                  disabled={isSending}
-                  className="h-12 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:bg-paper"
-                />
-              </label>
+              <div className="text-sm leading-6 text-graphite/70">
+                <p>Feladó neve: <span className="font-medium text-ink">{senderName}</span></p>
+                <p>Válaszok ide érkeznek: <span className="break-all font-medium text-ink">{replyTo}</span></p>
+              </div>
 
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-graphite">Üzenet</span>
-                <textarea
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  maxLength={5000}
-                  rows={8}
-                  disabled={isSending}
-                  className="w-full resize-y rounded-md border border-ink/15 bg-white px-3 py-3 text-sm leading-6 text-ink outline-none transition focus:border-ink/50 disabled:bg-paper"
-                />
-                <span className="block text-xs leading-5 text-graphite/60">
-                  A galéria neve és a válogató gomb automatikusan a levélben marad.
-                </span>
-              </label>
+              <GalleryEmailEditor subject={subject} message={message} onSubjectChange={setSubject} onMessageChange={setMessage} disabled={isSending} preview={{ galleryTitle, senderName, replyTo, url: galleryUrl, language, cover, cta: galleryEmailCta(kind, language) }} />
 
               <a href={galleryUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-medium text-graphite underline-offset-4 hover:text-ink hover:underline">
                 <ExternalLink size={15} />
-                Válogató link ellenőrzése
+                Galérialink ellenőrzése
               </a>
 
               {error ? (
@@ -200,11 +201,11 @@ export function ProofingInviteComposer({
               ) : null}
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-ink/10 bg-paper/70 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+            <div className="sticky bottom-0 z-10 flex flex-col-reverse gap-3 border-t border-ink/10 bg-paper px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
               <Button type="button" variant="ghost" disabled={isSending} onClick={closeComposer}>
                 Most nem küldöm
               </Button>
-              <Button type="button" disabled={isSending || !recipient} onClick={() => void sendEmail()}>
+              <Button type="button" disabled={isSending || !recipientEmail.trim()} onClick={() => void sendEmail()}>
                 <Send size={16} />
                 {isSending ? "Küldés..." : "E-mail küldése"}
               </Button>

@@ -1,3 +1,6 @@
+import { getFinalGalleryEmailDraft } from "@/lib/gallery-email-template";
+import { loadGalleryEmailCover } from "@/lib/gallery-email-cover";
+import { galleryEmailIdentity } from "@/lib/gallery-email-identity";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -37,7 +40,6 @@ import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
   generateClientAccessLinkAction,
-  sendFinalDeliveryEmailAction,
   updateGalleryDesignAction,
   updateGalleryProofingStatusAction
 } from "@/lib/gallery-actions";
@@ -137,6 +139,7 @@ export default async function GalleryDetailPage({
     coverSet?: string;
     design?: string;
     deliveryEmail?: string;
+    finalDeliveryPrompt?: string;
     downloadEmail?: string;
     zip?: string;
     duplicateCleanup?: string;
@@ -518,6 +521,9 @@ export default async function GalleryDetailPage({
     downloadsEnabled: gallery.downloadsEnabled,
     language: customerLanguage
   });
+  const emailCover = proofingGallery ? await loadGalleryEmailCover(gallery.id, galleryPublicUrl, "proofing") : null;
+  const finalEmailCover = proofingGallery ? await loadGalleryEmailCover(gallery.id, galleryPublicUrl, "final") : null;
+  const finalEmailDraft = getFinalGalleryEmailDraft(gallery.title, customerLanguage, gallery.downloadsEnabled);
   const proofingInviteDraft = getClientProofingInviteDraft({
     galleryTitle: gallery.title,
     language: customerLanguage
@@ -702,8 +708,12 @@ export default async function GalleryDetailPage({
 
       {proofingGallery ? (
         <ProofingInviteComposer
+          galleryTitle={gallery.title}
+          language={customerLanguage}
           galleryId={gallery.id}
           recipient={gallery.clientEmail}
+          cover={emailCover}
+          {...galleryEmailIdentity(gallery.admin)}
           galleryUrl={galleryPublicUrl}
           defaultSubject={proofingInviteDraft.subject}
           defaultMessage={proofingInviteDraft.message}
@@ -843,7 +853,7 @@ export default async function GalleryDetailPage({
                       </div>
                     </div>
                     {!gallery.clientEmail ? (
-                      <p className="mt-3 text-sm text-red-700">Az email küldéshez előbb add meg az ügyfél email címét a galéria beállításaiban.</p>
+                      <p className="mt-3 text-sm text-red-700">Az e-mail címzettjét küldés előtt megadhatod a levélszerkesztőben.</p>
                     ) : null}
                     <div className="mt-5 rounded-md border border-ink/10 bg-paper/80 p-4">
                       <p className={sectionMetaClass}>Fizetés / hozzáférés váz</p>
@@ -854,7 +864,7 @@ export default async function GalleryDetailPage({
                             Most: számla és utalás
                           </div>
                           <p className="mt-2 text-sm leading-6 text-graphite/70">
-                            A kész galéria csak akkor megy ki az ügyfélnek, amikor te manuálisan átadod. Így maradhat a számla után érkező utalás ellenőrzése.
+                            Az átadás elérhetővé teszi a kész képeket, és megnyitja a levélszerkesztőt. E-mail csak a szerkesztő Küldés gombjára kattintva megy ki.
                           </p>
                         </div>
                         <div className="rounded-md border border-ink/10 bg-paper px-3 py-3">
@@ -873,24 +883,15 @@ export default async function GalleryDetailPage({
                     <form action={updateGalleryProofingStatusAction.bind(null, gallery.id, PROOFING_STATUS_DELIVERED)}>
                       <FormSubmitButton
                         variant={gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "secondary" : "primary"}
-                        disabled={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED || !gallery.clientEmail}
-                        className={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED || !gallery.clientEmail ? "opacity-60" : ""}
+                        disabled={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED}
+                        className={finalPhotoCount === 0 || gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? "opacity-60" : ""}
                         pendingLabel="Átadás..."
                       >
-                        Kész képek átadása
+                        Kész képek átadása és levél szerkesztése
                       </FormSubmitButton>
                     </form>
                     {gallery.proofingStatus === PROOFING_STATUS_DELIVERED ? (
-                      <form action={sendFinalDeliveryEmailAction.bind(null, gallery.id)}>
-                        <FormSubmitButton
-                          variant="secondary"
-                          disabled={!gallery.clientEmail}
-                          className={!gallery.clientEmail ? "opacity-60" : ""}
-                          pendingLabel="Küldés..."
-                        >
-                          Email újraküldése
-                        </FormSubmitButton>
-                      </form>
+                      <ProofingInviteComposer kind="final" galleryId={gallery.id} galleryTitle={gallery.title} language={customerLanguage} recipient={gallery.clientEmail} {...galleryEmailIdentity(gallery.admin)} galleryUrl={galleryPublicUrl} cover={finalEmailCover} defaultSubject={finalEmailDraft.subject} defaultMessage={finalEmailDraft.message} alreadySent={Boolean(gallery.finalDeliveryEmailSentAt)} autoOpen={flags.finalDeliveryPrompt === "1"} />
                     ) : null}
                   </div>
                 </div>
@@ -937,8 +938,12 @@ export default async function GalleryDetailPage({
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <ProofingInviteComposer
+                      galleryTitle={gallery.title}
+                      language={customerLanguage}
                       galleryId={gallery.id}
                       recipient={gallery.clientEmail}
+                      cover={emailCover}
+                      {...galleryEmailIdentity(gallery.admin)}
                       galleryUrl={galleryPublicUrl}
                       defaultSubject={proofingInviteDraft.subject}
                       defaultMessage={proofingInviteDraft.message}

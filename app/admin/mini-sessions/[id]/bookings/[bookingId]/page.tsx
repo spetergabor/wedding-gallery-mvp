@@ -1,3 +1,7 @@
+import { galleryEmailIdentity } from "@/lib/gallery-email-identity";
+import { loadGalleryEmailCover } from "@/lib/gallery-email-cover";
+import { galleryEmailCta } from "@/lib/gallery-email-template";
+import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import {
   ArrowLeft,
   CalendarClock,
@@ -117,6 +121,7 @@ export default async function MiniSessionBookingWorkflowPage({
       miniSession: adminOwnedWhere(admin)
     },
     include: {
+      customer: { select: { preferredLanguage: true } },
       miniSession: {
         select: {
           id: true,
@@ -126,7 +131,7 @@ export default async function MiniSessionBookingWorkflowPage({
           language: true,
           postProductionWorkflowEnabled: true,
           admin: {
-            select: { siteSettings: { select: { publicSubdomain: true } } }
+            select: { name: true, email: true, siteSettings: { select: { publicSubdomain: true, businessName: true, contactEmail: true } } }
           }
         }
       },
@@ -176,7 +181,9 @@ export default async function MiniSessionBookingWorkflowPage({
   const notificationCopy = NOTIFICATION_COPY[customerLanguage];
   const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
   const customerWorkspaceUrl = miniSessionBookingManageUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
-  const finalGalleryUrl = finalGallery ? publicGalleryUrl(finalGallery.slug, customerLanguage, publicSubdomain) : customerWorkspaceUrl;
+  const finalLanguage = normalizeCustomerLanguage(booking.customer?.preferredLanguage);
+  const finalGalleryUrl = finalGallery ? publicGalleryUrl(finalGallery.slug, finalLanguage, publicSubdomain) : customerWorkspaceUrl;
+  const finalPreview = finalGallery ? { ...galleryEmailIdentity(booking.miniSession.admin), galleryTitle: finalGallery.title, url: finalGalleryUrl, cta: galleryEmailCta("final", finalLanguage), language: finalLanguage, cover: await loadGalleryEmailCover(finalGallery.id, finalGalleryUrl, "final") } : undefined;
 
   return (
     <AdminShell>
@@ -397,7 +404,8 @@ export default async function MiniSessionBookingWorkflowPage({
                       <MiniSessionNotificationComposer
                         bookingId={booking.id}
                         kind="final_delivery"
-                        recipient={booking.email}
+                        galleryPreview={finalPreview}
+                        recipient={finalGallery.clientEmail || booking.email}
                         previewUrl={finalGalleryUrl}
                         defaultSubject={notificationCopy.final.subject}
                         defaultMessage={notificationCopy.final.message}
@@ -429,7 +437,8 @@ export default async function MiniSessionBookingWorkflowPage({
                   <MiniSessionNotificationComposer
                     bookingId={booking.id}
                     kind="final_delivery"
-                    recipient={booking.email}
+                        galleryPreview={finalPreview}
+                    recipient={finalGallery.clientEmail || booking.email}
                     previewUrl={finalGalleryUrl}
                     defaultSubject={notificationCopy.final.subject}
                     defaultMessage={notificationCopy.final.message}
