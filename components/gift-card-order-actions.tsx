@@ -60,6 +60,7 @@ const textareaClass =
 export function GiftCardOrderActions({ order, labels }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState(order.email ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
@@ -134,7 +135,10 @@ export function GiftCardOrderActions({ order, labels }: Props) {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setEmail(order.email ?? "");
+          setOpen(true);
+        }}
         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-ink/15 bg-white px-2.5 text-xs font-medium text-ink transition hover:border-ink/30 hover:bg-canvas"
       >
         <Pencil size={13} />
@@ -169,7 +173,14 @@ export function GiftCardOrderActions({ order, labels }: Props) {
                 </label>
                 <label className="text-xs font-medium text-graphite/70">
                   {labels.email}
-                  <input className={inputClass} name="email" defaultValue={order.email ?? ""} type="email" maxLength={320} />
+                  <input
+                    className={inputClass}
+                    name="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    type="email"
+                    maxLength={320}
+                  />
                 </label>
                 <label className="text-xs font-medium text-graphite/70">
                   {labels.recipient}
