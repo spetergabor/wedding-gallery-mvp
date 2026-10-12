@@ -53,6 +53,7 @@ const COPY = {
 const TOPIC_COPY: Record<AdminLanguage, Record<AdminNotificationTopic, { title: string; description: string }>> = {
   hu: {
     lead_created: { title: "Új megkeresés", description: "Új ajánlatkérés érkezik a weboldalról vagy a kontakt űrlapról." },
+    gift_card_order: { title: "Új ajándékkártya-rendelés", description: "Valaki ajándékkártyát rendel az irismoment.at űrlapján." },
     mini_session_booking: { title: "Új mini shooting foglalás", description: "Valaki lefoglal egy szabad mini session időpontot." },
     mini_session_cancellation: { title: "Foglalás lemondása", description: "Egy mini shooting időpontot lemondanak." },
     favorite_list_started: { title: "Válogatás elkezdve", description: "Az ügyfél először jelöl kedvenc képet egy galériában." },
@@ -63,6 +64,7 @@ const TOPIC_COPY: Record<AdminLanguage, Record<AdminNotificationTopic, { title: 
   },
   de: {
     lead_created: { title: "Neue Anfrage", description: "Eine neue Anfrage kommt über die Website oder das Kontaktformular an." },
+    gift_card_order: { title: "Neue Geschenkkarten-Bestellung", description: "Jemand bestellt eine Geschenkkarte über das Formular auf irismoment.at." },
     mini_session_booking: { title: "Neue Mini-Shooting-Buchung", description: "Jemand bucht einen freien Termin für eine Mini Session." },
     mini_session_cancellation: { title: "Buchung storniert", description: "Ein Termin für ein Mini Shooting wird storniert." },
     favorite_list_started: { title: "Auswahl begonnen", description: "Der Kunde markiert zum ersten Mal ein Lieblingsbild in einer Galerie." },
@@ -73,6 +75,7 @@ const TOPIC_COPY: Record<AdminLanguage, Record<AdminNotificationTopic, { title: 
   },
   en: {
     lead_created: { title: "New inquiry", description: "A new inquiry arrives from the website or contact form." },
+    gift_card_order: { title: "New gift card order", description: "Someone orders a gift card through the form on irismoment.at." },
     mini_session_booking: { title: "New mini-session booking", description: "Someone books an available mini-session slot." },
     mini_session_cancellation: { title: "Booking cancelled", description: "A mini-session appointment is cancelled." },
     favorite_list_started: { title: "Selection started", description: "A client marks their first favorite in a gallery." },

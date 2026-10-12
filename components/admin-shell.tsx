@@ -8,6 +8,7 @@ import {
   Camera,
   ChevronDown,
   CreditCard,
+  Gift,
   HardDrive,
   Images,
   LayoutDashboard,
@@ -352,6 +353,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
             <Users size={17} />
             {copy.clients}
           </Link>
+          <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/gift-card-orders">
+            <Gift size={17} />
+            {copy.giftCardOrders}
+          </Link>
           <Link className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
             <Camera size={17} />
             {copy.galleries}
@@ -509,6 +514,10 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/clients">
                     <Users size={17} />
                     {copy.clients}
+                  </Link>
+                  <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/gift-card-orders">
+                    <Gift size={17} />
+                    {copy.giftCardOrders}
                   </Link>
                   <Link className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-graphite hover:bg-ink/5" href="/admin/galleries">
                     <Camera size={17} />

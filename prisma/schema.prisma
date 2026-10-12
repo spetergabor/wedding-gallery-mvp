@@ -55,6 +55,7 @@ model Admin {
   planOverride               AdminPlanOverride?
   invoices                   CustomerInvoice[]
   invoiceNumberSequences     InvoiceNumberSequence[]
+  giftCardOrders             GiftCardOrder[]
 }
 
 model SubscriptionPlan {
@@ -614,6 +615,25 @@ model Lead {
   @@index([status])
   @@index([sortOrder])
   @@index([eventDate])
+  @@index([email])
+}
+
+model GiftCardOrder {
+  id              String   @id @default(cuid())
+  adminId         String
+  customerName    String
+  email           String
+  recipientName   String
+  personCount     Int
+  deliveryMethod  String
+  deliveryAddress String?
+  message         String?
+  source          String   @default("Irismoment.at")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  admin           Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, createdAt])
   @@index([email])
 }
 

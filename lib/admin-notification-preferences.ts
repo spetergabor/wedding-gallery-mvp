@@ -4,6 +4,7 @@ import { sendAdminActivityNotificationEmail } from "@/lib/email";
 
 export const ADMIN_NOTIFICATION_TOPICS = [
   { key: "lead_created", defaultInApp: true, defaultEmail: false },
+  { key: "gift_card_order", defaultInApp: true, defaultEmail: true },
   { key: "mini_session_booking", defaultInApp: true, defaultEmail: true },
   { key: "mini_session_cancellation", defaultInApp: true, defaultEmail: true },
   { key: "favorite_list_started", defaultInApp: true, defaultEmail: false },
