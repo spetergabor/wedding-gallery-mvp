@@ -1,5 +1,6 @@
 import { CircleDollarSign, Gift, Mail, PackageCheck, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { GiftCardOrderActions } from "@/components/gift-card-order-actions";
 import { GiftCardStatusToggle } from "@/components/gift-card-status-toggle";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { getAdminLanguage } from "@/lib/admin-language";
@@ -19,7 +20,7 @@ const COPY = {
     searchPlaceholder: "Keresés név, e-mail, cím vagy számlaszám alapján",
     search: "Keresés",
     results: "találat",
-    editHint: "Az állapotokat közvetlenül a táblázatban módosíthatod.",
+    editHint: "Az állapotokat közvetlenül, a többi adatot a Szerkesztés gombbal módosíthatod.",
     customer: "Megrendelő neve",
     personCount: "Hány főre",
     recipient: "Megajándékozott neve",
@@ -30,6 +31,19 @@ const COPY = {
     message: "Komment",
     invoice: "Számlaszám",
     address: "Cím",
+    actions: "Műveletek",
+    edit: "Szerkesztés",
+    editTitle: "Rendelés szerkesztése",
+    close: "Bezárás",
+    save: "Mentés",
+    saving: "Mentés…",
+    delete: "Rendelés törlése",
+    deleteConfirm: "Igen, végleg törlöm",
+    deleteWarning: "A rendelés végleg törlődik, és ez a művelet nem vonható vissza.",
+    cancel: "Mégse",
+    emailLabel: "E-mail",
+    deliveryMethodLabel: "Átvétel módja",
+    deleteError: "Nem sikerült törölni",
     personSuffix: "fő",
     noEmail: "Nincs e-mail",
     noAddress: "Nincs megadva",
@@ -56,7 +70,7 @@ const COPY = {
     searchPlaceholder: "Nach Name, E-Mail, Adresse oder Rechnungsnummer suchen",
     search: "Suchen",
     results: "Treffer",
-    editHint: "Status können direkt in der Tabelle geändert werden.",
+    editHint: "Status können direkt, weitere Daten über Bearbeiten geändert werden.",
     customer: "Name der bestellenden Person",
     personCount: "Personen",
     recipient: "Beschenkte Person",
@@ -67,6 +81,19 @@ const COPY = {
     message: "Kommentar",
     invoice: "Rechnungsnummer",
     address: "Adresse",
+    actions: "Aktionen",
+    edit: "Bearbeiten",
+    editTitle: "Bestellung bearbeiten",
+    close: "Schließen",
+    save: "Speichern",
+    saving: "Speichern…",
+    delete: "Bestellung löschen",
+    deleteConfirm: "Ja, endgültig löschen",
+    deleteWarning: "Die Bestellung wird endgültig gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+    cancel: "Abbrechen",
+    emailLabel: "E-Mail",
+    deliveryMethodLabel: "Übergabeart",
+    deleteError: "Löschen fehlgeschlagen",
     personSuffix: "Pers.",
     noEmail: "Keine E-Mail",
     noAddress: "Nicht angegeben",
@@ -93,7 +120,7 @@ const COPY = {
     searchPlaceholder: "Search by name, email, address or invoice number",
     search: "Search",
     results: "results",
-    editHint: "Update statuses directly in the table.",
+    editHint: "Update statuses directly or use Edit for the other details.",
     customer: "Customer name",
     personCount: "People",
     recipient: "Recipient name",
@@ -104,6 +131,19 @@ const COPY = {
     message: "Comment",
     invoice: "Invoice number",
     address: "Address",
+    actions: "Actions",
+    edit: "Edit",
+    editTitle: "Edit order",
+    close: "Close",
+    save: "Save",
+    saving: "Saving…",
+    delete: "Delete order",
+    deleteConfirm: "Yes, delete permanently",
+    deleteWarning: "The order will be permanently deleted. This action cannot be undone.",
+    cancel: "Cancel",
+    emailLabel: "Email",
+    deliveryMethodLabel: "Delivery method",
+    deleteError: "Could not delete",
     personSuffix: "people",
     noEmail: "No email",
     noAddress: "Not provided",
@@ -201,7 +241,7 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
 
         {orders.length ? (
           <div className="max-h-[68vh] overflow-auto">
-            <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1480px] border-collapse text-left text-sm">
               <thead className="sticky top-0 z-20 bg-stone-100 text-[11px] uppercase tracking-[0.1em] text-graphite/65 shadow-[0_1px_0_rgba(24,24,27,0.12)]">
                 <tr>
                   <th className="sticky left-0 z-30 min-w-56 border-r border-ink/10 bg-stone-100 px-4 py-3 font-semibold">{copy.customer}</th>
@@ -213,7 +253,8 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
                   <th className="min-w-40 border-r border-ink/10 px-3 py-3 font-semibold">{copy.photographedColumn}</th>
                   <th className="min-w-60 border-r border-ink/10 px-4 py-3 font-semibold">{copy.message}</th>
                   <th className="min-w-40 border-r border-ink/10 px-4 py-3 font-semibold">{copy.invoice}</th>
-                  <th className="min-w-64 px-4 py-3 font-semibold">{copy.address}</th>
+                  <th className="min-w-64 border-r border-ink/10 px-4 py-3 font-semibold">{copy.address}</th>
+                  <th className="sticky right-0 z-30 w-32 bg-stone-100 px-3 py-3 text-center font-semibold">{copy.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink/10">
@@ -274,9 +315,53 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
                       {order.message || copy.noMessage}
                     </td>
                     <td className="border-r border-ink/10 px-4 py-3 text-xs font-medium text-ink">{order.invoiceNumber || copy.noInvoice}</td>
-                    <td className="px-4 py-3 text-xs leading-5 text-graphite/75">
+                    <td className="border-r border-ink/10 px-4 py-3 text-xs leading-5 text-graphite/75">
                       <span className="block font-medium text-ink">{order.deliveryAddress || copy.noAddress}</span>
                       <span className="mt-1 block text-[11px] text-graphite/50">{order.deliveryMethod}</span>
+                    </td>
+                    <td className="sticky right-0 z-10 bg-white px-3 py-3 text-center group-hover:bg-[#fdfbf7]">
+                      <GiftCardOrderActions
+                        order={{
+                          id: order.id,
+                          customerName: order.customerName,
+                          email: order.email,
+                          recipientName: order.recipientName,
+                          personCount: order.personCount,
+                          deliveryMethod: order.deliveryMethod,
+                          deliveryAddress: order.deliveryAddress,
+                          amountCents: order.amountCents,
+                          invoiceNumber: order.invoiceNumber,
+                          message: order.message,
+                          delivered: order.delivered,
+                          paid: order.paid,
+                          photographed: order.photographed
+                        }}
+                        labels={{
+                          edit: copy.edit,
+                          editTitle: copy.editTitle,
+                          close: copy.close,
+                          save: copy.save,
+                          saving: copy.saving,
+                          delete: copy.delete,
+                          deleteConfirm: copy.deleteConfirm,
+                          deleteWarning: copy.deleteWarning,
+                          cancel: copy.cancel,
+                          customer: copy.customer,
+                          email: copy.emailLabel,
+                          personCount: copy.personCount,
+                          recipient: copy.recipient,
+                          deliveryMethod: copy.deliveryMethodLabel,
+                          address: copy.address,
+                          amount: copy.amount,
+                          invoice: copy.invoice,
+                          message: copy.message,
+                          delivered: copy.deliveredColumn,
+                          paid: copy.paidColumn,
+                          photographed: copy.photographedColumn,
+                          saveError: copy.saveError,
+                          deleteError: copy.deleteError
+                        }}
+                      />
                     </td>
                   </tr>
                 ))}
