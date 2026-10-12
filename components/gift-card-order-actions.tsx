@@ -3,6 +3,7 @@
 import { LoaderCircle, Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { deleteGiftCardOrder, updateGiftCardOrderDetails } from "@/lib/gift-card-order-actions";
 
 type Order = {
@@ -145,7 +146,7 @@ export function GiftCardOrderActions({ order, labels }: Props) {
         {labels.edit}
       </button>
 
-      {open ? (
+      {open ? createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-4" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && close()}>
           <section
             role="dialog"
@@ -266,7 +267,8 @@ export function GiftCardOrderActions({ order, labels }: Props) {
               </div>
             </form>
           </section>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </>
   );
