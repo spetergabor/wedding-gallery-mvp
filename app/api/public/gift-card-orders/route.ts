@@ -129,6 +129,11 @@ function readFirst(fields: Record<string, string>, keys: string[]) {
   return "";
 }
 
+function formatDeliveryAddress(streetAddress: string, postalCode: string, city: string) {
+  const locality = [postalCode, city].filter(Boolean).join(" ");
+  return [streetAddress, locality].filter(Boolean).join(", ");
+}
+
 function tokenFromRequest(request: NextRequest, fields: Record<string, string>) {
   const authorization = request.headers.get("authorization") ?? "";
   if (authorization.toLowerCase().startsWith("bearer ")) {
@@ -196,7 +201,24 @@ export async function POST(request: NextRequest) {
     "personen"
   ]);
   const deliveryMethod = readFirst(fields, ["field_7eb3a52", "abholung", "delivery_method"]);
-  const deliveryAddress = readFirst(fields, ["field_8db93ce", "lieferadresse", "delivery_address"]);
+  const streetAddress = readFirst(fields, [
+    "field_8db93ce",
+    "lieferadresse",
+    "strasse_und_hausnummer",
+    "straße_und_hausnummer",
+    "street_address",
+    "delivery_address"
+  ]);
+  const deliveryCity = readFirst(fields, ["field_a8178cc", "stadt", "city", "delivery_city"]);
+  const deliveryPostalCode = readFirst(fields, [
+    "field_5f22ddd",
+    "plz",
+    "postleitzahl",
+    "postal_code",
+    "zip",
+    "delivery_postal_code"
+  ]);
+  const deliveryAddress = formatDeliveryAddress(streetAddress, deliveryPostalCode, deliveryCity);
   const message = readFirst(fields, ["message", "nachricht_optional", "nachricht", "notes"]);
   const source = readFirst(fields, ["form_name", "elementor_form_name"]) || "Irismoment.at – Geschenkkarte";
   const personCount = Number.parseInt(personCountValue, 10);
