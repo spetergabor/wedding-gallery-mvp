@@ -1,9 +1,10 @@
-import { CircleDollarSign, Gift, Mail, MapPin, PackageCheck, Search, Store, Truck } from "lucide-react";
+import { CircleDollarSign, Gift, Mail, PackageCheck, Search } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
+import { GiftCardStatusToggle } from "@/components/gift-card-status-toggle";
 import { ownerAdminId } from "@/lib/admin-scope";
+import { getAdminLanguage } from "@/lib/admin-language";
 import { requireAdmin } from "@/lib/auth";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { getAdminLanguage } from "@/lib/admin-language";
 import { prisma } from "@/lib/prisma";
 
 const COPY = {
@@ -18,24 +19,29 @@ const COPY = {
     searchPlaceholder: "Keresés név, e-mail, cím vagy számlaszám alapján",
     search: "Keresés",
     results: "találat",
-    recipient: "Megajándékozott",
-    personSuffix: "fő",
-    delivery: "Átvétel",
-    address: "Szállítási cím",
+    editHint: "Az állapotokat közvetlenül a táblázatban módosíthatod.",
+    customer: "Megrendelő neve",
+    personCount: "Hány főre",
+    recipient: "Megajándékozott neve",
+    deliveredColumn: "Átadva / elküldve",
+    paidColumn: "Fizetve?",
     amount: "Összeg",
+    photographedColumn: "Fotózva?",
+    message: "Komment",
     invoice: "Számlaszám",
-    message: "Megjegyzés",
+    address: "Cím",
+    personSuffix: "fő",
     noEmail: "Nincs e-mail",
     noAddress: "Nincs megadva",
     noInvoice: "Nincs számla",
-    noMessage: "Nincs megjegyzés",
+    noMessage: "–",
     paid: "Fizetve",
-    awaitingPayment: "Fizetésre vár",
-    delivered: "Átadva / elküldve",
-    awaitingDelivery: "Átadásra vár",
+    awaitingPayment: "Nincs fizetve",
+    delivered: "Elküldve",
+    awaitingDelivery: "Nincs elküldve",
     photographed: "Fotózva",
-    awaitingPhoto: "Fotózásra vár",
-    imported: "Forrás",
+    awaitingPhoto: "Nincs fotózva",
+    saveError: "Nem sikerült menteni",
     emptyTitle: "Nincs találat",
     emptyText: "Módosítsd a keresést, vagy várd meg az új rendeléseket az irismoment.at űrlapjáról."
   },
@@ -50,24 +56,29 @@ const COPY = {
     searchPlaceholder: "Nach Name, E-Mail, Adresse oder Rechnungsnummer suchen",
     search: "Suchen",
     results: "Treffer",
+    editHint: "Status können direkt in der Tabelle geändert werden.",
+    customer: "Name der bestellenden Person",
+    personCount: "Personen",
     recipient: "Beschenkte Person",
-    personSuffix: "Pers.",
-    delivery: "Übergabe",
-    address: "Lieferadresse",
+    deliveredColumn: "Übergeben / gesendet",
+    paidColumn: "Bezahlt?",
     amount: "Betrag",
+    photographedColumn: "Fotografiert?",
+    message: "Kommentar",
     invoice: "Rechnungsnummer",
-    message: "Nachricht",
+    address: "Adresse",
+    personSuffix: "Pers.",
     noEmail: "Keine E-Mail",
     noAddress: "Nicht angegeben",
     noInvoice: "Keine Rechnung",
-    noMessage: "Keine Nachricht",
+    noMessage: "–",
     paid: "Bezahlt",
-    awaitingPayment: "Zahlung ausstehend",
-    delivered: "Übergeben / gesendet",
-    awaitingDelivery: "Übergabe ausstehend",
+    awaitingPayment: "Nicht bezahlt",
+    delivered: "Gesendet",
+    awaitingDelivery: "Nicht gesendet",
     photographed: "Fotografiert",
-    awaitingPhoto: "Fotoshooting ausstehend",
-    imported: "Quelle",
+    awaitingPhoto: "Nicht fotografiert",
+    saveError: "Speichern fehlgeschlagen",
     emptyTitle: "Keine Treffer",
     emptyText: "Passe die Suche an oder warte auf neue Bestellungen aus dem Formular auf irismoment.at."
   },
@@ -82,32 +93,33 @@ const COPY = {
     searchPlaceholder: "Search by name, email, address or invoice number",
     search: "Search",
     results: "results",
-    recipient: "Recipient",
-    personSuffix: "people",
-    delivery: "Delivery",
-    address: "Delivery address",
+    editHint: "Update statuses directly in the table.",
+    customer: "Customer name",
+    personCount: "People",
+    recipient: "Recipient name",
+    deliveredColumn: "Delivered / sent",
+    paidColumn: "Paid?",
     amount: "Amount",
+    photographedColumn: "Photographed?",
+    message: "Comment",
     invoice: "Invoice number",
-    message: "Message",
+    address: "Address",
+    personSuffix: "people",
     noEmail: "No email",
     noAddress: "Not provided",
     noInvoice: "No invoice",
-    noMessage: "No message",
+    noMessage: "–",
     paid: "Paid",
-    awaitingPayment: "Awaiting payment",
-    delivered: "Delivered / sent",
-    awaitingDelivery: "Awaiting delivery",
+    awaitingPayment: "Not paid",
+    delivered: "Sent",
+    awaitingDelivery: "Not sent",
     photographed: "Photographed",
-    awaitingPhoto: "Awaiting shoot",
-    imported: "Source",
+    awaitingPhoto: "Not photographed",
+    saveError: "Could not save",
     emptyTitle: "No results",
     emptyText: "Adjust the search or wait for new orders from the form on irismoment.at."
   }
 } as const;
-
-function isPostalDelivery(value: string) {
-  return value.toLocaleLowerCase("de").includes("post");
-}
 
 function formatAmount(amountCents: number | null, language: keyof typeof COPY) {
   if (amountCents === null) return "–";
@@ -117,12 +129,11 @@ function formatAmount(amountCents: number | null, language: keyof typeof COPY) {
   }).format(amountCents / 100);
 }
 
-function StatusBadge({ active, positive, negative }: { active: boolean; positive: string; negative: string }) {
-  return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${active ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-      {active ? positive : negative}
-    </span>
-  );
+function formatOrderDate(date: Date, language: keyof typeof COPY) {
+  return date.toLocaleDateString(language === "hu" ? "hu-HU" : language === "de" ? "de-AT" : "en-US", {
+    dateStyle: "medium",
+    timeZone: APP_TIME_ZONE
+  });
 }
 
 export default async function GiftCardOrdersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -170,7 +181,9 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
         <div className="flex flex-col justify-between gap-4 border-b border-ink/10 p-5 lg:flex-row lg:items-center">
           <div>
             <h2 className="text-xl font-semibold text-ink">{copy.latest}</h2>
-            <p className="mt-1 text-sm text-graphite/60">{orders.length} {copy.results}</p>
+            <p className="mt-1 text-sm text-graphite/60">
+              {orders.length} {copy.results}. {copy.editHint}
+            </p>
           </div>
           <form className="flex w-full max-w-2xl flex-col gap-2 sm:flex-row">
             <label className="relative flex-1">
@@ -187,83 +200,88 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
         </div>
 
         {orders.length ? (
-          <div className="divide-y divide-ink/10">
-            {orders.map((order) => {
-              const postal = isPostalDelivery(order.deliveryMethod);
-              return (
-                <article id={`order-${order.id}`} key={order.id} className="scroll-mt-24 p-5 transition target:bg-brass/5 sm:p-6">
-                  <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-ink">{order.customerName}</h3>
-                        <span className="rounded-full bg-brass/10 px-2.5 py-1 text-xs font-medium text-brass">
-                          {order.personCount} {copy.personSuffix}
-                        </span>
-                      </div>
+          <div className="max-h-[68vh] overflow-auto">
+            <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
+              <thead className="sticky top-0 z-20 bg-stone-100 text-[11px] uppercase tracking-[0.1em] text-graphite/65 shadow-[0_1px_0_rgba(24,24,27,0.12)]">
+                <tr>
+                  <th className="sticky left-0 z-30 min-w-56 border-r border-ink/10 bg-stone-100 px-4 py-3 font-semibold">{copy.customer}</th>
+                  <th className="w-24 border-r border-ink/10 px-3 py-3 text-center font-semibold">{copy.personCount}</th>
+                  <th className="min-w-52 border-r border-ink/10 px-4 py-3 font-semibold">{copy.recipient}</th>
+                  <th className="min-w-40 border-r border-ink/10 px-3 py-3 font-semibold">{copy.deliveredColumn}</th>
+                  <th className="min-w-36 border-r border-ink/10 px-3 py-3 font-semibold">{copy.paidColumn}</th>
+                  <th className="w-28 border-r border-ink/10 px-3 py-3 text-right font-semibold">{copy.amount}</th>
+                  <th className="min-w-40 border-r border-ink/10 px-3 py-3 font-semibold">{copy.photographedColumn}</th>
+                  <th className="min-w-60 border-r border-ink/10 px-4 py-3 font-semibold">{copy.message}</th>
+                  <th className="min-w-40 border-r border-ink/10 px-4 py-3 font-semibold">{copy.invoice}</th>
+                  <th className="min-w-64 px-4 py-3 font-semibold">{copy.address}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink/10">
+                {orders.map((order) => (
+                  <tr key={order.id} className="group align-top transition hover:bg-brass/[0.035]">
+                    <td className="sticky left-0 z-10 border-r border-ink/10 bg-white px-4 py-3 group-hover:bg-[#fdfbf7]">
+                      <strong className="block font-semibold text-ink">{order.customerName}</strong>
                       {order.email ? (
-                        <a href={`mailto:${order.email}`} className="mt-1 inline-flex items-center gap-1.5 text-sm text-graphite/70 hover:text-ink hover:underline">
-                          <Mail size={14} />
+                        <a href={`mailto:${order.email}`} className="mt-1 inline-flex items-center gap-1.5 text-xs text-graphite/65 hover:text-ink hover:underline">
+                          <Mail size={12} />
                           {order.email}
                         </a>
                       ) : (
-                        <p className="mt-1 text-sm text-graphite/55">{copy.noEmail}</p>
+                        <span className="mt-1 block text-xs text-graphite/45">{copy.noEmail}</span>
                       )}
-                    </div>
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
-                      <StatusBadge active={order.paid} positive={copy.paid} negative={copy.awaitingPayment} />
-                      <StatusBadge active={order.delivered} positive={copy.delivered} negative={copy.awaitingDelivery} />
-                      <StatusBadge active={order.photographed} positive={copy.photographed} negative={copy.awaitingPhoto} />
-                    </div>
-                  </div>
-
-                  <dl className="mt-5 grid gap-4 rounded-md bg-canvas/60 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                    <div>
-                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.recipient}</dt>
-                      <dd className="mt-1 text-sm font-medium text-ink">{order.recipientName}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.amount}</dt>
-                      <dd className="mt-1 text-sm font-medium text-ink">{formatAmount(order.amountCents, language)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.invoice}</dt>
-                      <dd className="mt-1 text-sm font-medium text-ink">{order.invoiceNumber || copy.noInvoice}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.delivery}</dt>
-                      <dd className="mt-1 flex items-center gap-1.5 text-sm font-medium text-ink">
-                        {postal ? <Truck size={14} /> : <Store size={14} />}
-                        {order.deliveryMethod}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.address}</dt>
-                      <dd className="mt-1 flex items-start gap-1.5 text-sm font-medium text-ink">
-                        <MapPin size={14} className="mt-0.5 shrink-0" />
-                        <span>{order.deliveryAddress || copy.noAddress}</span>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.imported}</dt>
-                      <dd className="mt-1 text-sm font-medium text-ink">
-                        {order.sourceOrder !== null
-                          ? order.source
-                          : order.createdAt.toLocaleString(language === "hu" ? "hu-HU" : language === "de" ? "de-AT" : "en-US", {
-                              dateStyle: "medium",
-                              timeStyle: "short",
-                              timeZone: APP_TIME_ZONE
-                            })}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <div className="mt-4">
-                    <p className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.message}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-graphite/75">{order.message || copy.noMessage}</p>
-                  </div>
-                </article>
-              );
-            })}
+                      <span className="mt-1 block text-[11px] text-graphite/45">
+                        {order.sourceOrder !== null ? order.source : formatOrderDate(order.createdAt, language)}
+                      </span>
+                    </td>
+                    <td className="border-r border-ink/10 px-3 py-3 text-center font-medium text-ink">
+                      {order.personCount} <span className="text-xs font-normal text-graphite/55">{copy.personSuffix}</span>
+                    </td>
+                    <td className="border-r border-ink/10 px-4 py-3 font-medium text-ink">{order.recipientName}</td>
+                    <td className="border-r border-ink/10 bg-stone-50/50 px-3 py-3">
+                      <GiftCardStatusToggle
+                        orderId={order.id}
+                        field="delivered"
+                        checked={order.delivered}
+                        activeLabel={copy.delivered}
+                        inactiveLabel={copy.awaitingDelivery}
+                        errorLabel={copy.saveError}
+                      />
+                    </td>
+                    <td className="border-r border-ink/10 bg-stone-50/50 px-3 py-3">
+                      <GiftCardStatusToggle
+                        orderId={order.id}
+                        field="paid"
+                        checked={order.paid}
+                        activeLabel={copy.paid}
+                        inactiveLabel={copy.awaitingPayment}
+                        errorLabel={copy.saveError}
+                      />
+                    </td>
+                    <td className="whitespace-nowrap border-r border-ink/10 px-3 py-3 text-right font-semibold tabular-nums text-ink">
+                      {formatAmount(order.amountCents, language)}
+                    </td>
+                    <td className="border-r border-ink/10 bg-stone-50/50 px-3 py-3">
+                      <GiftCardStatusToggle
+                        orderId={order.id}
+                        field="photographed"
+                        checked={order.photographed}
+                        activeLabel={copy.photographed}
+                        inactiveLabel={copy.awaitingPhoto}
+                        errorLabel={copy.saveError}
+                      />
+                    </td>
+                    <td className="max-w-72 whitespace-pre-wrap border-r border-ink/10 px-4 py-3 text-xs leading-5 text-graphite/75">
+                      {order.message || copy.noMessage}
+                    </td>
+                    <td className="border-r border-ink/10 px-4 py-3 text-xs font-medium text-ink">{order.invoiceNumber || copy.noInvoice}</td>
+                    <td className="px-4 py-3 text-xs leading-5 text-graphite/75">
+                      <span className="block font-medium text-ink">{order.deliveryAddress || copy.noAddress}</span>
+                      <span className="mt-1 block text-[11px] text-graphite/50">{order.deliveryMethod}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="p-12 text-center">
