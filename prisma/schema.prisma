@@ -622,18 +622,27 @@ model GiftCardOrder {
   id              String   @id @default(cuid())
   adminId         String
   customerName    String
-  email           String
+  email           String?
   recipientName   String
   personCount     Int
   deliveryMethod  String
   deliveryAddress String?
   message         String?
+  delivered       Boolean  @default(false)
+  paid            Boolean  @default(false)
+  amountCents     Int?
+  photographed    Boolean  @default(false)
+  invoiceNumber   String?
+  externalId      String?  @unique
+  sourceOrder     Int?
   source          String   @default("Irismoment.at")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   admin           Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId, createdAt])
+  @@index([adminId, paid])
+  @@index([adminId, photographed])
   @@index([email])
 }
 

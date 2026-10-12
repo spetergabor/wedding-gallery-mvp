@@ -1,4 +1,4 @@
-import { Gift, Mail, MapPin, PackageCheck, Store, Truck } from "lucide-react";
+import { CircleDollarSign, Gift, Mail, MapPin, PackageCheck, Search, Store, Truck } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
@@ -10,62 +10,98 @@ const COPY = {
   hu: {
     eyebrow: "Ajándékkártyák",
     title: "Kártyarendelők",
-    intro: "Az irismoment.at Geschenkkarte űrlapján leadott rendelések egy helyen.",
+    intro: "Az irismoment.at Geschenkkarte űrlapján leadott és a korábbi listából importált rendelések egy helyen.",
     all: "Összes rendelés",
-    pickup: "Személyes átvétel",
-    post: "Postai küldés",
-    latest: "Legutóbbi rendelések",
-    orderedBy: "Megrendelő",
+    unpaid: "Fizetésre vár",
+    notPhotographed: "Fotózásra vár",
+    latest: "Rendelések",
+    searchPlaceholder: "Keresés név, e-mail, cím vagy számlaszám alapján",
+    search: "Keresés",
+    results: "találat",
     recipient: "Megajándékozott",
-    people: "Létszám",
     personSuffix: "fő",
     delivery: "Átvétel",
     address: "Szállítási cím",
+    amount: "Összeg",
+    invoice: "Számlaszám",
     message: "Megjegyzés",
+    noEmail: "Nincs e-mail",
     noAddress: "Nincs megadva",
+    noInvoice: "Nincs számla",
     noMessage: "Nincs megjegyzés",
-    emptyTitle: "Még nincs ajándékkártya-rendelés",
-    emptyText: "Az irismoment.at űrlapjáról érkező új rendelések itt jelennek meg."
+    paid: "Fizetve",
+    awaitingPayment: "Fizetésre vár",
+    delivered: "Átadva / elküldve",
+    awaitingDelivery: "Átadásra vár",
+    photographed: "Fotózva",
+    awaitingPhoto: "Fotózásra vár",
+    imported: "Forrás",
+    emptyTitle: "Nincs találat",
+    emptyText: "Módosítsd a keresést, vagy várd meg az új rendeléseket az irismoment.at űrlapjáról."
   },
   de: {
     eyebrow: "Geschenkkarten",
     title: "Geschenkkarten-Bestellungen",
-    intro: "Alle Bestellungen aus dem Geschenkkartenformular auf irismoment.at an einem Ort.",
+    intro: "Bestellungen aus dem Formular auf irismoment.at und aus der bisherigen Liste an einem Ort.",
     all: "Alle Bestellungen",
-    pickup: "Persönliche Abholung",
-    post: "Postversand",
-    latest: "Neueste Bestellungen",
-    orderedBy: "Bestellt von",
+    unpaid: "Zahlung ausstehend",
+    notPhotographed: "Fotoshooting ausstehend",
+    latest: "Bestellungen",
+    searchPlaceholder: "Nach Name, E-Mail, Adresse oder Rechnungsnummer suchen",
+    search: "Suchen",
+    results: "Treffer",
     recipient: "Beschenkte Person",
-    people: "Personen",
     personSuffix: "Pers.",
     delivery: "Übergabe",
     address: "Lieferadresse",
+    amount: "Betrag",
+    invoice: "Rechnungsnummer",
     message: "Nachricht",
+    noEmail: "Keine E-Mail",
     noAddress: "Nicht angegeben",
+    noInvoice: "Keine Rechnung",
     noMessage: "Keine Nachricht",
-    emptyTitle: "Noch keine Geschenkkarten-Bestellung",
-    emptyText: "Neue Bestellungen vom Formular auf irismoment.at erscheinen hier."
+    paid: "Bezahlt",
+    awaitingPayment: "Zahlung ausstehend",
+    delivered: "Übergeben / gesendet",
+    awaitingDelivery: "Übergabe ausstehend",
+    photographed: "Fotografiert",
+    awaitingPhoto: "Fotoshooting ausstehend",
+    imported: "Quelle",
+    emptyTitle: "Keine Treffer",
+    emptyText: "Passe die Suche an oder warte auf neue Bestellungen aus dem Formular auf irismoment.at."
   },
   en: {
     eyebrow: "Gift cards",
     title: "Gift card orders",
-    intro: "Orders submitted through the gift card form on irismoment.at, all in one place.",
+    intro: "Orders from the irismoment.at form and the previous tracking list, all in one place.",
     all: "All orders",
-    pickup: "Personal pickup",
-    post: "Postal delivery",
-    latest: "Latest orders",
-    orderedBy: "Ordered by",
+    unpaid: "Awaiting payment",
+    notPhotographed: "Awaiting shoot",
+    latest: "Orders",
+    searchPlaceholder: "Search by name, email, address or invoice number",
+    search: "Search",
+    results: "results",
     recipient: "Recipient",
-    people: "People",
     personSuffix: "people",
     delivery: "Delivery",
     address: "Delivery address",
+    amount: "Amount",
+    invoice: "Invoice number",
     message: "Message",
+    noEmail: "No email",
     noAddress: "Not provided",
+    noInvoice: "No invoice",
     noMessage: "No message",
-    emptyTitle: "No gift card orders yet",
-    emptyText: "New orders from the irismoment.at form will appear here."
+    paid: "Paid",
+    awaitingPayment: "Awaiting payment",
+    delivered: "Delivered / sent",
+    awaitingDelivery: "Awaiting delivery",
+    photographed: "Photographed",
+    awaitingPhoto: "Awaiting shoot",
+    imported: "Source",
+    emptyTitle: "No results",
+    emptyText: "Adjust the search or wait for new orders from the form on irismoment.at."
   }
 } as const;
 
@@ -73,16 +109,40 @@ function isPostalDelivery(value: string) {
   return value.toLocaleLowerCase("de").includes("post");
 }
 
-export default async function GiftCardOrdersPage() {
-  const [session, language] = await Promise.all([requireAdmin(), getAdminLanguage()]);
+function formatAmount(amountCents: number | null, language: keyof typeof COPY) {
+  if (amountCents === null) return "–";
+  return new Intl.NumberFormat(language === "hu" ? "hu-HU" : language === "de" ? "de-AT" : "en-US", {
+    style: "currency",
+    currency: "EUR"
+  }).format(amountCents / 100);
+}
+
+function StatusBadge({ active, positive, negative }: { active: boolean; positive: string; negative: string }) {
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${active ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+      {active ? positive : negative}
+    </span>
+  );
+}
+
+export default async function GiftCardOrdersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const [session, language, params] = await Promise.all([requireAdmin(), getAdminLanguage(), searchParams]);
   const copy = COPY[language];
-  const orders = await prisma.giftCardOrder.findMany({
+  const allOrders = await prisma.giftCardOrder.findMany({
     where: { adminId: ownerAdminId(session) },
-    orderBy: { createdAt: "desc" },
-    take: 500
+    orderBy: [{ createdAt: "desc" }, { sourceOrder: "desc" }],
+    take: 1000
   });
-  const postalCount = orders.filter((order) => isPostalDelivery(order.deliveryMethod)).length;
-  const pickupCount = orders.length - postalCount;
+  const query = params.q?.trim().toLocaleLowerCase(language) ?? "";
+  const orders = query
+    ? allOrders.filter((order) =>
+        [order.customerName, order.recipientName, order.email, order.deliveryAddress, order.invoiceNumber, order.message]
+          .filter(Boolean)
+          .some((value) => value!.toLocaleLowerCase(language).includes(query))
+      )
+    : allOrders;
+  const unpaidCount = allOrders.filter((order) => !order.paid).length;
+  const notPhotographedCount = allOrders.filter((order) => !order.photographed).length;
 
   return (
     <AdminShell>
@@ -94,9 +154,9 @@ export default async function GiftCardOrdersPage() {
 
       <section className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: Gift, value: orders.length, label: copy.all },
-          { icon: Store, value: pickupCount, label: copy.pickup },
-          { icon: Truck, value: postalCount, label: copy.post }
+          { icon: Gift, value: allOrders.length, label: copy.all },
+          { icon: CircleDollarSign, value: unpaidCount, label: copy.unpaid },
+          { icon: PackageCheck, value: notPhotographedCount, label: copy.notPhotographed }
         ].map((item) => (
           <div key={item.label} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <item.icon size={19} className="text-brass" />
@@ -107,8 +167,23 @@ export default async function GiftCardOrdersPage() {
       </section>
 
       <section className="mt-6 overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
-        <div className="border-b border-ink/10 p-5">
-          <h2 className="text-xl font-semibold text-ink">{copy.latest}</h2>
+        <div className="flex flex-col justify-between gap-4 border-b border-ink/10 p-5 lg:flex-row lg:items-center">
+          <div>
+            <h2 className="text-xl font-semibold text-ink">{copy.latest}</h2>
+            <p className="mt-1 text-sm text-graphite/60">{orders.length} {copy.results}</p>
+          </div>
+          <form className="flex w-full max-w-2xl flex-col gap-2 sm:flex-row">
+            <label className="relative flex-1">
+              <Search className="absolute left-3 top-3.5 text-graphite/45" size={16} />
+              <input
+                name="q"
+                defaultValue={params.q}
+                placeholder={copy.searchPlaceholder}
+                className="h-11 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-ink/50"
+              />
+            </label>
+            <button className="h-11 rounded-md bg-ink px-5 text-sm font-medium text-white transition hover:bg-graphite">{copy.search}</button>
+          </form>
         </div>
 
         {orders.length ? (
@@ -125,33 +200,39 @@ export default async function GiftCardOrdersPage() {
                           {order.personCount} {copy.personSuffix}
                         </span>
                       </div>
-                      <a href={`mailto:${order.email}`} className="mt-1 inline-flex items-center gap-1.5 text-sm text-graphite/70 hover:text-ink hover:underline">
-                        <Mail size={14} />
-                        {order.email}
-                      </a>
+                      {order.email ? (
+                        <a href={`mailto:${order.email}`} className="mt-1 inline-flex items-center gap-1.5 text-sm text-graphite/70 hover:text-ink hover:underline">
+                          <Mail size={14} />
+                          {order.email}
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-sm text-graphite/55">{copy.noEmail}</p>
+                      )}
                     </div>
-                    <time className="shrink-0 text-sm text-graphite/60">
-                      {order.createdAt.toLocaleString(language === "hu" ? "hu-HU" : language === "de" ? "de-AT" : "en-US", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                        timeZone: APP_TIME_ZONE
-                      })}
-                    </time>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      <StatusBadge active={order.paid} positive={copy.paid} negative={copy.awaitingPayment} />
+                      <StatusBadge active={order.delivered} positive={copy.delivered} negative={copy.awaitingDelivery} />
+                      <StatusBadge active={order.photographed} positive={copy.photographed} negative={copy.awaitingPhoto} />
+                    </div>
                   </div>
 
-                  <dl className="mt-5 grid gap-4 rounded-md bg-canvas/60 p-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <dl className="mt-5 grid gap-4 rounded-md bg-canvas/60 p-4 sm:grid-cols-2 xl:grid-cols-3">
                     <div>
                       <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.recipient}</dt>
                       <dd className="mt-1 text-sm font-medium text-ink">{order.recipientName}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.people}</dt>
-                      <dd className="mt-1 text-sm font-medium text-ink">{order.personCount}</dd>
+                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.amount}</dt>
+                      <dd className="mt-1 text-sm font-medium text-ink">{formatAmount(order.amountCents, language)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.invoice}</dt>
+                      <dd className="mt-1 text-sm font-medium text-ink">{order.invoiceNumber || copy.noInvoice}</dd>
                     </div>
                     <div>
                       <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.delivery}</dt>
                       <dd className="mt-1 flex items-center gap-1.5 text-sm font-medium text-ink">
-                        {postal ? <Truck size={14} /> : <PackageCheck size={14} />}
+                        {postal ? <Truck size={14} /> : <Store size={14} />}
                         {order.deliveryMethod}
                       </dd>
                     </div>
@@ -160,6 +241,18 @@ export default async function GiftCardOrdersPage() {
                       <dd className="mt-1 flex items-start gap-1.5 text-sm font-medium text-ink">
                         <MapPin size={14} className="mt-0.5 shrink-0" />
                         <span>{order.deliveryAddress || copy.noAddress}</span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-[0.12em] text-graphite/55">{copy.imported}</dt>
+                      <dd className="mt-1 text-sm font-medium text-ink">
+                        {order.sourceOrder !== null
+                          ? order.source
+                          : order.createdAt.toLocaleString(language === "hu" ? "hu-HU" : language === "de" ? "de-AT" : "en-US", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                              timeZone: APP_TIME_ZONE
+                            })}
                       </dd>
                     </div>
                   </dl>
