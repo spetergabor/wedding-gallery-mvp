@@ -144,12 +144,39 @@ function statusBadgeClass(status: string) {
 }
 
 function deliveryStatusLabel(status: string) {
-  if (status === "sent") {
-    return "Elküldve";
+  if (status === "delivered") {
+    return "Kézbesítve";
   }
 
+  if (status === "opened") {
+    return "Megnyitva";
+  }
+
+  if (status === "clicked") {
+    return "Kattintva";
+  }
+
+  if (status === "sent") {
+    return "Átadva";
+  }
+
+  if (status === "bounced") {
+    return "Visszapattant";
+  }
   if (status === "failed") {
     return "Hiba";
+  }
+
+  if (status === "complained") {
+    return "Spamnek jelölve";
+  }
+
+  if (status === "suppressed") {
+    return "Letiltva";
+  }
+
+  if (status === "delivery_delayed") {
+    return "Késik";
   }
 
   if (status === "retry") {
@@ -168,15 +195,15 @@ function deliveryStatusLabel(status: string) {
 }
 
 function deliveryStatusBadgeClass(status: string) {
-  if (status === "sent") {
+  if (["delivered", "opened", "clicked"].includes(status)) {
     return "bg-sage/10 text-sage";
   }
 
-  if (status === "failed") {
+  if (["failed", "bounced", "complained", "suppressed"].includes(status)) {
     return "bg-red-50 text-red-700";
   }
 
-  if (status === "retry") {
+  if (status === "retry" || status === "delivery_delayed") {
     return "bg-brass/10 text-brass";
   }
 

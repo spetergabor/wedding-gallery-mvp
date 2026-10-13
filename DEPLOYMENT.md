@@ -21,6 +21,7 @@ R2_BUCKET_NAME="wedding-gallery"
 NEXT_PUBLIC_R2_PUBLIC_BASE_URL="https://cdn.hochzeitsfotografgraz.at"
 NEXT_PUBLIC_APP_URL="https://gallery.hochzeitsfotografgraz.at"
 RESEND_API_KEY="re_..."
+RESEND_WEBHOOK_SECRET="whsec_..."
 ADMIN_NOTIFICATION_EMAIL="you@example.com"
 EMAIL_FROM="Spetly <gallery@hochzeitsfotografgraz.at>"
 CRON_SECRET="a-long-random-worker-secret"
@@ -29,6 +30,11 @@ ZIP_WORKER_DRIVER="vercel"
 R2_MULTIPART_UPLOAD_PART_SIZE_MB="64"
 R2_OBJECT_READ_CHUNK_SIZE_MB="16"
 ```
+
+Create a Resend webhook for `https://spetly.app/api/webhooks/resend` and subscribe it to the
+`email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.failed`,
+`email.suppressed`, `email.complained`, `email.opened`, and `email.clicked` events. Store its
+signing secret in `RESEND_WEBHOOK_SECRET`.
 
 ## Vercel setup
 

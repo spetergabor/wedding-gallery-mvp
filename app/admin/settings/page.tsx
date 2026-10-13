@@ -1206,15 +1206,15 @@ function metadataStringValue(metadata: unknown, key: string) {
 }
 
 function normalizeDeliveryAutomationStatus(status: string): AutomationStatus {
-  if (status === "sent") {
+  if (["sent", "delivered", "opened", "clicked"].includes(status)) {
     return "success";
   }
 
-  if (status === "failed") {
+  if (["failed", "bounced", "complained", "suppressed"].includes(status)) {
     return "failed";
   }
 
-  if (status === "retry") {
+  if (status === "retry" || status === "delivery_delayed") {
     return "retrying";
   }
 
@@ -1280,7 +1280,10 @@ function deliveryLogHref(deliveryLog: SettingsDeliveryLog) {
 }
 
 function deliveryLogRetry(deliveryLog: SettingsDeliveryLog): AutomationRetry | null {
-  if (!deliveryLog.entityId || deliveryLog.status === "sent" || deliveryLog.status === "skipped") {
+  if (
+    !deliveryLog.entityId ||
+    ["sent", "delivered", "opened", "clicked", "complained", "skipped"].includes(deliveryLog.status)
+  ) {
     return null;
   }
 

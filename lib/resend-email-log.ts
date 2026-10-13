@@ -73,6 +73,7 @@ export async function storeSentEmailLog(input: SentEmailLogInput) {
         html: input.html ?? null,
         text: input.text ?? null,
         lastEvent: input.status,
+        lastEventAt: new Date(),
         errorMessage: cleanErrorMessage(input.errorMessage),
         sentAt: input.status === "sent" ? new Date() : null
       }

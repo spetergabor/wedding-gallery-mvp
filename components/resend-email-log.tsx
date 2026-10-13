@@ -41,6 +41,7 @@ const COPY = {
       clicked: "Kattintva",
       bounced: "Visszapattant",
       complained: "Spamnek jelölve",
+      suppressed: "Letiltva",
       failed: "Sikertelen",
       canceled: "Törölve",
       delivery_delayed: "Késik",
@@ -78,6 +79,7 @@ const COPY = {
       clicked: "Angeklickt",
       bounced: "Zurückgewiesen",
       complained: "Als Spam markiert",
+      suppressed: "Unterdrückt",
       failed: "Fehlgeschlagen",
       canceled: "Abgebrochen",
       delivery_delayed: "Verzögert",
@@ -115,6 +117,7 @@ const COPY = {
       clicked: "Clicked",
       bounced: "Bounced",
       complained: "Marked as spam",
+      suppressed: "Suppressed",
       failed: "Failed",
       canceled: "Canceled",
       delivery_delayed: "Delayed",
@@ -130,7 +133,7 @@ function statusClass(status: string) {
     return "border-sage/25 bg-sage/10 text-sage";
   }
 
-  if (["bounced", "complained", "failed", "canceled"].includes(status)) {
+  if (["bounced", "complained", "failed", "canceled", "suppressed"].includes(status)) {
     return "border-red-200 bg-red-50 text-red-700";
   }
 

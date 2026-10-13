@@ -532,6 +532,15 @@ async function sendResendEmail(apiKey: string, payload: ResendSendPayload) {
   }
 }
 
+async function successfulResendDelivery(response: Response) {
+  const responsePayload: unknown = await response.clone().json().catch(() => null);
+
+  return {
+    ok: true,
+    providerMessageId: resendResponseValue(responsePayload, "id")
+  };
+}
+
 function emailAddressFromSender(sender: string) {
   const match = sender.match(/<([^<>]+)>/);
   return (match?.[1] ?? sender).trim();
@@ -852,7 +861,7 @@ export async function sendAdminPasswordResetEmail(payload: AdminPasswordResetEma
     throw new Error(`Password reset email failed: ${response.status} ${errorText}`);
   }
 
-  return true;
+  return successfulResendDelivery(response);
 }
 
 export async function sendCustomerPortalAccessEmail(payload: CustomerPortalAccessEmail) {
@@ -914,7 +923,7 @@ export async function sendCustomerPortalAccessEmail(payload: CustomerPortalAcces
     throw new Error(`Customer portal access email failed: ${response.status} ${errorText}`);
   }
 
-  return true;
+  return successfulResendDelivery(response);
 }
 
 const MINI_SESSION_BOOKING_EMAIL_COPY = {
@@ -1093,7 +1102,7 @@ export async function sendMiniSessionBookingConfirmationEmail(payload: MiniSessi
     throw new Error(`Mini session booking confirmation failed: ${response.status} ${errorText}`);
   }
 
-  return true;
+  return successfulResendDelivery(response);
 }
 
 function miniSessionReminderHtml(payload: MiniSessionReminderEmail) {
@@ -1180,7 +1189,7 @@ export async function sendMiniSessionReminderEmail(payload: MiniSessionReminderE
     throw new Error(`Mini session reminder failed: ${response.status} ${errorText}`);
   }
 
-  return true;
+  return successfulResendDelivery(response);
 }
 
 function adminMiniSessionBookingHtml(payload: AdminMiniSessionBookingEmail, title: string) {
@@ -1252,7 +1261,7 @@ export async function sendMiniSessionAdminBookingEmail(payload: AdminMiniSession
     throw new Error(`Mini session admin booking email failed: ${response.status} ${errorText}`);
   }
 
-  return true;
+  return successfulResendDelivery(response);
 }
 
 export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSessionBookingEmail) {
@@ -1292,7 +1301,7 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
     throw new Error(`Mini session cancellation email failed: ${response.status} ${errorText}`);
   }
 
-  return true;
+  return successfulResendDelivery(response);
 }
 
 
@@ -1447,7 +1456,7 @@ export async function sendMiniSessionWorkflowNotificationEmail(payload: MiniSess
     throw new Error(`Mini session workflow notification failed: ${response.status} ${errorText}`);
   }
 
-  return true;
+  return successfulResendDelivery(response);
 }
 
 function galleryZipReadyHtml({

@@ -242,6 +242,7 @@ model SentEmailLog {
   html              String?
   text              String?
   lastEvent         String    @default("sent")
+  lastEventAt       DateTime?
   errorMessage      String?
   sentAt            DateTime?
   createdAt         DateTime  @default(now())
@@ -250,6 +251,19 @@ model SentEmailLog {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([provider, createdAt])
+}
+
+model ResendWebhookEvent {
+  id                String   @id @default(cuid())
+  webhookId         String   @unique
+  providerMessageId String
+  type              String
+  occurredAt        DateTime
+  payload           Json
+  createdAt         DateTime @default(now())
+
+  @@index([providerMessageId, occurredAt])
+  @@index([type, occurredAt])
 }
 
 model AdminCalendarBlock {
