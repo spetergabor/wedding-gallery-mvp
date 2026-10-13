@@ -16,6 +16,7 @@ import {
   miniSessionBookingManageUrl
 } from "@/lib/email";
 import { googleCalendarUrl } from "@/lib/google-calendar";
+import { resolveMiniSessionConfirmationContent } from "@/lib/mini-session-confirmation-content";
 import {
   formatMiniSessionSlotWithDate,
   formatMiniSessionTime,
@@ -30,49 +31,6 @@ export const metadata = {
     follow: false
   }
 };
-
-const COPY = {
-  hu: {
-    eyebrow: "Sikeres foglalás",
-    title: "Az időpontod biztosan le van foglalva",
-    intro: "Mentsd el most a naptáradba, így akkor is kéznél lesz, ha a visszaigazoló e-mail a spam mappába kerül.",
-    saved: "A foglalás rögzítve és érvényes.",
-    appointment: "A foglalásod",
-    date: "Időpont",
-    location: "Helyszín",
-    name: "Név",
-    attendees: "Létszám",
-    saveTitle: "Mentsd el az időpontot",
-    saveText: "Válaszd ki a telefonodon vagy számítógépeden használt naptárt.",
-    emailTitle: "E-mailt is küldtünk",
-    emailText: "A visszaigazolást erre a címre küldtük:",
-    spamText: "Ha néhány percen belül nem találod, nézd meg a spam vagy promóciók mappát is.",
-    manage: "Foglalás kezelése",
-    manageText: "Ezen a személyes oldalon később módosíthatod vagy lemondhatod az időpontot.",
-    keepPage: "Ezt az oldalt is elmentheted a könyvjelzőid közé vagy készíthetsz róla képernyőképet.",
-    contact: "Kérdésed van?"
-  },
-  de: {
-    eyebrow: "Buchung erfolgreich",
-    title: "Dein Termin ist sicher gebucht",
-    intro: "Speichere ihn jetzt in deinem Kalender. So hast du alle Angaben auch dann griffbereit, wenn die Bestätigungs-E-Mail im Spamordner landet.",
-    saved: "Deine Buchung ist gespeichert und verbindlich.",
-    appointment: "Deine Buchung",
-    date: "Termin",
-    location: "Ort",
-    name: "Name",
-    attendees: "Personen",
-    saveTitle: "Termin jetzt speichern",
-    saveText: "Wähle den Kalender, den du auf deinem Smartphone oder Computer verwendest.",
-    emailTitle: "Wir haben dir auch eine E-Mail geschickt",
-    emailText: "Die Bestätigung wurde an diese Adresse gesendet:",
-    spamText: "Falls du sie nach einigen Minuten nicht findest, prüfe bitte auch deinen Spam- oder Werbeordner.",
-    manage: "Buchung verwalten",
-    manageText: "Über diese persönliche Seite kannst du deinen Termin später ändern oder stornieren.",
-    keepPage: "Du kannst diese Seite zusätzlich als Lesezeichen oder Screenshot speichern.",
-    contact: "Noch eine Frage?"
-  }
-} as const;
 
 export default async function MiniSessionConfirmationPage({
   params
@@ -102,7 +60,8 @@ export default async function MiniSessionConfirmationPage({
                   businessName: true,
                   contactEmail: true,
                   contactPhone: true,
-                  publicSubdomain: true
+                  publicSubdomain: true,
+                  miniSessionConfirmationContent: true
                 }
               }
             }
@@ -124,7 +83,10 @@ export default async function MiniSessionConfirmationPage({
   }
 
   const language = normalizeMiniSessionLanguage(booking.miniSession.language);
-  const copy = COPY[language];
+  const confirmationContent = resolveMiniSessionConfirmationContent(
+    booking.miniSession.admin.siteSettings?.miniSessionConfirmationContent
+  );
+  const copy = confirmationContent[language];
   const brandName = booking.miniSession.admin.siteSettings?.businessName || "Spetly";
   const appointment = formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt, language);
   const attendeeUnit = language === "de"
@@ -229,10 +191,10 @@ export default async function MiniSessionConfirmationPage({
               <p className="mt-2 text-sm leading-6 text-graphite/65">{copy.saveText}</p>
               <div className="mt-5">
                 <MiniSessionConfirmationActions
-                  language={language}
                   googleCalendarHref={googleCalendarHref}
                   calendarFileHref={calendarFileHref}
                   details={details}
+                  labels={copy}
                 />
               </div>
 

@@ -21,6 +21,10 @@ import {
 import { logSystemEvent } from "@/lib/system-events";
 import { ADMIN_NOTIFICATION_TOPICS } from "@/lib/admin-notification-preferences";
 import {
+  DEFAULT_MINI_SESSION_CONFIRMATION_CONTENT,
+  type MiniSessionConfirmationLanguageContent
+} from "@/lib/mini-session-confirmation-content";
+import {
   createBrandAssetObjectKey,
   deletePhotoObject,
   getPhotoPublicUrl,
@@ -77,6 +81,64 @@ function formOptionalDate(formData: FormData, key: string) {
 
 function formNullableString(formData: FormData, key: string) {
   return formString(formData, key) || null;
+}
+
+function formLimitedString(formData: FormData, key: string, maxLength: number) {
+  return formString(formData, key).slice(0, maxLength);
+}
+
+function confirmationLanguageContentFromForm(formData: FormData, language: "hu" | "de") {
+  const defaults = DEFAULT_MINI_SESSION_CONFIRMATION_CONTENT[language];
+  const content: Record<string, string> = {};
+
+  for (const key of Object.keys(defaults) as Array<keyof MiniSessionConfirmationLanguageContent>) {
+    const maxLength = ["intro", "emailText", "spamText", "saveText", "manageText", "keepPage"].includes(key)
+      ? 600
+      : 180;
+    content[key] = formLimitedString(formData, `${language}__${key}`, maxLength) || defaults[key];
+  }
+
+  return content;
+}
+
+export async function updateMiniSessionConfirmationSettingsAction(formData: FormData) {
+  const admin = await requireAdmin();
+
+  if (admin.isTeamWorkspace) {
+    redirect("/admin/settings?tab=profile");
+  }
+
+  const adminId = ownerAdminId(admin);
+  const existingSettings = await prisma.siteSettings.findFirst({
+    where: {
+      OR: [{ adminId }, ...(admin.role === "super_admin" ? [{ id: "default" }] : [])]
+    },
+    select: { id: true }
+  });
+  const content = {
+    hu: confirmationLanguageContentFromForm(formData, "hu"),
+    de: confirmationLanguageContentFromForm(formData, "de")
+  } as Prisma.InputJsonObject;
+  const data = {
+    adminId,
+    businessName: formLimitedString(formData, "businessName", 180) || admin.name,
+    contactEmail: formLimitedString(formData, "contactEmail", 320) || null,
+    contactPhone: formLimitedString(formData, "contactPhone", 80) || null,
+    miniSessionConfirmationContent: content
+  };
+
+  await prisma.siteSettings.upsert({
+    where: { id: existingSettings?.id ?? adminId },
+    create: {
+      id: adminId,
+      ...data
+    },
+    update: data
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/mini-session/[slug]/confirmation/[token]", "page");
+  redirect("/admin/settings?tab=confirmation&confirmation=saved");
 }
 
 export async function updateAdminNotificationPreferencesAction(formData: FormData) {

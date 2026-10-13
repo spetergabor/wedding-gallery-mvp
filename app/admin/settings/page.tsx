@@ -34,6 +34,7 @@ import { AdminSecuritySettings } from "@/components/admin-security-settings";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MonetizationSettings } from "@/components/monetization-settings";
+import { MiniSessionConfirmationSettings } from "@/components/mini-session-confirmation-settings";
 import { PhotographerProfileSettings } from "@/components/photographer-profile-settings";
 import { ResendEmailLog } from "@/components/resend-email-log";
 import { SiteSettingsForm } from "@/components/site-settings-form";
@@ -67,7 +68,7 @@ import {
 } from "@/lib/mini-session-actions";
 import { isStripeConnectConfigured, isStripeWebhookConfigured, stripeConnectMissingConfigKeys } from "@/lib/stripe-connect";
 
-type SettingsTab = "brand" | "profile" | "notifications" | "integrations" | "monetization" | "providers" | "security" | "health" | "logs";
+type SettingsTab = "brand" | "profile" | "confirmation" | "notifications" | "integrations" | "monetization" | "providers" | "security" | "health" | "logs";
 
 const providerLinks = [
   {
@@ -165,7 +166,8 @@ const emptySettings = {
   galleryWatermarkEnabled: false,
   galleryWatermarkText: null,
   galleryWatermarkPosition: "center",
-  galleryWatermarkOpacity: 32
+  galleryWatermarkOpacity: 32,
+  miniSessionConfirmationContent: null
 };
 
 const ONE_GB = 1024 ** 3;
@@ -429,6 +431,7 @@ const SETTINGS_COPY = {
     tabs: {
       brand: "Márka",
       profile: "Fotós adatok",
+      confirmation: "Megerősítő oldal",
       notifications: "Értesítések",
       security: "Biztonság",
       integrations: "Integrációk",
@@ -440,6 +443,7 @@ const SETTINGS_COPY = {
     navLabel: "Beállítások fülek",
     alerts: {
       saved: "Beállítások mentve.",
+      confirmationSaved: "A megerősítő landing page beállításai mentve.",
       logoTitle: "A logó feltöltése nem sikerült.",
       logoBody: "Csak képfájlt tölts fel logóként.",
       signatureTitle: "Az aláírás feltöltése nem sikerült.",
@@ -537,6 +541,7 @@ const SETTINGS_COPY = {
     tabs: {
       brand: "Marke",
       profile: "Fotografendaten",
+      confirmation: "Bestätigungsseite",
       notifications: "Benachrichtigungen",
       security: "Sicherheit",
       integrations: "Integrationen",
@@ -548,6 +553,7 @@ const SETTINGS_COPY = {
     navLabel: "Einstellungsbereiche",
     alerts: {
       saved: "Einstellungen gespeichert.",
+      confirmationSaved: "Die Einstellungen der Bestätigungsseite wurden gespeichert.",
       logoTitle: "Das Logo konnte nicht hochgeladen werden.",
       logoBody: "Bitte lade nur Bilddateien als Logo hoch.",
       signatureTitle: "Die Signatur konnte nicht hochgeladen werden.",
@@ -645,6 +651,7 @@ const SETTINGS_COPY = {
     tabs: {
       brand: "Brand",
       profile: "Photographer details",
+      confirmation: "Confirmation page",
       notifications: "Notifications",
       security: "Security",
       integrations: "Integrations",
@@ -656,6 +663,7 @@ const SETTINGS_COPY = {
     navLabel: "Settings tabs",
     alerts: {
       saved: "Settings saved.",
+      confirmationSaved: "Confirmation page settings saved.",
       logoTitle: "Logo upload failed.",
       logoBody: "Upload an image file as the logo.",
       signatureTitle: "Signature upload failed.",
@@ -2728,6 +2736,7 @@ export default async function AdminSettingsPage({
     stripe?: string;
     automation?: string;
     notifications?: string;
+    confirmation?: string;
   }>;
 }) {
   const [admin, params, language] = await Promise.all([requireAdmin(), searchParams, getAdminLanguage()]);
@@ -2738,6 +2747,8 @@ export default async function AdminSettingsPage({
       ? "security"
       : params.tab === "notifications" && !isTeamWorkspace
         ? "notifications"
+      : params.tab === "confirmation" && !isTeamWorkspace
+        ? "confirmation"
       : params.tab === "logs" && admin.role === "super_admin"
         ? "logs"
       : params.tab === "health" && !isTeamWorkspace
@@ -2788,7 +2799,8 @@ export default async function AdminSettingsPage({
         galleryWatermarkEnabled: true,
         galleryWatermarkText: true,
         galleryWatermarkPosition: true,
-        galleryWatermarkOpacity: true
+        galleryWatermarkOpacity: true,
+        miniSessionConfirmationContent: true
       }
     }),
     prisma.admin.findUniqueOrThrow({
@@ -3051,7 +3063,7 @@ export default async function AdminSettingsPage({
       })
     : null;
   const automationItems = !isTeamWorkspace ? buildAutomationItems(deliveryLogs, zipPackages, stripePurchases, language) : [];
-  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-10" : isTeamWorkspace ? "sm:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-7";
+  const settingsTabColumns = admin.role === "super_admin" ? "sm:grid-cols-2 xl:grid-cols-6" : isTeamWorkspace ? "sm:grid-cols-3" : "sm:grid-cols-2 xl:grid-cols-4";
   const copy = SETTINGS_COPY[language];
 
   return (
@@ -3102,6 +3114,17 @@ export default async function AdminSettingsPage({
             <ShieldCheck size={16} />
             {copy.tabs.security}
           </Link>
+          {!isTeamWorkspace ? (
+            <Link
+              href="/admin/settings?tab=confirmation"
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                activeTab === "confirmation" ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
+              }`}
+            >
+              <CheckCircle2 size={16} />
+              {copy.tabs.confirmation}
+            </Link>
+          ) : null}
           {!isTeamWorkspace ? (
             <Link
               href="/admin/settings?tab=notifications"
@@ -3173,6 +3196,7 @@ export default async function AdminSettingsPage({
 
       <div className="mb-5 space-y-3">
         {params.saved ? <Alert title={copy.alerts.saved} variant="success" /> : null}
+        {params.confirmation === "saved" ? <Alert title={copy.alerts.confirmationSaved} variant="success" /> : null}
         {params.notifications === "saved" ? <Alert title={copy.alerts.saved} variant="success" /> : null}
         {params.error === "logo" ? (
           <Alert title={copy.alerts.logoTitle} variant="error">
@@ -3238,6 +3262,15 @@ export default async function AdminSettingsPage({
       </div>
 
       {activeTab === "brand" && !isTeamWorkspace ? <SiteSettingsForm adminName={admin.name} settings={settings ?? emptySettings} /> : null}
+
+      {activeTab === "confirmation" && !isTeamWorkspace ? (
+        <MiniSessionConfirmationSettings
+          content={settings?.miniSessionConfirmationContent}
+          businessName={settings?.businessName || admin.name}
+          contactEmail={settings?.contactEmail ?? null}
+          contactPhone={settings?.contactPhone ?? null}
+        />
+      ) : null}
 
       {activeTab === "profile" ? (
         <div className="space-y-5">

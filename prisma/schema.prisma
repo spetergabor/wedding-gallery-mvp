@@ -331,48 +331,49 @@ model StripeConnectIntegration {
 }
 
 model SiteSettings {
-  id                        String   @id @default("default")
-  adminId                   String?  @unique
-  businessName              String   @default("")
-  publicSubdomain           String?  @unique
-  logoUrl                   String?
-  logoR2Key                 String?
-  logoHeight                Int      @default(80)
-  signatureUrl              String?
-  signatureR2Key            String?
-  websiteUrl                String?
-  instagramUrl              String?
-  facebookUrl               String?
-  tiktokUrl                 String?
-  youtubeUrl                String?
-  contactEmail              String?
-  contactPhone              String?
-  galleryWatermarkEnabled   Boolean  @default(false)
-  galleryWatermarkText      String?
-  galleryWatermarkPosition  String   @default("center")
-  galleryWatermarkOpacity   Int      @default(32)
-  invoiceName               String?
-  invoiceAddressLine1       String?
-  invoicePostalCode         String?
-  invoiceCity               String?
-  invoiceCountry            String   @default("Österreich")
-  invoiceIban               String?
-  invoiceBic                String?
-  invoiceTaxNumber          String?
-  invoiceUid                String?
-  invoicePrefix             String   @default("RE")
-  invoiceCancellationPrefix String   @default("ST")
-  invoiceSequenceStart      Int      @default(1)
-  invoiceDueDays            Int      @default(14)
-  invoiceTaxMode            String   @default("small_business")
-  invoiceDefaultVatRate     Int      @default(20)
-  invoiceRemindersEnabled   Boolean  @default(false)
-  invoiceReminderDaysBefore Int      @default(3)
-  invoiceOverdueDays        Int      @default(1)
-  invoiceFollowupDays       Int      @default(7)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-  admin                     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  id                             String   @id @default("default")
+  adminId                        String?  @unique
+  businessName                   String   @default("")
+  publicSubdomain                String?  @unique
+  logoUrl                        String?
+  logoR2Key                      String?
+  logoHeight                     Int      @default(80)
+  signatureUrl                   String?
+  signatureR2Key                 String?
+  websiteUrl                     String?
+  instagramUrl                   String?
+  facebookUrl                    String?
+  tiktokUrl                      String?
+  youtubeUrl                     String?
+  contactEmail                   String?
+  contactPhone                   String?
+  galleryWatermarkEnabled        Boolean  @default(false)
+  galleryWatermarkText           String?
+  galleryWatermarkPosition       String   @default("center")
+  galleryWatermarkOpacity        Int      @default(32)
+  miniSessionConfirmationContent Json?
+  invoiceName                    String?
+  invoiceAddressLine1            String?
+  invoicePostalCode              String?
+  invoiceCity                    String?
+  invoiceCountry                 String   @default("Österreich")
+  invoiceIban                    String?
+  invoiceBic                     String?
+  invoiceTaxNumber               String?
+  invoiceUid                     String?
+  invoicePrefix                  String   @default("RE")
+  invoiceCancellationPrefix      String   @default("ST")
+  invoiceSequenceStart           Int      @default(1)
+  invoiceDueDays                 Int      @default(14)
+  invoiceTaxMode                 String   @default("small_business")
+  invoiceDefaultVatRate          Int      @default(20)
+  invoiceRemindersEnabled        Boolean  @default(false)
+  invoiceReminderDaysBefore      Int      @default(3)
+  invoiceOverdueDays             Int      @default(1)
+  invoiceFollowupDays            Int      @default(7)
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+  admin                          Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
 }
