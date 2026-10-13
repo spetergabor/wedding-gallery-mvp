@@ -32,9 +32,34 @@ export function MiniSessionConfirmationActions({
   const [copied, setCopied] = useState(false);
   const copy = COPY[language];
 
+  function legacyCopy(value: string) {
+    const textArea = document.createElement("textarea");
+    textArea.value = value;
+    textArea.setAttribute("readonly", "");
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.select();
+    const wasCopied = document.execCommand("copy");
+    textArea.remove();
+
+    if (!wasCopied) {
+      throw new Error("Clipboard copy failed.");
+    }
+  }
+
   async function copyDetails() {
     try {
-      await window.navigator.clipboard.writeText(details);
+      if (window.navigator.clipboard?.writeText) {
+        try {
+          await window.navigator.clipboard.writeText(details);
+        } catch {
+          legacyCopy(details);
+        }
+      } else {
+        legacyCopy(details);
+      }
+
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
