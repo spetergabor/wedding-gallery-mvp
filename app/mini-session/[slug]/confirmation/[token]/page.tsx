@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { MiniSessionConfirmationActions } from "@/components/mini-session-confirmation-actions";
+import { MiniSessionEmbedConfirmationPopup } from "@/components/mini-session-embed-confirmation-popup";
 import {
   miniSessionBookingCalendarUrl,
   miniSessionBookingManageUrl
@@ -114,6 +115,10 @@ export default async function MiniSessionConfirmationPage({
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-paper px-4 py-6 text-ink sm:px-6 sm:py-10">
+      <MiniSessionEmbedConfirmationPopup
+        confirmationHref={`/mini-session/${slug}/confirmation/${token}`}
+        embeddedOnly
+      />
       <div className="pointer-events-none absolute -left-24 top-20 size-72 rounded-full bg-brass/10 blur-3xl" />
       <div className="pointer-events-none absolute -right-24 bottom-10 size-80 rounded-full bg-sage/10 blur-3xl" />
 

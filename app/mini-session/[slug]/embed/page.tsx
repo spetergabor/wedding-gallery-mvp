@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { MiniSessionBookingConfirmationModal } from "@/components/mini-session-booking-confirmation-modal";
+import { MiniSessionEmbedBookingForm } from "@/components/mini-session-embed-booking-form";
+import { MiniSessionEmbedConfirmationPopup } from "@/components/mini-session-embed-confirmation-popup";
 import { MiniSessionEmbedBookingWizard } from "@/components/mini-session-embed-booking-wizard";
 import { miniSessionBookingCalendarUrl } from "@/lib/email";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
@@ -115,6 +117,7 @@ export default async function MiniSessionEmbedPage({
 
   return (
     <main className="min-h-screen bg-transparent text-ink">
+      <MiniSessionEmbedConfirmationPopup hasError={Boolean(flags.error)} />
       {flags.booked ? (
         <MiniSessionBookingConfirmationModal language={language} calendarHref={calendarHref} />
       ) : null}
@@ -170,10 +173,10 @@ export default async function MiniSessionEmbedPage({
             ) : availableSlots.length === 0 ? (
               <Alert title={copy.soldOut} />
             ) : (
-              <form action={bookMiniSessionAction.bind(null, session.slug)}>
+              <MiniSessionEmbedBookingForm action={bookMiniSessionAction.bind(null, session.slug)} language={language}>
                 <input type="hidden" name="returnTo" value="embed" />
                 <MiniSessionEmbedBookingWizard days={bookingDays} language={language} />
-              </form>
+              </MiniSessionEmbedBookingForm>
             )}
           </div>
         </div>
