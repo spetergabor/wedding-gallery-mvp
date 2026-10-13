@@ -1513,7 +1513,7 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
   revalidatePath(`/mini-session/${slug}/embed`);
   revalidatePath("/admin/mini-sessions");
   revalidatePath(`/admin/mini-sessions/${session.id}`);
-  redirect(`${bookingPath}?booked=1&calendar=${cancelToken}`);
+  redirect(`/mini-session/${slug}/confirmation/${cancelToken}`);
 }
 
 export async function rescheduleMiniSessionBookingAction(token: string, formData: FormData) {
