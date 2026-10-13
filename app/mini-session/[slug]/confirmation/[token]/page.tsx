@@ -42,7 +42,6 @@ const COPY = {
     location: "Helyszín",
     name: "Név",
     attendees: "Létszám",
-    person: "fő",
     saveTitle: "Mentsd el az időpontot",
     saveText: "Válaszd ki a telefonodon vagy számítógépeden használt naptárt.",
     emailTitle: "E-mailt is küldtünk",
@@ -63,7 +62,6 @@ const COPY = {
     location: "Ort",
     name: "Name",
     attendees: "Personen",
-    person: "Person(en)",
     saveTitle: "Termin jetzt speichern",
     saveText: "Wähle den Kalender, den du auf deinem Smartphone oder Computer verwendest.",
     emailTitle: "Wir haben dir auch eine E-Mail geschickt",
@@ -129,6 +127,9 @@ export default async function MiniSessionConfirmationPage({
   const copy = COPY[language];
   const brandName = booking.miniSession.admin.siteSettings?.businessName || "Spetly";
   const appointment = formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt, language);
+  const attendeeUnit = language === "de"
+    ? booking.attendeeCount === 1 ? "Person" : "Personen"
+    : "fő";
   const calendarFileHref = miniSessionBookingCalendarUrl(slug, token, publicSubdomain);
   const googleCalendarHref = googleCalendarUrl({
     title: booking.miniSession.title,
@@ -143,7 +144,7 @@ export default async function MiniSessionConfirmationPage({
     `${copy.date}: ${appointment}`,
     `${copy.location}: ${booking.miniSession.location}`,
     `${copy.name}: ${booking.name}`,
-    `${copy.attendees}: ${booking.attendeeCount} ${copy.person}`,
+    `${copy.attendees}: ${booking.attendeeCount} ${attendeeUnit}`,
     `${copy.manage}: ${manageHref}`
   ].join("\n");
   const contactEmail = booking.miniSession.admin.siteSettings?.contactEmail;
@@ -205,7 +206,7 @@ export default async function MiniSessionConfirmationPage({
                     <Users size={16} className="text-brass" />
                     {copy.attendees}
                   </dt>
-                  <dd className="mt-2 text-sm font-medium text-ink">{booking.attendeeCount} {copy.person}</dd>
+                  <dd className="mt-2 text-sm font-medium text-ink">{booking.attendeeCount} {attendeeUnit}</dd>
                 </div>
               </dl>
 
