@@ -31,6 +31,7 @@ import {
   ensurePaidGalleryPurchaseFulfillmentForSession
 } from "@/lib/gallery-sales";
 import { isAnyRateLimited } from "@/lib/rate-limit";
+import { verifyProofingGalleryAccessToken } from "@/lib/proofing-gallery-access";
 import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
 import { MINI_SESSION_WORKFLOW_FINAL_UPLOAD } from "@/lib/mini-session-workflow";
 import {
@@ -85,8 +86,15 @@ function normalizeListName(name: string) {
   return name.trim().replace(/\s+/g, " ").slice(0, 80) || "Favoriten";
 }
 
-function favoritesDisabledForGallery(gallery: { galleryMode: string; proofingStatus: string }) {
-  return isProofingGallery(gallery.galleryMode) && gallery.proofingStatus === PROOFING_STATUS_DELIVERED;
+function favoritesDisabledForGallery(
+  gallery: { id: string; slug: string; galleryMode: string; proofingStatus: string },
+  proofingAccessToken?: string
+) {
+  return (
+    isProofingGallery(gallery.galleryMode) &&
+    gallery.proofingStatus === PROOFING_STATUS_DELIVERED &&
+    !verifyProofingGalleryAccessToken(gallery.id, gallery.slug, proofingAccessToken)
+  );
 }
 
 function galleryZipFileName(title: string, partIndex?: number, partCount?: number, quality: GalleryDownloadQuality = "original") {
@@ -1434,7 +1442,7 @@ export async function updateGalleryViewLocationAction({
   return { ok: true };
 }
 
-export async function getFavoriteListsAction(galleryId: string, email: string) {
+export async function getFavoriteListsAction(galleryId: string, email: string, proofingAccessToken?: string) {
   const normalizedEmail = normalizeEmail(email);
 
   if (!isValidEmail(normalizedEmail)) {
@@ -1447,10 +1455,10 @@ export async function getFavoriteListsAction(galleryId: string, email: string) {
 
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
-    select: { isActive: true, galleryMode: true, proofingStatus: true }
+    select: { id: true, slug: true, isActive: true, galleryMode: true, proofingStatus: true }
   });
 
-  if (!gallery?.isActive || favoritesDisabledForGallery(gallery)) {
+  if (!gallery?.isActive || favoritesDisabledForGallery(gallery, proofingAccessToken)) {
     return {
       ok: false,
       message: "Die Bildauswahl ist für diese Galerie nicht aktiv.",
@@ -1482,7 +1490,7 @@ export async function getFavoriteListsAction(galleryId: string, email: string) {
   };
 }
 
-export async function createFavoriteListAction(galleryId: string, email: string, name: string) {
+export async function createFavoriteListAction(galleryId: string, email: string, name: string, proofingAccessToken?: string) {
   const normalizedEmail = normalizeEmail(email);
   const normalizedName = normalizeListName(name);
 
@@ -1509,10 +1517,10 @@ export async function createFavoriteListAction(galleryId: string, email: string,
 
   const gallery = await prisma.gallery.findUnique({
     where: { id: galleryId },
-    select: { isActive: true, galleryMode: true, proofingStatus: true }
+    select: { id: true, slug: true, isActive: true, galleryMode: true, proofingStatus: true }
   });
 
-  if (!gallery?.isActive || favoritesDisabledForGallery(gallery)) {
+  if (!gallery?.isActive || favoritesDisabledForGallery(gallery, proofingAccessToken)) {
     return {
       ok: false,
       message: "Die Bildauswahl ist für diese Galerie nicht aktiv.",
@@ -1591,7 +1599,8 @@ export async function submitFavoriteListAction(
     city: string;
     country: string;
     uid?: string;
-  }
+  },
+  proofingAccessToken?: string
 ) {
   const normalizedEmail = normalizeEmail(email);
   const normalizedBillingDetails = {
@@ -1638,6 +1647,8 @@ export async function submitFavoriteListAction(
       gallery: {
         select: {
           title: true,
+          id: true,
+          slug: true,
           adminId: true,
           customerId: true,
           galleryMode: true,
@@ -1680,7 +1691,7 @@ export async function submitFavoriteListAction(
     };
   }
 
-  if (favoritesDisabledForGallery(list.gallery)) {
+  if (favoritesDisabledForGallery(list.gallery, proofingAccessToken)) {
     return {
       ok: false,
       message: "Die Bildauswahl ist für diese Galerie nicht aktiv.",
@@ -1696,7 +1707,9 @@ export async function submitFavoriteListAction(
     };
   }
 
-  const proofingSelection = isProofingGallery(list.gallery.galleryMode);
+  const proofingSelection =
+    isProofingGallery(list.gallery.galleryMode) &&
+    !favoritesDisabledForGallery(list.gallery, proofingAccessToken);
   const submittedAt = new Date();
   if (
     proofingSelection &&
@@ -1824,7 +1837,13 @@ export async function submitFavoriteListAction(
   };
 }
 
-export async function toggleFavoritePhotoAction(galleryId: string, photoId: string, email: string, listId?: string) {
+export async function toggleFavoritePhotoAction(
+  galleryId: string,
+  photoId: string,
+  email: string,
+  listId?: string,
+  proofingAccessToken?: string
+) {
   const normalizedEmail = normalizeEmail(email);
 
   if (!isValidEmail(normalizedEmail)) {
@@ -1845,6 +1864,8 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
       gallery: {
         select: {
           title: true,
+          id: true,
+          slug: true,
           adminId: true,
           galleryMode: true,
           proofingStatus: true
@@ -1860,7 +1881,7 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
     };
   }
 
-  if (favoritesDisabledForGallery(photo.gallery)) {
+  if (favoritesDisabledForGallery(photo.gallery, proofingAccessToken)) {
     return {
       ok: false,
       message: "Die Bildauswahl ist für diese Galerie nicht aktiv."
@@ -1868,7 +1889,8 @@ export async function toggleFavoritePhotoAction(galleryId: string, photoId: stri
   }
 
   const defaultListName =
-    isProofingGallery(photo.gallery.galleryMode) && photo.gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+    isProofingGallery(photo.gallery.galleryMode) &&
+    !favoritesDisabledForGallery(photo.gallery, proofingAccessToken)
       ? "Auswahl"
       : "Favoriten";
   const existingList = await prisma.galleryFavoriteList.findFirst({

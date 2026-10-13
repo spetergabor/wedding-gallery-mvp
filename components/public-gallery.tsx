@@ -551,6 +551,7 @@ export function PublicGallery({
   sale = null,
   favoritesEnabled = true,
   favoriteMode = "favorites",
+  proofingAccessToken,
   language = "de",
   mobileColumns = 1,
   gridGap = 8,
@@ -571,6 +572,7 @@ export function PublicGallery({
   sale?: GallerySaleSettings | null;
   favoritesEnabled?: boolean;
   favoriteMode?: "favorites" | "proofing";
+  proofingAccessToken?: string;
   language?: CustomerLanguage;
   mobileColumns?: number;
   gridGap?: number;
@@ -890,13 +892,13 @@ export function PublicGallery({
 
     setFavoriteEmail(storedEmail);
     setFavoriteEmailDraft(storedEmail);
-    getFavoriteListsAction(galleryId, storedEmail).then((result) => {
+    getFavoriteListsAction(galleryId, storedEmail, proofingAccessToken).then((result) => {
       if (result.ok) {
         setFavoriteLists(result.lists);
         setActiveFavoriteListId(result.lists[0]?.id ?? "");
       }
     });
-  }, [favoritesEnabled, galleryId]);
+  }, [favoritesEnabled, galleryId, proofingAccessToken]);
 
   function showPreviousPhoto() {
     setSelectedIndex((current) => {
@@ -1201,7 +1203,7 @@ export function PublicGallery({
     }
 
     try {
-      const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite, targetListId);
+      const result = await toggleFavoritePhotoAction(galleryId, photoId, emailForFavorite, targetListId, proofingAccessToken);
 
       if (!result.ok) {
         throw new Error(result.message);
@@ -1273,7 +1275,7 @@ export function PublicGallery({
     const dialogMode = favoriteEmailDialogMode ?? "save";
 
     try {
-      let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail);
+      let listsResult = await getFavoriteListsAction(galleryId, normalizedEmail, proofingAccessToken);
 
       if (!listsResult.ok) {
         throw new Error(listsResult.message);
@@ -1285,7 +1287,7 @@ export function PublicGallery({
       }
 
       if (dialogMode === "save" && listsResult.lists.length === 0) {
-        const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? copy.defaultSelectionName : copy.defaultFavoritesName);
+        const created = await createFavoriteListAction(galleryId, normalizedEmail, proofingSelection ? copy.defaultSelectionName : copy.defaultFavoritesName, proofingAccessToken);
 
         if (created.ok && created.list) {
           listsResult = {
@@ -1348,7 +1350,7 @@ export function PublicGallery({
     }
 
     setFavoriteError("");
-    const result = await createFavoriteListAction(galleryId, normalizedEmail, listName);
+    const result = await createFavoriteListAction(galleryId, normalizedEmail, listName, proofingAccessToken);
 
     if (!result.ok || !result.list) {
       setFavoriteError(result.message ?? copy.listCreateError);
@@ -1374,7 +1376,7 @@ export function PublicGallery({
     setFavoriteSuccess("");
 
     try {
-      const result = await submitFavoriteListAction(galleryId, favoriteEmail, activeFavoriteList.id, billingDetails);
+      const result = await submitFavoriteListAction(galleryId, favoriteEmail, activeFavoriteList.id, billingDetails, proofingAccessToken);
 
       if (!result.ok || !result.submittedAt) {
         throw new Error(result.message);

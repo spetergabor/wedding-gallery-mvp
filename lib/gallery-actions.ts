@@ -40,7 +40,7 @@ import {
 import { loadGalleryEmailCover } from "@/lib/gallery-email-cover";
 import { galleryEmailRecipient } from "@/lib/gallery-email-recipient";
 import { galleryEmailIdentity } from "@/lib/gallery-email-identity";
-import { publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
+import { proofingGalleryUrl, publicGalleryUrl, sendClientFinalDeliveryEmail, sendClientProofingInviteEmail } from "@/lib/email";
 import {
   galleryDeliveryAllowsDownloads,
   galleryDeliveryUsesPayment,
@@ -302,12 +302,13 @@ async function sendProofingInviteForGallery(
   try {
     const language = normalizeCustomerLanguage(gallery.customer?.preferredLanguage);
     const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
+    const galleryUrl = proofingGalleryUrl(galleryId, gallery.slug, language, publicSubdomain);
     const sent = await sendClientProofingInviteEmail({
       to: recipient,
       ...galleryEmailIdentity(gallery.admin),
       galleryTitle: gallery.title,
-      proofingGalleryUrl: publicGalleryUrl(gallery.slug, language, publicSubdomain),
-      cover: await loadGalleryEmailCover(galleryId, publicGalleryUrl(gallery.slug, language, publicSubdomain), "proofing"),
+      proofingGalleryUrl: galleryUrl,
+      cover: await loadGalleryEmailCover(galleryId, galleryUrl, "proofing"),
       language,
       subject,
       message
@@ -1019,6 +1020,12 @@ export async function sendProofingInviteDraftAction(
       revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}`);
       revalidatePath(`/admin/mini-sessions/${booking.miniSessionId}/bookings/${booking.id}`);
     }
+
+    const gallery = await prisma.gallery.findUnique({
+      where: { id: galleryId },
+      select: { slug: true }
+    });
+    if (gallery) revalidatePath(`/g/${gallery.slug}`);
 
     return { ok: true, reason: "sent", message: "A válogató e-mail elküldve." } as const;
   }

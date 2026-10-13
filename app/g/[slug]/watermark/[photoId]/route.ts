@@ -10,6 +10,7 @@ import {
   isProofingGallery
 } from "@/lib/proofing";
 import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
+import { verifyProofingGalleryAccessToken } from "@/lib/proofing-gallery-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -134,7 +135,7 @@ async function protectedPreviewPlaceholderResponse(photo: ProtectedPreviewPhoto,
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   {
     params
   }: {
@@ -186,8 +187,15 @@ export async function GET(
     return plainTextResponse("Gallery is locked.", 403);
   }
 
+  const proofingView =
+    isProofingGallery(photo.gallery.galleryMode) &&
+    verifyProofingGalleryAccessToken(
+      photo.gallery.id,
+      photo.gallery.slug,
+      new URL(request.url).searchParams.get("proofing")
+    );
   const expectedDeliveryStage =
-    isProofingGallery(photo.gallery.galleryMode) && photo.gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+    proofingView || (isProofingGallery(photo.gallery.galleryMode) && photo.gallery.proofingStatus !== PROOFING_STATUS_DELIVERED)
       ? PHOTO_DELIVERY_STAGE_RAW
       : PHOTO_DELIVERY_STAGE_FINAL;
 

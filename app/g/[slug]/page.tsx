@@ -19,6 +19,7 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 import { dateLocaleForCustomer, normalizeCustomerLanguage } from "@/lib/customer-language";
 import { GALLERY_DELIVERY_PAID, galleryDeliveryAllowsDownloads, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
 import { isGuestGalleryExpired } from "@/lib/guest-gallery-lifecycle";
+import { verifyProofingGalleryAccessToken } from "@/lib/proofing-gallery-access";
 import {
   GALLERY_PURCHASE_KIND_PHOTOS,
   GALLERY_PURCHASE_PAID,
@@ -133,7 +134,7 @@ export default async function PublicGalleryPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; lang?: string; purchase?: string; session_id?: string }>;
+  searchParams: Promise<{ error?: string; lang?: string; purchase?: string; session_id?: string; proofing?: string }>;
 }) {
   const { slug } = await params;
   const flags = await searchParams;
@@ -210,8 +211,11 @@ export default async function PublicGalleryPage({
   }
 
   const proofingGallery = isProofingGallery(galleryAccess.galleryMode);
+  const proofingView =
+    proofingGallery &&
+    verifyProofingGalleryAccessToken(galleryAccess.id, galleryAccess.slug, flags.proofing);
   const publicDeliveryStage =
-    proofingGallery && galleryAccess.proofingStatus !== PROOFING_STATUS_DELIVERED
+    proofingView || (proofingGallery && galleryAccess.proofingStatus !== PROOFING_STATUS_DELIVERED)
       ? PHOTO_DELIVERY_STAGE_RAW
       : PHOTO_DELIVERY_STAGE_FINAL;
 
@@ -304,16 +308,17 @@ export default async function PublicGalleryPage({
   const downloadsEnabled =
     gallery.downloadsEnabled &&
     galleryDeliveryAllowsDownloads(deliveryMode) &&
+    !proofingView &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
-  const favoritesEnabled = !proofingGallery || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
-  const proofingSelection = proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
+  const favoritesEnabled = proofingView || !proofingGallery || gallery.proofingStatus !== PROOFING_STATUS_DELIVERED;
+  const proofingSelection = proofingView || (proofingGallery && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED);
   const coverPhoto =
     visiblePhotos.find((photo) => photo.id === gallery.coverPhotoId && photo.mediaType !== "video") ??
     visiblePhotos.find((photo) => photo.mediaType !== "video") ??
     null;
   const coverPosition = `${gallery.coverPositionX ?? 50}% ${gallery.coverPositionY ?? 50}%`;
   const heroMeta = proofingSelection ? (language === "hu" ? "Képválogatás" : "Bildauswahl") : formatEventDate(gallery.eventDate, language);
-  const publicGalleryPath = `/g/${gallery.slug}`;
+  const publicGalleryPath = `/g/${gallery.slug}${proofingView ? `?proofing=${encodeURIComponent(flags.proofing ?? "")}` : ""}`;
   const galleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
   const defaultGalleryLogoSize =
     galleryDesign === GALLERY_DESIGN_FULLSCREEN_COVER
@@ -412,7 +417,11 @@ export default async function PublicGalleryPage({
       : galleryPurchasePhotoIds(paidAccessPurchase?.purchasedPhotoIds);
   const purchasedPhotoIdSet = new Set(purchasedPhotoIds);
   const fullGalleryPurchased = paidGallery && Boolean(paidPurchaseKind && paidPurchaseKind !== GALLERY_PURCHASE_KIND_PHOTOS);
-  const protectedPhotoUrl = (photoId: string) => `/g/${gallery.slug}/watermark/${photoId}?v=6`;
+  const protectedPhotoUrl = (photoId: string) => {
+    const search = new URLSearchParams({ v: "6" });
+    if (proofingView && flags.proofing) search.set("proofing", flags.proofing);
+    return `/g/${gallery.slug}/watermark/${photoId}?${search.toString()}`;
+  };
   const canAccessOriginalPhoto = (photo: (typeof publicPhotos)[number]) => {
     return !paidGallery || fullGalleryPurchased || purchasedPhotoIdSet.has(photo.id);
   };
@@ -476,6 +485,7 @@ export default async function PublicGalleryPage({
         sale={saleSettings}
         favoritesEnabled={favoritesEnabled}
         favoriteMode={proofingSelection ? "proofing" : "favorites"}
+        proofingAccessToken={proofingView ? flags.proofing : undefined}
         language={language}
         mobileColumns={gallery.publicColumnCount}
         gridGap={publicGridGap}

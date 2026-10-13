@@ -1,7 +1,8 @@
 import { emailImageUrl } from "@/lib/email-image-url";
 export { emailImageUrl } from "@/lib/email-image-url";
 import { prisma } from "@/lib/prisma";
-import { isProofingGallery, PROOFING_STATUS_DELIVERED } from "@/lib/proofing";
+import { isProofingGallery } from "@/lib/proofing";
+import { createProofingGalleryAccessToken } from "@/lib/proofing-gallery-access";
 
 export type GalleryEmailCover = { url: string; width: number };
 
@@ -12,7 +13,7 @@ export async function loadGalleryEmailCover(galleryId: string, publicUrl: string
     select: { coverPhotoId: true, galleryMode: true, proofingStatus: true, deliveryMode: true, password: true, slug: true }
   });
   if (!gallery) return null;
-  const deliveryStage = kind === "proofing" && isProofingGallery(gallery.galleryMode) && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED ? "raw" : "final";
+  const deliveryStage = kind === "proofing" && isProofingGallery(gallery.galleryMode) ? "raw" : "final";
   const where = { galleryId, deliveryStage, isClientHidden: false, mediaType: "image", processingStatus: "ready" };
   const select = { id: true, previewUrl: true, thumbnailUrl: true, imageUrl: true, imageWidth: true, imageHeight: true };
   const selected = gallery.coverPhotoId ? await prisma.photo.findFirst({ where: { ...where, id: gallery.coverPhotoId }, select }) : null;
@@ -22,7 +23,12 @@ export async function loadGalleryEmailCover(galleryId: string, publicUrl: string
   // cannot load in email clients, so those messages keep their text-only layout.
   if (gallery.deliveryMode === "paid") {
     if (gallery.password) return null;
-    return { url: new URL(`/g/${gallery.slug}/watermark/${photo.id}?v=6`, publicUrl).toString(), width: 560 };
+    const protectedUrl = new URL(`/g/${gallery.slug}/watermark/${photo.id}`, publicUrl);
+    protectedUrl.searchParams.set("v", "6");
+    if (kind === "proofing" && isProofingGallery(gallery.galleryMode)) {
+      protectedUrl.searchParams.set("proofing", createProofingGalleryAccessToken(galleryId, gallery.slug));
+    }
+    return { url: protectedUrl.toString(), width: 560 };
   }
   const url = [photo.previewUrl, photo.thumbnailUrl]
     .filter(value => value && value !== photo.imageUrl)

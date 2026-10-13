@@ -28,7 +28,7 @@ import { MiniSessionNotificationComposer } from "@/components/mini-session-notif
 import { adminOwnedWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { miniSessionBookingManageUrl, publicGalleryUrl } from "@/lib/email";
+import { miniSessionBookingManageUrl, proofingGalleryUrl, publicGalleryUrl } from "@/lib/email";
 import {
   createMiniSessionFinalGalleryAction,
   createMiniSessionProofingGalleryAction,
@@ -181,6 +181,9 @@ export default async function MiniSessionBookingWorkflowPage({
   const notificationCopy = NOTIFICATION_COPY[customerLanguage];
   const publicSubdomain = booking.miniSession.admin.siteSettings?.publicSubdomain ?? null;
   const customerWorkspaceUrl = miniSessionBookingManageUrl(booking.miniSession.slug, booking.cancelToken, publicSubdomain);
+  const selectionGalleryUrl = proofingGallery
+    ? proofingGalleryUrl(proofingGallery.id, proofingGallery.slug, customerLanguage, publicSubdomain)
+    : customerWorkspaceUrl;
   const finalLanguage = normalizeCustomerLanguage(booking.customer?.preferredLanguage);
   const finalGalleryUrl = finalGallery ? publicGalleryUrl(finalGallery.slug, finalLanguage, publicSubdomain) : customerWorkspaceUrl;
   const finalPreview = finalGallery ? { ...galleryEmailIdentity(booking.miniSession.admin), galleryTitle: finalGallery.title, url: finalGalleryUrl, cta: galleryEmailCta("final", finalLanguage), language: finalLanguage, cover: await loadGalleryEmailCover(finalGallery.id, finalGalleryUrl, "final") } : undefined;
@@ -431,7 +434,17 @@ export default async function MiniSessionBookingWorkflowPage({
               <h2 className="mt-4 text-xl font-semibold text-ink">A kész galéria átadva</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">A végleges képek külön galériában érhetők el, a nyers válogatás pedig archiválható anélkül, hogy befolyásolná az átadott anyagot.</p>
               {finalGallery ? (
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  {proofingGallery ? (
+                    <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`} variant="secondary">
+                      <Mail size={16} /> Válogatógaléria újraküldése
+                    </ButtonLink>
+                  ) : null}
+                  {proofingGallery ? (
+                    <ButtonLink href={selectionGalleryUrl} variant="secondary">
+                      <ExternalLink size={16} /> Válogatógaléria megnyitása
+                    </ButtonLink>
+                  ) : null}
                   <ButtonLink href={`/admin/galleries/${finalGallery.id}`} variant="secondary"><Images size={16} /> Galéria kezelése</ButtonLink>
                   <ButtonLink href={`/g/${finalGallery.slug}`}><ExternalLink size={16} /> Ügyfélgaléria megnyitása</ButtonLink>
                   <MiniSessionNotificationComposer

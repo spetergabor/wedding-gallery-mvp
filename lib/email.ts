@@ -3,6 +3,7 @@ import { galleryEmailHtml, galleryMessageText, getFinalGalleryEmailDraft } from 
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-language";
 import { lightroomFilenameList } from "@/lib/photo-filename";
+import { createProofingGalleryAccessToken } from "@/lib/proofing-gallery-access";
 import { storeSentEmailLog } from "@/lib/resend-email-log";
 
 type AdminFavoriteListSubmittedEmail = {
@@ -723,6 +724,13 @@ export function adminGalleryUrl(galleryId: string) {
 
 export function publicGalleryUrl(slug: string, _language?: string | null, publicSubdomain?: string | null) {
   const publicUrl = new URL(`/g/${slug}`, appPublicBaseUrl(publicSubdomain));
+
+  return publicUrl.toString();
+}
+
+export function proofingGalleryUrl(galleryId: string, slug: string, language?: string | null, publicSubdomain?: string | null) {
+  const publicUrl = new URL(publicGalleryUrl(slug, language, publicSubdomain));
+  publicUrl.searchParams.set("proofing", createProofingGalleryAccessToken(galleryId, slug));
 
   return publicUrl.toString();
 }

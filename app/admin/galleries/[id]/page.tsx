@@ -36,7 +36,7 @@ import { adminOwnedWhere, albumDesignOwnedWhere, ownerAdminId } from "@/lib/admi
 import { customerTypeLabel } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
-import { appBaseUrl, getClientFinalDeliveryDraft, getClientProofingInviteDraft, publicGalleryUrl } from "@/lib/email";
+import { appBaseUrl, getClientFinalDeliveryDraft, getClientProofingInviteDraft, proofingGalleryUrl, publicGalleryUrl } from "@/lib/email";
 import { PUBLIC_DOWNLOAD_SCOPE } from "@/lib/download-packages";
 import {
   createGallerySectionAction,
@@ -532,12 +532,13 @@ export default async function GalleryDetailPage({
   const publicSubdomain = gallery.admin.siteSettings?.publicSubdomain ?? null;
   const customerLanguage = normalizeCustomerLanguage(gallery.customer?.preferredLanguage);
   const galleryPublicUrl = publicGalleryUrl(gallery.slug, customerLanguage, publicSubdomain);
+  const proofingPublicUrl = proofingGalleryUrl(gallery.id, gallery.slug, customerLanguage, publicSubdomain);
   const deliveryEmailDraft = getClientFinalDeliveryDraft({
     galleryTitle: gallery.title,
     downloadsEnabled: gallery.downloadsEnabled,
     language: customerLanguage
   });
-  const emailCover = proofingGallery ? await loadGalleryEmailCover(gallery.id, galleryPublicUrl, "proofing") : null;
+  const emailCover = proofingGallery ? await loadGalleryEmailCover(gallery.id, proofingPublicUrl, "proofing") : null;
   const finalEmailCover = proofingGallery ? await loadGalleryEmailCover(gallery.id, galleryPublicUrl, "final") : null;
   const finalEmailDraft = getFinalGalleryEmailDraft(gallery.title, customerLanguage, gallery.downloadsEnabled);
   const proofingInviteDraft = getClientProofingInviteDraft({
@@ -730,10 +731,10 @@ export default async function GalleryDetailPage({
           recipient={gallery.clientEmail}
           cover={emailCover}
           {...galleryEmailIdentity(gallery.admin)}
-          galleryUrl={galleryPublicUrl}
+          galleryUrl={proofingPublicUrl}
           defaultSubject={proofingInviteDraft.subject}
           defaultMessage={proofingInviteDraft.message}
-          autoOpen={flags.proofingInvitePrompt === "1" && !gallery.proofingInviteSentAt}
+          autoOpen={flags.proofingInvitePrompt === "1"}
           alreadySent={Boolean(gallery.proofingInviteSentAt)}
           showTrigger={false}
         />
@@ -960,13 +961,14 @@ export default async function GalleryDetailPage({
                       recipient={gallery.clientEmail}
                       cover={emailCover}
                       {...galleryEmailIdentity(gallery.admin)}
-                      galleryUrl={galleryPublicUrl}
+                      galleryUrl={proofingPublicUrl}
                       defaultSubject={proofingInviteDraft.subject}
                       defaultMessage={proofingInviteDraft.message}
                       alreadySent={Boolean(gallery.proofingInviteSentAt)}
                     />
                     <CopyPublicLinkButton
                       slug={gallery.slug}
+                      url={proofingPublicUrl}
                       label="Válogató link másolása"
                     />
                   </div>
