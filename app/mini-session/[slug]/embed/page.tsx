@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Alert } from "@/components/alert";
 import { MiniSessionBookingConfirmationModal } from "@/components/mini-session-booking-confirmation-modal";
 import { MiniSessionEmbedBookingForm } from "@/components/mini-session-embed-booking-form";
+import { MiniSessionEmbedAutoResize } from "@/components/mini-session-embed-auto-resize";
 import { MiniSessionEmbedConfirmationPopup } from "@/components/mini-session-embed-confirmation-popup";
 import { MiniSessionEmbedBookingWizard } from "@/components/mini-session-embed-booking-wizard";
 import { miniSessionBookingCalendarUrl } from "@/lib/email";
@@ -116,7 +117,8 @@ export default async function MiniSessionEmbedPage({
   const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(session.slug, flags.calendar, publicSubdomain) : null;
 
   return (
-    <main className="min-h-screen bg-transparent text-ink">
+    <main className="min-h-0 bg-transparent text-ink">
+      <MiniSessionEmbedAutoResize />
       <MiniSessionEmbedConfirmationPopup hasError={Boolean(flags.error)} />
       {flags.booked ? (
         <MiniSessionBookingConfirmationModal language={language} calendarHref={calendarHref} />

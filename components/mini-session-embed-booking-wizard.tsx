@@ -199,7 +199,7 @@ export function MiniSessionEmbedBookingWizard({
             {copy.chooseDay}
           </h2>
           <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableDays}</p>
-          <div className="mx-auto mt-4 max-h-[430px] max-w-sm space-y-5 overflow-y-auto pr-1">
+          <div className="mx-auto mt-4 max-w-sm space-y-5">
             {months.map((month) => (
               <div key={month.key}>
                 <div className="mb-3 text-center text-sm font-semibold capitalize text-graphite">{month.label}</div>
@@ -255,7 +255,7 @@ export function MiniSessionEmbedBookingWizard({
           </h2>
           <p className="mt-1 text-center text-sm text-graphite/65">{selectedDay.label}</p>
           <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableSlots}</p>
-          <div className="mx-auto mt-4 grid max-h-[430px] max-w-md gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+          <div className="mx-auto mt-4 grid max-w-md gap-2 sm:grid-cols-2">
             {selectedDay.slots.map((slot) => (
               <button
                 key={slot.token}
