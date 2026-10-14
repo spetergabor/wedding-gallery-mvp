@@ -3,7 +3,14 @@ import path from "node:path";
 import * as opentype from "opentype.js";
 import sharp from "sharp";
 import { albumDesignOwnedWhere } from "@/lib/admin-scope";
-import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutExportSlotInsetPx, getAlbumLayoutTemplate, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
+import {
+  ALBUM_DESIGN_EXPORT_HEIGHT,
+  ALBUM_DESIGN_EXPORT_WIDTH,
+  ALBUM_SPREAD_BACKGROUND,
+  getAlbumLayoutExportSlotInsetPx,
+  getAlbumLayoutTemplate,
+  getAlbumSlotEdgeInsetsPx
+} from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { getR2KeyFromPublicUrl, loadPhotoObjectBuffer } from "@/lib/storage";
 
@@ -59,8 +66,6 @@ export type AlbumDesignSpreadExportData = {
   }>;
 };
 
-export const ALBUM_DESIGN_EXPORT_WIDTH = 7200;
-export const ALBUM_DESIGN_EXPORT_HEIGHT = 3600;
 export const ALBUM_DESIGN_REVIEW_WIDTH = 3600;
 export const ALBUM_DESIGN_REVIEW_HEIGHT = 1800;
 const ALBUM_DESIGN_EXPORT_JPEG_QUALITY = 95;

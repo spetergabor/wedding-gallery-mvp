@@ -3,7 +3,15 @@
 import Image from "next/image";
 import { Maximize2, MousePointer2, Move, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
-import { ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumLayoutTemplate, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
+import {
+  ALBUM_DESIGN_EXPORT_HEIGHT,
+  ALBUM_DESIGN_EXPORT_WIDTH,
+  ALBUM_SPREAD_BACKGROUND,
+  getAlbumLayoutExportSlotInsetPx,
+  getAlbumLayoutPreviewSlotInsetPx,
+  getAlbumLayoutTemplate,
+  getAlbumSlotEdgeInsetsPx
+} from "@/lib/album-design-templates";
 
 type FavoritePhoto = {
   id: string;
@@ -732,6 +740,16 @@ export function AlbumSpreadSlotEditor({
     return draftSlotFrames[slotIndex] ?? item ?? templateSlot;
   }
 
+  function getSlotPixelSize(frame: SlotFrame) {
+    const exportInset = getAlbumLayoutExportSlotInsetPx(spread.layoutKey);
+    const edgeInsets = getAlbumSlotEdgeInsetsPx(frame, exportInset);
+
+    return {
+      width: Math.max(1, Math.round((frame.width / 100) * ALBUM_DESIGN_EXPORT_WIDTH) - edgeInsets.left - edgeInsets.right),
+      height: Math.max(1, Math.round((frame.height / 100) * ALBUM_DESIGN_EXPORT_HEIGHT) - edgeInsets.top - edgeInsets.bottom)
+    };
+  }
+
   function beginCropDrag(event: PointerEvent<HTMLElement>, item: SpreadItem) {
     if (event.button !== 0) {
       return;
@@ -1168,8 +1186,16 @@ export function AlbumSpreadSlotEditor({
   }
 
   function renderSlotFrameControls(slotIndex: number, slotFrame: SlotFrame) {
+    const pixelSize = getSlotPixelSize(slotFrame);
+
     return (
       <>
+        <span
+          aria-live="polite"
+          className="pointer-events-none absolute bottom-2 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink/90 px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums text-white shadow-lg ring-1 ring-white/25"
+        >
+          {pixelSize.width} × {pixelSize.height} px
+        </span>
         <button
           type="button"
           onPointerDown={(event) => beginSlotFrameDrag(event, slotIndex, slotFrame, "move")}
@@ -1206,19 +1232,26 @@ export function AlbumSpreadSlotEditor({
           <div className="flex flex-wrap gap-2">
             {template.slots.map((_, slotIndex) => {
               const isSelected = slotIndex === selectedSlotIndex;
-              const hasPhoto = draftItems.some((item) => item.slotIndex === slotIndex);
+              const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
+              const hasPhoto = Boolean(item);
+              const pixelSize = getSlotPixelSize(getSlotFrame(slotIndex, item));
 
               return (
                 <button
                   key={`slot-button-${spread.id}-${slotIndex}`}
                   type="button"
                   onClick={() => selectSlot(slotIndex)}
-                  className={`h-9 rounded-md border px-3 text-sm font-medium transition ${
+                  className={`min-h-11 rounded-md border px-3 py-1.5 text-sm font-medium transition ${
                     isSelected ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-brass hover:text-ink"
                   }`}
                 >
-                  Slot {slotIndex + 1}
-                  {!hasPhoto ? <span className="ml-1 text-xs opacity-60">üres</span> : null}
+                  <span>
+                    Slot {slotIndex + 1}
+                    {!hasPhoto ? <span className="ml-1 text-xs opacity-60">üres</span> : null}
+                  </span>
+                  <span className="block font-mono text-[10px] font-normal tabular-nums opacity-70">
+                    {pixelSize.width} × {pixelSize.height} px
+                  </span>
                 </button>
               );
             })}

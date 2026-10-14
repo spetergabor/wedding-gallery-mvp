@@ -15,6 +15,8 @@ export type AlbumLayoutTemplate = {
 };
 
 export const ALBUM_SPREAD_BACKGROUND = "#ffffff";
+export const ALBUM_DESIGN_EXPORT_WIDTH = 7200;
+export const ALBUM_DESIGN_EXPORT_HEIGHT = 3600;
 export const ALBUM_SPREAD_PREVIEW_SLOT_INSET_PX = 4;
 export const ALBUM_SPREAD_EXPORT_SLOT_INSET_PX = 14;
 const ALBUM_SLOT_EDGE_EPSILON_PERCENT = 0.001;
