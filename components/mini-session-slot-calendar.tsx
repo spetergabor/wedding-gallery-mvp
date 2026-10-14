@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import { MiniSessionMonthSelect } from "@/components/mini-session-month-select";
 
 type MiniSessionSlotCalendarLanguage = "hu" | "de";
 
@@ -159,21 +160,12 @@ export function MiniSessionSlotCalendar({
         {view === "calendar" ? (
           <div className="mt-3">
             {selectedMonth ? (
-              <label className="mb-4 block">
-                <span className="sr-only">{copy.chooseMonth}</span>
-                <select
-                  aria-label={copy.chooseMonth}
-                  value={selectedMonth?.key ?? ""}
-                  onChange={(event) => setSelectedMonthKey(event.target.value)}
-                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm font-semibold capitalize text-ink outline-none transition focus:border-ink focus:ring-2 focus:ring-ink/10"
-                >
-                  {months.map((month) => (
-                    <option key={month.key} value={month.key}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <MiniSessionMonthSelect
+                label={copy.chooseMonth}
+                months={months}
+                value={selectedMonth.key}
+                onChange={setSelectedMonthKey}
+              />
             ) : null}
             {selectedMonth ? (
               <div key={selectedMonth.key}>

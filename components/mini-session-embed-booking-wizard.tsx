@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, UserRound } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { MiniSessionMonthSelect } from "@/components/mini-session-month-select";
 
 type MiniSessionEmbedLanguage = "hu" | "de";
 
@@ -205,21 +206,12 @@ export function MiniSessionEmbedBookingWizard({
           <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableDays}</p>
           <div className="mx-auto mt-4 max-w-sm">
             {selectedMonth ? (
-              <label className="mb-4 block">
-                <span className="sr-only">{copy.chooseMonth}</span>
-                <select
-                  aria-label={copy.chooseMonth}
-                  value={selectedMonth?.key ?? ""}
-                  onChange={(event) => setSelectedMonthKey(event.target.value)}
-                  className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm font-semibold capitalize text-ink outline-none transition focus:border-ink focus:ring-2 focus:ring-ink/10"
-                >
-                  {months.map((month) => (
-                    <option key={month.key} value={month.key}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <MiniSessionMonthSelect
+                label={copy.chooseMonth}
+                months={months}
+                value={selectedMonth.key}
+                onChange={setSelectedMonthKey}
+              />
             ) : null}
             {selectedMonth ? (
               <div key={selectedMonth.key}>
