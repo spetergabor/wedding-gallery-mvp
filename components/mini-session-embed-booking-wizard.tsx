@@ -38,6 +38,7 @@ const COPY = {
     backToDays: "Vissza a napokhoz",
     backToSlots: "Vissza az időpontokhoz",
     availableDays: "Foglalható napok",
+    chooseMonth: "Hónap kiválasztása",
     availableSlots: "Szabad idősávok",
     name: "Név",
     email: "E-mail",
@@ -54,6 +55,7 @@ const COPY = {
     backToDays: "Zurück zu den Tagen",
     backToSlots: "Zurück zu den Zeiten",
     availableDays: "Verfügbare Tage",
+    chooseMonth: "Monat auswählen",
     availableSlots: "Freie Zeiten",
     name: "Name",
     email: "E-Mail",
@@ -132,6 +134,7 @@ export function MiniSessionEmbedBookingWizard({
   const currentStepIndex = stepIndex(step);
   const dayMap = useMemo(() => new Map(days.map((day) => [day.key, day])), [days]);
   const monthKeys = useMemo(() => Array.from(new Set(days.map((day) => day.key.slice(0, 7)))).sort(), [days]);
+  const [selectedMonthKey, setSelectedMonthKey] = useState(() => monthKeys[0] ?? "");
   const months = useMemo(
     () =>
       monthKeys.map((monthKey) => ({
@@ -141,6 +144,7 @@ export function MiniSessionEmbedBookingWizard({
       })),
     [dayMap, language, monthKeys]
   );
+  const selectedMonth = months.find((month) => month.key === selectedMonthKey) ?? months[0] ?? null;
   const selectedDay = dayMap.get(selectedDayKey) ?? null;
   const selectedSlot = selectedDay?.slots.find((slot) => slot.token === selectedSlotToken) ?? null;
 
@@ -199,10 +203,26 @@ export function MiniSessionEmbedBookingWizard({
             {copy.chooseDay}
           </h2>
           <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableDays}</p>
-          <div className="mx-auto mt-4 max-w-sm space-y-5">
-            {months.map((month) => (
-              <div key={month.key}>
-                <div className="mb-3 text-center text-sm font-semibold capitalize text-graphite">{month.label}</div>
+          <div className="mx-auto mt-4 max-w-sm">
+            {selectedMonth ? (
+              <label className="mb-4 block">
+                <span className="sr-only">{copy.chooseMonth}</span>
+                <select
+                  aria-label={copy.chooseMonth}
+                  value={selectedMonth?.key ?? ""}
+                  onChange={(event) => setSelectedMonthKey(event.target.value)}
+                  className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-sm font-semibold capitalize text-ink outline-none transition focus:border-ink focus:ring-2 focus:ring-ink/10"
+                >
+                  {months.map((month) => (
+                    <option key={month.key} value={month.key}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {selectedMonth ? (
+              <div key={selectedMonth.key}>
                 <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-graphite/55">
                   {WEEKDAYS[language].map((weekday) => (
                     <span key={weekday} className="grid h-7 place-items-center">
@@ -211,7 +231,7 @@ export function MiniSessionEmbedBookingWizard({
                   ))}
                 </div>
                 <div className="mt-1 grid grid-cols-7 gap-1">
-                  {month.cells.map((cell) => {
+                  {selectedMonth.cells.map((cell) => {
                     const availableDay = cell.availableDay;
                     const isSelected = availableDay?.key === selectedDayKey;
 
@@ -242,7 +262,7 @@ export function MiniSessionEmbedBookingWizard({
                   })}
                 </div>
               </div>
-            ))}
+            ) : null}
           </div>
         </section>
       ) : null}

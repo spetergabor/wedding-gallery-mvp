@@ -29,12 +29,14 @@ const WEEKDAYS = {
 const COPY = {
   hu: {
     availableDays: "Foglalható napok",
+    chooseMonth: "Hónap kiválasztása",
     availableSlots: "Elérhető idősávok",
     noDay: "Válassz egy foglalható napot",
     backToCalendar: "Teljes naptár"
   },
   de: {
     availableDays: "Verfügbare Tage",
+    chooseMonth: "Monat auswählen",
     availableSlots: "Verfügbare Zeiten",
     noDay: "Wähle einen verfügbaren Tag",
     backToCalendar: "Alle Tage"
@@ -106,6 +108,7 @@ export function MiniSessionSlotCalendar({
 
     return keys.sort();
   }, [days]);
+  const [selectedMonthKey, setSelectedMonthKey] = useState(() => initialDayKey.slice(0, 7) || monthKeys[0] || "");
   const months = useMemo(
     () =>
       monthKeys.map((monthKey) => ({
@@ -115,6 +118,7 @@ export function MiniSessionSlotCalendar({
       })),
     [dayMap, language, monthKeys]
   );
+  const selectedMonth = months.find((month) => month.key === selectedMonthKey) ?? months[0] ?? null;
   const selectedDay = dayMap.get(selectedDayKey) ?? null;
 
   function selectDay(day: MiniSessionSlotCalendarDay) {
@@ -153,10 +157,26 @@ export function MiniSessionSlotCalendar({
         </div>
 
         {view === "calendar" ? (
-          <div className="mt-3 max-h-[520px] space-y-5 overflow-y-auto pr-1">
-            {months.map((month) => (
-              <div key={month.key}>
-                <div className="mb-3 text-sm font-semibold capitalize text-graphite">{month.label}</div>
+          <div className="mt-3">
+            {selectedMonth ? (
+              <label className="mb-4 block">
+                <span className="sr-only">{copy.chooseMonth}</span>
+                <select
+                  aria-label={copy.chooseMonth}
+                  value={selectedMonth?.key ?? ""}
+                  onChange={(event) => setSelectedMonthKey(event.target.value)}
+                  className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm font-semibold capitalize text-ink outline-none transition focus:border-ink focus:ring-2 focus:ring-ink/10"
+                >
+                  {months.map((month) => (
+                    <option key={month.key} value={month.key}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {selectedMonth ? (
+              <div key={selectedMonth.key}>
                 <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-graphite/55">
                   {WEEKDAYS[language].map((weekday) => (
                     <span key={weekday} className="grid h-7 place-items-center">
@@ -165,7 +185,7 @@ export function MiniSessionSlotCalendar({
                   ))}
                 </div>
                 <div className="mt-1 grid grid-cols-7 gap-1">
-                  {month.cells.map((cell) => {
+                  {selectedMonth.cells.map((cell) => {
                     const availableDay = cell.availableDay;
                     const isSelected = availableDay?.key === selectedDayKey;
 
@@ -196,7 +216,7 @@ export function MiniSessionSlotCalendar({
                   })}
                 </div>
               </div>
-            ))}
+            ) : null}
           </div>
         ) : selectedDay ? (
           <div className="mt-3 grid max-h-[520px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
