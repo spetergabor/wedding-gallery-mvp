@@ -2,7 +2,7 @@ import QRCode from "qrcode";
 import { KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
-import { disableTwoFactorAction, enableTwoFactorAction } from "@/lib/gallery-actions";
+import { disableTwoFactorAction, enableTwoFactorAction } from "@/lib/admin-auth-actions";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createTotpUri, generateTotpSecret } from "@/lib/totp";

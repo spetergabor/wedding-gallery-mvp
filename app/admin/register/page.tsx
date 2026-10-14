@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Camera } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { hasAnyAdmin } from "@/lib/auth";
-import { registerAdminAction } from "@/lib/gallery-actions";
+import { registerAdminAction } from "@/lib/admin-auth-actions";
 import { FormSubmitButton } from "@/components/form-submit-button";
 
 export default async function AdminRegisterPage({

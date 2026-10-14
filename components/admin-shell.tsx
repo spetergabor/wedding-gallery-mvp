@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { AdminLanguageSwitch } from "@/components/admin-language-switch";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
-import { logoutAction } from "@/lib/gallery-actions";
+import { logoutAction } from "@/lib/admin-auth-actions";
 import { getAdminSession, type AdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notificationWhere, ownerAdminId } from "@/lib/admin-scope";

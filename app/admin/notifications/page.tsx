@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Bell, CheckCheck } from "lucide-react";
 import { AdminShell } from "@/components/admin-shell";
-import { markAllNotificationsReadAction } from "@/lib/gallery-actions";
+import { markAllNotificationsReadAction } from "@/lib/admin-notification-actions";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { notificationWhere } from "@/lib/admin-scope";

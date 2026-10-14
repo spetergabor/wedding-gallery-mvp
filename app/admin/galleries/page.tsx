@@ -10,7 +10,7 @@ import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { publicGalleryUrl } from "@/lib/email";
-import { toggleGalleryActiveFromListAction } from "@/lib/gallery-actions";
+import { toggleGalleryActiveFromListAction } from "@/lib/gallery-list-actions";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE, GALLERY_MODE_GUEST } from "@/lib/proofing";
 

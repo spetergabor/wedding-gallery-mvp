@@ -11,9 +11,9 @@ import {
   createPhotoUploadSessionAction,
   createPhotoUploadTargetsAction,
   getPhotoMultipartUploadStatusAction,
-  markPhotoUploadItemFailedAction,
-  refreshAdminSessionAction
+  markPhotoUploadItemFailedAction
 } from "@/lib/gallery-actions";
+import { refreshAdminSessionAction } from "@/lib/admin-auth-actions";
 import { Button } from "@/components/button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";

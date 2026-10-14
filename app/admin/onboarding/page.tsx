@@ -2,7 +2,7 @@ import { Camera, CheckCircle2, Globe2, LogOut, Sparkles } from "lucide-react";
 import { Alert } from "@/components/alert";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { requireAdmin } from "@/lib/auth";
-import { logoutAction } from "@/lib/gallery-actions";
+import { logoutAction } from "@/lib/admin-auth-actions";
 import { completeAdminOnboardingAction } from "@/lib/onboarding-actions";
 import { prisma } from "@/lib/prisma";
 

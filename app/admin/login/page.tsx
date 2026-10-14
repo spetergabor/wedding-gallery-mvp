@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Camera } from "lucide-react";
-import { loginAction } from "@/lib/gallery-actions";
+import { loginAction } from "@/lib/admin-auth-actions";
 import { Alert } from "@/components/alert";
 import { hasAnyAdmin } from "@/lib/auth";
 import { FormSubmitButton } from "@/components/form-submit-button";
