@@ -35,6 +35,12 @@ export function MiniSessionEmbedAutoResize() {
       animationFrame = window.requestAnimationFrame(reportHeight);
     }
 
+    function handleParentMessage(event: MessageEvent) {
+      if (event.data?.type === "spetly:request-embed-height") {
+        scheduleHeightReport();
+      }
+    }
+
     const resizeObserver = new ResizeObserver(scheduleHeightReport);
     resizeObserver.observe(document.documentElement);
     resizeObserver.observe(document.body);
@@ -48,6 +54,7 @@ export function MiniSessionEmbedAutoResize() {
 
     window.addEventListener("load", scheduleHeightReport);
     window.addEventListener("resize", scheduleHeightReport);
+    window.addEventListener("message", handleParentMessage);
     document.fonts?.ready.then(scheduleHeightReport).catch(() => undefined);
     scheduleHeightReport();
 
@@ -57,6 +64,7 @@ export function MiniSessionEmbedAutoResize() {
       mutationObserver.disconnect();
       window.removeEventListener("load", scheduleHeightReport);
       window.removeEventListener("resize", scheduleHeightReport);
+      window.removeEventListener("message", handleParentMessage);
     };
   }, []);
 
