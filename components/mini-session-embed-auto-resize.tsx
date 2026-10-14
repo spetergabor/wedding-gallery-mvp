@@ -12,8 +12,12 @@ export function MiniSessionEmbedAutoResize() {
     function reportHeight() {
       animationFrame = 0;
 
+      const embedContent = document.querySelector("main");
+
       const height = Math.ceil(
-        Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)
+        embedContent
+          ? Math.max(embedContent.scrollHeight, embedContent.getBoundingClientRect().height)
+          : Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)
       );
 
       if (height === lastHeight) {
