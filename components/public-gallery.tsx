@@ -22,6 +22,7 @@ import { dateLocaleForCustomer, type CustomerLanguage } from "@/lib/customer-lan
 import { DEFAULT_GALLERY_DOWNLOAD_QUALITY } from "@/lib/download-quality";
 import { GALLERY_DELIVERY_PAID, normalizeGalleryDeliveryMode } from "@/lib/gallery-delivery";
 import { normalizeGalleryGridGap, normalizeGalleryImageRadius } from "@/lib/gallery-appearance";
+import { recoverFromServerActionVersionError } from "@/lib/client-deployment-recovery";
 import {
   priceForGalleryPhotoQuantity,
   pricingTierLabel,
@@ -1075,6 +1076,10 @@ export function PublicGallery({
           : copy.zipWaiting
       );
     } catch (error) {
+      if (recoverFromServerActionVersionError(error)) {
+        return;
+      }
+
       setEmailError(error instanceof Error ? error.message : copy.zipCreateFailed);
       setIsZipping(false);
       setZipProgress("");
@@ -1142,7 +1147,11 @@ export function PublicGallery({
       setSingleDownloadPrompt(null);
       setSingleDownloadEmail("");
       triggerPhotoDownload(result.downloadUrl, result.filename || photoFileName(photo, selectedIndex ?? 0));
-    } catch {
+    } catch (error) {
+      if (recoverFromServerActionVersionError(error)) {
+        return;
+      }
+
       setSingleDownloadError(copy.photoDownloadFailed);
     } finally {
       setDownloadingPhotoId(null);
@@ -1245,6 +1254,10 @@ export function PublicGallery({
       );
       setActiveFavoriteListId(resultListId);
     } catch (error) {
+      if (recoverFromServerActionVersionError(error)) {
+        return;
+      }
+
       setFavoriteLists(previousLists);
       setFavoriteError(error instanceof Error ? error.message : proofingSelection ? copy.saveError : copy.favoriteSaveError);
     } finally {
@@ -1324,6 +1337,10 @@ export function PublicGallery({
         await toggleFavorite(queuedPhotoId, normalizedEmail);
       }
     } catch (error) {
+      if (recoverFromServerActionVersionError(error)) {
+        return;
+      }
+
       setFavoriteError(error instanceof Error ? error.message : copy.favoriteListNotFound);
     } finally {
       setIsSubmittingFavoriteEmail(false);
@@ -1390,6 +1407,10 @@ export function PublicGallery({
       setFavoriteSuccess(result.message ?? copy.selectionSaved);
       setIsSelectionSummaryOpen(false);
     } catch (error) {
+      if (recoverFromServerActionVersionError(error)) {
+        return;
+      }
+
       setFavoriteError(error instanceof Error ? error.message : copy.saveError);
     } finally {
       setIsSubmittingFavoriteList(false);
