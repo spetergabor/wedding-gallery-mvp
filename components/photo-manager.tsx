@@ -8,7 +8,11 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { PhotoSortableGrid, type PhotoManagerSet, type SortablePhoto } from "@/components/photo-sortable-grid";
-import { lightroomFilenameList } from "@/lib/photo-filename";
+import {
+  lightroomFilenameList,
+  parsePhotoFilenameSearch,
+  photoMatchesFilenameSearch
+} from "@/lib/photo-filename";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
@@ -68,6 +72,7 @@ export function PhotoManager({
   const duplicateCount = countDuplicatePhotos(photos);
   const normalizedActiveSet = normalizePhotoManagerSet(activeSet);
   const normalizedSearch = (activeSearch ?? "").trim();
+  const filenameSearch = parsePhotoFilenameSearch(normalizedSearch);
   const basePhotos = proofingGallery
     ? photos.filter((photo) => {
         if (normalizedActiveSet === "raw") {
@@ -86,7 +91,7 @@ export function PhotoManager({
       })
     : photos;
   const displayedPhotos = normalizedSearch
-    ? basePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedSearch.toLowerCase()))
+    ? basePhotos.filter((photo) => photoMatchesFilenameSearch(photo.filename, filenameSearch))
     : basePhotos;
   const photoSetTabs = [
     { key: "all", label: "Összes", count: photos.length },
@@ -185,13 +190,13 @@ export function PhotoManager({
         {proofingGallery ? <input type="hidden" name="photoSet" value={normalizedActiveSet} /> : null}
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <label className="relative flex-1">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-graphite/50" />
-            <input
-              type="search"
+            <Search size={16} className="pointer-events-none absolute left-3 top-3.5 text-graphite/50" />
+            <textarea
               name="photoSearch"
               defaultValue={normalizedSearch}
-              placeholder="Keresés fájlnév alapján..."
-              className="h-11 w-full rounded-md border border-ink/15 bg-white pl-9 pr-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
+              rows={3}
+              placeholder="Keresés fájlnév alapján, vagy illeszd be ide a teljes fájnévlistát..."
+              className="min-h-20 w-full resize-y rounded-md border border-ink/15 bg-white py-3 pl-9 pr-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50"
             />
           </label>
           <div className="flex gap-2">
@@ -215,8 +220,13 @@ export function PhotoManager({
         </div>
         <p className="mt-2 text-xs text-graphite/70">
           {normalizedSearch
-            ? `${displayedPhotos.length} találat / ${basePhotos.length} kép ebben a nézetben.`
+            ? filenameSearch.isList
+              ? `${displayedPhotos.length} kép található a bemásolt ${filenameSearch.terms.length} egyedi fájlnévből. A „Láthatók kijelölése” gombbal egyszerre kijelölheted őket.`
+              : `${displayedPhotos.length} találat / ${basePhotos.length} kép ebben a nézetben.`
             : `${basePhotos.length} kép ebben a nézetben.`}
+        </p>
+        <p className="mt-1 text-xs text-graphite/55">
+          Több fájlnevet külön sorban, vesszővel, pontosvesszővel, tabulátorral vagy szóközzel elválasztva is beilleszthetsz. A kiterjesztés nem kötelező.
         </p>
       </form>
       <PhotoSortableGrid

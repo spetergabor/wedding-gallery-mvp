@@ -17,6 +17,7 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { parsePhotoFilenameSearch, photoMatchesFilenameSearch } from "@/lib/photo-filename";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
   PHOTO_DELIVERY_STAGE_RAW,
@@ -144,6 +145,7 @@ export function PhotoSortableGrid({
   const proofingGallery = isProofingGallery(galleryMode);
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
   const normalizedSearch = activeSearch.trim().toLowerCase();
+  const filenameSearch = useMemo(() => parsePhotoFilenameSearch(activeSearch), [activeSearch]);
   const hasUnsavedOrder = photosChanged(orderedPhotos, photos);
   const compactGrid = gridColumnCount >= 5;
   const basePhotos = useMemo(() => {
@@ -168,7 +170,7 @@ export function PhotoSortableGrid({
     });
   }, [activeSet, orderedPhotos, proofingGallery, selectedSet]);
   const displayedPhotos = normalizedSearch
-    ? basePhotos.filter((photo) => photo.filename.toLowerCase().includes(normalizedSearch))
+    ? basePhotos.filter((photo) => photoMatchesFilenameSearch(photo.filename, filenameSearch))
     : basePhotos;
   const displayedPhotoIds = useMemo(() => displayedPhotos.map((photo) => photo.id), [displayedPhotos]);
   const bulkSelectedCount = bulkSelectedPhotoIds.size;
@@ -602,7 +604,13 @@ export function PhotoSortableGrid({
             <EmptyState
               icon={<ImageIcon size={22} />}
               title={normalizedSearch ? "Nincs találat" : "Még nincs fotó"}
-              description={normalizedSearch ? "Próbálj teljes vagy részleges fájlnevet keresni, például SP2_4439 vagy DJI_0018." : emptyDescription}
+              description={
+                normalizedSearch
+                  ? filenameSearch.isList
+                    ? "A bemásolt listából egyik fájlnévhez sem található kép ebben a nézetben. Ellenőrizd a fájlneveket és az aktív képkészletet."
+                    : "Próbálj teljes vagy részleges fájlnevet keresni, például SP2_4439 vagy DJI_0018."
+                  : emptyDescription
+              }
             />
           </div>
         ) : null}
