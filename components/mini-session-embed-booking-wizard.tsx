@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, UserRound } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionMonthSelect } from "@/components/mini-session-month-select";
-import { MiniSessionSlotWheel } from "@/components/mini-session-slot-wheel";
+import { MiniSessionSlotSelect } from "@/components/mini-session-slot-select";
 
 type MiniSessionEmbedLanguage = "hu" | "de";
 
@@ -42,7 +42,11 @@ const COPY = {
     availableDays: "Foglalható napok",
     chooseMonth: "Hónap kiválasztása",
     availableSlots: "Szabad idősávok",
-    scrollSlots: "Görgess a szabad időpontok között",
+    slotPlaceholder: "Válassz szabad időpontot",
+    morning: "Délelőtt",
+    afternoon: "Délután",
+    evening: "Este",
+    selectedSlot: "Kiválasztott időpont",
     continueToDetails: "Tovább az adatokhoz",
     name: "Név",
     email: "E-mail",
@@ -61,7 +65,11 @@ const COPY = {
     availableDays: "Verfügbare Tage",
     chooseMonth: "Monat auswählen",
     availableSlots: "Freie Zeiten",
-    scrollSlots: "Scrolle durch die freien Zeiten",
+    slotPlaceholder: "Freie Zeit auswählen",
+    morning: "Vormittag",
+    afternoon: "Nachmittag",
+    evening: "Abend",
+    selectedSlot: "Ausgewählter Termin",
     continueToDetails: "Weiter zu den Daten",
     name: "Name",
     email: "E-Mail",
@@ -156,7 +164,7 @@ export function MiniSessionEmbedBookingWizard({
 
   function selectDay(day: MiniSessionEmbedBookingDay) {
     setSelectedDayKey(day.key);
-    setSelectedSlotToken(day.slots[0]?.token ?? "");
+    setSelectedSlotToken("");
     setStep("slots");
   }
 
@@ -272,14 +280,25 @@ export function MiniSessionEmbedBookingWizard({
           <p className="mt-1 text-center text-sm text-graphite/65">{selectedDay.label}</p>
           <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableSlots}</p>
           <div className="mt-4">
-            <MiniSessionSlotWheel
-              key={selectedDay.key}
+            <MiniSessionSlotSelect
               ariaLabel={copy.availableSlots}
+              placeholder={copy.slotPlaceholder}
+              morningLabel={copy.morning}
+              afternoonLabel={copy.afternoon}
+              eveningLabel={copy.evening}
               slots={selectedDay.slots}
               value={selectedSlotToken}
               onChange={selectSlot}
             />
-            <p className="mt-3 text-center text-xs text-graphite/55">{copy.scrollSlots}</p>
+            {selectedSlot ? (
+              <div aria-live="polite" className="mx-auto mt-3 flex min-h-14 w-full max-w-xs items-center gap-3 rounded-md border border-sage/25 bg-sage/10 px-4">
+                <CheckCircle2 aria-hidden="true" className="shrink-0 text-sage" size={19} />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-graphite/55">{copy.selectedSlot}</p>
+                  <p className="mt-0.5 text-base font-semibold tabular-nums text-ink">{selectedSlot.label}</p>
+                </div>
+              </div>
+            ) : null}
             <button
               type="button"
               disabled={!selectedSlotToken}
