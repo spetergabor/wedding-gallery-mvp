@@ -222,6 +222,351 @@ input[type="time"] {
   margin: 1rem 0;
 }
 
+/* Reusable dark booking template for Iris Moment embeds. */
+.mini-session-theme-iris {
+  --iris-bg: #09090a;
+  --iris-surface: #121214;
+  --iris-surface-raised: #1a1a1d;
+  --iris-line: rgba(255, 255, 255, 0.12);
+  --iris-line-strong: rgba(229, 195, 112, 0.5);
+  --iris-gold: #e5c370;
+  --iris-gold-light: #f2d98e;
+  --iris-text: #f5f3ef;
+  --iris-muted: rgba(245, 243, 239, 0.65);
+  color-scheme: dark;
+  color: var(--iris-text);
+  font-family: "Montserrat", Arial, sans-serif;
+}
+
+.mini-session-theme-iris .mini-session-embed-frame {
+  max-width: 54rem;
+  padding: clamp(0.75rem, 2.2vw, 1.5rem);
+}
+
+.mini-session-theme-iris .mini-session-embed-card {
+  overflow: hidden;
+  border: 1px solid var(--iris-line);
+  border-radius: clamp(1.5rem, 4vw, 2.25rem);
+  background:
+    radial-gradient(circle at 86% 8%, rgba(229, 195, 112, 0.13), transparent 32%),
+    linear-gradient(145deg, #151516 0%, var(--iris-bg) 62%);
+  box-shadow: 0 36px 100px rgba(0, 0, 0, 0.34);
+}
+
+.mini-session-theme-iris .mini-session-embed-header {
+  border-color: var(--iris-line);
+  background: transparent;
+  padding: clamp(1.75rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3.5rem) clamp(1.5rem, 4vw, 2.75rem);
+}
+
+.mini-session-theme-iris .mini-session-embed-kicker,
+.mini-session-theme-iris .mini-session-wizard-eyebrow {
+  color: var(--iris-gold);
+  letter-spacing: 0.2em;
+}
+
+.mini-session-theme-iris .mini-session-embed-title {
+  margin-top: 0.75rem;
+  color: var(--iris-text);
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: clamp(2rem, 6vw, 3.75rem);
+  font-weight: 600;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.mini-session-theme-iris .mini-session-embed-meta {
+  margin-top: 1.5rem;
+  color: var(--iris-muted);
+}
+
+.mini-session-theme-iris .mini-session-embed-pill {
+  border-color: var(--iris-line);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(245, 243, 239, 0.78);
+  backdrop-filter: blur(14px);
+}
+
+.mini-session-theme-iris .mini-session-embed-note {
+  color: var(--iris-muted);
+}
+
+.mini-session-theme-iris .mini-session-embed-styling {
+  border: 1px solid rgba(229, 195, 112, 0.18);
+  background: rgba(229, 195, 112, 0.07);
+  color: rgba(245, 243, 239, 0.72);
+}
+
+.mini-session-theme-iris .mini-session-embed-content {
+  padding: clamp(1.25rem, 4vw, 2.75rem);
+}
+
+.mini-session-theme-iris .mini-session-embed-intro {
+  margin-bottom: 1.5rem;
+}
+
+.mini-session-theme-iris .mini-session-embed-intro-title,
+.mini-session-theme-iris .mini-session-wizard-heading {
+  color: var(--iris-text);
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 600;
+}
+
+.mini-session-theme-iris .mini-session-embed-intro-title {
+  font-size: clamp(1.6rem, 4vw, 2.25rem);
+}
+
+.mini-session-theme-iris .mini-session-embed-intro-text,
+.mini-session-theme-iris .mini-session-wizard-description {
+  color: var(--iris-muted);
+}
+
+.mini-session-theme-iris .mini-session-wizard-nav {
+  border: 0;
+  border-bottom: 1px solid var(--iris-line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 1.25rem;
+}
+
+.mini-session-theme-iris .mini-session-wizard-back {
+  border-color: var(--iris-line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--iris-text);
+}
+
+.mini-session-theme-iris .mini-session-wizard-back:hover {
+  border-color: var(--iris-line-strong);
+  background: rgba(229, 195, 112, 0.08);
+}
+
+.mini-session-theme-iris .mini-session-wizard-step {
+  min-height: 2.5rem;
+  border-color: transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(245, 243, 239, 0.38);
+  letter-spacing: 0.04em;
+}
+
+.mini-session-theme-iris .mini-session-wizard-step[data-state="active"] {
+  border-color: rgba(229, 195, 112, 0.3);
+  background: rgba(229, 195, 112, 0.14);
+  color: var(--iris-gold-light);
+}
+
+.mini-session-theme-iris .mini-session-wizard-step[data-state="done"] {
+  color: rgba(245, 243, 239, 0.68);
+}
+
+.mini-session-theme-iris .mini-session-wizard-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.5rem 0 0;
+}
+
+.mini-session-theme-iris .mini-session-wizard-heading {
+  font-size: 1.35rem;
+}
+
+.mini-session-theme-iris .mini-session-month-trigger,
+.mini-session-theme-iris .mini-session-month-menu,
+.mini-session-theme-iris .mini-session-slot-select-control,
+.mini-session-theme-iris .mini-session-field {
+  border-color: var(--iris-line);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--iris-text);
+}
+
+.mini-session-theme-iris .mini-session-month-trigger:hover,
+.mini-session-theme-iris .mini-session-month-trigger:focus,
+.mini-session-theme-iris .mini-session-slot-select-control:focus,
+.mini-session-theme-iris .mini-session-field:focus {
+  border-color: var(--iris-line-strong);
+  box-shadow: 0 0 0 3px rgba(229, 195, 112, 0.1);
+}
+
+.mini-session-theme-iris .mini-session-month-menu {
+  background: #171719;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+
+.mini-session-theme-iris .mini-session-month-option {
+  color: var(--iris-text);
+}
+
+.mini-session-theme-iris .mini-session-month-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mini-session-theme-iris .mini-session-month-option[data-selected="true"] {
+  background: var(--iris-gold);
+  color: #111113;
+}
+
+.mini-session-theme-iris .mini-session-calendar-day[data-state="available"] {
+  border-color: rgba(229, 195, 112, 0.24);
+  background: rgba(229, 195, 112, 0.08);
+  color: var(--iris-text);
+}
+
+.mini-session-theme-iris .mini-session-calendar-day[data-state="available"]:hover,
+.mini-session-theme-iris .mini-session-calendar-day[data-state="selected"] {
+  border-color: var(--iris-gold-light);
+  background: var(--iris-gold);
+  color: #101011;
+  box-shadow: 0 8px 30px rgba(229, 195, 112, 0.2);
+}
+
+.mini-session-theme-iris .mini-session-calendar-day[data-state="disabled"] {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(245, 243, 239, 0.24);
+}
+
+.mini-session-theme-iris .mini-session-calendar-day[data-state="outside"] {
+  background: transparent;
+  color: transparent;
+}
+
+.mini-session-theme-iris .mini-session-select-icon,
+.mini-session-theme-iris .mini-session-field-label,
+.mini-session-theme-iris .mini-session-calendar-weekdays {
+  color: rgba(245, 243, 239, 0.68);
+}
+
+.mini-session-theme-iris .mini-session-selected-slot {
+  border-color: rgba(229, 195, 112, 0.28);
+  background: rgba(229, 195, 112, 0.09);
+}
+
+.mini-session-theme-iris .mini-session-selected-slot svg,
+.mini-session-theme-iris .mini-session-selected-slot p:first-child {
+  color: var(--iris-gold);
+}
+
+.mini-session-theme-iris .mini-session-selected-slot p:last-child {
+  color: var(--iris-text);
+}
+
+.mini-session-theme-iris .mini-session-continue,
+.mini-session-theme-iris .mini-session-submit {
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--iris-gold-light), #c99b36);
+  color: #0f0f10;
+  box-shadow: 0 12px 34px rgba(201, 155, 54, 0.2);
+}
+
+.mini-session-theme-iris .mini-session-continue:hover,
+.mini-session-theme-iris .mini-session-submit:hover {
+  background: linear-gradient(135deg, #f7e6ac, #d8ad4d);
+  transform: translateY(-1px);
+}
+
+.mini-session-theme-iris .mini-session-continue:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(245, 243, 239, 0.36);
+  box-shadow: none;
+  transform: none;
+}
+
+.mini-session-theme-iris .mini-session-form-footer {
+  border-color: var(--iris-line);
+}
+
+.mini-session-confirmation-iris {
+  background: rgba(0, 0, 0, 0.78);
+  color-scheme: dark;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 85% 4%, rgba(229, 195, 112, 0.14), transparent 36%),
+    #121214;
+  color: #f5f3ef;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-close {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5f3ef;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-icon {
+  background: rgba(229, 195, 112, 0.12);
+  color: #e5c370;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-eyebrow {
+  color: #e5c370;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-title {
+  color: #f5f3ef;
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 600;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-description,
+.mini-session-confirmation-iris .mini-session-confirmation-info p {
+  color: rgba(245, 243, 239, 0.68);
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-info {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-valid {
+  background: rgba(229, 195, 112, 0.09);
+  color: #f5f3ef;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-valid svg,
+.mini-session-confirmation-iris .mini-session-confirmation-info svg {
+  color: #e5c370;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-primary {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f2d98e, #c99b36);
+  color: #0f0f10;
+}
+
+.mini-session-confirmation-iris .mini-session-confirmation-secondary {
+  border-color: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #f5f3ef;
+}
+
+@media (max-width: 639px) {
+  .mini-session-theme-iris .mini-session-embed-frame {
+    padding: 0.625rem;
+  }
+
+  .mini-session-theme-iris .mini-session-embed-header,
+  .mini-session-theme-iris .mini-session-embed-content {
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
+  }
+
+  .mini-session-theme-iris .mini-session-embed-title {
+    font-size: clamp(2rem, 11vw, 2.7rem);
+  }
+
+  .mini-session-theme-iris .mini-session-wizard-step {
+    font-size: 0.68rem;
+  }
+}
+
 @keyframes galleryFadeIn {
   from {
     opacity: 0;

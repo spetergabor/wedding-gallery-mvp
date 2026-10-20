@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import type { MiniSessionTheme } from "@/lib/mini-sessions";
 
 const POPUP_STORAGE_KEY = "spetly:mini-session-confirmation-popup";
 
@@ -33,7 +34,7 @@ function clearStoredPopupName() {
   }
 }
 
-export function prepareMiniSessionConfirmationPopup(language: MiniSessionPopupLanguage) {
+export function prepareMiniSessionConfirmationPopup(language: MiniSessionPopupLanguage, theme: MiniSessionTheme = "default") {
   const existingName = storedPopupName();
 
   if (existingName) {
@@ -58,20 +59,27 @@ export function prepareMiniSessionConfirmationPopup(language: MiniSessionPopupLa
   const copy = POPUP_COPY[language];
   popup.document.title = copy.title;
   popup.document.documentElement.lang = language;
-  popup.document.body.style.cssText =
-    "margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f1ea;color:#171a18;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
+  const isIris = theme === "iris";
+  popup.document.body.style.cssText = isIris
+    ? "margin:0;min-height:100vh;display:grid;place-items:center;background:#09090a;color:#f5f3ef;font-family:Montserrat,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+    : "margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f1ea;color:#171a18;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
 
   const panel = popup.document.createElement("main");
-  panel.style.cssText =
-    "box-sizing:border-box;width:min(560px,calc(100% - 32px));padding:32px;border:1px solid rgba(23,26,24,.12);border-radius:18px;background:#fff;box-shadow:0 18px 50px rgba(23,26,24,.12);text-align:center;";
+  panel.style.cssText = isIris
+    ? "box-sizing:border-box;width:min(560px,calc(100% - 32px));padding:36px;border:1px solid rgba(255,255,255,.12);border-radius:28px;background:radial-gradient(circle at 85% 5%,rgba(229,195,112,.14),transparent 38%),#121214;box-shadow:0 28px 80px rgba(0,0,0,.4);text-align:center;"
+    : "box-sizing:border-box;width:min(560px,calc(100% - 32px));padding:32px;border:1px solid rgba(23,26,24,.12);border-radius:18px;background:#fff;box-shadow:0 18px 50px rgba(23,26,24,.12);text-align:center;";
 
   const title = popup.document.createElement("h1");
   title.textContent = copy.title;
-  title.style.cssText = "margin:0;font-size:28px;line-height:1.2;";
+  title.style.cssText = isIris
+    ? "margin:0;color:#f5f3ef;font-family:Georgia,serif;font-size:32px;font-weight:600;line-height:1.15;"
+    : "margin:0;font-size:28px;line-height:1.2;";
 
   const text = popup.document.createElement("p");
   text.textContent = copy.text;
-  text.style.cssText = "margin:14px 0 0;color:rgba(23,26,24,.7);font-size:16px;line-height:1.6;";
+  text.style.cssText = isIris
+    ? "margin:14px 0 0;color:rgba(245,243,239,.68);font-size:16px;line-height:1.6;"
+    : "margin:14px 0 0;color:rgba(23,26,24,.7);font-size:16px;line-height:1.6;";
 
   panel.append(title, text);
   popup.document.body.replaceChildren(panel);

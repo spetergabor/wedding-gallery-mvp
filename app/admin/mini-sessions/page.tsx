@@ -62,6 +62,7 @@ import {
   MINI_SESSION_BOOKING_STATUS_NO_SHOW,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_LANGUAGES,
+  MINI_SESSION_THEMES,
   MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
   MINI_SESSION_WEEKDAYS,
   miniSessionDateKey,
@@ -340,6 +341,16 @@ function ServiceCreateForm() {
             </select>
           </label>
           <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Foglaló sablon</span>
+            <select name="publicTheme" defaultValue="default" className={fieldClass}>
+              {MINI_SESSION_THEMES.map((theme) => (
+                <option key={theme.value} value={theme.value}>
+                  {theme.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
             <input name="date" type="date" required className={fieldClass} />
           </label>
@@ -477,6 +488,16 @@ function MiniSessionCreateForm() {
               {MINI_SESSION_LANGUAGES.map((language) => (
                 <option key={language.value} value={language.value}>
                   {language.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Foglaló sablon</span>
+            <select name="publicTheme" defaultValue="default" className={fieldClass}>
+              {MINI_SESSION_THEMES.map((theme) => (
+                <option key={theme.value} value={theme.value}>
+                  {theme.label}
                 </option>
               ))}
             </select>

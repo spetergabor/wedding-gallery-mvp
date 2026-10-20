@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, UserRound } from "lucide
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionMonthSelect } from "@/components/mini-session-month-select";
 import { MiniSessionSlotSelect } from "@/components/mini-session-slot-select";
+import type { MiniSessionTheme } from "@/lib/mini-sessions";
 
 type MiniSessionEmbedLanguage = "hu" | "de";
 
@@ -136,10 +137,12 @@ function stepIndex(step: WizardStep) {
 
 export function MiniSessionEmbedBookingWizard({
   days,
-  language
+  language,
+  theme
 }: {
   days: MiniSessionEmbedBookingDay[];
   language: MiniSessionEmbedLanguage;
+  theme: MiniSessionTheme;
 }) {
   const copy = COPY[language];
   const [step, setStep] = useState<WizardStep>("days");
@@ -173,13 +176,13 @@ export function MiniSessionEmbedBookingWizard({
   }
 
   return (
-    <div className="space-y-4">
-      <nav className="rounded-md border border-ink/10 bg-paper px-3 py-3">
+    <div className="mini-session-wizard space-y-4" data-theme={theme}>
+      <nav className="mini-session-wizard-nav rounded-md border border-ink/10 bg-paper px-3 py-3">
         {step !== "days" ? (
           <button
             type="button"
             onClick={() => setStep(step === "details" ? "slots" : "days")}
-            className="mb-3 inline-flex h-9 items-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25"
+            className="mini-session-wizard-back mb-3 inline-flex h-9 items-center gap-2 rounded-md border border-ink/10 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/25"
           >
             <ArrowLeft size={15} />
             {step === "details" ? copy.backToSlots : copy.backToDays}
@@ -193,7 +196,8 @@ export function MiniSessionEmbedBookingWizard({
             return (
               <div
                 key={label}
-                className={`flex min-h-10 items-center justify-center rounded-md border px-2 text-center text-xs font-semibold transition ${
+                data-state={isActive ? "active" : isDone ? "done" : "upcoming"}
+                className={`mini-session-wizard-step flex min-h-10 items-center justify-center rounded-md border px-2 text-center text-xs font-semibold transition ${
                   isActive
                     ? "border-ink bg-ink text-white"
                     : isDone
@@ -210,12 +214,12 @@ export function MiniSessionEmbedBookingWizard({
       </nav>
 
       {step === "days" ? (
-        <section className="rounded-md border border-ink/10 bg-white p-4">
-          <h2 className="flex items-center justify-center gap-2 text-base font-semibold text-ink">
+        <section className="mini-session-wizard-panel rounded-md border border-ink/10 bg-white p-4">
+          <h2 className="mini-session-wizard-heading flex items-center justify-center gap-2 text-base font-semibold text-ink">
             <CalendarDays size={18} />
             {copy.chooseDay}
           </h2>
-          <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableDays}</p>
+          <p className="mini-session-wizard-eyebrow mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableDays}</p>
           <div className="mx-auto mt-4 max-w-sm">
             {selectedMonth ? (
               <MiniSessionMonthSelect
@@ -227,7 +231,7 @@ export function MiniSessionEmbedBookingWizard({
             ) : null}
             {selectedMonth ? (
               <div key={selectedMonth.key}>
-                <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-graphite/55">
+                <div className="mini-session-calendar-weekdays grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase text-graphite/55">
                   {WEEKDAYS[language].map((weekday) => (
                     <span key={weekday} className="grid h-7 place-items-center">
                       {weekday}
@@ -245,12 +249,13 @@ export function MiniSessionEmbedBookingWizard({
                         type="button"
                         disabled={!availableDay}
                         aria-pressed={isSelected}
+                        data-state={isSelected ? "selected" : availableDay ? "available" : cell.inMonth ? "disabled" : "outside"}
                         onClick={() => {
                           if (availableDay) {
                             selectDay(availableDay);
                           }
                         }}
-                        className={`grid aspect-square w-full min-w-0 place-items-center rounded-md border text-sm font-semibold transition ${
+                        className={`mini-session-calendar-day grid aspect-square w-full min-w-0 place-items-center rounded-md border text-sm font-semibold transition ${
                           isSelected
                             ? "border-ink bg-ink text-white shadow-sm"
                             : availableDay
@@ -272,13 +277,13 @@ export function MiniSessionEmbedBookingWizard({
       ) : null}
 
       {step === "slots" && selectedDay ? (
-        <section className="rounded-md border border-ink/10 bg-white p-4">
-          <h2 className="flex items-center justify-center gap-2 text-base font-semibold text-ink">
+        <section className="mini-session-wizard-panel rounded-md border border-ink/10 bg-white p-4">
+          <h2 className="mini-session-wizard-heading flex items-center justify-center gap-2 text-base font-semibold text-ink">
             <Clock3 size={18} />
             {copy.chooseSlot}
           </h2>
-          <p className="mt-1 text-center text-sm text-graphite/65">{selectedDay.label}</p>
-          <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableSlots}</p>
+          <p className="mini-session-wizard-description mt-1 text-center text-sm text-graphite/65">{selectedDay.label}</p>
+          <p className="mini-session-wizard-eyebrow mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableSlots}</p>
           <div className="mt-4">
             <MiniSessionSlotSelect
               ariaLabel={copy.availableSlots}
@@ -289,9 +294,10 @@ export function MiniSessionEmbedBookingWizard({
               slots={selectedDay.slots}
               value={selectedSlotToken}
               onChange={selectSlot}
+              theme={theme}
             />
             {selectedSlot ? (
-              <div aria-live="polite" className="mx-auto mt-3 flex min-h-14 w-full max-w-xs items-center gap-3 rounded-md border border-sage/25 bg-sage/10 px-4">
+              <div aria-live="polite" className="mini-session-selected-slot mx-auto mt-3 flex min-h-14 w-full max-w-xs items-center gap-3 rounded-md border border-sage/25 bg-sage/10 px-4">
                 <CheckCircle2 aria-hidden="true" className="shrink-0 text-sage" size={19} />
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-graphite/55">{copy.selectedSlot}</p>
@@ -303,7 +309,7 @@ export function MiniSessionEmbedBookingWizard({
               type="button"
               disabled={!selectedSlotToken}
               onClick={() => setStep("details")}
-              className="mx-auto mt-4 flex h-11 w-full max-w-xs items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
+              className="mini-session-continue mx-auto mt-4 flex h-11 w-full max-w-xs items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
             >
               {copy.continueToDetails}
             </button>
@@ -312,37 +318,37 @@ export function MiniSessionEmbedBookingWizard({
       ) : null}
 
       {step === "details" && selectedDay && selectedSlot ? (
-        <section className="rounded-md border border-ink/10 bg-white p-4">
+        <section className="mini-session-wizard-panel rounded-md border border-ink/10 bg-white p-4">
           <input type="hidden" name="slot" value={selectedSlot.token} />
-          <h2 className="flex items-center justify-center gap-2 text-base font-semibold text-ink">
+          <h2 className="mini-session-wizard-heading flex items-center justify-center gap-2 text-base font-semibold text-ink">
             <UserRound size={18} />
             {copy.details}
           </h2>
-          <p className="mt-1 text-center text-sm text-graphite/65">
+          <p className="mini-session-wizard-description mt-1 text-center text-sm text-graphite/65">
             {selectedDay.label} · {selectedSlot.label}
           </p>
           <div className="mt-4 grid gap-3">
             <label className="block space-y-1.5">
-              <span className="text-sm font-medium text-graphite">{copy.name}</span>
-              <input name="name" required className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+              <span className="mini-session-field-label text-sm font-medium text-graphite">{copy.name}</span>
+              <input name="name" required className="mini-session-field h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block space-y-1.5">
-                <span className="text-sm font-medium text-graphite">{copy.email}</span>
-                <input name="email" type="email" required className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+                <span className="mini-session-field-label text-sm font-medium text-graphite">{copy.email}</span>
+                <input name="email" type="email" required className="mini-session-field h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-sm font-medium text-graphite">{copy.phone}</span>
-                <input name="phone" type="tel" required className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+                <span className="mini-session-field-label text-sm font-medium text-graphite">{copy.phone}</span>
+                <input name="phone" type="tel" required className="mini-session-field h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
               </label>
             </div>
             <label className="block space-y-1.5">
-              <span className="text-sm font-medium text-graphite">{copy.attendeeCount}</span>
-              <input name="attendeeCount" type="number" min="1" defaultValue="1" required className="h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
+              <span className="mini-session-field-label text-sm font-medium text-graphite">{copy.attendeeCount}</span>
+              <input name="attendeeCount" type="number" min="1" defaultValue="1" required className="mini-session-field h-11 w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition focus:border-ink/50" />
             </label>
           </div>
-          <div className="mt-5 border-t border-ink/10 pt-4">
-            <FormSubmitButton pendingLabel={copy.booking} className="w-full">
+          <div className="mini-session-form-footer mt-5 border-t border-ink/10 pt-4">
+            <FormSubmitButton pendingLabel={copy.booking} className="mini-session-submit w-full">
               {copy.book}
             </FormSubmitButton>
           </div>

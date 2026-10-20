@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import type { MiniSessionTheme } from "@/lib/mini-sessions";
 
 type MiniSessionSlotSelectItem = {
   token: string;
@@ -27,7 +28,8 @@ export function MiniSessionSlotSelect({
   onChange,
   placeholder,
   slots,
-  value
+  value,
+  theme
 }: {
   afternoonLabel: string;
   ariaLabel: string;
@@ -37,6 +39,7 @@ export function MiniSessionSlotSelect({
   placeholder: string;
   slots: MiniSessionSlotSelectItem[];
   value: string;
+  theme: MiniSessionTheme;
 }) {
   const groups = ([
     { key: "morning", label: morningLabel, slots: slots.filter((slot) => getSlotHour(slot.label) < 12) },
@@ -52,12 +55,12 @@ export function MiniSessionSlotSelect({
   ] satisfies SlotGroup[]).filter((group) => group.slots.length > 0);
 
   return (
-    <div className="relative mx-auto w-full max-w-xs">
+    <div className="mini-session-slot-select relative mx-auto w-full max-w-xs" data-theme={theme}>
       <select
         aria-label={ariaLabel}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-md border border-ink/15 bg-paper px-4 pr-11 text-base font-semibold tabular-nums text-ink outline-none transition focus:border-ink/50 focus:ring-2 focus:ring-ink/10"
+        className="mini-session-slot-select-control h-12 w-full appearance-none rounded-md border border-ink/15 bg-paper px-4 pr-11 text-base font-semibold tabular-nums text-ink outline-none transition focus:border-ink/50 focus:ring-2 focus:ring-ink/10"
       >
         <option value="" disabled>
           {placeholder}
@@ -72,7 +75,7 @@ export function MiniSessionSlotSelect({
           </optgroup>
         ))}
       </select>
-      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-graphite/55" size={18} />
+      <ChevronDown aria-hidden="true" className="mini-session-select-icon pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-graphite/55" size={18} />
     </div>
   );
 }

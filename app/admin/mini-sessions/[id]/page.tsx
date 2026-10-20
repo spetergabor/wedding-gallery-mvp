@@ -51,6 +51,7 @@ import {
   MINI_SESSION_BOOKING_STATUS_NO_SHOW,
   MINI_SESSION_BOOKING_STATUS_CANCELLED,
   MINI_SESSION_LANGUAGES,
+  MINI_SESSION_THEMES,
   MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS,
   MINI_SESSION_WEEKDAYS,
   miniSessionDateKey,
@@ -1252,6 +1253,19 @@ export default async function AdminMiniSessionDetailPage({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-graphite">Foglaló sablon</span>
+                <select name="publicTheme" defaultValue={session.publicTheme} className={fieldClass}>
+                  {MINI_SESSION_THEMES.map((theme) => (
+                    <option key={theme.value} value={theme.value}>
+                      {theme.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="block text-xs leading-5 text-graphite/60">
+                  Az Iris Moment sablon a beágyazott foglalót sötét, arany megjelenésre váltja.
+                </span>
               </label>
               <MiniSessionScheduleFields
                 defaultMode={session.bookingMode}

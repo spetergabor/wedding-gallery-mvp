@@ -10,6 +10,12 @@ export const MINI_SESSION_BOOKING_SOURCE_MANUAL = "manual";
 export const MINI_SESSION_BOOKING_SOURCE_BLOCKED = "blocked";
 export const MINI_SESSION_BOOKING_MODE_SINGLE_DAY = "single_day";
 export const MINI_SESSION_BOOKING_MODE_RECURRING = "recurring";
+export const MINI_SESSION_THEME_DEFAULT = "default";
+export const MINI_SESSION_THEME_IRIS = "iris";
+export const MINI_SESSION_THEMES = [
+  { value: MINI_SESSION_THEME_DEFAULT, label: "Spetly alap" },
+  { value: MINI_SESSION_THEME_IRIS, label: "Iris Moment · Dunkel" }
+] as const;
 export const MINI_SESSION_LANGUAGES = [
   { value: "hu", label: "Magyar" },
   { value: "de", label: "Deutsch" }
@@ -35,6 +41,7 @@ export const MINI_SESSION_MIN_BOOKING_NOTICE_OPTIONS = [
 ] as const;
 
 export type MiniSessionLanguage = CustomerLanguage;
+export type MiniSessionTheme = (typeof MINI_SESSION_THEMES)[number]["value"];
 export type MiniSessionSlot = { startsAt: Date; endsAt: Date; token: string };
 export type MiniSessionBusyTime = { startsAt: Date; endsAt: Date };
 
@@ -44,6 +51,10 @@ export function normalizeMiniSessionLanguage(value: string | null | undefined): 
 
 export function miniSessionLanguageLabel(value: string | null | undefined) {
   return normalizeMiniSessionLanguage(value) === "de" ? "Deutsch" : "Magyar";
+}
+
+export function normalizeMiniSessionTheme(value: string | null | undefined): MiniSessionTheme {
+  return value === MINI_SESSION_THEME_IRIS ? MINI_SESSION_THEME_IRIS : MINI_SESSION_THEME_DEFAULT;
 }
 
 type MiniSessionLike = {

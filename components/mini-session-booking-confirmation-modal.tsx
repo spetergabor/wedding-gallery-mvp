@@ -3,6 +3,7 @@
 import { CalendarPlus, CheckCircle2, Mail, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import type { MiniSessionTheme } from "@/lib/mini-sessions";
 
 const CONFIRMATION_COPY = {
   hu: {
@@ -34,11 +35,13 @@ const CONFIRMATION_COPY = {
 export function MiniSessionBookingConfirmationModal({
   language,
   manageHref,
-  calendarHref
+  calendarHref,
+  theme = "default"
 }: {
   language: "hu" | "de";
   manageHref?: string | null;
   calendarHref?: string | null;
+  theme?: MiniSessionTheme;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -66,14 +69,14 @@ export function MiniSessionBookingConfirmationModal({
 
   return (
     <div
-      className="fixed inset-0 z-[140] flex items-end justify-center bg-ink/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-5"
+      className={`mini-session-confirmation mini-session-confirmation-${theme} fixed inset-0 z-[140] flex items-end justify-center bg-ink/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-5`}
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) setIsOpen(false);
       }}
     >
       <section
-        className="relative max-h-[94vh] w-full overflow-y-auto rounded-t-xl bg-white px-5 pb-6 pt-7 shadow-2xl sm:max-w-xl sm:rounded-xl sm:px-8 sm:pb-8 sm:pt-9"
+        className="mini-session-confirmation-card relative max-h-[94vh] w-full overflow-y-auto rounded-t-xl bg-white px-5 pb-6 pt-7 shadow-2xl sm:max-w-xl sm:rounded-xl sm:px-8 sm:pb-8 sm:pt-9"
         role="dialog"
         aria-modal="true"
         aria-labelledby="mini-session-booking-confirmation-title"
@@ -85,28 +88,28 @@ export function MiniSessionBookingConfirmationModal({
           type="button"
           onClick={() => setIsOpen(false)}
           aria-label={copy.closeLabel}
-          className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full border border-ink/10 bg-white text-ink transition hover:bg-paper focus:outline-none focus:ring-2 focus:ring-brass/50"
+          className="mini-session-confirmation-close absolute right-4 top-4 flex size-10 items-center justify-center rounded-full border border-ink/10 bg-white text-ink transition hover:bg-paper focus:outline-none focus:ring-2 focus:ring-brass/50"
         >
           <X size={20} />
         </button>
 
-        <div className="flex size-14 items-center justify-center rounded-full bg-sage/15 text-sage">
+        <div className="mini-session-confirmation-icon flex size-14 items-center justify-center rounded-full bg-sage/15 text-sage">
           <CheckCircle2 size={30} strokeWidth={1.8} />
         </div>
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-brass">{copy.eyebrow}</p>
-        <h2 id="mini-session-booking-confirmation-title" className="mt-2 pr-8 text-3xl font-semibold leading-tight text-ink">
+        <p className="mini-session-confirmation-eyebrow mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-brass">{copy.eyebrow}</p>
+        <h2 id="mini-session-booking-confirmation-title" className="mini-session-confirmation-title mt-2 pr-8 text-3xl font-semibold leading-tight text-ink">
           {copy.title}
         </h2>
-        <p id="mini-session-booking-confirmation-description" className="mt-3 text-base leading-7 text-graphite/75">
+        <p id="mini-session-booking-confirmation-description" className="mini-session-confirmation-description mt-3 text-base leading-7 text-graphite/75">
           {copy.text}
         </p>
 
         <div className="mt-6 space-y-3">
-          <div className="flex gap-3 rounded-lg border border-ink/10 bg-paper p-4">
+          <div className="mini-session-confirmation-info flex gap-3 rounded-lg border border-ink/10 bg-paper p-4">
             <Mail className="mt-0.5 shrink-0 text-brass" size={21} />
             <p className="text-sm leading-6 text-graphite/75">{copy.email}</p>
           </div>
-          <div className="flex items-center gap-3 rounded-lg bg-sage/10 px-4 py-3 text-sm font-medium text-ink">
+          <div className="mini-session-confirmation-valid flex items-center gap-3 rounded-lg bg-sage/10 px-4 py-3 text-sm font-medium text-ink">
             <ShieldCheck className="shrink-0 text-sage" size={20} />
             <span>{copy.valid}</span>
           </div>
@@ -116,7 +119,7 @@ export function MiniSessionBookingConfirmationModal({
           {manageHref ? (
             <Link
               href={manageHref}
-              className="inline-flex h-12 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-ink/90"
+              className="mini-session-confirmation-primary inline-flex h-12 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-ink/90"
             >
               {copy.manage}
             </Link>
@@ -124,7 +127,7 @@ export function MiniSessionBookingConfirmationModal({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="inline-flex h-12 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-ink/90"
+              className="mini-session-confirmation-primary inline-flex h-12 items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-ink/90"
             >
               {copy.close}
             </button>
@@ -133,7 +136,7 @@ export function MiniSessionBookingConfirmationModal({
             <Link
               href={calendarHref}
               target="_blank"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-semibold text-ink transition hover:bg-paper"
+              className="mini-session-confirmation-secondary inline-flex h-12 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-semibold text-ink transition hover:bg-paper"
             >
               <CalendarPlus size={17} />
               {copy.addCalendar}
@@ -142,7 +145,7 @@ export function MiniSessionBookingConfirmationModal({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="inline-flex h-12 items-center justify-center rounded-md border border-ink/15 bg-white px-4 text-sm font-semibold text-ink transition hover:bg-paper"
+              className="mini-session-confirmation-secondary inline-flex h-12 items-center justify-center rounded-md border border-ink/15 bg-white px-4 text-sm font-semibold text-ink transition hover:bg-paper"
             >
               {copy.close}
             </button>

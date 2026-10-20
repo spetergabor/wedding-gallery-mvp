@@ -675,6 +675,7 @@ model MiniSession {
   durationMinutes               Int
   minBookingNoticeMinutes       Int                       @default(0)
   language                      String                    @default("hu")
+  publicTheme                   String                    @default("default")
   isActive                      Boolean                   @default(true)
   createCustomerOnBooking       Boolean                   @default(true)
   postProductionWorkflowEnabled Boolean                   @default(true)

@@ -54,6 +54,7 @@ import {
   normalizeBookingWindowDays,
   normalizeMiniSessionMinBookingNoticeMinutes,
   normalizeMiniSessionLanguage,
+  normalizeMiniSessionTheme,
   normalizeMiniSessionWeekday,
   parseMiniSessionLocalDateTime
 } from "@/lib/mini-sessions";
@@ -397,6 +398,7 @@ export async function createMiniSessionAction(formData: FormData) {
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const postProductionWorkflowEnabled = formData.get("postProductionWorkflowEnabled") === "on";
   const language = miniSessionLanguageFromForm(formData);
+  const publicTheme = normalizeMiniSessionTheme(formString(formData, "publicTheme"));
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
@@ -452,6 +454,7 @@ export async function createMiniSessionAction(formData: FormData) {
         durationMinutes,
         minBookingNoticeMinutes,
         language,
+        publicTheme,
         isActive: formData.get("isActive") === "on",
         createCustomerOnBooking: postProductionWorkflowEnabled,
         postProductionWorkflowEnabled,
@@ -516,6 +519,7 @@ export async function duplicateMiniSessionAction(id: string) {
       durationMinutes: source.durationMinutes,
       minBookingNoticeMinutes: source.minBookingNoticeMinutes,
       language: source.language,
+      publicTheme: source.publicTheme,
       isActive: false,
       createCustomerOnBooking: source.createCustomerOnBooking,
       postProductionWorkflowEnabled: source.postProductionWorkflowEnabled,
@@ -777,6 +781,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
   const postProductionWorkflowEnabled = formData.get("postProductionWorkflowEnabled") === "on";
   const language = miniSessionLanguageFromForm(formData);
+  const publicTheme = normalizeMiniSessionTheme(formString(formData, "publicTheme"));
   const notes = formString(formData, "notes");
   const stylingNotes = formString(formData, "stylingNotes");
   const slug = normalizeSlug(formString(formData, "slug") || title);
@@ -827,6 +832,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         durationMinutes,
         minBookingNoticeMinutes,
         language,
+        publicTheme,
         isActive: formData.get("isActive") === "on",
         createCustomerOnBooking: postProductionWorkflowEnabled,
         postProductionWorkflowEnabled,

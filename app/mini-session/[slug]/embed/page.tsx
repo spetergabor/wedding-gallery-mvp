@@ -15,7 +15,8 @@ import {
   formatMiniSessionSlot,
   groupMiniSessionSlotsByDate,
   MINI_SESSION_BOOKING_MODE_RECURRING,
-  normalizeMiniSessionLanguage
+  normalizeMiniSessionLanguage,
+  normalizeMiniSessionTheme
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 
@@ -97,6 +98,7 @@ export default async function MiniSessionEmbedPage({
   }
 
   const language = normalizeMiniSessionLanguage(session.language);
+  const publicTheme = normalizeMiniSessionTheme(session.publicTheme);
   const copy = EMBED_COPY[language];
   const availableSlots = await getAvailableMiniSessionSlots(session);
   const availableSlotGroups = groupMiniSessionSlotsByDate(availableSlots, language);
@@ -117,35 +119,35 @@ export default async function MiniSessionEmbedPage({
   const calendarHref = flags.calendar ? miniSessionBookingCalendarUrl(session.slug, flags.calendar, publicSubdomain) : null;
 
   return (
-    <main className="min-h-0 bg-transparent text-ink">
+    <main className={`mini-session-embed-root mini-session-theme-${publicTheme} min-h-0 bg-transparent text-ink`}>
       <MiniSessionEmbedAutoResize />
       <MiniSessionEmbedConfirmationPopup hasError={Boolean(flags.error)} />
       {flags.booked ? (
-        <MiniSessionBookingConfirmationModal language={language} calendarHref={calendarHref} />
+        <MiniSessionBookingConfirmationModal language={language} calendarHref={calendarHref} theme={publicTheme} />
       ) : null}
-      <section className="mx-auto max-w-2xl p-4 sm:p-5">
-        <div className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
-          <header className="border-b border-ink/10 bg-white p-5 text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brass">{brandName}</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-ink sm:text-3xl">{session.title}</h1>
-            <div className="mt-4 flex flex-wrap justify-center gap-2 text-sm text-graphite/70">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-paper px-3 py-2">
+      <section className="mini-session-embed-frame mx-auto max-w-2xl p-4 sm:p-5">
+        <div className="mini-session-embed-card overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
+          <header className="mini-session-embed-header border-b border-ink/10 bg-white p-5 text-center">
+            <p className="mini-session-embed-kicker text-[11px] font-semibold uppercase tracking-[0.18em] text-brass">{brandName}</p>
+            <h1 className="mini-session-embed-title mt-2 text-2xl font-semibold tracking-normal text-ink sm:text-3xl">{session.title}</h1>
+            <div className="mini-session-embed-meta mt-4 flex flex-wrap justify-center gap-2 text-sm text-graphite/70">
+              <span className="mini-session-embed-pill inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-paper px-3 py-2">
                 <CalendarClock size={15} />
                 {dateLabel}
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-paper px-3 py-2">
+              <span className="mini-session-embed-pill inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-paper px-3 py-2">
                 <MapPin size={15} />
                 {session.location}
               </span>
             </div>
-            {session.notes ? <p className="mx-auto mt-4 max-w-xl whitespace-pre-line text-sm leading-6 text-graphite/70">{session.notes}</p> : null}
-            {session.stylingNotes ? <p className="mx-auto mt-3 max-w-xl whitespace-pre-line rounded-md bg-paper px-3 py-3 text-sm leading-6 text-graphite/70">{session.stylingNotes}</p> : null}
+            {session.notes ? <p className="mini-session-embed-note mx-auto mt-4 max-w-xl whitespace-pre-line text-sm leading-6 text-graphite/70">{session.notes}</p> : null}
+            {session.stylingNotes ? <p className="mini-session-embed-styling mx-auto mt-3 max-w-xl whitespace-pre-line rounded-md bg-paper px-3 py-3 text-sm leading-6 text-graphite/70">{session.stylingNotes}</p> : null}
           </header>
 
-          <div className="p-4 sm:p-5">
-            <div className="mb-4 text-center">
-              <h2 className="text-lg font-semibold text-ink">{copy.title}</h2>
-              <p className="mt-1 text-sm leading-6 text-graphite/65">{copy.text}</p>
+          <div className="mini-session-embed-content p-4 sm:p-5">
+            <div className="mini-session-embed-intro mb-4 text-center">
+              <h2 className="mini-session-embed-intro-title text-lg font-semibold text-ink">{copy.title}</h2>
+              <p className="mini-session-embed-intro-text mt-1 text-sm leading-6 text-graphite/65">{copy.text}</p>
             </div>
 
             <div className="mb-4 space-y-3">
@@ -175,9 +177,9 @@ export default async function MiniSessionEmbedPage({
             ) : availableSlots.length === 0 ? (
               <Alert title={copy.soldOut} />
             ) : (
-              <MiniSessionEmbedBookingForm action={bookMiniSessionAction.bind(null, session.slug)} language={language}>
+              <MiniSessionEmbedBookingForm action={bookMiniSessionAction.bind(null, session.slug)} language={language} theme={publicTheme}>
                 <input type="hidden" name="returnTo" value="embed" />
-                <MiniSessionEmbedBookingWizard days={bookingDays} language={language} />
+                <MiniSessionEmbedBookingWizard days={bookingDays} language={language} theme={publicTheme} />
               </MiniSessionEmbedBookingForm>
             )}
           </div>
