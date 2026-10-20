@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, UserRound } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionMonthSelect } from "@/components/mini-session-month-select";
+import { MiniSessionSlotWheel } from "@/components/mini-session-slot-wheel";
 
 type MiniSessionEmbedLanguage = "hu" | "de";
 
@@ -41,6 +42,8 @@ const COPY = {
     availableDays: "Foglalható napok",
     chooseMonth: "Hónap kiválasztása",
     availableSlots: "Szabad idősávok",
+    scrollSlots: "Görgess a szabad időpontok között",
+    continueToDetails: "Tovább az adatokhoz",
     name: "Név",
     email: "E-mail",
     phone: "Telefonszám",
@@ -58,6 +61,8 @@ const COPY = {
     availableDays: "Verfügbare Tage",
     chooseMonth: "Monat auswählen",
     availableSlots: "Freie Zeiten",
+    scrollSlots: "Scrolle durch die freien Zeiten",
+    continueToDetails: "Weiter zu den Daten",
     name: "Name",
     email: "E-Mail",
     phone: "Telefonnummer",
@@ -151,13 +156,12 @@ export function MiniSessionEmbedBookingWizard({
 
   function selectDay(day: MiniSessionEmbedBookingDay) {
     setSelectedDayKey(day.key);
-    setSelectedSlotToken("");
+    setSelectedSlotToken(day.slots[0]?.token ?? "");
     setStep("slots");
   }
 
   function selectSlot(token: string) {
     setSelectedSlotToken(token);
-    setStep("details");
   }
 
   return (
@@ -267,17 +271,23 @@ export function MiniSessionEmbedBookingWizard({
           </h2>
           <p className="mt-1 text-center text-sm text-graphite/65">{selectedDay.label}</p>
           <p className="mt-1 text-center text-xs font-medium uppercase tracking-[0.14em] text-graphite/50">{copy.availableSlots}</p>
-          <div className="mx-auto mt-4 grid max-w-md gap-2 sm:grid-cols-2">
-            {selectedDay.slots.map((slot) => (
-              <button
-                key={slot.token}
-                type="button"
-                onClick={() => selectSlot(slot.token)}
-                className="min-h-12 rounded-md border border-ink/10 bg-paper px-3 text-left text-sm font-semibold text-ink transition hover:border-ink/25 hover:bg-white"
-              >
-                {slot.label}
-              </button>
-            ))}
+          <div className="mt-4">
+            <MiniSessionSlotWheel
+              key={selectedDay.key}
+              ariaLabel={copy.availableSlots}
+              slots={selectedDay.slots}
+              value={selectedSlotToken}
+              onChange={selectSlot}
+            />
+            <p className="mt-3 text-center text-xs text-graphite/55">{copy.scrollSlots}</p>
+            <button
+              type="button"
+              disabled={!selectedSlotToken}
+              onClick={() => setStep("details")}
+              className="mx-auto mt-4 flex h-11 w-full max-w-xs items-center justify-center rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {copy.continueToDetails}
+            </button>
           </div>
         </section>
       ) : null}
