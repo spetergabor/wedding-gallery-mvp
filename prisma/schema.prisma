@@ -1566,6 +1566,8 @@ model GalleryUploadItem {
   previewUrl                   String?
   mediaType                    String               @default("image")
   fileSize                     Float                @default(0)
+  duplicateMode                String               @default("skip")
+  replacePhotoId               String?
   multipartUploadId            String?
   multipartPartSize            Int?
   multipartPartCount           Int?

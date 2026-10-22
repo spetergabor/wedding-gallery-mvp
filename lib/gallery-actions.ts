@@ -467,7 +467,7 @@ type PhotoUploadRequest = {
   originalIndex?: number;
 };
 
-type PhotoDuplicateMode = "skip" | "replace";
+type PhotoDuplicateMode = "skip" | "replace" | "keep";
 
 type CompletedPhotoUpload = {
   uploadItemId?: string;
@@ -486,6 +486,7 @@ type CompletedPhotoUpload = {
   capturedAt?: string | null;
   originalIndex?: number;
   replacePhotoId?: string | null;
+  duplicateMode?: PhotoDuplicateMode;
 };
 
 function normalizeGallerySectionTitle(value: string) {
@@ -541,7 +542,17 @@ async function nextGallerySectionSlug(galleryId: string, title: string) {
 }
 
 function normalizePhotoDuplicateMode(value: string | null | undefined): PhotoDuplicateMode {
-  return value === "replace" ? "replace" : "skip";
+  return value === "replace" || value === "keep" ? value : "skip";
+}
+
+function photoFilenameDuplicateKey(input: {
+  filename: string;
+  mediaType?: string | null;
+}) {
+  return [
+    input.mediaType === "video" ? "video" : "image",
+    input.filename.trim().toLowerCase()
+  ].join("\u001F");
 }
 
 function photoDuplicateKey(input: {
@@ -549,11 +560,7 @@ function photoDuplicateKey(input: {
   mediaType?: string | null;
   fileSize?: number | null;
 }) {
-  return [
-    input.mediaType === "video" ? "video" : "image",
-    input.filename.trim(),
-    input.fileSize ?? 0
-  ].join("\u001F");
+  return [photoFilenameDuplicateKey(input), input.fileSize ?? 0].join("\u001F");
 }
 
 function photoObjectKeys(photo: {
@@ -1756,6 +1763,7 @@ export async function createPhotoUploadTargetsAction(
       orderBy: [{ completedAt: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
+        clientId: true,
         status: true,
         filename: true,
         r2Key: true,
@@ -1767,6 +1775,8 @@ export async function createPhotoUploadTargetsAction(
         imageWidth: true,
         imageHeight: true,
         capturedAt: true,
+        duplicateMode: true,
+        replacePhotoId: true,
         uploadedAt: true,
         multipartUploadId: true,
         multipartPartSize: true,
@@ -1774,10 +1784,10 @@ export async function createPhotoUploadTargetsAction(
       }
     });
     const existingPhotoByKey = new Map<string, (typeof existingPhotos)[number]>();
-    const existingUploadItemByKey = new Map<string, (typeof existingUploadItems)[number]>();
+    const existingUploadItemByClientId = new Map<string, (typeof existingUploadItems)[number]>();
 
     for (const photo of existingPhotos) {
-      const key = photoDuplicateKey(photo);
+      const key = photoFilenameDuplicateKey(photo);
 
       if (!existingPhotoByKey.has(key)) {
         existingPhotoByKey.set(key, photo);
@@ -1785,19 +1795,16 @@ export async function createPhotoUploadTargetsAction(
     }
 
     for (const item of existingUploadItems) {
-      const key = photoDuplicateKey(item);
-
-      if (!existingUploadItemByKey.has(key)) {
-        existingUploadItemByKey.set(key, item);
-      }
+      existingUploadItemByClientId.set(item.clientId, item);
     }
 
     const uploads = await Promise.all(
       normalizedFiles.map(async (file) => {
         const mediaType = file.mediaType;
-        const fileDuplicateKey = photoDuplicateKey(file);
-        const existingUploadItem = existingUploadItemByKey.get(fileDuplicateKey);
+        const fileDuplicateKey = photoFilenameDuplicateKey(file);
+        const existingUploadItem = existingUploadItemByClientId.get(file.clientId);
         const existingPhoto = existingPhotoByKey.get(fileDuplicateKey);
+        const replacePhotoId = existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null;
         const useMultipart = (file.fileSize ?? 0) >= MEDIA_MULTIPART_THRESHOLD_BYTES;
         const expectedPartCount = useMultipart
           ? Math.ceil((file.fileSize ?? 0) / MEDIA_MULTIPART_PART_SIZE_BYTES)
@@ -1820,7 +1827,8 @@ export async function createPhotoUploadTargetsAction(
             previewR2Key: null,
             mediaType,
             alreadyCompleted: true,
-            replacePhotoId: null,
+            replacePhotoId: existingUploadItem.replacePhotoId,
+            duplicateMode: normalizePhotoDuplicateMode(existingUploadItem.duplicateMode),
             uploadType: "single" as const,
             uploadUrl: ""
           };
@@ -1841,6 +1849,8 @@ export async function createPhotoUploadTargetsAction(
             imageHeight: file.imageHeight ?? 0,
             capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
             originalIndex: file.originalIndex ?? 0,
+            duplicateMode: normalizedDuplicateMode,
+            replacePhotoId: null,
             status: "completed",
             errorMessage: null,
             uploadedAt: now,
@@ -1888,6 +1898,7 @@ export async function createPhotoUploadTargetsAction(
             mediaType,
             alreadyCompleted: true,
             replacePhotoId: null,
+            duplicateMode: normalizedDuplicateMode,
             uploadType: "single" as const,
             uploadUrl: ""
           };
@@ -1908,7 +1919,9 @@ export async function createPhotoUploadTargetsAction(
               data: {
                 status: "uploaded",
                 uploadedAt,
-                errorMessage: null
+                errorMessage: null,
+                duplicateMode: normalizedDuplicateMode,
+                replacePhotoId
               }
             });
 
@@ -1925,7 +1938,8 @@ export async function createPhotoUploadTargetsAction(
               mediaType,
               alreadyCompleted: false,
               alreadyUploaded: true,
-              replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
+              replacePhotoId,
+              duplicateMode: normalizedDuplicateMode,
               uploadType: "single" as const,
               uploadUrl: ""
             };
@@ -1938,6 +1952,11 @@ export async function createPhotoUploadTargetsAction(
           existingUploadItem.r2Key &&
           existingUploadItem.imageUrl
         ) {
+          await prisma.galleryUploadItem.update({
+            where: { id: existingUploadItem.id },
+            data: { duplicateMode: normalizedDuplicateMode, replacePhotoId }
+          });
+
           return {
             uploadItemId: existingUploadItem.id,
             clientId: file.clientId,
@@ -1951,7 +1970,8 @@ export async function createPhotoUploadTargetsAction(
             mediaType,
             alreadyCompleted: false,
             alreadyUploaded: true,
-            replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
+            replacePhotoId,
+            duplicateMode: normalizedDuplicateMode,
             uploadType: "single" as const,
             uploadUrl: ""
           };
@@ -1975,7 +1995,9 @@ export async function createPhotoUploadTargetsAction(
               where: { id: existingUploadItem.id },
               data: {
                 status: "uploading",
-                errorMessage: null
+                errorMessage: null,
+                duplicateMode: normalizedDuplicateMode,
+                replacePhotoId
               }
             });
 
@@ -1991,7 +2013,8 @@ export async function createPhotoUploadTargetsAction(
               previewR2Key: null,
               mediaType,
               alreadyCompleted: false,
-              replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
+              replacePhotoId,
+              duplicateMode: normalizedDuplicateMode,
               uploadType: "multipart" as const,
               uploadUrl: "",
               multipartUploadId: existingUploadItem.multipartUploadId,
@@ -2057,6 +2080,8 @@ export async function createPhotoUploadTargetsAction(
           imageHeight: file.imageHeight ?? 0,
           capturedAt: file.capturedAt ? new Date(file.capturedAt) : null,
           originalIndex: file.originalIndex ?? 0,
+          duplicateMode: normalizedDuplicateMode,
+          replacePhotoId,
           status: "uploading",
           errorMessage: null,
           uploadedAt: null,
@@ -2115,7 +2140,8 @@ export async function createPhotoUploadTargetsAction(
           previewR2Key: generatedPreviewR2Key,
           mediaType,
           alreadyCompleted: false,
-          replacePhotoId: existingPhoto && normalizedDuplicateMode === "replace" ? existingPhoto.id : null,
+          replacePhotoId,
+          duplicateMode: normalizedDuplicateMode,
           uploadType: multipartUpload ? ("multipart" as const) : ("single" as const),
           uploadUrl: multipartUpload
             ? ""
@@ -2685,16 +2711,31 @@ export async function completePhotoUploadsAction(
       id: true,
       status: true,
       uploadedAt: true,
-      multipartUploadId: true
+      multipartUploadId: true,
+      duplicateMode: true,
+      replacePhotoId: true
     }
   });
+  const uploadItemById = new Map(uploadItems.map((item) => [item.id, item]));
   const completableItemIds = new Set(
     uploadItems
       .filter((item) => item.status !== "completed" && (!item.multipartUploadId || item.uploadedAt))
       .map((item) => item.id)
   );
 
-  const sortedUploads = validUploads.filter((upload) => upload.uploadItemId && completableItemIds.has(upload.uploadItemId)).sort((a, b) => {
+  const sortedUploads = validUploads.flatMap((upload): CompletedPhotoUpload[] => {
+    const uploadItem = upload.uploadItemId ? uploadItemById.get(upload.uploadItemId) : null;
+
+    if (!uploadItem || !completableItemIds.has(uploadItem.id)) {
+      return [];
+    }
+
+    return [{
+      ...upload,
+      duplicateMode: normalizePhotoDuplicateMode(uploadItem.duplicateMode),
+      replacePhotoId: uploadItem.replacePhotoId
+    }];
+  }).sort((a, b) => {
     const aType = a.mediaType === "video" ? "video" : "image";
     const bType = b.mediaType === "video" ? "video" : "image";
 
@@ -2763,10 +2804,15 @@ export async function completePhotoUploadsAction(
           }
         })
       : [];
-    const existingPhotoKeys = new Set(existingPhotos.map((photo) => photoDuplicateKey(photo)));
+    const existingPhotoKeys = new Set(existingPhotos.map((photo) => photoFilenameDuplicateKey(photo)));
     const batchPhotoKeys = new Set<string>();
     const uploadsToCreate = creationCandidates.filter((upload) => {
-      const key = photoDuplicateKey(upload);
+      const duplicateMode = normalizePhotoDuplicateMode(upload.duplicateMode);
+      const key = photoFilenameDuplicateKey(upload);
+
+      if (duplicateMode === "keep") {
+        return true;
+      }
 
       if (existingPhotoKeys.has(key) || batchPhotoKeys.has(key)) {
         return false;
@@ -2813,7 +2859,7 @@ export async function completePhotoUploadsAction(
       return {
         id,
         galleryId,
-        sectionId: session.sectionId,
+        sectionId: existingPhoto.sectionId,
         filename: upload.filename,
         r2Key: upload.r2Key,
         imageUrl: upload.imageUrl,

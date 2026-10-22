@@ -44,6 +44,7 @@ type PreparedUpload = {
   alreadyCompleted?: boolean;
   alreadyUploaded?: boolean;
   replacePhotoId?: string | null;
+  duplicateMode?: PhotoDuplicateMode;
   fileSize?: number;
   imageWidth?: number;
   imageHeight?: number;
@@ -55,7 +56,7 @@ type RawPreparedUpload = Omit<PreparedUpload, "mediaType"> & {
 };
 
 type PhotoUploadStatus = "queued" | "preparing" | "uploading" | "waiting" | "uploaded" | "completed" | "failed";
-type PhotoDuplicateMode = "skip" | "replace";
+type PhotoDuplicateMode = "skip" | "replace" | "keep";
 
 type ResumableUploadSession = {
   id: string;
@@ -1398,20 +1399,22 @@ export function PhotoUploadForm({
               <select
                 value={duplicateMode}
                 onChange={(event) => {
-                  setDuplicateMode(event.target.value === "replace" ? "replace" : "skip");
+                  const mode = event.target.value;
+                  setDuplicateMode(mode === "replace" || mode === "keep" ? mode : "skip");
                   setUploadSessionId(null);
                   setResumeSessionId(null);
                 }}
                 disabled={isUploading || Boolean(selectedResumeSession)}
                 className="h-11 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50 disabled:opacity-60"
               >
-                <option value="skip">Duplikátumok kihagyása</option>
-                <option value="replace">Duplikátumok felülírása</option>
+                <option value="replace">Felülír – a régi kép helyére kerül</option>
+                <option value="keep">Mellé rak – mindkét kép megmarad</option>
+                <option value="skip">Kihagy – a régi kép marad</option>
               </select>
               <p className="text-xs leading-5 text-graphite/70">
                 {selectedResumeSession
                   ? "Folytatáskor automatikusan kihagyjuk a már mentett fájlokat, hogy ne legyen duplikáció."
-                  : "Azonos fájlnév és méret alapján. Kihagyásnál nem tölti fel újra, felülírásnál a meglévő képet frissíti."}
+                  : "Azonos fájlnév alapján. Felülírásnál a régi bejegyzés és pozíció marad, de a képfájl az újra cserélődik; a Mellé rak külön képként menti."}
               </p>
             </label>
               </div>
