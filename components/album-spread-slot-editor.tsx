@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Maximize2, MousePointer2, Move, RotateCcw } from "lucide-react";
+import { Magnet, Maximize2, MousePointer2, Move, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import {
   ALBUM_DESIGN_EXPORT_HEIGHT,
@@ -106,6 +106,14 @@ type SlotAlignmentGuides = {
   horizontal: number[];
 };
 
+type SlotDistanceGuide = {
+  axis: "horizontal" | "vertical";
+  start: number;
+  end: number;
+  crossPosition: number;
+  distancePx: number;
+};
+
 type SlotFrameUndoState = {
   slotIndex: number;
   frame: SlotFrame;
@@ -124,7 +132,8 @@ const SLOT_SPREAD_CENTER_BARRIER_RELEASE_PERCENT = 4;
 const SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT = 1.6;
 const SLOT_BARRIER_EPSILON = 0.001;
 const MIN_SLOT_FRAME_SIZE_PERCENT = 3;
-const SLOT_ALIGNMENT_SNAP_TOLERANCE_PX = 10;
+const SLOT_SOFT_ALIGNMENT_SNAP_TOLERANCE_PX = 4;
+const SLOT_STRONG_ALIGNMENT_SNAP_TOLERANCE_PX = 10;
 const EMPTY_SLOT_ALIGNMENT_GUIDES: SlotAlignmentGuides = { vertical: [], horizontal: [] };
 const SLOT_RESIZE_HANDLES: Array<{
   corner: SlotResizeCorner;
@@ -290,9 +299,21 @@ function getSlotPageCenterBarrierRelease() {
   return SLOT_PAGE_CENTER_BARRIER_RELEASE_PERCENT;
 }
 
-function getMovedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, width: number, height: number): SlotFrame {
+function getMovedSlotFrame(
+  dragState: SlotFrameDragState,
+  deltaX: number,
+  deltaY: number,
+  width: number,
+  height: number,
+  strongMagnetEnabled: boolean
+): SlotFrame {
   const rawX = Math.min(100 - width, Math.max(0, dragState.startX + deltaX));
   const rawY = Math.min(100 - height, Math.max(0, dragState.startY + deltaY));
+
+  if (!strongMagnetEnabled) {
+    return { x: rawX, y: rawY, width, height };
+  }
+
   const blockedX = stopFramePositionAtBarriers(rawX, dragState.startX, width, SLOT_VERTICAL_BARRIERS, getSlotVerticalBarrierRelease);
   const blockedY = stopFramePositionAtBarriers(rawY, dragState.startY, height, SLOT_HORIZONTAL_BARRIERS, getSlotPageCenterBarrierRelease);
 
@@ -310,12 +331,15 @@ function getResizedSlotAxis(
   delta: number,
   edge: "start" | "end",
   barriers: number[],
-  getReleasePercent: (barrier: number) => number
+  getReleasePercent: (barrier: number) => number,
+  strongMagnetEnabled: boolean
 ) {
   if (edge === "start") {
     const fixedEndPosition = startPosition + startSize;
     const rawPosition = Math.min(fixedEndPosition - MIN_SLOT_FRAME_SIZE_PERCENT, Math.max(0, startPosition + delta));
-    const blockedPosition = stopFrameStartResizeAtBarriers(rawPosition, startPosition, fixedEndPosition, barriers, getReleasePercent);
+    const blockedPosition = strongMagnetEnabled
+      ? stopFrameStartResizeAtBarriers(rawPosition, startPosition, fixedEndPosition, barriers, getReleasePercent)
+      : rawPosition;
     const position = Math.min(fixedEndPosition - MIN_SLOT_FRAME_SIZE_PERCENT, Math.max(0, blockedPosition));
 
     return {
@@ -325,7 +349,9 @@ function getResizedSlotAxis(
   }
 
   const rawSize = Math.min(100 - startPosition, Math.max(MIN_SLOT_FRAME_SIZE_PERCENT, startSize + delta));
-  const blockedSize = stopFrameSizeAtBarriers(rawSize, startPosition, startSize, barriers, getReleasePercent);
+  const blockedSize = strongMagnetEnabled
+    ? stopFrameSizeAtBarriers(rawSize, startPosition, startSize, barriers, getReleasePercent)
+    : rawSize;
 
   return {
     position: startPosition,
@@ -361,15 +387,37 @@ function getProportionallyResizedSlotFrame(dragState: SlotFrameDragState, deltaX
   };
 }
 
-function getResizedSlotFrame(dragState: SlotFrameDragState, deltaX: number, deltaY: number, resizeProportionally = false): SlotFrame {
+function getResizedSlotFrame(
+  dragState: SlotFrameDragState,
+  deltaX: number,
+  deltaY: number,
+  resizeProportionally = false,
+  strongMagnetEnabled = false
+): SlotFrame {
   if (resizeProportionally) {
     return getProportionallyResizedSlotFrame(dragState, deltaX, deltaY);
   }
 
   const horizontalEdge = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "bottom-left" ? "start" : "end";
   const verticalEdge = dragState.resizeCorner === "top-left" || dragState.resizeCorner === "top-right" ? "start" : "end";
-  const horizontal = getResizedSlotAxis(dragState.startX, dragState.startWidth, deltaX, horizontalEdge, SLOT_VERTICAL_BARRIERS, getSlotVerticalBarrierRelease);
-  const vertical = getResizedSlotAxis(dragState.startY, dragState.startHeight, deltaY, verticalEdge, SLOT_HORIZONTAL_BARRIERS, getSlotPageCenterBarrierRelease);
+  const horizontal = getResizedSlotAxis(
+    dragState.startX,
+    dragState.startWidth,
+    deltaX,
+    horizontalEdge,
+    SLOT_VERTICAL_BARRIERS,
+    getSlotVerticalBarrierRelease,
+    strongMagnetEnabled
+  );
+  const vertical = getResizedSlotAxis(
+    dragState.startY,
+    dragState.startHeight,
+    deltaY,
+    verticalEdge,
+    SLOT_HORIZONTAL_BARRIERS,
+    getSlotPageCenterBarrierRelease,
+    strongMagnetEnabled
+  );
 
   return {
     x: horizontal.position,
@@ -601,6 +649,71 @@ function snapSlotFrame(frame: SlotFrame, dragState: SlotFrameDragState, resizePr
     : snapFreelyResizedSlotFrame(frame, dragState);
 }
 
+function getSlotDistanceGuides(frame: SlotFrame, targetFrames: SlotFrame[]): SlotDistanceGuide[] {
+  const horizontalCandidates: SlotDistanceGuide[] = [];
+  const verticalCandidates: SlotDistanceGuide[] = [];
+  const frameRight = frame.x + frame.width;
+  const frameBottom = frame.y + frame.height;
+
+  for (const target of targetFrames) {
+    const targetRight = target.x + target.width;
+    const targetBottom = target.y + target.height;
+    const verticalOverlapStart = Math.max(frame.y, target.y);
+    const verticalOverlapEnd = Math.min(frameBottom, targetBottom);
+    const horizontalOverlapStart = Math.max(frame.x, target.x);
+    const horizontalOverlapEnd = Math.min(frameRight, targetRight);
+
+    if (verticalOverlapEnd - verticalOverlapStart > SLOT_BARRIER_EPSILON) {
+      const crossPosition = (verticalOverlapStart + verticalOverlapEnd) / 2;
+
+      if (frameRight < target.x - SLOT_BARRIER_EPSILON) {
+        horizontalCandidates.push({
+          axis: "horizontal",
+          start: frameRight,
+          end: target.x,
+          crossPosition,
+          distancePx: Math.round(((target.x - frameRight) / 100) * ALBUM_DESIGN_EXPORT_WIDTH)
+        });
+      } else if (targetRight < frame.x - SLOT_BARRIER_EPSILON) {
+        horizontalCandidates.push({
+          axis: "horizontal",
+          start: targetRight,
+          end: frame.x,
+          crossPosition,
+          distancePx: Math.round(((frame.x - targetRight) / 100) * ALBUM_DESIGN_EXPORT_WIDTH)
+        });
+      }
+    }
+
+    if (horizontalOverlapEnd - horizontalOverlapStart > SLOT_BARRIER_EPSILON) {
+      const crossPosition = (horizontalOverlapStart + horizontalOverlapEnd) / 2;
+
+      if (frameBottom < target.y - SLOT_BARRIER_EPSILON) {
+        verticalCandidates.push({
+          axis: "vertical",
+          start: frameBottom,
+          end: target.y,
+          crossPosition,
+          distancePx: Math.round(((target.y - frameBottom) / 100) * ALBUM_DESIGN_EXPORT_HEIGHT)
+        });
+      } else if (targetBottom < frame.y - SLOT_BARRIER_EPSILON) {
+        verticalCandidates.push({
+          axis: "vertical",
+          start: targetBottom,
+          end: frame.y,
+          crossPosition,
+          distancePx: Math.round(((frame.y - targetBottom) / 100) * ALBUM_DESIGN_EXPORT_HEIGHT)
+        });
+      }
+    }
+  }
+
+  const closestHorizontal = horizontalCandidates.sort((left, right) => left.end - left.start - (right.end - right.start))[0];
+  const closestVertical = verticalCandidates.sort((left, right) => left.end - left.start - (right.end - right.start))[0];
+
+  return [closestHorizontal, closestVertical].filter((guide): guide is SlotDistanceGuide => Boolean(guide));
+}
+
 export function AlbumSpreadSlotEditor({
   spread,
   draftItems,
@@ -618,6 +731,8 @@ export function AlbumSpreadSlotEditor({
   isTextToolActive = false,
   onActivateTextTool,
   onCreateTextItem,
+  strongMagnetEnabled = false,
+  onStrongMagnetEnabledChange,
   hasChanges,
 }: {
   spread: EditableSpread;
@@ -636,6 +751,8 @@ export function AlbumSpreadSlotEditor({
   isTextToolActive?: boolean;
   onActivateTextTool?: () => void;
   onCreateTextItem?: (position: { x: number; y: number }) => void;
+  strongMagnetEnabled?: boolean;
+  onStrongMagnetEnabledChange?: (enabled: boolean) => void;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
@@ -651,6 +768,7 @@ export function AlbumSpreadSlotEditor({
   const slotFramePointerUpHandlerRef = useRef<((event: globalThis.PointerEvent) => void) | null>(null);
   const [dragOverSlotIndex, setDragOverSlotIndex] = useState<number | null>(null);
   const [slotAlignmentGuides, setSlotAlignmentGuides] = useState<SlotAlignmentGuides>(EMPTY_SLOT_ALIGNMENT_GUIDES);
+  const [slotDistanceGuides, setSlotDistanceGuides] = useState<SlotDistanceGuide[]>([]);
   const [lastSlotFrameUndo, setLastSlotFrameUndo] = useState<SlotFrameUndoState | null>(null);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
@@ -882,11 +1000,12 @@ export function AlbumSpreadSlotEditor({
     const deltaY = ((clientY - dragState.startClientY) / Math.max(1, dragState.canvasHeight)) * 100;
     const baseFrame =
       dragState.mode === "move"
-        ? getMovedSlotFrame(dragState, deltaX, deltaY, dragState.startWidth, dragState.startHeight)
-        : getResizedSlotFrame(dragState, deltaX, deltaY, resizeProportionally);
+        ? getMovedSlotFrame(dragState, deltaX, deltaY, dragState.startWidth, dragState.startHeight, strongMagnetEnabled)
+        : getResizedSlotFrame(dragState, deltaX, deltaY, resizeProportionally, strongMagnetEnabled);
     const snappedFrame = snapSlotFrame(baseFrame, dragState, resizeProportionally);
     const activeFrame = snappedFrame.frame;
     setSlotAlignmentGuides(snappedFrame.guides);
+    setSlotDistanceGuides(dragState.mode === "move" ? getSlotDistanceGuides(activeFrame, dragState.snapTargetFrames) : []);
     slotFrameChangedRef.current =
       Math.abs(activeFrame.x - dragState.startX) > SLOT_BARRIER_EPSILON ||
       Math.abs(activeFrame.y - dragState.startY) > SLOT_BARRIER_EPSILON ||
@@ -966,6 +1085,7 @@ export function AlbumSpreadSlotEditor({
     pendingSlotFrameUndoRef.current = null;
     slotFrameChangedRef.current = false;
     setSlotAlignmentGuides(EMPTY_SLOT_ALIGNMENT_GUIDES);
+    setSlotDistanceGuides([]);
 
     if (slotFramePointerMoveHandlerRef.current) {
       window.removeEventListener("pointermove", slotFramePointerMoveHandlerRef.current);
@@ -1018,6 +1138,9 @@ export function AlbumSpreadSlotEditor({
       const targetItem = draftItems.find((item) => item.slotIndex === targetSlotIndex);
       return [getSlotFrame(targetSlotIndex, targetItem)];
     });
+    const snapTolerancePx = strongMagnetEnabled
+      ? SLOT_STRONG_ALIGNMENT_SNAP_TOLERANCE_PX
+      : SLOT_SOFT_ALIGNMENT_SNAP_TOLERANCE_PX;
     slotFrameDragStateRef.current = {
       slotIndex,
       mode,
@@ -1031,8 +1154,8 @@ export function AlbumSpreadSlotEditor({
       canvasWidth: bounds.width,
       canvasHeight: bounds.height,
       snapTargetFrames,
-      snapToleranceX: (SLOT_ALIGNMENT_SNAP_TOLERANCE_PX / Math.max(1, bounds.width)) * 100,
-      snapToleranceY: (SLOT_ALIGNMENT_SNAP_TOLERANCE_PX / Math.max(1, bounds.height)) * 100
+      snapToleranceX: (snapTolerancePx / Math.max(1, bounds.width)) * 100,
+      snapToleranceY: (snapTolerancePx / Math.max(1, bounds.height)) * 100
     };
 
     const handleMove = (nativeEvent: globalThis.PointerEvent) => {
@@ -1229,7 +1352,24 @@ export function AlbumSpreadSlotEditor({
             <MousePointer2 size={15} />
             Oldalpár vászon
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              aria-pressed={strongMagnetEnabled}
+              onClick={() => onStrongMagnetEnabledChange?.(!strongMagnetEnabled)}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition ${
+                strongMagnetEnabled
+                  ? "border-brass bg-brass/15 text-ink shadow-sm"
+                  : "border-ink/10 bg-white text-graphite hover:border-brass hover:text-ink"
+              }`}
+              title="Kikapcsolva is megmarad a finom slotigazítás és a távolságjelzés"
+            >
+              <Magnet size={15} />
+              Erős mágnes
+              <span className="rounded-full bg-ink/5 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                {strongMagnetEnabled ? "Be" : "Ki"}
+              </span>
+            </button>
             {template.slots.map((_, slotIndex) => {
               const isSelected = slotIndex === selectedSlotIndex;
               const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
@@ -1297,6 +1437,45 @@ export function AlbumSpreadSlotEditor({
               style={{ top: `${position}%` }}
             />
           ))}
+          {slotDistanceGuides.map((guide, index) =>
+            guide.axis === "horizontal" ? (
+              <div
+                key={`slot-distance-horizontal-${index}`}
+                data-slot-distance-guide="horizontal"
+                aria-hidden="true"
+                className="pointer-events-none absolute z-[65] h-px bg-brass"
+                style={{
+                  left: `${guide.start}%`,
+                  top: `${guide.crossPosition}%`,
+                  width: `${guide.end - guide.start}%`
+                }}
+              >
+                <span className="absolute -left-px -top-1.5 h-3 w-px bg-brass" />
+                <span className="absolute -right-px -top-1.5 h-3 w-px bg-brass" />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-ink px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums text-white shadow">
+                  {guide.distancePx} px
+                </span>
+              </div>
+            ) : (
+              <div
+                key={`slot-distance-vertical-${index}`}
+                data-slot-distance-guide="vertical"
+                aria-hidden="true"
+                className="pointer-events-none absolute z-[65] w-px bg-brass"
+                style={{
+                  left: `${guide.crossPosition}%`,
+                  top: `${guide.start}%`,
+                  height: `${guide.end - guide.start}%`
+                }}
+              >
+                <span className="absolute -left-1.5 -top-px h-px w-3 bg-brass" />
+                <span className="absolute -bottom-px -left-1.5 h-px w-3 bg-brass" />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-ink px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums text-white shadow">
+                  {guide.distancePx} px
+                </span>
+              </div>
+            )
+          )}
           {template.slots.map((slot, slotIndex) => {
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
             const isSelected = slotIndex === selectedSlotIndex;

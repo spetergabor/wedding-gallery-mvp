@@ -319,6 +319,7 @@ export function AlbumDesignWorkbench({
   const [photoQuery, setPhotoQuery] = useState("");
   const [showUnusedOnly, setShowUnusedOnly] = useState(false);
   const [isTextToolActive, setIsTextToolActive] = useState(false);
+  const [strongSlotMagnetEnabled, setStrongSlotMagnetEnabled] = useState(false);
   const [workbenchZoom, setWorkbenchZoom] = useState(1);
   const [layoutModalSpreadId, setLayoutModalSpreadId] = useState<string | null>(null);
   const [isCreateLayoutModalOpen, setIsCreateLayoutModalOpen] = useState(false);
@@ -1411,6 +1412,8 @@ export function AlbumDesignWorkbench({
                           isTextToolActive={isTextToolActive}
                           onActivateTextTool={() => setIsTextToolActive(true)}
                           onCreateTextItem={(position) => addTextItemToSpread(spread.id, position)}
+                          strongMagnetEnabled={strongSlotMagnetEnabled}
+                          onStrongMagnetEnabledChange={setStrongSlotMagnetEnabled}
                           hasChanges={hasChanges}
                         />
                       </section>
