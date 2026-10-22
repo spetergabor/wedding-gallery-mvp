@@ -115,8 +115,7 @@ type SlotDistanceGuide = {
 };
 
 type SlotFrameUndoState = {
-  slotIndex: number;
-  frame: SlotFrame;
+  frames: Record<number, SlotFrame>;
 };
 
 const ALBUM_TEXT_FONT_STACKS: Record<string, string> = {
@@ -733,6 +732,7 @@ export function AlbumSpreadSlotEditor({
   onCreateTextItem,
   strongMagnetEnabled = false,
   onStrongMagnetEnabledChange,
+  isActive = true,
   hasChanges,
 }: {
   spread: EditableSpread;
@@ -753,6 +753,7 @@ export function AlbumSpreadSlotEditor({
   onCreateTextItem?: (position: { x: number; y: number }) => void;
   strongMagnetEnabled?: boolean;
   onStrongMagnetEnabledChange?: (enabled: boolean) => void;
+  isActive?: boolean;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
@@ -770,6 +771,7 @@ export function AlbumSpreadSlotEditor({
   const [slotAlignmentGuides, setSlotAlignmentGuides] = useState<SlotAlignmentGuides>(EMPTY_SLOT_ALIGNMENT_GUIDES);
   const [slotDistanceGuides, setSlotDistanceGuides] = useState<SlotDistanceGuide[]>([]);
   const [lastSlotFrameUndo, setLastSlotFrameUndo] = useState<SlotFrameUndoState | null>(null);
+  const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([selectedSlotIndex]);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
 
@@ -778,6 +780,18 @@ export function AlbumSpreadSlotEditor({
       onSelectedSlotIndexChange(0);
     }
   }, [onSelectedSlotIndexChange, selectedSlotIndex, template.slots]);
+
+  useEffect(() => {
+    setSelectedSlotIndices((current) => {
+      const validSelection = current.filter((slotIndex) => Boolean(template.slots[slotIndex]));
+
+      if (validSelection.includes(selectedSlotIndex)) {
+        return validSelection;
+      }
+
+      return [selectedSlotIndex];
+    });
+  }, [selectedSlotIndex, template.slots]);
 
   useEffect(() => {
     if (!isTextToolActive || !selectedTextItemId) {
@@ -847,15 +861,125 @@ export function AlbumSpreadSlotEditor({
     };
   }, []);
 
-  function selectSlot(slotIndex: number) {
+  useEffect(() => {
+    function handleSlotNudge(event: globalThis.KeyboardEvent) {
+      if (!isActive || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) {
+        return;
+      }
+
+      event.preventDefault();
+      const pixelStep = event.shiftKey ? 10 : 1;
+      const deltaX = event.key === "ArrowLeft"
+        ? -(pixelStep / ALBUM_DESIGN_EXPORT_WIDTH) * 100
+        : event.key === "ArrowRight"
+          ? (pixelStep / ALBUM_DESIGN_EXPORT_WIDTH) * 100
+          : 0;
+      const deltaY = event.key === "ArrowUp"
+        ? -(pixelStep / ALBUM_DESIGN_EXPORT_HEIGHT) * 100
+        : event.key === "ArrowDown"
+          ? (pixelStep / ALBUM_DESIGN_EXPORT_HEIGHT) * 100
+          : 0;
+      nudgeSelectedSlots(deltaX, deltaY);
+    }
+
+    window.addEventListener("keydown", handleSlotNudge);
+    return () => window.removeEventListener("keydown", handleSlotNudge);
+  });
+
+  function selectSlot(slotIndex: number, additive = false) {
     onFocusSpread?.();
+
+    if (!additive) {
+      setSelectedSlotIndices([slotIndex]);
+      onSelectedSlotIndexChange(slotIndex);
+      return;
+    }
+
+    if (selectedSlotIndices.includes(slotIndex)) {
+      if (selectedSlotIndices.length === 1) {
+        return;
+      }
+
+      const nextSelection = selectedSlotIndices.filter((selectedIndex) => selectedIndex !== slotIndex);
+      setSelectedSlotIndices(nextSelection);
+      onSelectedSlotIndexChange(nextSelection[nextSelection.length - 1]);
+      return;
+    }
+
+    setSelectedSlotIndices([...selectedSlotIndices, slotIndex]);
     onSelectedSlotIndexChange(slotIndex);
+  }
+
+  function selectSlotFromPointer(slotIndex: number, event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) {
+    selectSlot(slotIndex, event.shiftKey || event.metaKey || event.ctrlKey);
   }
 
   function getSlotFrame(slotIndex: number, item?: SpreadItem | null): SlotFrame {
     const templateSlot = template.slots[slotIndex] ?? { x: 0, y: 0, width: 100, height: 100 };
 
     return draftSlotFrames[slotIndex] ?? item ?? templateSlot;
+  }
+
+  function nudgeSelectedSlots(deltaX: number, deltaY: number) {
+    const selectedFrames = Object.fromEntries(
+      selectedSlotIndices.map((slotIndex) => {
+        const item = draftItems.find((candidate) => candidate.slotIndex === slotIndex);
+        return [slotIndex, getSlotFrame(slotIndex, item)];
+      })
+    ) as Record<number, SlotFrame>;
+    const frames = Object.values(selectedFrames);
+
+    if (frames.length === 0) {
+      return;
+    }
+
+    const minimumDeltaX = Math.max(...frames.map((frame) => -frame.x));
+    const maximumDeltaX = Math.min(...frames.map((frame) => 100 - frame.x - frame.width));
+    const minimumDeltaY = Math.max(...frames.map((frame) => -frame.y));
+    const maximumDeltaY = Math.min(...frames.map((frame) => 100 - frame.y - frame.height));
+    const appliedDeltaX = Math.min(maximumDeltaX, Math.max(minimumDeltaX, deltaX));
+    const appliedDeltaY = Math.min(maximumDeltaY, Math.max(minimumDeltaY, deltaY));
+
+    if (Math.abs(appliedDeltaX) <= SLOT_BARRIER_EPSILON && Math.abs(appliedDeltaY) <= SLOT_BARRIER_EPSILON) {
+      return;
+    }
+
+    setLastSlotFrameUndo({ frames: selectedFrames });
+    setSlotAlignmentGuides(EMPTY_SLOT_ALIGNMENT_GUIDES);
+    setSlotDistanceGuides([]);
+    onDraftItemsChange((items) =>
+      items.map((item) => {
+        const frame = selectedFrames[item.slotIndex];
+
+        return frame
+          ? {
+              ...item,
+              x: frame.x + appliedDeltaX,
+              y: frame.y + appliedDeltaY
+            }
+          : item;
+      })
+    );
+    onDraftSlotFramesChange?.((currentFrames) => {
+      const movedFrames = Object.fromEntries(
+        Object.entries(selectedFrames).map(([slotIndex, frame]) => [
+          Number(slotIndex),
+          {
+            ...frame,
+            x: frame.x + appliedDeltaX,
+            y: frame.y + appliedDeltaY
+          }
+        ])
+      );
+
+      return { ...currentFrames, ...movedFrames };
+    });
   }
 
   function getSlotPixelSize(frame: SlotFrame) {
@@ -870,6 +994,10 @@ export function AlbumSpreadSlotEditor({
 
   function beginCropDrag(event: PointerEvent<HTMLElement>, item: SpreadItem) {
     if (event.button !== 0) {
+      return;
+    }
+
+    if (event.shiftKey || event.metaKey || event.ctrlKey) {
       return;
     }
 
@@ -1054,10 +1182,13 @@ export function AlbumSpreadSlotEditor({
       return;
     }
 
-    const { slotIndex, frame } = lastSlotFrameUndo;
+    const restoredFrames = lastSlotFrameUndo.frames;
+    const restoredSlotIndices = Object.keys(restoredFrames).map(Number);
     onDraftItemsChange((items) =>
-      items.map((item) =>
-        item.slotIndex === slotIndex
+      items.map((item) => {
+        const frame = restoredFrames[item.slotIndex];
+
+        return frame
           ? {
               ...item,
               x: frame.x,
@@ -1065,14 +1196,16 @@ export function AlbumSpreadSlotEditor({
               width: frame.width,
               height: frame.height
             }
-          : item
-      )
+          : item;
+      })
     );
-    onDraftSlotFramesChange?.((frames) => ({
-      ...frames,
-      [slotIndex]: frame
-    }));
-    selectSlot(slotIndex);
+    onDraftSlotFramesChange?.((frames) => ({ ...frames, ...restoredFrames }));
+    setSelectedSlotIndices(restoredSlotIndices);
+
+    if (restoredSlotIndices.length > 0) {
+      onSelectedSlotIndexChange(restoredSlotIndices[restoredSlotIndices.length - 1]);
+    }
+
     setLastSlotFrameUndo(null);
   }
 
@@ -1122,12 +1255,13 @@ export function AlbumSpreadSlotEditor({
     selectSlot(slotIndex);
     endSlotFrameDrag();
     pendingSlotFrameUndoRef.current = {
-      slotIndex,
-      frame: {
-        x: frame.x,
-        y: frame.y,
-        width: frame.width,
-        height: frame.height
+      frames: {
+        [slotIndex]: {
+          x: frame.x,
+          y: frame.y,
+          width: frame.width,
+          height: frame.height
+        }
       }
     };
     const snapTargetFrames = template.slots.flatMap((_, targetSlotIndex) => {
@@ -1242,7 +1376,9 @@ export function AlbumSpreadSlotEditor({
 
   function resetDraft() {
     onDraftItemsChange(() => orderedItems);
-    onSelectedSlotIndexChange(orderedItems[0]?.slotIndex ?? 0);
+    const firstSlotIndex = orderedItems[0]?.slotIndex ?? 0;
+    setSelectedSlotIndices([firstSlotIndex]);
+    onSelectedSlotIndexChange(firstSlotIndex);
     setLastSlotFrameUndo(null);
   }
 
@@ -1371,7 +1507,7 @@ export function AlbumSpreadSlotEditor({
               </span>
             </button>
             {template.slots.map((_, slotIndex) => {
-              const isSelected = slotIndex === selectedSlotIndex;
+              const isSelected = selectedSlotIndices.includes(slotIndex);
               const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
               const hasPhoto = Boolean(item);
               const pixelSize = getSlotPixelSize(getSlotFrame(slotIndex, item));
@@ -1380,7 +1516,9 @@ export function AlbumSpreadSlotEditor({
                 <button
                   key={`slot-button-${spread.id}-${slotIndex}`}
                   type="button"
-                  onClick={() => selectSlot(slotIndex)}
+                  aria-pressed={isSelected}
+                  onClick={(event) => selectSlotFromPointer(slotIndex, event)}
+                  title="Shift / Cmd / Ctrl + kattintás: több slot kijelölése"
                   className={`min-h-11 rounded-md border px-3 py-1.5 text-sm font-medium transition ${
                     isSelected ? "border-ink bg-ink text-white" : "border-ink/10 bg-white text-graphite hover:border-brass hover:text-ink"
                   }`}
@@ -1478,7 +1616,8 @@ export function AlbumSpreadSlotEditor({
           )}
           {template.slots.map((slot, slotIndex) => {
             const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
-            const isSelected = slotIndex === selectedSlotIndex;
+            const isSelected = selectedSlotIndices.includes(slotIndex);
+            const isPrimary = slotIndex === selectedSlotIndex;
             const isDragOver = slotIndex === dragOverSlotIndex;
             const slotFrame = getSlotFrame(slotIndex, item);
             const edgeInsets = getAlbumSlotEdgeInsetsPx(slotFrame, slotInset);
@@ -1487,7 +1626,7 @@ export function AlbumSpreadSlotEditor({
               return (
                 <div
                   key={`empty-slot-${spread.id}-${slotIndex}`}
-                  onClick={() => selectSlot(slotIndex)}
+                  onClick={(event) => selectSlotFromPointer(slotIndex, event)}
                   onDragOver={(event) => handleSlotDragOver(event, slotIndex)}
                   onDragLeave={(event) => handleSlotDragLeave(event, slotIndex)}
                   onDrop={(event) => handleSlotDrop(event, slotIndex)}
@@ -1514,7 +1653,7 @@ export function AlbumSpreadSlotEditor({
                   <span className="flex h-full items-center justify-center px-3 text-center text-xs font-medium text-graphite/45">
                     Húzz ide képet lentről
                   </span>
-                  {isSelected ? renderSlotFrameControls(slotIndex, slotFrame) : null}
+                  {isPrimary ? renderSlotFrameControls(slotIndex, slotFrame) : null}
                 </div>
               );
             }
@@ -1522,7 +1661,7 @@ export function AlbumSpreadSlotEditor({
             return (
               <div
                 key={item.id}
-                onClick={() => selectSlot(item.slotIndex)}
+                onClick={(event) => selectSlotFromPointer(item.slotIndex, event)}
                 onPointerDown={(event) => beginCropDrag(event, item)}
                 onPointerMove={updateCropDrag}
                 onPointerUp={endCropDrag}
@@ -1561,7 +1700,7 @@ export function AlbumSpreadSlotEditor({
                 <span className={`absolute left-2 top-2 rounded-md px-2 py-1 text-xs font-semibold ${isSelected ? "bg-ink text-white" : "bg-white/90 text-ink"}`}>
                   {slotIndex + 1}
                 </span>
-                {isSelected ? renderSlotFrameControls(item.slotIndex, slotFrame) : null}
+                {isPrimary ? renderSlotFrameControls(item.slotIndex, slotFrame) : null}
               </div>
             );
           })}
@@ -1646,7 +1785,11 @@ export function AlbumSpreadSlotEditor({
 
       <div className="rounded-md border border-ink/10 bg-paper p-3">
         <div className="flex flex-col gap-3 rounded-md bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">Aktív slot {selectedSlotIndex + 1}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/60">
+            {selectedSlotIndices.length > 1
+              ? `Kijelölt slotok: ${selectedSlotIndices.map((slotIndex) => slotIndex + 1).join(", ")}`
+              : `Aktív slot ${selectedSlotIndex + 1}`}
+          </p>
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-semibold text-ink">{selectedItem?.photo.filename ?? "Nincs kép"}</p>
             <p className="mt-1 text-xs leading-5 text-graphite/60">
@@ -1654,6 +1797,9 @@ export function AlbumSpreadSlotEditor({
             </p>
             <p className="mt-1 text-xs leading-5 text-graphite/60">
               <kbd className="rounded border border-ink/15 bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink">⌥ Option / Alt</kbd> + sarokhúzás: arányos kicsinyítés vagy nagyítás, torzítás nélkül.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-graphite/60">
+              <kbd className="rounded border border-ink/15 bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink">Shift / Cmd / Ctrl</kbd> + kattintás: többes kijelölés. Nyilak: 1 px, <kbd className="rounded border border-ink/15 bg-paper px-1.5 py-0.5 font-mono text-[11px] text-ink">Shift</kbd> + nyíl: 10 px, mágnes nélkül.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -1414,6 +1414,7 @@ export function AlbumDesignWorkbench({
                           onCreateTextItem={(position) => addTextItemToSpread(spread.id, position)}
                           strongMagnetEnabled={strongSlotMagnetEnabled}
                           onStrongMagnetEnabledChange={setStrongSlotMagnetEnabled}
+                          isActive={isActive}
                           hasChanges={hasChanges}
                         />
                       </section>
