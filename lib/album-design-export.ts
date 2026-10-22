@@ -9,6 +9,7 @@ import {
   ALBUM_SPREAD_BACKGROUND,
   getAlbumLayoutExportSlotInsetPx,
   getAlbumLayoutTemplate,
+  getAlbumSlotCustomGapInsetsPx,
   getAlbumSlotEdgeInsetsPx
 } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +30,7 @@ export type AlbumDesignSpreadExportData = {
   id: string;
   title: string | null;
   layoutKey: string;
+  slotGapPx: number | null;
   sortOrder: number;
   design: {
     title: string;
@@ -255,6 +257,7 @@ export async function loadAlbumDesignSpreadForExport({
       id: true,
       title: true,
       layoutKey: true,
+      slotGapPx: true,
       sortOrder: true,
       design: {
         select: {
@@ -322,6 +325,7 @@ export async function loadAlbumDesignSpreadDraftForExport({
       id: true,
       title: true,
       layoutKey: true,
+      slotGapPx: true,
       sortOrder: true,
       design: {
         select: {
@@ -385,11 +389,19 @@ export async function loadAlbumDesignSpreadDraftForExport({
     })
     .filter((item): item is AlbumDesignSpreadExportData["items"][number] => Boolean(item));
   const textItems = parseDraftTextItems(formData, spread.id);
+  const rawSlotGapPx = formData.get(`spread-${spread.id}-slotGapPx`);
+  const parsedSlotGapPx = typeof rawSlotGapPx === "string" && rawSlotGapPx.trim() !== ""
+    ? Number.parseFloat(rawSlotGapPx)
+    : spread.slotGapPx;
+  const slotGapPx = parsedSlotGapPx === null || !Number.isFinite(parsedSlotGapPx)
+    ? null
+    : Math.min(1000, Math.max(0, parsedSlotGapPx));
 
   return {
     id: spread.id,
     title: spread.title,
     layoutKey: spread.layoutKey,
+    slotGapPx,
     sortOrder: spread.sortOrder,
     design: {
       title: spread.design.title,
@@ -421,6 +433,7 @@ export async function loadAlbumDesignForExport({
           id: true,
           title: true,
           layoutKey: true,
+          slotGapPx: true,
           sortOrder: true,
           design: {
             select: {
@@ -641,6 +654,7 @@ async function renderTextItemBuffer(
 export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExportData, options: AlbumDesignSpreadRenderOptions = {}) {
   const renderOptions = resolveAlbumDesignSpreadRenderOptions(options);
   const slotInset = Math.round(getAlbumLayoutExportSlotInsetPx(spread.layoutKey) * (renderOptions.width / ALBUM_DESIGN_EXPORT_WIDTH));
+  const customSlotGap = spread.slotGapPx === null ? null : spread.slotGapPx * (renderOptions.width / ALBUM_DESIGN_EXPORT_WIDTH);
   const photoComposites = await Promise.all(
     spread.items.map(async (item) => {
       const photoR2Key = item.photo.r2Key || getR2KeyFromPublicUrl(item.photo.imageUrl) || getR2KeyFromPublicUrl(item.photo.previewUrl);
@@ -650,7 +664,15 @@ export async function renderAlbumDesignSpreadJpeg(spread: AlbumDesignSpreadExpor
       });
       const slotWidth = Math.round((item.width / 100) * renderOptions.width);
       const slotHeight = Math.round((item.height / 100) * renderOptions.height);
-      const edgeInsets = getAlbumSlotEdgeInsetsPx(item, slotInset);
+      const rawEdgeInsets = customSlotGap === null
+        ? getAlbumSlotEdgeInsetsPx(item, slotInset)
+        : getAlbumSlotCustomGapInsetsPx(item, customSlotGap);
+      const edgeInsets = {
+        left: Math.floor(rawEdgeInsets.left),
+        right: Math.ceil(rawEdgeInsets.right),
+        top: Math.floor(rawEdgeInsets.top),
+        bottom: Math.ceil(rawEdgeInsets.bottom)
+      };
       const width = Math.max(1, slotWidth - edgeInsets.left - edgeInsets.right);
       const height = Math.max(1, slotHeight - edgeInsets.top - edgeInsets.bottom);
       const input = await renderCroppedPhotoBuffer({

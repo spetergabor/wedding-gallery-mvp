@@ -1,0 +1,1 @@
+ALTER TABLE "AlbumDesignSpread" ADD COLUMN "slotGapPx" DOUBLE PRECISION;

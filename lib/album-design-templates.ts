@@ -38,6 +38,17 @@ export function getAlbumSlotEdgeInsetsPx(slot: AlbumLayoutSlot, insetPx: number)
   };
 }
 
+export function getAlbumSlotCustomGapInsetsPx(slot: AlbumLayoutSlot, gapPx: number) {
+  const halfGap = Math.max(0, gapPx) / 2;
+
+  return {
+    left: slot.x <= ALBUM_SLOT_EDGE_EPSILON_PERCENT ? 0 : halfGap,
+    right: slot.x + slot.width >= 100 - ALBUM_SLOT_EDGE_EPSILON_PERCENT ? 0 : halfGap,
+    top: slot.y <= ALBUM_SLOT_EDGE_EPSILON_PERCENT ? 0 : halfGap,
+    bottom: slot.y + slot.height >= 100 - ALBUM_SLOT_EDGE_EPSILON_PERCENT ? 0 : halfGap
+  };
+}
+
 export const ALBUM_LAYOUT_TEMPLATES: AlbumLayoutTemplate[] = [
   {
     key: "spread-hero",

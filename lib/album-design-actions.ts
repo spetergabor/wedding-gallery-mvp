@@ -716,6 +716,7 @@ export async function createEmptyAlbumDesignSpreadInlineAction(customerId: strin
       id: true,
       title: true,
       layoutKey: true,
+      slotGapPx: true,
       sortOrder: true
     }
   });
@@ -986,6 +987,7 @@ export async function exportAlbumDesignToReviewAction(customerId: string | null,
           id: true,
           title: true,
           layoutKey: true,
+          slotGapPx: true,
           sortOrder: true,
           design: {
             select: {
@@ -1383,6 +1385,11 @@ async function persistAlbumDesignSpreadDrafts(customerId: string | null, designI
       width: `spread-${spread.id}-slotWidth`,
       height: `spread-${spread.id}-slotHeight`
     });
+    const rawSlotGapPx = formData.get(`spread-${spread.id}-slotGapPx`);
+    const parsedSlotGapPx = typeof rawSlotGapPx === "string" && rawSlotGapPx.trim() !== "" ? Number.parseFloat(rawSlotGapPx) : null;
+    const slotGapPx = parsedSlotGapPx === null || !Number.isFinite(parsedSlotGapPx)
+      ? null
+      : Math.min(1000, Math.max(0, parsedSlotGapPx));
     const textItems = getAlbumTextItemDrafts(formData, spread.id);
 
     if ((photoIds.length === 0 && textItems.length === 0) || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
@@ -1396,6 +1403,7 @@ async function persistAlbumDesignSpreadDrafts(customerId: string | null, designI
       slotIndexes,
       cropPositions,
       slotFrames,
+      slotGapPx,
       textItems
     };
   });
@@ -1416,6 +1424,7 @@ async function persistAlbumDesignSpreadDrafts(customerId: string | null, designI
       prisma.albumDesignSpread.update({
         where: { id: draft.spread.id },
         data: {
+          slotGapPx: draft.slotGapPx,
           items: {
             deleteMany: {},
             create: createSpreadItemsForSlotIndexes(draft.layout, draft.photoIds, draft.slotIndexes, draft.cropPositions, draft.slotFrames)

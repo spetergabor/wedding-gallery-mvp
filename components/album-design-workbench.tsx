@@ -64,6 +64,7 @@ type AlbumSpread = {
   id: string;
   title: string | null;
   layoutKey: string;
+  slotGapPx: number | null;
   sortOrder: number;
   items: SpreadItem[];
   textItems: SpreadTextItem[];
@@ -171,10 +172,11 @@ function formatAlbumTextNumber(value: number) {
   return value.toFixed(2);
 }
 
-function SpreadDraftInputs({ spreadId, items, textItems }: { spreadId: string; items: SpreadItem[]; textItems: SpreadTextItem[] }) {
+function SpreadDraftInputs({ spreadId, items, textItems, slotGapPx }: { spreadId: string; items: SpreadItem[]; textItems: SpreadTextItem[]; slotGapPx: number | null }) {
   return (
     <>
       <input type="hidden" name="draftSpreadIds" value={spreadId} />
+      <input type="hidden" name={`spread-${spreadId}-slotGapPx`} value={slotGapPx ?? ""} />
       {items.map((item) => (
         <span key={`all-draft-${spreadId}-${item.slotIndex}`}>
           <input type="hidden" name={`spread-${spreadId}-slotIndexes`} value={String(item.slotIndex)} />
@@ -308,6 +310,9 @@ export function AlbumDesignWorkbench({
   const [isEditorOpen, setIsEditorOpen] = useState(initialEditorOpen);
   const [draftItemsBySpread, setDraftItemsBySpread] = useState<Record<string, SpreadItem[]>>(() => createDraftMap(spreads));
   const [draftSlotFramesBySpread, setDraftSlotFramesBySpread] = useState<Record<string, Record<number, SlotFrame>>>({});
+  const [draftSlotGapPxBySpread, setDraftSlotGapPxBySpread] = useState<Record<string, number | null>>(() =>
+    Object.fromEntries(spreads.map((spread) => [spread.id, spread.slotGapPx]))
+  );
   const [draftTextItemsBySpread, setDraftTextItemsBySpread] = useState<Record<string, SpreadTextItem[]>>(() => createTextDraftMap(spreads));
   const [activeSpreadId, setActiveSpreadId] = useState(() => resolvedInitialActiveSpreadId);
   const [selectedSlotBySpread, setSelectedSlotBySpread] = useState<Record<string, number>>(() =>
@@ -350,11 +355,12 @@ export function AlbumDesignWorkbench({
         .filter((spread) => {
           const photoSignatureChanged = getItemSignature(draftItemsBySpread[spread.id] ?? getOrderedItems(spread)) !== originalSignaturesBySpread[spread.id];
           const textSignatureChanged = getTextItemSignature(draftTextItemsBySpread[spread.id] ?? spread.textItems) !== originalTextSignaturesBySpread[spread.id];
+          const slotGapChanged = (draftSlotGapPxBySpread[spread.id] ?? null) !== spread.slotGapPx;
 
-          return photoSignatureChanged || textSignatureChanged;
+          return photoSignatureChanged || textSignatureChanged || slotGapChanged;
         })
         .map((spread) => spread.id),
-    [draftItemsBySpread, draftTextItemsBySpread, localSpreads, originalSignaturesBySpread, originalTextSignaturesBySpread]
+    [draftItemsBySpread, draftSlotGapPxBySpread, draftTextItemsBySpread, localSpreads, originalSignaturesBySpread, originalTextSignaturesBySpread]
   );
   const usedPhotoIds = useMemo(
     () => [
@@ -395,6 +401,7 @@ export function AlbumDesignWorkbench({
   useEffect(() => {
     setDraftItemsBySpread(createDraftMap(spreads));
     setDraftSlotFramesBySpread({});
+    setDraftSlotGapPxBySpread(Object.fromEntries(spreads.map((spread) => [spread.id, spread.slotGapPx])));
   }, [spreads]);
 
   useEffect(() => {
@@ -829,7 +836,8 @@ export function AlbumDesignWorkbench({
         spreadId,
         {
           items: [...(draftItemsBySpread[spreadId] ?? [])],
-          textItems: [...(draftTextItemsBySpread[spreadId] ?? [])]
+          textItems: [...(draftTextItemsBySpread[spreadId] ?? [])],
+          slotGapPx: draftSlotGapPxBySpread[spreadId] ?? null
         }
       ])
     );
@@ -847,7 +855,8 @@ export function AlbumDesignWorkbench({
               ? {
                   ...spread,
                   items: savedDraft.items,
-                  textItems: savedDraft.textItems
+                  textItems: savedDraft.textItems,
+                  slotGapPx: savedDraft.slotGapPx
                 }
               : spread;
           })
@@ -908,6 +917,10 @@ export function AlbumDesignWorkbench({
         setDraftTextItemsBySpread((current) => ({
           ...current,
           [spread.id]: []
+        }));
+        setDraftSlotGapPxBySpread((current) => ({
+          ...current,
+          [spread.id]: spread.slotGapPx
         }));
         setSelectedSlotBySpread((current) => ({
           ...current,
@@ -1131,6 +1144,7 @@ export function AlbumDesignWorkbench({
                         spreadId={spreadId}
                         items={draftItemsBySpread[spreadId] ?? []}
                         textItems={draftTextItemsBySpread[spreadId] ?? []}
+                        slotGapPx={draftSlotGapPxBySpread[spreadId] ?? null}
                       />
                     ))}
                     <FormSubmitButton
@@ -1151,6 +1165,7 @@ export function AlbumDesignWorkbench({
                         spreadId={spread.id}
                         items={draftItemsBySpread[spread.id] ?? []}
                         textItems={draftTextItemsBySpread[spread.id] ?? []}
+                        slotGapPx={draftSlotGapPxBySpread[spread.id] ?? spread.slotGapPx}
                       />
                     ))}
                     <button
@@ -1343,7 +1358,12 @@ export function AlbumDesignWorkbench({
 
                           <div className="flex flex-wrap gap-2">
                             <form method="post" action={`/admin/album-design-spreads/${spread.id}/export`}>
-                              <SpreadDraftInputs spreadId={spread.id} items={draftItems} textItems={draftTextItems} />
+                              <SpreadDraftInputs
+                                spreadId={spread.id}
+                                items={draftItems}
+                                textItems={draftTextItems}
+                                slotGapPx={draftSlotGapPxBySpread[spread.id] ?? spread.slotGapPx}
+                              />
                               <button
                                 type="submit"
                                 className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-medium text-ink transition hover:border-ink/30"
@@ -1413,6 +1433,10 @@ export function AlbumDesignWorkbench({
                           onStrongMagnetEnabledChange={setStrongSlotMagnetEnabled}
                           isActive={isActive}
                           canvasZoom={isActive ? workbenchZoom : 1}
+                          slotGapPx={draftSlotGapPxBySpread[spread.id] ?? spread.slotGapPx}
+                          onSlotGapPxChange={(gapPx) =>
+                            setDraftSlotGapPxBySpread((current) => ({ ...current, [spread.id]: gapPx }))
+                          }
                           hasChanges={hasChanges}
                         />
                       </section>

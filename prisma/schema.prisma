@@ -911,6 +911,7 @@ model AlbumDesignSpread {
   designId  String
   title     String?
   layoutKey String
+  slotGapPx Float?
   sortOrder Int                         @default(0)
   createdAt DateTime                    @default(now())
   updatedAt DateTime                    @updatedAt

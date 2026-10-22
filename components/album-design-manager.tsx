@@ -92,6 +92,7 @@ type AlbumDesign = {
     id: string;
     title: string | null;
     layoutKey: string;
+    slotGapPx: number | null;
     sortOrder: number;
     textItems: Array<{
       id: string;

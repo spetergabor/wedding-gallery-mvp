@@ -10,6 +10,7 @@ import {
   getAlbumLayoutExportSlotInsetPx,
   getAlbumLayoutPreviewSlotInsetPx,
   getAlbumLayoutTemplate,
+  getAlbumSlotCustomGapInsetsPx,
   getAlbumSlotEdgeInsetsPx
 } from "@/lib/album-design-templates";
 
@@ -58,6 +59,7 @@ type EditableSpread = {
   id: string;
   title: string | null;
   layoutKey: string;
+  slotGapPx?: number | null;
   sortOrder: number;
   items: SpreadItem[];
 };
@@ -116,6 +118,7 @@ type SlotDistanceGuide = {
 
 type SlotFrameUndoState = {
   frames: Record<number, SlotFrame>;
+  slotGapPx?: number | null;
 };
 
 const ALBUM_TEXT_FONT_STACKS: Record<string, string> = {
@@ -722,32 +725,36 @@ function getNearestSlotPairs(frames: Record<number, SlotFrame>, axis: "horizonta
   const pairs = new Map<string, { before: number; after: number }>();
 
   for (const source of entries) {
-    const sourceEnd = axis === "horizontal" ? source.frame.x + source.frame.width : source.frame.y + source.frame.height;
+    const sourceCenter = axis === "horizontal"
+      ? source.frame.x + source.frame.width / 2
+      : source.frame.y + source.frame.height / 2;
     const candidates = entries
       .filter((target) => {
         if (source.slotIndex === target.slotIndex) {
           return false;
         }
 
-        const targetStart = axis === "horizontal" ? target.frame.x : target.frame.y;
+        const targetCenter = axis === "horizontal"
+          ? target.frame.x + target.frame.width / 2
+          : target.frame.y + target.frame.height / 2;
         const overlapsPerpendicularAxis = axis === "horizontal"
           ? rangesOverlap(source.frame.y, source.frame.y + source.frame.height, target.frame.y, target.frame.y + target.frame.height)
           : rangesOverlap(source.frame.x, source.frame.x + source.frame.width, target.frame.x, target.frame.x + target.frame.width);
 
-        return overlapsPerpendicularAxis && targetStart >= sourceEnd - SLOT_BARRIER_EPSILON;
+        return overlapsPerpendicularAxis && targetCenter > sourceCenter + SLOT_BARRIER_EPSILON;
       })
       .map((target) => ({
         target,
-        gap: (axis === "horizontal" ? target.frame.x : target.frame.y) - sourceEnd
+        distance: (axis === "horizontal" ? target.frame.x + target.frame.width / 2 : target.frame.y + target.frame.height / 2) - sourceCenter
       }));
 
     if (candidates.length === 0) {
       continue;
     }
 
-    const nearestGap = Math.min(...candidates.map((candidate) => candidate.gap));
+    const nearestDistance = Math.min(...candidates.map((candidate) => candidate.distance));
 
-    for (const candidate of candidates.filter((item) => Math.abs(item.gap - nearestGap) <= SLOT_BARRIER_EPSILON)) {
+    for (const candidate of candidates.filter((item) => Math.abs(item.distance - nearestDistance) <= SLOT_BARRIER_EPSILON)) {
       const key = `${source.slotIndex}-${candidate.target.slotIndex}`;
       pairs.set(key, { before: source.slotIndex, after: candidate.target.slotIndex });
     }
@@ -756,9 +763,11 @@ function getNearestSlotPairs(frames: Record<number, SlotFrame>, axis: "horizonta
   return [...pairs.values()];
 }
 
-function applyUniformSlotGap(frames: Record<number, SlotFrame>, gapPx: number) {
-  const horizontalGap = (gapPx / ALBUM_DESIGN_EXPORT_WIDTH) * 100;
-  const verticalGap = (gapPx / ALBUM_DESIGN_EXPORT_HEIGHT) * 100;
+function applyUniformSlotGap(frames: Record<number, SlotFrame>, gapPx: number, slotInsetPx: number) {
+  const frameGapPx = gapPx - slotInsetPx * 2;
+  const adjustedFrameGapPx = slotInsetPx > 0 && Math.abs(frameGapPx) < 0.25 ? 0.25 : frameGapPx;
+  const horizontalGap = (adjustedFrameGapPx / ALBUM_DESIGN_EXPORT_WIDTH) * 100;
+  const verticalGap = (adjustedFrameGapPx / ALBUM_DESIGN_EXPORT_HEIGHT) * 100;
   const edgeUpdates = Object.fromEntries(
     Object.keys(frames).map((slotIndex) => [Number(slotIndex), { left: [] as number[], right: [] as number[], top: [] as number[], bottom: [] as number[] }])
   );
@@ -806,16 +815,20 @@ function applyUniformSlotGap(frames: Record<number, SlotFrame>, gapPx: number) {
   ) as Record<number, SlotFrame>;
 }
 
-function getSlotGapSummary(frames: Record<number, SlotFrame>) {
+function getSlotGapSummary(frames: Record<number, SlotFrame>, slotInsetPx: number, usesCustomGap = false) {
   const horizontalGaps = getNearestSlotPairs(frames, "horizontal").map((pair) => {
     const before = frames[pair.before];
     const after = frames[pair.after];
-    return ((after.x - before.x - before.width) / 100) * ALBUM_DESIGN_EXPORT_WIDTH;
+    const beforeInsets = usesCustomGap ? getAlbumSlotCustomGapInsetsPx(before, slotInsetPx) : getAlbumSlotEdgeInsetsPx(before, slotInsetPx);
+    const afterInsets = usesCustomGap ? getAlbumSlotCustomGapInsetsPx(after, slotInsetPx) : getAlbumSlotEdgeInsetsPx(after, slotInsetPx);
+    return ((after.x - before.x - before.width) / 100) * ALBUM_DESIGN_EXPORT_WIDTH + beforeInsets.right + afterInsets.left;
   });
   const verticalGaps = getNearestSlotPairs(frames, "vertical").map((pair) => {
     const before = frames[pair.before];
     const after = frames[pair.after];
-    return ((after.y - before.y - before.height) / 100) * ALBUM_DESIGN_EXPORT_HEIGHT;
+    const beforeInsets = usesCustomGap ? getAlbumSlotCustomGapInsetsPx(before, slotInsetPx) : getAlbumSlotEdgeInsetsPx(before, slotInsetPx);
+    const afterInsets = usesCustomGap ? getAlbumSlotCustomGapInsetsPx(after, slotInsetPx) : getAlbumSlotEdgeInsetsPx(after, slotInsetPx);
+    return ((after.y - before.y - before.height) / 100) * ALBUM_DESIGN_EXPORT_HEIGHT + beforeInsets.bottom + afterInsets.top;
   });
   const gaps = [...horizontalGaps, ...verticalGaps].map((gap) => Math.max(0, Math.round(gap)));
 
@@ -855,6 +868,8 @@ export function AlbumSpreadSlotEditor({
   onStrongMagnetEnabledChange,
   isActive = true,
   canvasZoom = 1,
+  slotGapPx = spread.slotGapPx ?? null,
+  onSlotGapPxChange,
   hasChanges,
 }: {
   spread: EditableSpread;
@@ -877,6 +892,8 @@ export function AlbumSpreadSlotEditor({
   onStrongMagnetEnabledChange?: (enabled: boolean) => void;
   isActive?: boolean;
   canvasZoom?: number;
+  slotGapPx?: number | null;
+  onSlotGapPxChange?: (gapPx: number | null) => void;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
@@ -895,16 +912,21 @@ export function AlbumSpreadSlotEditor({
   const [slotDistanceGuides, setSlotDistanceGuides] = useState<SlotDistanceGuide[]>([]);
   const [lastSlotFrameUndo, setLastSlotFrameUndo] = useState<SlotFrameUndoState | null>(null);
   const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([selectedSlotIndex]);
-  const [groupPaddingPx, setGroupPaddingPx] = useState(0);
+  const [groupPaddingPx, setGroupPaddingPx] = useState(slotGapPx ?? 0);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
+  const exportSlotInset = getAlbumLayoutExportSlotInsetPx(spread.layoutKey);
   const allSlotFrames = Object.fromEntries(
     template.slots.map((_, slotIndex) => [
       slotIndex,
       getSlotFrame(slotIndex, draftItems.find((item) => item.slotIndex === slotIndex))
     ])
   ) as Record<number, SlotFrame>;
-  const currentSlotGap = getSlotGapSummary(allSlotFrames);
+  const currentSlotGap = getSlotGapSummary(
+    allSlotFrames,
+    slotGapPx ?? exportSlotInset,
+    slotGapPx !== null
+  );
 
   useEffect(() => {
     if (!template.slots[selectedSlotIndex]) {
@@ -936,12 +958,12 @@ export function AlbumSpreadSlotEditor({
         return [slotIndex, draftSlotFrames[slotIndex] ?? item ?? templateSlot];
       })
     ) as Record<number, SlotFrame>;
-    const gap = getSlotGapSummary(selectedFrames);
+    const gap = getSlotGapSummary(selectedFrames, slotGapPx ?? exportSlotInset, slotGapPx !== null);
 
     if (gap.isUniform) {
       setGroupPaddingPx(gap.value);
     }
-  }, [draftItems, draftSlotFrames, selectedSlotIndices, template.slots]);
+  }, [draftItems, draftSlotFrames, exportSlotInset, selectedSlotIndices, slotGapPx, template.slots]);
 
   useEffect(() => {
     if (!isTextToolActive || !selectedTextItemId) {
@@ -1095,8 +1117,14 @@ export function AlbumSpreadSlotEditor({
     ) as Record<number, SlotFrame>;
   }
 
+  function getPreviewSlotInsets(frame: SlotFrame) {
+    return slotGapPx === null
+      ? getAlbumSlotEdgeInsetsPx(frame, slotInset)
+      : getAlbumSlotCustomGapInsetsPx(frame, slotGapPx);
+  }
+
   function applySelectedSlotFrames(nextFrames: Record<number, SlotFrame>, previousFrames: Record<number, SlotFrame>) {
-    setLastSlotFrameUndo({ frames: previousFrames });
+    setLastSlotFrameUndo({ frames: previousFrames, slotGapPx });
     setSlotAlignmentGuides(EMPTY_SLOT_ALIGNMENT_GUIDES);
     setSlotDistanceGuides([]);
     onDraftItemsChange((items) =>
@@ -1110,14 +1138,15 @@ export function AlbumSpreadSlotEditor({
   }
 
   function applySelectedSlotPadding() {
-    if (selectedSlotIndices.length < 2) {
+    if (selectedSlotIndices.length !== template.slots.length) {
       return;
     }
 
-    const previousFrames = getSelectedSlotFrames();
+    const previousFrames = allSlotFrames;
     const padding = Math.min(1000, Math.max(0, Number.isFinite(groupPaddingPx) ? groupPaddingPx : 0));
-    const nextFrames = applyUniformSlotGap(previousFrames, padding);
+    const nextFrames = applyUniformSlotGap(previousFrames, 0, 0);
     setGroupPaddingPx(padding);
+    onSlotGapPxChange?.(padding);
     applySelectedSlotFrames(nextFrames, previousFrames);
   }
 
@@ -1420,6 +1449,10 @@ export function AlbumSpreadSlotEditor({
 
     if (restoredSlotIndices.length > 0) {
       onSelectedSlotIndexChange(restoredSlotIndices[restoredSlotIndices.length - 1]);
+    }
+
+    if (lastSlotFrameUndo.slotGapPx !== undefined) {
+      onSlotGapPxChange?.(lastSlotFrameUndo.slotGapPx);
     }
 
     setLastSlotFrameUndo(null);
@@ -1860,7 +1893,7 @@ export function AlbumSpreadSlotEditor({
             const isPrimary = slotIndex === selectedSlotIndex;
             const isDragOver = slotIndex === dragOverSlotIndex;
             const slotFrame = getSlotFrame(slotIndex, item);
-            const edgeInsets = getAlbumSlotEdgeInsetsPx(slotFrame, slotInset);
+            const edgeInsets = getPreviewSlotInsets(slotFrame);
 
             if (!item) {
               return (
@@ -2031,7 +2064,7 @@ export function AlbumSpreadSlotEditor({
             <div>
               <p className="text-sm font-semibold text-ink">Csoportos elrendezés</p>
               <p className="mt-1 text-xs leading-5 text-graphite/65">
-                A középre igazítás a teljes kijelölt csoportot mozgatja; a slotok egymáshoz viszonyított helyzete változatlan marad.
+                A köztes padding a képek látható szélei közötti távolság; az összes slot kijelölésekor állítható. A középre igazítás a teljes kijelölt csoportot mozgatja.
               </p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
@@ -2047,6 +2080,7 @@ export function AlbumSpreadSlotEditor({
                     onChange={(event) => setGroupPaddingPx(Number(event.target.value))}
                     className="h-full w-24 border-0 bg-transparent px-3 text-sm font-medium text-ink outline-none"
                     aria-label="Köztes padding pixelben"
+                    disabled={selectedSlotIndices.length !== template.slots.length}
                   />
                   <span className="pr-3 text-xs text-graphite/55">px</span>
                 </span>
@@ -2054,7 +2088,9 @@ export function AlbumSpreadSlotEditor({
               <button
                 type="button"
                 onClick={applySelectedSlotPadding}
-                className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-xs font-semibold text-white transition hover:bg-ink/85"
+                disabled={selectedSlotIndices.length !== template.slots.length}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-xs font-semibold text-white transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:opacity-40"
+                title={selectedSlotIndices.length === template.slots.length ? "A képek közötti távolság beállítása" : "A padding beállításához jelöld ki az összes slotot"}
               >
                 Alkalmaz
               </button>
