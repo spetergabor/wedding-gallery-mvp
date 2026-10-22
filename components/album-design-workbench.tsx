@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { AlignCenter, AlignLeft, AlignRight, Download, GripVertical, Grid3X3, Images, Maximize2, MousePointer2, Plus, Save, Search, Shuffle, Trash2, Type, UploadCloud, X, ZoomIn, ZoomOut } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type FormEvent, type WheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type WheelEvent } from "react";
 import { AlbumSpreadSlotEditor } from "@/components/album-spread-slot-editor";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
@@ -70,7 +70,7 @@ type AlbumSpread = {
 };
 
 const MIN_WORKBENCH_ZOOM = 0.55;
-const MAX_WORKBENCH_ZOOM = 1.8;
+const MAX_WORKBENCH_ZOOM = 3;
 const WORKBENCH_ZOOM_STEP = 0.1;
 const ALBUM_TEXT_FONT_OPTIONS = [
   { value: "playfair", label: "Playfair" },
@@ -1243,10 +1243,7 @@ export function AlbumDesignWorkbench({
                 onWheel={handleWorkbenchWheel}
                 className="min-h-0 overflow-auto px-3 py-4 lg:px-5"
               >
-                <div
-                  className="mx-auto max-w-[1500px] origin-top space-y-4 pb-6 transition-[filter]"
-                  style={{ zoom: workbenchZoom } as CSSProperties}
-                >
+                <div className="mx-auto max-w-[1500px] space-y-4 pb-6 transition-[filter]">
                   {sourceUploadGalleryId ? (
                     <section
                       className={`rounded-lg border bg-white p-4 shadow-sm ${
@@ -1415,6 +1412,7 @@ export function AlbumDesignWorkbench({
                           strongMagnetEnabled={strongSlotMagnetEnabled}
                           onStrongMagnetEnabledChange={setStrongSlotMagnetEnabled}
                           isActive={isActive}
+                          canvasZoom={isActive ? workbenchZoom : 1}
                           hasChanges={hasChanges}
                         />
                       </section>

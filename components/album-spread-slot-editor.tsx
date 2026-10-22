@@ -806,6 +806,34 @@ function applyUniformSlotGap(frames: Record<number, SlotFrame>, gapPx: number) {
   ) as Record<number, SlotFrame>;
 }
 
+function getSlotGapSummary(frames: Record<number, SlotFrame>) {
+  const horizontalGaps = getNearestSlotPairs(frames, "horizontal").map((pair) => {
+    const before = frames[pair.before];
+    const after = frames[pair.after];
+    return ((after.x - before.x - before.width) / 100) * ALBUM_DESIGN_EXPORT_WIDTH;
+  });
+  const verticalGaps = getNearestSlotPairs(frames, "vertical").map((pair) => {
+    const before = frames[pair.before];
+    const after = frames[pair.after];
+    return ((after.y - before.y - before.height) / 100) * ALBUM_DESIGN_EXPORT_HEIGHT;
+  });
+  const gaps = [...horizontalGaps, ...verticalGaps].map((gap) => Math.max(0, Math.round(gap)));
+
+  if (gaps.length === 0) {
+    return { label: "nincs köztes hézag", value: 0, isUniform: true };
+  }
+
+  const minimum = Math.min(...gaps);
+  const maximum = Math.max(...gaps);
+  const value = Math.round(gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length);
+
+  if (maximum - minimum <= 1) {
+    return { label: `${value} px`, value, isUniform: true };
+  }
+
+  return { label: `vegyes · ${minimum}–${maximum} px`, value, isUniform: false };
+}
+
 export function AlbumSpreadSlotEditor({
   spread,
   draftItems,
@@ -826,6 +854,7 @@ export function AlbumSpreadSlotEditor({
   strongMagnetEnabled = false,
   onStrongMagnetEnabledChange,
   isActive = true,
+  canvasZoom = 1,
   hasChanges,
 }: {
   spread: EditableSpread;
@@ -847,6 +876,7 @@ export function AlbumSpreadSlotEditor({
   strongMagnetEnabled?: boolean;
   onStrongMagnetEnabledChange?: (enabled: boolean) => void;
   isActive?: boolean;
+  canvasZoom?: number;
   hasChanges: boolean;
 }) {
   const orderedItems = useMemo(() => [...spread.items].sort((left, right) => left.slotIndex - right.slotIndex), [spread.items]);
@@ -868,6 +898,13 @@ export function AlbumSpreadSlotEditor({
   const [groupPaddingPx, setGroupPaddingPx] = useState(0);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
+  const allSlotFrames = Object.fromEntries(
+    template.slots.map((_, slotIndex) => [
+      slotIndex,
+      getSlotFrame(slotIndex, draftItems.find((item) => item.slotIndex === slotIndex))
+    ])
+  ) as Record<number, SlotFrame>;
+  const currentSlotGap = getSlotGapSummary(allSlotFrames);
 
   useEffect(() => {
     if (!template.slots[selectedSlotIndex]) {
@@ -886,6 +923,25 @@ export function AlbumSpreadSlotEditor({
       return [selectedSlotIndex];
     });
   }, [selectedSlotIndex, template.slots]);
+
+  useEffect(() => {
+    if (selectedSlotIndices.length < 2) {
+      return;
+    }
+
+    const selectedFrames = Object.fromEntries(
+      selectedSlotIndices.map((slotIndex) => {
+        const item = draftItems.find((candidate) => candidate.slotIndex === slotIndex);
+        const templateSlot = template.slots[slotIndex] ?? { x: 0, y: 0, width: 100, height: 100 };
+        return [slotIndex, draftSlotFrames[slotIndex] ?? item ?? templateSlot];
+      })
+    ) as Record<number, SlotFrame>;
+    const gap = getSlotGapSummary(selectedFrames);
+
+    if (gap.isUniform) {
+      setGroupPaddingPx(gap.value);
+    }
+  }, [draftItems, draftSlotFrames, selectedSlotIndices, template.slots]);
 
   useEffect(() => {
     if (!isTextToolActive || !selectedTextItemId) {
@@ -1644,10 +1700,15 @@ export function AlbumSpreadSlotEditor({
     <div className="mt-4 space-y-3">
       <div className="rounded-md border border-ink/10 bg-paper p-3">
         <div className="mb-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <p className="flex items-center gap-2 text-sm font-medium text-ink">
-            <MousePointer2 size={15} />
-            Oldalpár vászon
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="flex items-center gap-2 text-sm font-medium text-ink">
+              <MousePointer2 size={15} />
+              Oldalpár vászon
+            </p>
+            <span className="rounded-full border border-ink/10 bg-white px-2.5 py-1 font-mono text-[11px] font-medium tabular-nums text-graphite/70">
+              Köztes padding: {currentSlotGap.label}
+            </span>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -1710,11 +1771,16 @@ export function AlbumSpreadSlotEditor({
           </div>
         </div>
         <div
-          data-album-spread-canvas
-          className={`relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white ${isTextToolActive ? "cursor-text" : ""}`}
-          style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND, containerType: "inline-size" }}
-          onPointerDownCapture={handleCanvasTextPointerDown}
+          data-album-canvas-viewport
+          className={`overflow-auto overscroll-contain rounded-md bg-ink/[0.025] ${canvasZoom > 1 ? "max-h-[72vh] ring-1 ring-inset ring-ink/10" : ""}`}
         >
+          <div className="mx-auto" style={{ width: `${Math.round(canvasZoom * 100)}%` }}>
+            <div
+              data-album-spread-canvas
+              className={`relative aspect-[2/1] overflow-hidden rounded-md border border-ink/10 bg-white ${isTextToolActive ? "cursor-text" : ""}`}
+              style={{ backgroundColor: ALBUM_SPREAD_BACKGROUND, containerType: "inline-size" }}
+              onPointerDownCapture={handleCanvasTextPointerDown}
+            >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute bottom-0 left-1/2 top-0 z-20 w-px -translate-x-1/2 bg-ink/35"
@@ -1954,6 +2020,8 @@ export function AlbumSpreadSlotEditor({
               </div>
             );
           })}
+            </div>
+          </div>
         </div>
       </div>
 
