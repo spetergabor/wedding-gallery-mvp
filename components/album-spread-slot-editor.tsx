@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Magnet, Maximize2, MousePointer2, Move, RotateCcw } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, LayoutGrid, Magnet, Maximize2, MousePointer2, Move, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent } from "react";
 import {
   ALBUM_DESIGN_EXPORT_HEIGHT,
@@ -713,6 +713,99 @@ function getSlotDistanceGuides(frame: SlotFrame, targetFrames: SlotFrame[]): Slo
   return [closestHorizontal, closestVertical].filter((guide): guide is SlotDistanceGuide => Boolean(guide));
 }
 
+function rangesOverlap(startA: number, endA: number, startB: number, endB: number) {
+  return Math.min(endA, endB) - Math.max(startA, startB) > SLOT_BARRIER_EPSILON;
+}
+
+function getNearestSlotPairs(frames: Record<number, SlotFrame>, axis: "horizontal" | "vertical") {
+  const entries = Object.entries(frames).map(([slotIndex, frame]) => ({ slotIndex: Number(slotIndex), frame }));
+  const pairs = new Map<string, { before: number; after: number }>();
+
+  for (const source of entries) {
+    const sourceEnd = axis === "horizontal" ? source.frame.x + source.frame.width : source.frame.y + source.frame.height;
+    const candidates = entries
+      .filter((target) => {
+        if (source.slotIndex === target.slotIndex) {
+          return false;
+        }
+
+        const targetStart = axis === "horizontal" ? target.frame.x : target.frame.y;
+        const overlapsPerpendicularAxis = axis === "horizontal"
+          ? rangesOverlap(source.frame.y, source.frame.y + source.frame.height, target.frame.y, target.frame.y + target.frame.height)
+          : rangesOverlap(source.frame.x, source.frame.x + source.frame.width, target.frame.x, target.frame.x + target.frame.width);
+
+        return overlapsPerpendicularAxis && targetStart >= sourceEnd - SLOT_BARRIER_EPSILON;
+      })
+      .map((target) => ({
+        target,
+        gap: (axis === "horizontal" ? target.frame.x : target.frame.y) - sourceEnd
+      }));
+
+    if (candidates.length === 0) {
+      continue;
+    }
+
+    const nearestGap = Math.min(...candidates.map((candidate) => candidate.gap));
+
+    for (const candidate of candidates.filter((item) => Math.abs(item.gap - nearestGap) <= SLOT_BARRIER_EPSILON)) {
+      const key = `${source.slotIndex}-${candidate.target.slotIndex}`;
+      pairs.set(key, { before: source.slotIndex, after: candidate.target.slotIndex });
+    }
+  }
+
+  return [...pairs.values()];
+}
+
+function applyUniformSlotGap(frames: Record<number, SlotFrame>, gapPx: number) {
+  const horizontalGap = (gapPx / ALBUM_DESIGN_EXPORT_WIDTH) * 100;
+  const verticalGap = (gapPx / ALBUM_DESIGN_EXPORT_HEIGHT) * 100;
+  const edgeUpdates = Object.fromEntries(
+    Object.keys(frames).map((slotIndex) => [Number(slotIndex), { left: [] as number[], right: [] as number[], top: [] as number[], bottom: [] as number[] }])
+  );
+
+  for (const pair of getNearestSlotPairs(frames, "horizontal")) {
+    const before = frames[pair.before];
+    const after = frames[pair.after];
+    const midpoint = (before.x + before.width + after.x) / 2;
+    edgeUpdates[pair.before].right.push(midpoint - horizontalGap / 2);
+    edgeUpdates[pair.after].left.push(midpoint + horizontalGap / 2);
+  }
+
+  for (const pair of getNearestSlotPairs(frames, "vertical")) {
+    const before = frames[pair.before];
+    const after = frames[pair.after];
+    const midpoint = (before.y + before.height + after.y) / 2;
+    edgeUpdates[pair.before].bottom.push(midpoint - verticalGap / 2);
+    edgeUpdates[pair.after].top.push(midpoint + verticalGap / 2);
+  }
+
+  return Object.fromEntries(
+    Object.entries(frames).map(([slotIndex, frame]) => {
+      const updates = edgeUpdates[Number(slotIndex)];
+      const average = (values: number[], fallback: number) =>
+        values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : fallback;
+      const left = average(updates.left, frame.x);
+      const right = average(updates.right, frame.x + frame.width);
+      const top = average(updates.top, frame.y);
+      const bottom = average(updates.bottom, frame.y + frame.height);
+
+      if (right - left < MIN_SLOT_FRAME_SIZE_PERCENT || bottom - top < MIN_SLOT_FRAME_SIZE_PERCENT) {
+        return [Number(slotIndex), frame];
+      }
+
+      return [
+        Number(slotIndex),
+        {
+          x: left,
+          y: top,
+          width: right - left,
+          height: bottom - top
+        }
+      ];
+    })
+  ) as Record<number, SlotFrame>;
+}
+
 export function AlbumSpreadSlotEditor({
   spread,
   draftItems,
@@ -772,6 +865,7 @@ export function AlbumSpreadSlotEditor({
   const [slotDistanceGuides, setSlotDistanceGuides] = useState<SlotDistanceGuide[]>([]);
   const [lastSlotFrameUndo, setLastSlotFrameUndo] = useState<SlotFrameUndoState | null>(null);
   const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([selectedSlotIndex]);
+  const [groupPaddingPx, setGroupPaddingPx] = useState(0);
   const selectedItem = draftItems.find((item) => item.slotIndex === selectedSlotIndex) ?? null;
   const slotInset = getAlbumLayoutPreviewSlotInsetPx(spread.layoutKey);
 
@@ -920,19 +1014,85 @@ export function AlbumSpreadSlotEditor({
     selectSlot(slotIndex, event.shiftKey || event.metaKey || event.ctrlKey);
   }
 
+  function selectAllSlots() {
+    const allSlotIndices = template.slots.map((_, slotIndex) => slotIndex);
+    onFocusSpread?.();
+    setSelectedSlotIndices(allSlotIndices);
+
+    if (allSlotIndices.length > 0) {
+      onSelectedSlotIndexChange(allSlotIndices[allSlotIndices.length - 1]);
+    }
+  }
+
   function getSlotFrame(slotIndex: number, item?: SpreadItem | null): SlotFrame {
     const templateSlot = template.slots[slotIndex] ?? { x: 0, y: 0, width: 100, height: 100 };
 
     return draftSlotFrames[slotIndex] ?? item ?? templateSlot;
   }
 
-  function nudgeSelectedSlots(deltaX: number, deltaY: number) {
-    const selectedFrames = Object.fromEntries(
+  function getSelectedSlotFrames() {
+    return Object.fromEntries(
       selectedSlotIndices.map((slotIndex) => {
         const item = draftItems.find((candidate) => candidate.slotIndex === slotIndex);
         return [slotIndex, getSlotFrame(slotIndex, item)];
       })
     ) as Record<number, SlotFrame>;
+  }
+
+  function applySelectedSlotFrames(nextFrames: Record<number, SlotFrame>, previousFrames: Record<number, SlotFrame>) {
+    setLastSlotFrameUndo({ frames: previousFrames });
+    setSlotAlignmentGuides(EMPTY_SLOT_ALIGNMENT_GUIDES);
+    setSlotDistanceGuides([]);
+    onDraftItemsChange((items) =>
+      items.map((item) => {
+        const frame = nextFrames[item.slotIndex];
+
+        return frame ? { ...item, ...frame } : item;
+      })
+    );
+    onDraftSlotFramesChange?.((frames) => ({ ...frames, ...nextFrames }));
+  }
+
+  function applySelectedSlotPadding() {
+    if (selectedSlotIndices.length < 2) {
+      return;
+    }
+
+    const previousFrames = getSelectedSlotFrames();
+    const padding = Math.min(1000, Math.max(0, Number.isFinite(groupPaddingPx) ? groupPaddingPx : 0));
+    const nextFrames = applyUniformSlotGap(previousFrames, padding);
+    setGroupPaddingPx(padding);
+    applySelectedSlotFrames(nextFrames, previousFrames);
+  }
+
+  function centerSelectedSlotGroup(axis: "horizontal" | "vertical") {
+    if (selectedSlotIndices.length < 2) {
+      return;
+    }
+
+    const previousFrames = getSelectedSlotFrames();
+    const frames = Object.values(previousFrames);
+    const minimum = Math.min(...frames.map((frame) => (axis === "horizontal" ? frame.x : frame.y)));
+    const maximum = Math.max(
+      ...frames.map((frame) => (axis === "horizontal" ? frame.x + frame.width : frame.y + frame.height))
+    );
+    const delta = 50 - (minimum + maximum) / 2;
+
+    if (Math.abs(delta) <= SLOT_BARRIER_EPSILON) {
+      return;
+    }
+
+    const nextFrames = Object.fromEntries(
+      Object.entries(previousFrames).map(([slotIndex, frame]) => [
+        Number(slotIndex),
+        axis === "horizontal" ? { ...frame, x: frame.x + delta } : { ...frame, y: frame.y + delta }
+      ])
+    ) as Record<number, SlotFrame>;
+    applySelectedSlotFrames(nextFrames, previousFrames);
+  }
+
+  function nudgeSelectedSlots(deltaX: number, deltaY: number) {
+    const selectedFrames = getSelectedSlotFrames();
     const frames = Object.values(selectedFrames);
 
     if (frames.length === 0) {
@@ -1506,6 +1666,20 @@ export function AlbumSpreadSlotEditor({
                 {strongMagnetEnabled ? "Be" : "Ki"}
               </span>
             </button>
+            <button
+              type="button"
+              aria-pressed={selectedSlotIndices.length === template.slots.length}
+              onClick={selectAllSlots}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition ${
+                selectedSlotIndices.length === template.slots.length
+                  ? "border-ink bg-ink text-white"
+                  : "border-ink/10 bg-white text-graphite hover:border-brass hover:text-ink"
+              }`}
+              title="Az oldalpár összes slotjának kijelölése"
+            >
+              <LayoutGrid size={15} />
+              Összes slot
+            </button>
             {template.slots.map((_, slotIndex) => {
               const isSelected = selectedSlotIndices.includes(slotIndex);
               const item = draftItems.find((draftItem) => draftItem.slotIndex === slotIndex);
@@ -1782,6 +1956,62 @@ export function AlbumSpreadSlotEditor({
           })}
         </div>
       </div>
+
+      {selectedSlotIndices.length > 1 ? (
+        <div className="rounded-md border border-brass/35 bg-brass/[0.06] p-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-ink">Csoportos elrendezés</p>
+              <p className="mt-1 text-xs leading-5 text-graphite/65">
+                A középre igazítás a teljes kijelölt csoportot mozgatja; a slotok egymáshoz viszonyított helyzete változatlan marad.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.12em] text-graphite/60">Köztes padding</span>
+                <span className="flex h-10 items-center overflow-hidden rounded-md border border-ink/15 bg-white focus-within:border-brass">
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000}
+                    step={1}
+                    value={groupPaddingPx}
+                    onChange={(event) => setGroupPaddingPx(Number(event.target.value))}
+                    className="h-full w-24 border-0 bg-transparent px-3 text-sm font-medium text-ink outline-none"
+                    aria-label="Köztes padding pixelben"
+                  />
+                  <span className="pr-3 text-xs text-graphite/55">px</span>
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={applySelectedSlotPadding}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-ink px-4 text-xs font-semibold text-white transition hover:bg-ink/85"
+              >
+                Alkalmaz
+              </button>
+              <button
+                type="button"
+                onClick={() => centerSelectedSlotGroup("horizontal")}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-xs font-medium text-ink transition hover:border-brass"
+                title="A kijelölt csoport vízszintes középre igazítása"
+              >
+                <AlignCenterHorizontal size={15} />
+                Vízszintesen középre
+              </button>
+              <button
+                type="button"
+                onClick={() => centerSelectedSlotGroup("vertical")}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-xs font-medium text-ink transition hover:border-brass"
+                title="A kijelölt csoport függőleges középre igazítása"
+              >
+                <AlignCenterVertical size={15} />
+                Függőlegesen középre
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-md border border-ink/10 bg-paper p-3">
         <div className="flex flex-col gap-3 rounded-md bg-white p-3 xl:flex-row xl:items-center xl:justify-between">
