@@ -511,7 +511,9 @@ async function sendResendEmail(apiKey: string, payload: ResendSendPayload) {
       text: payload.text ?? null,
       providerMessageId: resendResponseValue(responsePayload, "id"),
       status: response.ok ? "sent" : "failed",
-      errorMessage: response.ok ? null : resendResponseValue(responsePayload, "message") || `Resend request failed (${response.status}).`
+      errorMessage: response.ok
+        ? null
+        : `HTTP ${response.status}: ${resendResponseValue(responsePayload, "message") || response.statusText || "Resend request failed."}`
     });
 
     return response;
@@ -526,7 +528,7 @@ async function sendResendEmail(apiKey: string, payload: ResendSendPayload) {
       html: payload.html ?? null,
       text: payload.text ?? null,
       status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Resend request failed."
+      errorMessage: `NETWORK_ERROR: ${error instanceof Error ? error.message : "Resend request failed."}`
     });
 
     throw error;

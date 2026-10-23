@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { AdminLanguageSwitch } from "@/components/admin-language-switch";
 import { AdminRoutePrefetcher } from "@/components/admin-route-prefetcher";
+import { EmailHealthAlert } from "@/components/email-health-alert";
 import { logoutAction } from "@/lib/admin-auth-actions";
 import { getAdminSession, type AdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -298,6 +299,7 @@ export async function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-paper">
       <AdminRoutePrefetcher />
+      {admin?.role === "super_admin" ? <EmailHealthAlert /> : null}
       <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-ink/10 bg-white/70 px-5 py-6 backdrop-blur lg:block">
         <Link href="/admin/dashboard" className="flex items-center gap-3">
           <div className="relative flex size-10 items-center justify-center overflow-hidden rounded-md bg-ink text-white">
