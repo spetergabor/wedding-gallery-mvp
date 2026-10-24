@@ -116,7 +116,9 @@ function groupDownloadRequests(downloads: DownloadEntry[]) {
   for (const download of downloads) {
     const packageGroupKey = download.package?.groupId ?? download.package?.id ?? download.packageId ?? download.id;
     const createdBucket = Math.floor(download.createdAt.getTime() / 1000);
-    const key = `${download.email}:${packageGroupKey}:${createdBucket}`;
+    const key = download.package?.groupId
+      ? `${download.email}:${packageGroupKey}`
+      : `${download.email}:${packageGroupKey}:${createdBucket}`;
     const existing = groups.get(key);
 
     if (!existing) {
