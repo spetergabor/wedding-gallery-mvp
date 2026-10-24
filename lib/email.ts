@@ -459,6 +459,16 @@ function emailConfig() {
   };
 }
 
+function galleryEmailConfig() {
+  const config = emailConfig();
+
+  return {
+    ...config,
+    apiKey: process.env.GALLERY_RESEND_API_KEY?.trim() || config.apiKey,
+    from: process.env.GALLERY_EMAIL_FROM?.trim() || config.from
+  };
+}
+
 type ResendSendPayload = {
   from: string;
   to: string | string[];
@@ -1498,7 +1508,7 @@ function galleryZipReadyHtml({
 }
 
 export async function sendAdminGalleryZipReadyEmail(payload: AdminGalleryZipReadyEmail) {
-  const { apiKey, from, adminEmail } = emailConfig();
+  const { apiKey, from, adminEmail } = galleryEmailConfig();
   const recipient = payload.to ?? adminEmail;
   const formattedSize = formatBytes(payload.fileSizeBytes);
 
@@ -1573,7 +1583,7 @@ function guestGalleryDownloadReadyHtml({
 
 export async function sendGuestGalleryDownloadReadyEmail(payload: GuestGalleryDownloadReadyEmail) {
   const copy = copyForLanguage(payload.language);
-  const { apiKey, from } = emailConfig();
+  const { apiKey, from } = galleryEmailConfig();
   const formattedSize = formatBytes(payload.fileSizeBytes);
   const links =
     payload.downloadLinks && payload.downloadLinks.length > 0
