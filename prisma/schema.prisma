@@ -1364,6 +1364,8 @@ model MediaProcessingJob {
   @@index([photoId])
   @@index([guestUploadId])
   @@index([status])
+  @@index([status, createdAt])
+  @@index([status, claimedAt])
   @@index([createdAt])
   @@index([claimedAt])
 }

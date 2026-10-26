@@ -174,10 +174,13 @@ The compose file uses a two-hour `stop_grace_period` so Docker updates do not ki
 ## Media processing queue
 
 Heavy image derivative generation runs in the Trigger.dev `media-processing` task. New uploads create rows in
-`MediaProcessingJob`, and the app dispatches a deduplicated Trigger run as photos are saved. The worker reads originals
-from R2, writes lightweight thumbnail and preview JPG files back to R2, then marks each photo `ready`. This same queue
-also processes guest-gallery uploads; those jobs have `assetType: "guest_upload"`, a `guestUploadId`, and expose the
-guest upload through the response's compatible `photo` field.
+`MediaProcessingJob`, and the app dispatches a new Trigger run as each upload batch is saved. Do not deduplicate these
+runs by a time bucket: a later batch can arrive after an earlier run has already drained the queue. The
+`media-processing-sweep` scheduled task runs every 15 minutes in production and recovers unclaimed or stale jobs in
+bounded batches. The worker reads originals from R2, writes lightweight thumbnail and preview JPG files back to R2,
+then marks each photo `ready`. This same queue also processes guest-gallery uploads; those jobs have
+`assetType: "guest_upload"`, a `guestUploadId`, and expose the guest upload through the response's compatible `photo`
+field.
 
 Guest-gallery original ZIP files use the same `zip_generation` queue and ZIP worker as normal gallery downloads,
 with the `guest_uploads` package scope. Keep the configured ZIP worker running before offering large guest galleries.

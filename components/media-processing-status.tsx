@@ -46,6 +46,10 @@ function isPendingJobActive(job: MediaProcessingJob, now: number) {
   return job.status === "pending" && now - job.updatedAt.getTime() <= ACTIVE_PENDING_JOB_MS;
 }
 
+function isPendingJobStale(job: MediaProcessingJob, now: number) {
+  return job.status === "pending" && now - job.updatedAt.getTime() > ACTIVE_PENDING_JOB_MS;
+}
+
 function formatDate(date: Date | null) {
   if (!date) {
     return "-";
@@ -155,7 +159,9 @@ export function MediaProcessingStatus({
   const missingVariantPhotos = imagePhotos.filter((photo) => !hasLightweightVariant(photo));
   const pendingCount = imageJobs.filter((job) => isPendingJobActive(job, now)).length;
   const processingCount = imageJobs.filter((job) => job.status === "processing" && !isJobProcessingStale(job, now)).length;
-  const stalePhotoIds = new Set(imageJobs.filter((job) => isJobProcessingStale(job, now)).map((job) => job.photoId));
+  const stalePhotoIds = new Set(
+    imageJobs.filter((job) => isJobProcessingStale(job, now) || isPendingJobStale(job, now)).map((job) => job.photoId)
+  );
   const staleCount = stalePhotoIds.size;
   const failedPhotos = imagePhotos.filter((photo) => photo.processingStatus === "failed" || Boolean(photo.processingError));
   const failedPhotoIds = new Set([

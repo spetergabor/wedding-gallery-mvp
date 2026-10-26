@@ -368,11 +368,9 @@ export async function countPendingMediaProcessingJobs(galleryId?: string) {
 }
 
 export async function kickGalleryMediaProcessing({
-  galleryId,
-  force = false
+  galleryId
 }: {
   galleryId: string;
-  force?: boolean;
 }) {
   if (!galleryId) {
     return { driver: "none", dispatched: false };
@@ -381,10 +379,8 @@ export async function kickGalleryMediaProcessing({
   if (isTriggerMediaWorkerEnabled()) {
     try {
       const { tasks } = await import("@trigger.dev/sdk/v3");
-      const idempotencyBucket = force ? Date.now() : Math.floor(Date.now() / 60_000);
 
       await tasks.trigger(MEDIA_PROCESSING_TASK_ID, { galleryId } satisfies MediaProcessingPayload, {
-        idempotencyKey: `media-processing:${galleryId}:${idempotencyBucket}`,
         queue: "media-processing",
         concurrencyKey: `gallery:${galleryId}`,
         tags: [`gallery:${galleryId}`, "media-processing"]

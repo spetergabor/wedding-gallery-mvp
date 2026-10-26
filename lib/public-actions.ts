@@ -260,7 +260,6 @@ export async function requestGalleryPhotoDownloadAction(
       id: photoId,
       galleryId,
       mediaType: { not: "video" },
-      processingStatus: "ready",
       isClientHidden: false
     },
     select: {

@@ -227,13 +227,13 @@ function isRequeueableMediaPhoto(photo: {
   );
 }
 
-function scheduleGalleryMediaProcessing(galleryId: string, { force = false }: { force?: boolean } = {}) {
+function scheduleGalleryMediaProcessing(galleryId: string) {
   try {
     after(async () => {
-      await kickGalleryMediaProcessing({ galleryId, force });
+      await kickGalleryMediaProcessing({ galleryId });
     });
   } catch {
-    void kickGalleryMediaProcessing({ galleryId, force });
+    void kickGalleryMediaProcessing({ galleryId });
   }
 }
 
@@ -3484,7 +3484,7 @@ export async function requeueGalleryMediaProcessingAction(galleryId: string) {
 
   revalidatePath(`/admin/galleries/${galleryId}`);
   revalidatePath(`/g/${gallery.slug}`);
-  scheduleGalleryMediaProcessing(galleryId, { force: true });
+  scheduleGalleryMediaProcessing(galleryId);
   redirect(`/admin/galleries/${galleryId}?tab=photos&mediaProcessing=queued`);
 }
 
