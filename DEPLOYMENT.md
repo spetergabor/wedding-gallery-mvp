@@ -176,9 +176,10 @@ The compose file uses a two-hour `stop_grace_period` so Docker updates do not ki
 Heavy image derivative generation runs in the Trigger.dev `media-processing` task. New uploads create rows in
 `MediaProcessingJob`, and the app dispatches a new Trigger run as each upload batch is saved. Do not deduplicate these
 runs by a time bucket: a later batch can arrive after an earlier run has already drained the queue. The
-`media-processing-sweep` scheduled task runs every 15 minutes in production and recovers unclaimed or stale jobs in
-bounded batches. The worker reads originals from R2, writes lightweight thumbnail and preview JPG files back to R2,
-then marks each photo `ready`. This same queue also processes guest-gallery uploads; those jobs have
+`media-processing-sweep` scheduled task runs every 15 minutes in production and recovers unclaimed or stale jobs.
+Processing uses short, self-continuing 20-image runs so native image memory is released between batches and every
+database scan stays bounded and index-backed. The worker reads originals from R2, writes lightweight thumbnail and
+preview JPG files back to R2, then marks each photo `ready`. This same queue also processes guest-gallery uploads; those jobs have
 `assetType: "guest_upload"`, a `guestUploadId`, and expose the guest upload through the response's compatible `photo`
 field.
 

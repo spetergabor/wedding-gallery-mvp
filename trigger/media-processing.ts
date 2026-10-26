@@ -1,4 +1,4 @@
-import { task } from "@trigger.dev/sdk/v3";
+import { task, tasks } from "@trigger.dev/sdk/v3";
 import { countPendingMediaProcessingJobs, processMediaProcessingJobs } from "@/lib/media-processing";
 
 type MediaProcessingPayload = {
@@ -17,7 +17,6 @@ function readPositiveInteger(value: string | undefined, fallback: number, minimu
 
 const maxDuration = readPositiveInteger(process.env.TRIGGER_MEDIA_MAX_DURATION_SECONDS, 7200, 60);
 const batchSize = readPositiveInteger(process.env.MEDIA_PROCESSING_BATCH_SIZE, 20, 1);
-const maxRounds = readPositiveInteger(process.env.MEDIA_PROCESSING_MAX_ROUNDS, 200, 1);
 
 export const mediaProcessingTask = task({
   id: "media-processing",
@@ -32,31 +31,32 @@ export const mediaProcessingTask = task({
     maxAttempts: 1
   },
   run: async (payload: MediaProcessingPayload) => {
-    const totals = {
-      processed: 0,
-      failed: 0,
-      rounds: 0
-    };
+    const result = await processMediaProcessingJobs({
+      galleryId: payload.galleryId,
+      limit: batchSize
+    });
+    const remaining = await countPendingMediaProcessingJobs(payload.galleryId);
 
-    for (let round = 0; round < maxRounds; round += 1) {
-      const result = await processMediaProcessingJobs({
-        galleryId: payload.galleryId,
-        limit: batchSize
+    if (remaining > 0) {
+      const concurrencyKey = payload.galleryId ? `gallery:${payload.galleryId}` : "global-recovery";
+      const tags = payload.galleryId
+        ? [`gallery:${payload.galleryId}`, "media-processing", "continuation"]
+        : ["media-processing", "global-recovery", "continuation"];
+
+      await tasks.trigger("media-processing", payload, {
+        queue: "media-processing",
+        concurrencyKey,
+        tags
       });
-
-      totals.processed += result.processed;
-      totals.failed += result.failed;
-      totals.rounds += 1;
-
-      if (result.claimed === 0) {
-        break;
-      }
     }
 
     return {
       ok: true,
-      ...totals,
-      remaining: await countPendingMediaProcessingJobs(payload.galleryId)
+      processed: result.processed,
+      failed: result.failed,
+      claimed: result.claimed,
+      remaining,
+      continued: remaining > 0
     };
   }
 });

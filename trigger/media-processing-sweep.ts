@@ -1,18 +1,5 @@
-import { schedules } from "@trigger.dev/sdk/v3";
-import { countPendingMediaProcessingJobs, processMediaProcessingJobs } from "@/lib/media-processing";
-
-function readPositiveInteger(value: string | undefined, fallback: number, minimum: number) {
-  const parsed = Number.parseInt(value ?? "", 10);
-
-  if (!Number.isFinite(parsed) || parsed < minimum) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
-const batchSize = readPositiveInteger(process.env.MEDIA_PROCESSING_SWEEP_BATCH_SIZE, 20, 1);
-const maxRounds = readPositiveInteger(process.env.MEDIA_PROCESSING_SWEEP_MAX_ROUNDS, 5, 1);
+import { schedules, tasks } from "@trigger.dev/sdk/v3";
+import { countPendingMediaProcessingJobs } from "@/lib/media-processing";
 
 export const mediaProcessingSweepTask = schedules.task({
   id: "media-processing-sweep",
@@ -31,30 +18,22 @@ export const mediaProcessingSweepTask = schedules.task({
     maxAttempts: 1
   },
   run: async () => {
-    const totals = {
-      processed: 0,
-      failed: 0,
-      claimed: 0,
-      rounds: 0
-    };
+    const pending = await countPendingMediaProcessingJobs();
 
-    for (let round = 0; round < maxRounds; round += 1) {
-      const result = await processMediaProcessingJobs({ limit: batchSize });
-
-      totals.processed += result.processed;
-      totals.failed += result.failed;
-      totals.claimed += result.claimed;
-      totals.rounds += 1;
-
-      if (result.claimed === 0) {
-        break;
-      }
+    if (pending === 0) {
+      return { ok: true, pending, dispatched: false };
     }
 
-    return {
-      ok: true,
-      ...totals,
-      remaining: await countPendingMediaProcessingJobs()
-    };
+    const handle = await tasks.trigger(
+      "media-processing",
+      {},
+      {
+        queue: "media-processing",
+        concurrencyKey: "global-recovery",
+        tags: ["media-processing", "global-recovery", "scheduled"]
+      }
+    );
+
+    return { ok: true, pending, dispatched: true, runId: handle.id };
   }
 });

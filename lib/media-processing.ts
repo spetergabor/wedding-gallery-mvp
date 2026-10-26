@@ -8,6 +8,12 @@ import {
   savePhotoObject
 } from "@/lib/storage";
 
+// libvips keeps an in-process cache by default. Trigger workers can process many
+// large originals in succession, so disable that cache and keep native image
+// work single-threaded to make memory usage predictable on small workers.
+sharp.cache(false);
+sharp.concurrency(1);
+
 const MEDIA_PROCESSING_TASK_ID = "media-processing";
 const MEDIA_PROCESSING_STALE_MS = 30 * 60 * 1000;
 const DEFAULT_MEDIA_PROCESSING_LIMIT = 20;
