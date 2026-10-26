@@ -25,7 +25,10 @@ export const mediaProcessingTask = task({
     name: "media-processing",
     concurrencyLimit: 2
   },
-  machine: "small-1x",
+  // 45+ MP JPEGs can exceed the 512 MB small-1x limit while libvips decodes
+  // the source and writes both derivatives. Keep batches short, but give a
+  // single image enough headroom to finish reliably.
+  machine: "medium-1x",
   maxDuration,
   retry: {
     maxAttempts: 1
