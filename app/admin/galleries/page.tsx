@@ -101,7 +101,11 @@ export default async function AdminGalleriesPage({
 
               return (
                 <div key={gallery.id} className="grid gap-4 px-5 py-5 md:grid-cols-[1fr_auto] md:items-center">
-                  <Link href={`/admin/galleries/${gallery.id}`} className="grid gap-4 sm:grid-cols-[86px_1fr] sm:items-center">
+                  <Link
+                    href={`/admin/galleries/${gallery.id}`}
+                    prefetch={false}
+                    className="grid gap-4 sm:grid-cols-[86px_1fr] sm:items-center"
+                  >
                     <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-ink/10 bg-paper sm:w-20">
                       {(() => {
                         const cover =

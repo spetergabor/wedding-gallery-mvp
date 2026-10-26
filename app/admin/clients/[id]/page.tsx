@@ -2191,7 +2191,7 @@ export default async function AdminClientDetailPage({
             <div className="mt-5 divide-y divide-ink/10 rounded-md border border-ink/10">
               {customer.galleries.map((gallery) => (
                 <div key={gallery.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
-                  <Link href={`/admin/galleries/${gallery.id}`} className="min-w-0">
+                  <Link href={`/admin/galleries/${gallery.id}`} prefetch={false} className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold text-ink">{gallery.title}</p>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${gallery.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
@@ -2209,7 +2209,7 @@ export default async function AdminClientDetailPage({
                     <p className="mt-1 text-sm text-graphite/70">/g/{gallery.slug} · {gallery._count.photos} {copy.common.media}</p>
                   </Link>
                   <div className="flex items-center gap-2">
-                    <ButtonLink href={`/admin/galleries/${gallery.id}`} variant="secondary" className="h-10">
+                    <ButtonLink href={`/admin/galleries/${gallery.id}`} prefetch={false} variant="secondary" className="h-10">
                       {copy.common.manage}
                     </ButtonLink>
                     <a className="flex size-10 items-center justify-center rounded-md border border-ink/10 hover:bg-ink/5" href={`/g/${gallery.slug}`} target="_blank">
@@ -2242,7 +2242,7 @@ export default async function AdminClientDetailPage({
           ) : (
             <div className="mt-5 grid gap-3">
               {proofingGalleries.map((gallery) => (
-                <Link key={gallery.id} href={`/admin/galleries/${gallery.id}?tab=activity`} className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-ink/20 hover:bg-ink/[0.03]">
+                <Link key={gallery.id} href={`/admin/galleries/${gallery.id}?tab=activity`} prefetch={false} className="rounded-md border border-ink/10 bg-paper p-4 transition hover:border-ink/20 hover:bg-ink/[0.03]">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">

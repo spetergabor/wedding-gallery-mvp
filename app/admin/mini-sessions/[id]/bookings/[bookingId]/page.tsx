@@ -298,12 +298,12 @@ export default async function MiniSessionBookingWorkflowPage({
                     </div>
                   </div>
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=photos`} variant="secondary">
+                    <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=photos`} prefetch={false} variant="secondary">
                       <UploadCloud size={16} />
                       Képek feltöltése
                     </ButtonLink>
                     {proofingGallery._count.photos > 0 ? (
-                      <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`}>
+                      <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`} prefetch={false}>
                         <Mail size={16} />
                         E-mail szerkesztése és kiküldése
                       </ButtonLink>
@@ -357,8 +357,8 @@ export default async function MiniSessionBookingWorkflowPage({
                       </FormSubmitButton>
                     </form>
                   ) : null}
-                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity`} variant="secondary"><ExternalLink size={16} /> Válogatás megnyitása</ButtonLink>
-                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`} variant="secondary"><Mail size={16} /> Emlékeztető szerkesztése</ButtonLink>
+                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity`} prefetch={false} variant="secondary"><ExternalLink size={16} /> Válogatás megnyitása</ButtonLink>
+                  <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`} prefetch={false} variant="secondary"><Mail size={16} /> Emlékeztető szerkesztése</ButtonLink>
                 </div>
               ) : null}
             </div>
@@ -402,7 +402,7 @@ export default async function MiniSessionBookingWorkflowPage({
                     <p className="mt-2 text-2xl font-semibold text-ink">{finalGallery._count.photos}</p>
                   </div>
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                  <ButtonLink href={`/admin/galleries/${finalGallery.id}?tab=photos`} variant="secondary"><UploadCloud size={16} /> Kész képek feltöltése</ButtonLink>
+                  <ButtonLink href={`/admin/galleries/${finalGallery.id}?tab=photos`} prefetch={false} variant="secondary"><UploadCloud size={16} /> Kész képek feltöltése</ButtonLink>
                     {finalGallery._count.photos > 0 ? (
                       <MiniSessionNotificationComposer
                         bookingId={booking.id}
@@ -436,7 +436,7 @@ export default async function MiniSessionBookingWorkflowPage({
               {finalGallery ? (
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   {proofingGallery ? (
-                    <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`} variant="secondary">
+                    <ButtonLink href={`/admin/galleries/${proofingGallery.id}?tab=activity&proofingInvitePrompt=1`} prefetch={false} variant="secondary">
                       <Mail size={16} /> Válogatógaléria újraküldése
                     </ButtonLink>
                   ) : null}
@@ -445,7 +445,7 @@ export default async function MiniSessionBookingWorkflowPage({
                       <ExternalLink size={16} /> Válogatógaléria megnyitása
                     </ButtonLink>
                   ) : null}
-                  <ButtonLink href={`/admin/galleries/${finalGallery.id}`} variant="secondary"><Images size={16} /> Galéria kezelése</ButtonLink>
+                  <ButtonLink href={`/admin/galleries/${finalGallery.id}`} prefetch={false} variant="secondary"><Images size={16} /> Galéria kezelése</ButtonLink>
                   <ButtonLink href={`/g/${finalGallery.slug}`}><ExternalLink size={16} /> Ügyfélgaléria megnyitása</ButtonLink>
                   <MiniSessionNotificationComposer
                     bookingId={booking.id}

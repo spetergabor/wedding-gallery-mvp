@@ -157,6 +157,7 @@ export function PhotoManager({
               <Link
                 key={tab.key}
                 href={`/admin/galleries/${galleryId}?tab=photos&photoSet=${tab.key}${searchQueryPart}`}
+                prefetch={false}
                 className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition ${
                   isActive ? "bg-ink text-white shadow-sm" : "text-graphite hover:bg-ink/5 hover:text-ink"
                 }`}
@@ -210,6 +211,7 @@ export function PhotoManager({
             {normalizedSearch ? (
               <Link
                 href={`/admin/galleries/${galleryId}?tab=photos${photoSetQueryPart}`}
+                prefetch={false}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-graphite transition hover:border-ink/30"
               >
                 <X size={16} />

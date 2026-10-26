@@ -604,6 +604,7 @@ export function CustomerProjectManager({
                     <Link
                       key={gallery.id}
                       href={`/admin/galleries/${gallery.id}`}
+                      prefetch={false}
                       className="grid gap-2 px-3 py-3 transition hover:bg-ink/[0.03] sm:grid-cols-[1fr_auto] sm:items-center"
                     >
                       <div>

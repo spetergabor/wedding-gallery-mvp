@@ -277,7 +277,7 @@ export function ZipPreparationStatus({
           <p className="mt-1 text-sm text-graphite/70">{meta.description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ZipStatusAutoRefresh enabled={hasActiveZip} />
+          <ZipStatusAutoRefresh galleryId={galleryId} enabled={hasActiveZip} />
           {canQueueZip ? (
             <form action={queueGalleryZipPackageAction.bind(null, galleryId)}>
               <FormSubmitButton pendingLabel="Indítás..." className="h-9 px-3 text-xs">

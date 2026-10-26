@@ -464,7 +464,7 @@ export default async function GuestGalleryDetailPage({
               <h2 className="mt-1 text-xl font-semibold text-ink">Vendégfotók ZIP-letöltése</h2>
               <p className="mt-2 text-sm leading-6 text-graphite/65">Az összes befejezett vendégfeltöltés eredeti fájlja, szükség esetén több ZIP-részben.</p>
             </div>
-            <ZipStatusAutoRefresh enabled={zipActive} />
+            <ZipStatusAutoRefresh galleryId={gallery.id} enabled={zipActive} />
           </div>
 
           <div className="mt-5 rounded-md border border-ink/10 bg-paper p-4">

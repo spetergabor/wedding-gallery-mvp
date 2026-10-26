@@ -96,7 +96,6 @@ const UPLOAD_CONCURRENCY = 6;
 const MULTIPART_UPLOAD_CONCURRENCY = 3;
 const MAX_UPLOAD_ATTEMPTS = 5;
 const MAX_CONNECTION_RESUME_ATTEMPTS = 60;
-const GALLERY_REFRESH_INTERVAL_MS = 2500;
 const CONNECTION_RETRY_DELAY_MS = 3000;
 const SESSION_KEEPALIVE_INTERVAL_MS = 2 * 60 * 1000;
 const MULTIPART_FINALIZATION_POLL_INTERVAL_MS = 5000;
@@ -291,9 +290,7 @@ export function PhotoUploadForm({
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const lastGalleryRefreshAtRef = useRef(0);
   const lastSessionRefreshAtRef = useRef(0);
-  const scheduledGalleryRefreshRef = useRef<number | null>(null);
   const keepAdminSessionAlive = useCallback(
     async ({
       force = false,
@@ -391,14 +388,6 @@ export function PhotoUploadForm({
   }, [completedCount, selectedFiles.length]);
 
   useEffect(() => {
-    return () => {
-      if (scheduledGalleryRefreshRef.current) {
-        window.clearTimeout(scheduledGalleryRefreshRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (resumeSessionId && !currentResumableSessions.some((session) => session.id === resumeSessionId)) {
       setResumeSessionId(null);
     }
@@ -428,35 +417,6 @@ export function PhotoUploadForm({
       window.clearInterval(intervalId);
     };
   }, [isUploading, keepAdminSessionAlive]);
-
-  function refreshGallerySoon(force = false) {
-    const runRefresh = () => {
-      scheduledGalleryRefreshRef.current = null;
-      lastGalleryRefreshAtRef.current = Date.now();
-      router.refresh();
-    };
-
-    if (force) {
-      if (scheduledGalleryRefreshRef.current) {
-        window.clearTimeout(scheduledGalleryRefreshRef.current);
-      }
-      runRefresh();
-      return;
-    }
-
-    if (scheduledGalleryRefreshRef.current) {
-      return;
-    }
-
-    const elapsed = Date.now() - lastGalleryRefreshAtRef.current;
-
-    if (elapsed >= GALLERY_REFRESH_INTERVAL_MS) {
-      runRefresh();
-      return;
-    }
-
-    scheduledGalleryRefreshRef.current = window.setTimeout(runRefresh, GALLERY_REFRESH_INTERVAL_MS - elapsed);
-  }
 
   async function waitForConnectionRecovery() {
     if (!isOnline()) {
@@ -1031,7 +991,6 @@ export function PhotoUploadForm({
             errorMessage: null,
             uploadBytesSent: selectedFile.file.size
           });
-          refreshGallerySoon();
           continue;
         }
 
@@ -1093,7 +1052,6 @@ export function PhotoUploadForm({
               errorMessage: null,
               uploadBytesSent: selectedFile.file.size
             });
-            refreshGallerySoon();
             continue;
           }
 
@@ -1138,7 +1096,6 @@ export function PhotoUploadForm({
           if (completedItemIds.has(target.uploadItemId)) {
             completedUploads += 1;
             setFileStatus(selectedFile.clientId, "completed", { errorMessage: null });
-            refreshGallerySoon();
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : `${selectedFile.file.name} feltöltése nem sikerült.`;
@@ -1224,11 +1181,11 @@ export function PhotoUploadForm({
 
         window.location.href = `/admin/galleries/${galleryId}?${search.toString()}`;
       } else {
-        refreshGallerySoon(true);
+        router.refresh();
         setUploadError(`${failedUploads} média feltöltése hibára futott. Csak a hibás elemeket újra tudod próbálni.`);
       }
     } catch (error) {
-      refreshGallerySoon(true);
+      router.refresh();
       setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
     } finally {
       setIsUploading(false);

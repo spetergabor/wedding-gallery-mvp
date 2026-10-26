@@ -29,16 +29,19 @@ export function ButtonLink({
   href,
   children,
   variant = "primary",
-  className = ""
+  className = "",
+  prefetch
 }: {
   href: string;
   children: ReactNode;
   variant?: keyof typeof variants;
   className?: string;
+  prefetch?: boolean;
 }) {
   return (
     <Link
       href={href}
+      prefetch={prefetch}
       className={`inline-flex h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition ${variants[variant]} ${className}`}
     >
       {children}
