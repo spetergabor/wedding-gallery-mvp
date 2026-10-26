@@ -291,6 +291,10 @@ export function PhotoUploadForm({
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastSessionRefreshAtRef = useRef(0);
+  const selectedFilesRef = useRef<SelectedPhotoFile[]>([]);
+  const uploadRunActiveRef = useRef(false);
+  const pendingFilePreparationCountRef = useRef(0);
+  const nextFileIndexRef = useRef(0);
   const keepAdminSessionAlive = useCallback(
     async ({
       force = false,
@@ -527,56 +531,83 @@ export function PhotoUploadForm({
     });
   }
 
+  function updateSelectedFiles(
+    updater: SelectedPhotoFile[] | ((current: SelectedPhotoFile[]) => SelectedPhotoFile[])
+  ) {
+    const next = typeof updater === "function" ? updater(selectedFilesRef.current) : updater;
+    selectedFilesRef.current = next;
+    setSelectedFiles(next);
+  }
+
   async function setFiles(files: File[]) {
     const mediaFiles = files.filter((file) => file.type.startsWith("image/") || file.type.startsWith("video/"));
 
+    if (mediaFiles.length === 0) {
+      return;
+    }
+
+    const appendToRunningUpload = uploadRunActiveRef.current;
+    const firstOriginalIndex = nextFileIndexRef.current;
+    nextFileIndexRef.current += mediaFiles.length;
+    pendingFilePreparationCountRef.current += 1;
+
     setIsReadingExif(true);
     setUploadError("");
-    setUploadSessionId(null);
-    setUploadStartedAt(null);
 
-    const enrichedFiles = await Promise.all(
-      mediaFiles.map(async (file, index) => {
-        const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
-        const metadata =
-          mediaType === "video"
-            ? {
-                capturedAt: null,
-                ...(await readVideoMetadata(file))
-              }
-            : await readPhotoMetadata(file);
+    if (!appendToRunningUpload) {
+      setUploadSessionId(null);
+      setUploadStartedAt(null);
+    }
 
-        return {
-          clientId: `${index}-${file.name}-${file.size}-${file.lastModified}`,
-          file,
-          ...metadata,
-          mediaType,
-          originalIndex: index,
-          status: "queued" as PhotoUploadStatus,
-          errorMessage: null,
-          uploadItemId: null,
-          uploadBytesSent: 0
-        };
-      })
-    );
+    try {
+      const enrichedFiles = await Promise.all(
+        mediaFiles.map(async (file, index) => {
+          const mediaType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
+          const metadata =
+            mediaType === "video"
+              ? {
+                  capturedAt: null,
+                  ...(await readVideoMetadata(file))
+                }
+              : await readPhotoMetadata(file);
+          const originalIndex = firstOriginalIndex + index;
 
-    enrichedFiles.sort((a, b) => {
-      if (a.mediaType !== b.mediaType) {
-        return a.mediaType === "video" ? -1 : 1;
+          return {
+            clientId: `${originalIndex}-${file.name}-${file.size}-${file.lastModified}`,
+            file,
+            ...metadata,
+            mediaType,
+            originalIndex,
+            status: "queued" as PhotoUploadStatus,
+            errorMessage: null,
+            uploadItemId: null,
+            uploadBytesSent: 0
+          };
+        })
+      );
+
+      enrichedFiles.sort((a, b) => {
+        if (a.mediaType !== b.mediaType) {
+          return a.mediaType === "video" ? -1 : 1;
+        }
+
+        const aTime = a.capturedAt ? Date.parse(a.capturedAt) : Number.POSITIVE_INFINITY;
+        const bTime = b.capturedAt ? Date.parse(b.capturedAt) : Number.POSITIVE_INFINITY;
+
+        if (aTime !== bTime) {
+          return aTime - bTime;
+        }
+
+        return a.originalIndex - b.originalIndex;
+      });
+
+      updateSelectedFiles((current) => (appendToRunningUpload ? [...current, ...enrichedFiles] : enrichedFiles));
+    } finally {
+      pendingFilePreparationCountRef.current = Math.max(0, pendingFilePreparationCountRef.current - 1);
+      if (pendingFilePreparationCountRef.current === 0) {
+        setIsReadingExif(false);
       }
-
-      const aTime = a.capturedAt ? Date.parse(a.capturedAt) : Number.POSITIVE_INFINITY;
-      const bTime = b.capturedAt ? Date.parse(b.capturedAt) : Number.POSITIVE_INFINITY;
-
-      if (aTime !== bTime) {
-        return aTime - bTime;
-      }
-
-      return a.originalIndex - b.originalIndex;
-    });
-
-    setSelectedFiles(enrichedFiles);
-    setIsReadingExif(false);
+    }
   }
 
   function captureDateLabel(value: string | null) {
@@ -593,6 +624,7 @@ export function PhotoUploadForm({
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     void setFiles(Array.from(event.target.files ?? []));
+    event.target.value = "";
   }
 
   function handleDragOver(event: DragEvent<HTMLLabelElement>) {
@@ -612,18 +644,19 @@ export function PhotoUploadForm({
   }
 
   function resetSelection() {
-    setSelectedFiles([]);
+    updateSelectedFiles([]);
     setUploadError("");
     setUploadSessionId(null);
     setResumeSessionId(null);
     setUploadStartedAt(null);
+    nextFileIndexRef.current = 0;
     if (inputRef.current) {
       inputRef.current.value = "";
     }
   }
 
   function setFileStatus(clientId: string, status: PhotoUploadStatus, updates?: Partial<SelectedPhotoFile>) {
-    setSelectedFiles((current) =>
+    updateSelectedFiles((current) =>
       current.map((item) =>
         item.clientId === clientId
           ? {
@@ -1125,13 +1158,23 @@ export function PhotoUploadForm({
   }
 
   async function uploadFiles(files: SelectedPhotoFile[], existingSessionId?: string | null) {
-    if (files.length === 0 || isUploading) {
+    if (files.length === 0 || uploadRunActiveRef.current) {
       return;
     }
 
+    uploadRunActiveRef.current = true;
     setIsUploading(true);
     setUploadError("");
     setUploadStartedAt(Date.now());
+
+    const initialFileIds = new Set(files.map((file) => file.clientId));
+    updateSelectedFiles((current) =>
+      current.map((file) =>
+        initialFileIds.has(file.clientId) && file.status !== "completed"
+          ? { ...file, status: "queued", errorMessage: null, uploadBytesSent: 0 }
+          : file
+      )
+    );
 
     try {
       await ensureAdminSessionForUpload({ force: true });
@@ -1143,7 +1186,7 @@ export function PhotoUploadForm({
           operation: () =>
             createPhotoUploadSessionAction(
               galleryId,
-              selectedFiles.length,
+              selectedFilesRef.current.length,
               deliveryStage,
               selectedSectionId === "__all__" ? null : selectedSectionId
             ),
@@ -1161,13 +1204,36 @@ export function PhotoUploadForm({
         setUploadSessionId(sessionId);
       }
 
-      let failedUploads = 0;
+      while (true) {
+        const queuedFiles = selectedFilesRef.current.filter((file) => file.status === "queued");
 
-      for (const batch of chunkArray(files, UPLOAD_BATCH_SIZE)) {
-        await ensureAdminSessionForUpload();
-        const batchResult = await uploadBatch(sessionId, batch);
-        failedUploads += batchResult?.failedCount ?? 0;
+        if (queuedFiles.length > 0) {
+          for (const batch of chunkArray(queuedFiles, UPLOAD_BATCH_SIZE)) {
+            await ensureAdminSessionForUpload();
+            await uploadBatch(sessionId, batch);
+          }
+          continue;
+        }
+
+        if (pendingFilePreparationCountRef.current > 0) {
+          await wait(150);
+          continue;
+        }
+
+        // Give a file-picker/drop event that happened at the end of the last
+        // batch one browser tick to append its files before declaring the queue
+        // drained and navigating away.
+        await wait(150);
+
+        if (
+          pendingFilePreparationCountRef.current === 0 &&
+          !selectedFilesRef.current.some((file) => file.status === "queued")
+        ) {
+          break;
+        }
       }
+
+      const failedUploads = selectedFilesRef.current.filter((file) => file.status === "failed").length;
 
       if (failedUploads === 0) {
         setResumeSessionId(null);
@@ -1188,6 +1254,7 @@ export function PhotoUploadForm({
       router.refresh();
       setUploadError(error instanceof Error ? error.message : "A feltöltés nem sikerült.");
     } finally {
+      uploadRunActiveRef.current = false;
       setIsUploading(false);
       setUploadStartedAt(null);
     }
@@ -1211,7 +1278,7 @@ export function PhotoUploadForm({
           onDrop={handleDrop}
           className={`flex min-h-72 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center transition ${
             isDragging ? "border-ink bg-ink/[0.03]" : "border-ink/20 bg-paper hover:border-ink/40"
-          } ${isUploading ? "pointer-events-none opacity-70" : ""}`}
+          }`}
         >
           <input
             ref={inputRef}
@@ -1219,22 +1286,24 @@ export function PhotoUploadForm({
             type="file"
             accept="image/*,video/*"
             multiple
-            disabled={isUploading || isReadingExif}
+            disabled={isReadingExif}
             onChange={handleFileChange}
             className="sr-only"
           />
           <div className="flex size-14 items-center justify-center rounded-md bg-white text-ink shadow-soft">
             <ImagePlus size={24} />
           </div>
-          <h2 className="mt-5 text-2xl font-semibold text-ink">{title}</h2>
+          <h2 className="mt-5 text-2xl font-semibold text-ink">{isUploading ? "További képek hozzáadása" : title}</h2>
           <p className="mt-2 max-w-md text-sm text-graphite/70">
-            {description}
+            {isUploading
+              ? "A most kiválasztott képek automatikusan bekerülnek a futó feltöltési sor végére."
+              : description}
           </p>
           <p className="mt-2 max-w-md text-xs text-graphite/55">
             A nagy videók darabolva töltődnek fel, és megszakadás után a kész részek kihagyásával folytathatók.
           </p>
           <span className="mt-5 inline-flex h-11 items-center justify-center rounded-md bg-ink px-4 text-sm font-medium text-white">
-            Fájlok kiválasztása
+            {isUploading ? "További fájlok kiválasztása" : "Fájlok kiválasztása"}
           </span>
         </label>
 

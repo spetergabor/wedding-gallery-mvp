@@ -578,7 +578,10 @@ function photoObjectKeys(photo: {
 }
 
 async function refreshUploadSessionCounts(sessionId: string) {
-  const [uploadedCount, completedCount, failedCount] = await Promise.all([
+  const [itemCount, uploadedCount, completedCount, failedCount] = await Promise.all([
+    prisma.galleryUploadItem.count({
+      where: { sessionId }
+    }),
     prisma.galleryUploadItem.count({
       where: {
         sessionId,
@@ -603,7 +606,10 @@ async function refreshUploadSessionCounts(sessionId: string) {
     where: { id: sessionId },
     select: { totalCount: true }
   });
-  const totalCount = session?.totalCount ?? 0;
+  // A running browser upload can be extended with more files. Treat the
+  // persisted upload items as the source of truth so the session cannot be
+  // marked complete while a later batch is still waiting or uploading.
+  const totalCount = Math.max(session?.totalCount ?? 0, itemCount);
   const status =
     completedCount >= totalCount && totalCount > 0
       ? "completed"
@@ -616,6 +622,7 @@ async function refreshUploadSessionCounts(sessionId: string) {
   await prisma.galleryUploadSession.update({
     where: { id: sessionId },
     data: {
+      totalCount,
       uploadedCount,
       completedCount,
       failedCount,
