@@ -53,6 +53,8 @@ export type SortablePhoto = {
 export type PhotoManagerSet = "all" | "raw" | "final" | "selected";
 
 const STALE_PROCESSING_BADGE_MS = 2 * 60 * 60 * 1000;
+const INITIAL_VISIBLE_PHOTO_COUNT = 120;
+const VISIBLE_PHOTO_INCREMENT = 120;
 const PHOTO_GRID_COLUMN_STORAGE_KEY = "speter.admin.photoGridColumns";
 const PHOTO_GRID_COLUMN_OPTIONS = [3, 4, 5, 6, 7] as const;
 
@@ -114,6 +116,18 @@ function photoPreviewStyle(photo: SortablePhoto): CSSProperties {
   return { aspectRatio: "4 / 3" };
 }
 
+export type PhotoSortableGridProps = {
+  activeSearch: string;
+  activeSet: PhotoManagerSet;
+  coverPhotoId: string | null;
+  emptyDescription: string;
+  galleryId: string;
+  galleryMode: string;
+  photos: SortablePhoto[];
+  sections?: Array<{ id: string; title: string }>;
+  selectedPhotoIds: string[];
+};
+
 export function PhotoSortableGrid({
   activeSearch,
   activeSet,
@@ -124,22 +138,13 @@ export function PhotoSortableGrid({
   photos,
   sections = [],
   selectedPhotoIds
-}: {
-  activeSearch: string;
-  activeSet: PhotoManagerSet;
-  coverPhotoId: string | null;
-  emptyDescription: string;
-  galleryId: string;
-  galleryMode: string;
-  photos: SortablePhoto[];
-  sections?: Array<{ id: string; title: string }>;
-  selectedPhotoIds: string[];
-}) {
+}: PhotoSortableGridProps) {
   const [orderedPhotos, setOrderedPhotos] = useState(() => photos);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [dropTargetPhotoId, setDropTargetPhotoId] = useState<string | null>(null);
   const [gridColumnCount, setGridColumnCount] = useState<PhotoGridColumnCount>(3);
   const [bulkSelectedPhotoIds, setBulkSelectedPhotoIds] = useState<Set<string>>(() => new Set());
+  const [visiblePhotoCount, setVisiblePhotoCount] = useState(INITIAL_VISIBLE_PHOTO_COUNT);
   const lastLiveMoveRef = useRef<{ draggedId: string; targetId: string } | null>(null);
   const lastBulkSelectionAnchorIdRef = useRef<string | null>(null);
   const proofingGallery = isProofingGallery(galleryMode);
@@ -172,6 +177,8 @@ export function PhotoSortableGrid({
   const displayedPhotos = normalizedSearch
     ? basePhotos.filter((photo) => photoMatchesFilenameSearch(photo.filename, filenameSearch))
     : basePhotos;
+  const visiblePhotos = displayedPhotos.slice(0, visiblePhotoCount);
+  const remainingPhotoCount = Math.max(0, displayedPhotos.length - visiblePhotos.length);
   const displayedPhotoIds = useMemo(() => displayedPhotos.map((photo) => photo.id), [displayedPhotos]);
   const bulkSelectedCount = bulkSelectedPhotoIds.size;
   const selectedVisibleCount = displayedPhotoIds.filter((photoId) => bulkSelectedPhotoIds.has(photoId)).length;
@@ -197,6 +204,10 @@ export function PhotoSortableGrid({
       lastBulkSelectionAnchorIdRef.current = null;
     }
   }, [photos]);
+
+  useEffect(() => {
+    setVisiblePhotoCount(INITIAL_VISIBLE_PHOTO_COUNT);
+  }, [activeSearch, activeSet]);
 
   function updateGridColumnCount(columnCount: PhotoGridColumnCount) {
     setGridColumnCount(columnCount);
@@ -354,7 +365,7 @@ export function PhotoSortableGrid({
         className="columns-1 gap-4 sm:columns-2 xl:[column-count:var(--photo-grid-columns)]"
         style={{ "--photo-grid-columns": gridColumnCount } as CSSProperties}
       >
-        {displayedPhotos.map((photo) => {
+        {visiblePhotos.map((photo) => {
           const currentIndex = orderedPhotos.findIndex((orderedPhoto) => orderedPhoto.id === photo.id);
           const isDragging = draggedPhotoId === photo.id;
           const isDropTarget = dropTargetPhotoId === photo.id && !isDragging;
@@ -615,6 +626,21 @@ export function PhotoSortableGrid({
           </div>
         ) : null}
       </div>
+
+      {remainingPhotoCount > 0 ? (
+        <div className="mt-5 flex flex-col items-center gap-2 rounded-lg border border-ink/10 bg-white px-4 py-5 text-center shadow-soft">
+          <p className="text-sm text-graphite/70">
+            {visiblePhotos.length} / {displayedPhotos.length} kép megjelenítve
+          </p>
+          <button
+            type="button"
+            onClick={() => setVisiblePhotoCount((current) => current + VISIBLE_PHOTO_INCREMENT)}
+            className="inline-flex h-11 items-center justify-center rounded-md bg-ink px-5 text-sm font-medium text-white transition hover:bg-graphite"
+          >
+            További {Math.min(VISIBLE_PHOTO_INCREMENT, remainingPhotoCount)} kép megjelenítése
+          </button>
+        </div>
+      ) : null}
 
       {hasUnsavedOrder ? (
         <form

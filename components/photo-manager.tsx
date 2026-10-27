@@ -7,7 +7,8 @@ import {
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { FormSubmitButton } from "@/components/form-submit-button";
-import { PhotoSortableGrid, type PhotoManagerSet, type SortablePhoto } from "@/components/photo-sortable-grid";
+import { PhotoSortableGridClient } from "@/components/photo-sortable-grid-client";
+import type { PhotoManagerSet, SortablePhoto } from "@/components/photo-sortable-grid";
 import {
   lightroomFilenameList,
   parsePhotoFilenameSearch,
@@ -231,7 +232,7 @@ export function PhotoManager({
           Több fájlnevet külön sorban, vesszővel, pontosvesszővel, tabulátorral vagy szóközzel elválasztva is beilleszthetsz. A kiterjesztés nem kötelező.
         </p>
       </form>
-      <PhotoSortableGrid
+      <PhotoSortableGridClient
         activeSearch={normalizedSearch}
         activeSet={normalizedActiveSet}
         coverPhotoId={coverPhotoId}
