@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
+import { maybeCreateGiftCardInvoice } from "@/lib/gift-card-invoices";
 import { prisma } from "@/lib/prisma";
 
 const EDITABLE_STATUS_FIELDS = ["delivered", "paid", "photographed"] as const;
@@ -23,6 +24,10 @@ type UpdateGiftCardOrderDetailsInput = {
   personCount: string;
   deliveryMethod: string;
   deliveryAddress: string;
+  deliveryAddressLine1: string;
+  deliveryPostalCode: string;
+  deliveryCity: string;
+  deliveryCountry: string;
   amount: string;
   invoiceNumber: string;
   message: string;
@@ -46,6 +51,14 @@ function amountInCents(value: unknown) {
   const amount = Number(value.trim().replace(/\s/g, "").replace(",", "."));
   if (!Number.isFinite(amount) || amount < 0 || amount > 1_000_000) return undefined;
   return Math.round(amount * 100);
+}
+
+function invoiceResult(result: Awaited<ReturnType<typeof maybeCreateGiftCardInvoice>>) {
+  if (result.status === "created") {
+    return { invoiceCreated: true as const, invoiceId: result.invoiceId, invoiceNumber: result.invoiceNumber };
+  }
+  if (result.status === "error") return { invoiceError: result.message };
+  return {};
 }
 
 export async function updateGiftCardOrderStatus(input: UpdateGiftCardOrderStatusInput) {
@@ -76,8 +89,10 @@ export async function updateGiftCardOrderStatus(input: UpdateGiftCardOrderStatus
     return { ok: false as const, message: "Gift card order not found." };
   }
 
+  const invoice = await maybeCreateGiftCardInvoice(input.orderId, adminId);
   revalidatePath("/admin/gift-card-orders");
-  return { ok: true as const };
+  revalidatePath("/admin/invoices");
+  return { ok: true as const, ...invoiceResult(invoice) };
 }
 
 export async function updateGiftCardOrderDetails(input: UpdateGiftCardOrderDetailsInput) {
@@ -107,17 +122,35 @@ export async function updateGiftCardOrderDetails(input: UpdateGiftCardOrderDetai
   }
 
   const session = await requireAdmin();
+  const adminId = ownerAdminId(session);
+  const current = await prisma.giftCardOrder.findFirst({
+    where: { id: input.orderId, adminId },
+    select: { invoiceId: true, invoiceNumber: true }
+  });
+  if (!current) return { ok: false as const, message: "Gift card order not found." };
+
+  const deliveryAddressLine1 = optionalText(input.deliveryAddressLine1, 500);
+  const deliveryPostalCode = optionalText(input.deliveryPostalCode, 40);
+  const deliveryCity = optionalText(input.deliveryCity, 200);
+  const deliveryCountry = optionalText(input.deliveryCountry, 120);
+  const structuredAddress = [deliveryAddressLine1, [deliveryPostalCode, deliveryCity].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
   const result = await prisma.giftCardOrder.updateMany({
-    where: { id: input.orderId, adminId: ownerAdminId(session) },
+    where: { id: input.orderId, adminId },
     data: {
       customerName,
       email: email || null,
       recipientName,
       personCount,
       deliveryMethod,
-      deliveryAddress: optionalText(input.deliveryAddress, 1000),
+      deliveryAddress: structuredAddress || optionalText(input.deliveryAddress, 1000),
+      deliveryAddressLine1,
+      deliveryPostalCode,
+      deliveryCity,
+      deliveryCountry,
       amountCents,
-      invoiceNumber: optionalText(input.invoiceNumber, 200),
+      invoiceNumber: current.invoiceId ? current.invoiceNumber : optionalText(input.invoiceNumber, 200),
       message: optionalText(input.message, 4000),
       delivered: input.delivered,
       paid: input.paid,
@@ -129,8 +162,10 @@ export async function updateGiftCardOrderDetails(input: UpdateGiftCardOrderDetai
     return { ok: false as const, message: "Gift card order not found." };
   }
 
+  const invoice = await maybeCreateGiftCardInvoice(input.orderId, adminId);
   revalidatePath("/admin/gift-card-orders");
-  return { ok: true as const };
+  revalidatePath("/admin/invoices");
+  return { ok: true as const, ...invoiceResult(invoice) };
 }
 
 export async function deleteGiftCardOrder(orderId: string) {

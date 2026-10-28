@@ -218,6 +218,7 @@ export async function POST(request: NextRequest) {
     "zip",
     "delivery_postal_code"
   ]);
+  const deliveryCountry = readFirst(fields, ["land", "country", "lieferland", "delivery_country"]) || "Österreich";
   const deliveryAddress = formatDeliveryAddress(streetAddress, deliveryPostalCode, deliveryCity);
   const message = readFirst(fields, ["message", "nachricht_optional", "nachricht", "notes"]);
   const source = readFirst(fields, ["form_name", "elementor_form_name"]) || "Irismoment.at – Geschenkkarte";
@@ -245,6 +246,10 @@ export async function POST(request: NextRequest) {
       personCount,
       deliveryMethod: deliveryMethod.slice(0, 120),
       deliveryAddress: deliveryAddress ? deliveryAddress.slice(0, 1000) : null,
+      deliveryAddressLine1: streetAddress ? streetAddress.slice(0, 500) : null,
+      deliveryPostalCode: deliveryPostalCode ? deliveryPostalCode.slice(0, 40) : null,
+      deliveryCity: deliveryCity ? deliveryCity.slice(0, 200) : null,
+      deliveryCountry: deliveryCountry.slice(0, 120),
       message: message ? message.slice(0, 4000) : null,
       source: source.slice(0, 200)
     },

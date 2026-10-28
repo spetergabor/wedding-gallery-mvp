@@ -1,4 +1,5 @@
-import { CircleDollarSign, Gift, Mail, PackageCheck, Search } from "lucide-react";
+import { CircleDollarSign, ExternalLink, Gift, Mail, PackageCheck, Search } from "lucide-react";
+import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { GiftCardOrderActions } from "@/components/gift-card-order-actions";
 import { GiftCardStatusToggle } from "@/components/gift-card-status-toggle";
@@ -20,7 +21,7 @@ const COPY = {
     searchPlaceholder: "Keresés név, e-mail, cím vagy számlaszám alapján",
     search: "Keresés",
     results: "találat",
-    editHint: "Az állapotokat közvetlenül, a többi adatot a Szerkesztés gombbal módosíthatod.",
+    editHint: "Az állapotokat közvetlenül, a többi adatot a Szerkesztés gombbal módosíthatod. Elküldött állapot és megadott összeg esetén a számla automatikusan elkészül.",
     customer: "Megrendelő neve",
     personCount: "Hány főre",
     recipient: "Megajándékozott neve",
@@ -31,6 +32,10 @@ const COPY = {
     message: "Komment",
     invoice: "Számlaszám",
     address: "Cím",
+    street: "Utca, házszám",
+    postalCode: "Irányítószám",
+    city: "Város",
+    country: "Ország",
     actions: "Műveletek",
     edit: "Szerkesztés",
     editTitle: "Rendelés szerkesztése",
@@ -70,7 +75,7 @@ const COPY = {
     searchPlaceholder: "Nach Name, E-Mail, Adresse oder Rechnungsnummer suchen",
     search: "Suchen",
     results: "Treffer",
-    editHint: "Status können direkt, weitere Daten über Bearbeiten geändert werden.",
+    editHint: "Status können direkt, weitere Daten über Bearbeiten geändert werden. Sobald Gesendet aktiv und ein Betrag angegeben ist, wird die Rechnung automatisch erstellt.",
     customer: "Name der bestellenden Person",
     personCount: "Personen",
     recipient: "Beschenkte Person",
@@ -81,6 +86,10 @@ const COPY = {
     message: "Kommentar",
     invoice: "Rechnungsnummer",
     address: "Adresse",
+    street: "Straße und Hausnummer",
+    postalCode: "Postleitzahl",
+    city: "Stadt",
+    country: "Land",
     actions: "Aktionen",
     edit: "Bearbeiten",
     editTitle: "Bestellung bearbeiten",
@@ -120,7 +129,7 @@ const COPY = {
     searchPlaceholder: "Search by name, email, address or invoice number",
     search: "Search",
     results: "results",
-    editHint: "Update statuses directly or use Edit for the other details.",
+    editHint: "Update statuses directly or use Edit for the other details. An invoice is created automatically once the order is marked sent and has an amount.",
     customer: "Customer name",
     personCount: "People",
     recipient: "Recipient name",
@@ -131,6 +140,10 @@ const COPY = {
     message: "Comment",
     invoice: "Invoice number",
     address: "Address",
+    street: "Street and house number",
+    postalCode: "Postal code",
+    city: "City",
+    country: "Country",
     actions: "Actions",
     edit: "Edit",
     editTitle: "Edit order",
@@ -259,7 +272,7 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
               </thead>
               <tbody className="divide-y divide-ink/10">
                 {orders.map((order) => (
-                  <tr key={order.id} className="group align-top transition hover:bg-brass/[0.035]">
+                  <tr id={`order-${order.id}`} key={order.id} className="group align-top transition hover:bg-brass/[0.035]">
                     <td className="sticky left-0 z-10 border-r border-ink/10 bg-white px-4 py-3 group-hover:bg-[#fdfbf7]">
                       <strong className="block font-semibold text-ink">{order.customerName}</strong>
                       {order.email ? (
@@ -314,7 +327,14 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
                     <td className="max-w-72 whitespace-pre-wrap border-r border-ink/10 px-4 py-3 text-xs leading-5 text-graphite/75">
                       {order.message || copy.noMessage}
                     </td>
-                    <td className="border-r border-ink/10 px-4 py-3 text-xs font-medium text-ink">{order.invoiceNumber || copy.noInvoice}</td>
+                    <td className="border-r border-ink/10 px-4 py-3 text-xs font-medium text-ink">
+                      {order.invoiceId && order.invoiceNumber ? (
+                        <Link href={`/admin/invoices/${order.invoiceId}`} className="inline-flex items-center gap-1.5 text-ink hover:underline">
+                          {order.invoiceNumber}
+                          <ExternalLink size={12} />
+                        </Link>
+                      ) : order.invoiceNumber || copy.noInvoice}
+                    </td>
                     <td className="border-r border-ink/10 px-4 py-3 text-xs leading-5 text-graphite/75">
                       <span className="block font-medium text-ink">{order.deliveryAddress || copy.noAddress}</span>
                       <span className="mt-1 block text-[11px] text-graphite/50">{order.deliveryMethod}</span>
@@ -329,8 +349,13 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
                           personCount: order.personCount,
                           deliveryMethod: order.deliveryMethod,
                           deliveryAddress: order.deliveryAddress,
+                          deliveryAddressLine1: order.deliveryAddressLine1,
+                          deliveryPostalCode: order.deliveryPostalCode,
+                          deliveryCity: order.deliveryCity,
+                          deliveryCountry: order.deliveryCountry,
                           amountCents: order.amountCents,
                           invoiceNumber: order.invoiceNumber,
+                          invoiceId: order.invoiceId,
                           message: order.message,
                           delivered: order.delivered,
                           paid: order.paid,
@@ -352,6 +377,10 @@ export default async function GiftCardOrdersPage({ searchParams }: { searchParam
                           recipient: copy.recipient,
                           deliveryMethod: copy.deliveryMethodLabel,
                           address: copy.address,
+                          street: copy.street,
+                          postalCode: copy.postalCode,
+                          city: copy.city,
+                          country: copy.country,
                           amount: copy.amount,
                           invoice: copy.invoice,
                           message: copy.message,

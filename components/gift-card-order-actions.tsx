@@ -14,8 +14,13 @@ type Order = {
   personCount: number;
   deliveryMethod: string;
   deliveryAddress: string | null;
+  deliveryAddressLine1: string | null;
+  deliveryPostalCode: string | null;
+  deliveryCity: string | null;
+  deliveryCountry: string | null;
   amountCents: number | null;
   invoiceNumber: string | null;
+  invoiceId: string | null;
   message: string | null;
   delivered: boolean;
   paid: boolean;
@@ -38,6 +43,10 @@ type Labels = {
   recipient: string;
   deliveryMethod: string;
   address: string;
+  street: string;
+  postalCode: string;
+  city: string;
+  country: string;
   amount: string;
   invoice: string;
   message: string;
@@ -58,6 +67,22 @@ const inputClass =
 const textareaClass =
   "mt-1.5 min-h-24 w-full resize-y rounded-md border border-ink/15 bg-white px-3 py-2.5 text-sm text-ink outline-none transition focus:border-ink/50";
 
+function addressDefaults(order: Order) {
+  if (order.deliveryAddressLine1 || order.deliveryPostalCode || order.deliveryCity) {
+    return {
+      addressLine1: order.deliveryAddressLine1 ?? "",
+      postalCode: order.deliveryPostalCode ?? "",
+      city: order.deliveryCity ?? ""
+    };
+  }
+  const parts = (order.deliveryAddress ?? "").split(",").map((part) => part.trim()).filter(Boolean);
+  const locality = parts.at(-1) ?? "";
+  const match = locality.match(/^(\d{4,10})\s+(.+)$/);
+  return match
+    ? { addressLine1: parts.slice(0, -1).join(", "), postalCode: match[1] ?? "", city: match[2] ?? "" }
+    : { addressLine1: order.deliveryAddress ?? "", postalCode: "", city: "" };
+}
+
 export function GiftCardOrderActions({ order, labels }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -65,6 +90,7 @@ export function GiftCardOrderActions({ order, labels }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const address = addressDefaults(order);
 
   function close() {
     if (pending) return;
@@ -88,6 +114,10 @@ export function GiftCardOrderActions({ order, labels }: Props) {
           personCount: String(formData.get("personCount") ?? ""),
           deliveryMethod: String(formData.get("deliveryMethod") ?? ""),
           deliveryAddress: String(formData.get("deliveryAddress") ?? ""),
+          deliveryAddressLine1: String(formData.get("deliveryAddressLine1") ?? ""),
+          deliveryPostalCode: String(formData.get("deliveryPostalCode") ?? ""),
+          deliveryCity: String(formData.get("deliveryCity") ?? ""),
+          deliveryCountry: String(formData.get("deliveryCountry") ?? ""),
           amount: String(formData.get("amount") ?? ""),
           invoiceNumber: String(formData.get("invoiceNumber") ?? ""),
           message: String(formData.get("message") ?? ""),
@@ -97,10 +127,15 @@ export function GiftCardOrderActions({ order, labels }: Props) {
         });
 
         if (!result.ok) {
-          setError(labels.saveError);
+          setError(result.message || labels.saveError);
           return;
         }
 
+        if ("invoiceError" in result && result.invoiceError) {
+          setError(result.invoiceError);
+          router.refresh();
+          return;
+        }
         setOpen(false);
         router.refresh();
       } catch {
@@ -208,13 +243,32 @@ export function GiftCardOrderActions({ order, labels }: Props) {
                     <span className="pointer-events-none absolute right-3 top-1/2 mt-0.5 -translate-y-1/2 text-sm text-graphite/55">€</span>
                   </div>
                 </label>
+                <input type="hidden" name="deliveryAddress" defaultValue={order.deliveryAddress ?? ""} />
                 <label className="text-xs font-medium text-graphite/70 sm:col-span-2">
-                  {labels.address}
-                  <textarea className={textareaClass} name="deliveryAddress" defaultValue={order.deliveryAddress ?? ""} maxLength={1000} />
+                  {labels.street}
+                  <input className={inputClass} name="deliveryAddressLine1" defaultValue={address.addressLine1} maxLength={500} />
+                </label>
+                <label className="text-xs font-medium text-graphite/70">
+                  {labels.postalCode}
+                  <input className={inputClass} name="deliveryPostalCode" defaultValue={address.postalCode} maxLength={40} />
+                </label>
+                <label className="text-xs font-medium text-graphite/70">
+                  {labels.city}
+                  <input className={inputClass} name="deliveryCity" defaultValue={address.city} maxLength={200} />
+                </label>
+                <label className="text-xs font-medium text-graphite/70 sm:col-span-2">
+                  {labels.country}
+                  <input className={inputClass} name="deliveryCountry" defaultValue={order.deliveryCountry ?? "Österreich"} maxLength={120} />
                 </label>
                 <label className="text-xs font-medium text-graphite/70">
                   {labels.invoice}
-                  <input className={inputClass} name="invoiceNumber" defaultValue={order.invoiceNumber ?? ""} maxLength={200} />
+                  <input
+                    className={`${inputClass} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-graphite/60`}
+                    name="invoiceNumber"
+                    defaultValue={order.invoiceNumber ?? ""}
+                    disabled={Boolean(order.invoiceId)}
+                    maxLength={200}
+                  />
                 </label>
                 <label className="text-xs font-medium text-graphite/70 sm:col-span-2">
                   {labels.message}

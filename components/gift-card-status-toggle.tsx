@@ -26,7 +26,7 @@ export function GiftCardStatusToggle({
 }: GiftCardStatusToggleProps) {
   const router = useRouter();
   const [value, setValue] = useState(checked);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => setValue(checked), [checked]);
@@ -35,20 +35,21 @@ export function GiftCardStatusToggle({
     if (pending) return;
     const nextValue = !value;
     setValue(nextValue);
-    setError(false);
+    setError("");
 
     startTransition(async () => {
       try {
         const result = await updateGiftCardOrderStatus({ orderId, field, value: nextValue });
         if (!result.ok) {
           setValue(!nextValue);
-          setError(true);
+          setError(result.message || errorLabel);
           return;
         }
+        if ("invoiceError" in result && result.invoiceError) setError(result.invoiceError);
         router.refresh();
       } catch {
         setValue(!nextValue);
-        setError(true);
+        setError(errorLabel);
       }
     });
   }
@@ -80,7 +81,7 @@ export function GiftCardStatusToggle({
         </span>
         <span>{label}</span>
       </button>
-      {error ? <span className="text-[11px] text-red-600">{errorLabel}</span> : null}
+      {error ? <span className="max-w-64 text-[11px] leading-4 text-red-600">{error}</span> : null}
     </div>
   );
 }
