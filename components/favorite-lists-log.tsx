@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Heart } from "lucide-react";
+import { Check, Copy, Download, Heart } from "lucide-react";
 import { Button } from "@/components/button";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { lightroomFilenameList } from "@/lib/photo-filename";
@@ -49,7 +49,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
           <p className="mt-1 text-sm text-graphite/70">
             {proofingMode
               ? "Az ügyfél által kiválasztott képek email cím szerint, Lightroomhoz használható, kiterjesztés nélküli fájlnévlistával."
-              : "Email címhez mentett képkiválasztások, teljes fájlnévlistával."}
+              : "Email címhez mentett képkiválasztások, teljes fájlnévlistával. A listák CSV-ként is letölthetők."}
           </p>
         </div>
         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
@@ -102,10 +102,19 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                     </p>
                   ) : null}
                 </div>
-                <Button type="button" variant="secondary" onClick={() => void handleCopy(list)} className="shrink-0">
-                  {copiedListId === list.id ? <Check size={16} /> : <Copy size={16} />}
-                  {copiedListId === list.id ? "Másolva" : "Fájlnevek másolása"}
-                </Button>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={() => void handleCopy(list)}>
+                    {copiedListId === list.id ? <Check size={16} /> : <Copy size={16} />}
+                    {copiedListId === list.id ? "Másolva" : "Fájlnevek másolása"}
+                  </Button>
+                  <a
+                    href={`/api/admin/favorite-lists/${encodeURIComponent(list.id)}/download`}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
+                  >
+                    <Download size={16} />
+                    Lista letöltése
+                  </a>
+                </div>
               </div>
 
               {list.items.length > 0 ? (
