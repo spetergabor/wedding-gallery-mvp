@@ -73,7 +73,12 @@ export async function maybeCreateGiftCardInvoice(orderId: string, adminId: strin
 
   try {
     const created = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${orderId}))`;
+      await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "GiftCardOrder"
+        WHERE "id" = ${orderId} AND "adminId" = ${adminId}
+        FOR UPDATE
+      `;
       const order = await tx.giftCardOrder.findFirst({ where: { id: orderId, adminId } });
       if (!order) throw new Error("GIFT_CARD_ORDER_NOT_FOUND");
       if (order.invoiceId || order.invoiceNumber) {
