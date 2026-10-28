@@ -109,6 +109,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                   </Button>
                   <a
                     href={`/api/admin/favorite-lists/${encodeURIComponent(list.id)}/download`}
+                    download
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
                   >
                     <Download size={16} />
