@@ -33,6 +33,7 @@ import { ViewLog } from "@/components/view-log";
 import { ZipPreparationStatus } from "@/components/zip-preparation-status";
 import { requireAdmin } from "@/lib/auth";
 import { adminOwnedWhere, albumDesignOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
+import { loadAdminGalleryPhotoPage } from "@/lib/admin-gallery-photo-page";
 import { customerTypeLabel } from "@/lib/customer-options";
 import { normalizeCustomerLanguage } from "@/lib/customer-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
@@ -276,36 +277,6 @@ export default async function GalleryDetailPage({
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         select: { id: true, title: true }
       },
-      photos: {
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          sectionId: true,
-          filename: true,
-          imageUrl: true,
-          thumbnailUrl: true,
-          previewUrl: true,
-          deliveryStage: true,
-          mediaType: true,
-          processingStatus: true,
-          processingError: true,
-          processingRequestedAt: true,
-          processingCompletedAt: true,
-          fileSize: true,
-          imageWidth: true,
-          imageHeight: true,
-          sortOrder: true,
-          isClientHidden: true,
-          clientHiddenAt: true,
-          section: {
-            select: {
-              id: true,
-              title: true,
-              slug: true
-            }
-          }
-        }
-      },
       customer: {
         select: {
           id: true,
@@ -442,11 +413,91 @@ export default async function GalleryDetailPage({
   const locationPoints = createViewLocationPoints(gallery.views);
   const proofingGallery = isProofingGallery(gallery.galleryMode);
   const renderedGalleryTabs = galleryTabs;
-  const rawPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "raw").length;
-  const finalPhotoCount = gallery.photos.filter((photo) => photo.deliveryStage === "final").length;
   const selectedPhotoIds = Array.from(
     new Set(gallery.favoriteLists.flatMap((list) => list.items.map((item) => item.photo.id)))
   );
+  const deliveryPhotoWhere = {
+    galleryId: gallery.id,
+    mediaType: { not: "video" },
+    ...(proofingGallery ? { deliveryStage: PHOTO_DELIVERY_STAGE_FINAL } : {})
+  };
+  const [
+    photoSummary,
+    initialPhotoPage,
+    mediaProcessingPhotos,
+    requestedCoverPhoto,
+    firstPhoto,
+    deliveryEmailPhotoCount,
+    requestedDeliveryCoverPhoto,
+    firstDeliveryPhoto,
+    designPreviewCandidates
+  ] = await Promise.all([
+    prisma.photo.findMany({
+      where: { galleryId: gallery.id },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        sectionId: true,
+        filename: true,
+        deliveryStage: true,
+        mediaType: true,
+        fileSize: true
+      }
+    }),
+    loadAdminGalleryPhotoPage({
+      galleryId: gallery.id,
+      galleryMode: gallery.galleryMode,
+      selectedPhotoIds,
+      activeSet: flags.photoSet,
+      activeSearch: flags.photoSearch
+    }),
+    prisma.photo.findMany({
+      where: { galleryId: gallery.id },
+      select: {
+        id: true,
+        filename: true,
+        imageUrl: true,
+        thumbnailUrl: true,
+        previewUrl: true,
+        mediaType: true,
+        processingStatus: true,
+        processingError: true,
+        processingRequestedAt: true,
+        processingCompletedAt: true
+      }
+    }),
+    gallery.coverPhotoId
+      ? prisma.photo.findFirst({
+          where: { galleryId: gallery.id, id: gallery.coverPhotoId },
+          select: { id: true, filename: true, imageUrl: true, previewUrl: true, mediaType: true }
+        })
+      : Promise.resolve(null),
+    prisma.photo.findFirst({
+      where: { galleryId: gallery.id },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, filename: true, imageUrl: true, previewUrl: true, mediaType: true }
+    }),
+    prisma.photo.count({ where: deliveryPhotoWhere }),
+    gallery.coverPhotoId
+      ? prisma.photo.findFirst({
+          where: { ...deliveryPhotoWhere, id: gallery.coverPhotoId },
+          select: { id: true, imageUrl: true, previewUrl: true }
+        })
+      : Promise.resolve(null),
+    prisma.photo.findFirst({
+      where: deliveryPhotoWhere,
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, filename: true, imageUrl: true, previewUrl: true }
+    }),
+    prisma.photo.findMany({
+      where: { galleryId: gallery.id, mediaType: { not: "video" }, isClientHidden: false },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      take: 6,
+      select: { id: true, filename: true, imageUrl: true, previewUrl: true }
+    })
+  ]);
+  const rawPhotoCount = photoSummary.filter((photo) => photo.deliveryStage === "raw").length;
+  const finalPhotoCount = photoSummary.filter((photo) => photo.deliveryStage === "final").length;
   const submittedListCount = gallery.favoriteLists.filter((list) => list.submittedAt).length;
   const paidGallery = galleryDeliveryUsesPayment(gallery.deliveryMode);
   const selectedGalleryDesign = normalizeGalleryDesign(gallery.galleryDesign);
@@ -480,7 +531,7 @@ export default async function GalleryDetailPage({
   const activeDownloadScope = paidGallery ? paidGalleryScope(gallery.id) : PUBLIC_DOWNLOAD_SCOPE;
   const canPrepareZip =
     (paidGallery || (gallery.downloadsEnabled && galleryDeliveryAllowsDownloads(gallery.deliveryMode))) &&
-    gallery.photos.length > 0 &&
+    photoSummary.length > 0 &&
     (!proofingGallery || gallery.proofingStatus === PROOFING_STATUS_DELIVERED);
   const publicDownloadPackages = gallery.downloadPackages.filter((downloadPackage) => downloadPackage.scope === activeDownloadScope);
   const publicDownloadEntries = gallery.downloads.filter((download) => !download.package || download.package.scope === activeDownloadScope);
@@ -501,23 +552,19 @@ export default async function GalleryDetailPage({
     }));
   const sectionPhotoCounts = new Map<string, number>();
 
-  for (const photo of gallery.photos) {
+  for (const photo of photoSummary) {
     if (photo.sectionId) {
       sectionPhotoCounts.set(photo.sectionId, (sectionPhotoCounts.get(photo.sectionId) ?? 0) + 1);
     }
   }
-  const coverPhoto = gallery.photos.find((photo) => photo.id === gallery.coverPhotoId) || gallery.photos[0];
-  const deliveryEmailPhotos = gallery.photos.filter(
-    (photo) => photo.mediaType !== "video" && (!proofingGallery || photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL)
-  );
-  const deliveryEmailCoverPhoto =
-    deliveryEmailPhotos.find((photo) => photo.id === gallery.coverPhotoId) ?? deliveryEmailPhotos[0] ?? null;
+  const coverPhoto = requestedCoverPhoto ?? firstPhoto;
+  const deliveryEmailCoverPhoto = requestedDeliveryCoverPhoto ?? firstDeliveryPhoto;
   const designPreviewCoverPhoto =
     (coverPhoto?.mediaType !== "video" ? coverPhoto : null) ??
-    gallery.photos.find((photo) => photo.mediaType !== "video") ??
+    designPreviewCandidates[0] ??
     null;
-  const designPreviewGridPhotos = gallery.photos
-    .filter((photo) => photo.mediaType !== "video" && !photo.isClientHidden && photo.id !== designPreviewCoverPhoto?.id)
+  const designPreviewGridPhotos = designPreviewCandidates
+    .filter((photo) => photo.id !== designPreviewCoverPhoto?.id)
     .slice(0, 4);
   const coverPositionControlProps =
     coverPhoto && coverPhoto.mediaType !== "video"
@@ -605,7 +652,7 @@ export default async function GalleryDetailPage({
             logoUrl={gallery.admin.siteSettings?.logoUrl ?? null}
             photographerName={gallery.admin.siteSettings?.businessName || gallery.admin.name}
             language={customerLanguage}
-            hasPhotos={deliveryEmailPhotos.length > 0}
+            hasPhotos={deliveryEmailPhotoCount > 0}
           />
           <ButtonLink href={galleryPublicUrl} variant="secondary">
             <ExternalLink size={16} />
@@ -801,12 +848,14 @@ export default async function GalleryDetailPage({
                 />
               </div>
             </section>
-            <MediaProcessingStatus galleryId={gallery.id} photos={gallery.photos} jobs={gallery.mediaProcessingJobs} />
+            <MediaProcessingStatus galleryId={gallery.id} photos={mediaProcessingPhotos} jobs={gallery.mediaProcessingJobs} />
             <PhotoManager
               coverPhotoId={gallery.coverPhotoId}
               galleryId={gallery.id}
               galleryMode={gallery.galleryMode}
-              photos={gallery.photos}
+              photos={initialPhotoPage.photos}
+              photoSummary={photoSummary}
+              filteredPhotoCount={initialPhotoPage.totalCount}
               sections={gallery.sections.map((section) => ({ id: section.id, title: section.title }))}
               activeSet={flags.photoSet}
               activeSearch={flags.photoSearch}
@@ -985,7 +1034,7 @@ export default async function GalleryDetailPage({
             />
             <div className="border-t border-ink/10 pt-6"><p className={sectionMetaClass}>Letöltések</p></div>
             <PhotoDownloadLog downloads={gallery.photoDownloads} />
-            <ZipPreparationStatus galleryId={gallery.id} packages={publicDownloadPackages} photoCount={gallery.photos.length} canPrepareZip={canPrepareZip} />
+            <ZipPreparationStatus galleryId={gallery.id} packages={publicDownloadPackages} photoCount={photoSummary.length} canPrepareZip={canPrepareZip} />
             <DownloadLog galleryId={gallery.id} downloads={publicDownloadEntries} packages={publicDownloadPackages.slice(0, 8)} />
           </div>
         </div>

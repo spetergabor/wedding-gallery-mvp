@@ -11,8 +11,7 @@ import { PhotoSortableGridClient } from "@/components/photo-sortable-grid-client
 import type { PhotoManagerSet, SortablePhoto } from "@/components/photo-sortable-grid";
 import {
   lightroomFilenameList,
-  parsePhotoFilenameSearch,
-  photoMatchesFilenameSearch
+  parsePhotoFilenameSearch
 } from "@/lib/photo-filename";
 import {
   PHOTO_DELIVERY_STAGE_FINAL,
@@ -20,11 +19,13 @@ import {
   isProofingGallery
 } from "@/lib/proofing";
 
-function duplicatePhotoKey(photo: SortablePhoto) {
+type DuplicatePhotoCandidate = Pick<SortablePhoto, "deliveryStage" | "mediaType" | "filename" | "fileSize">;
+
+function duplicatePhotoKey(photo: DuplicatePhotoCandidate) {
   return [photo.deliveryStage, photo.mediaType === "video" ? "video" : "image", photo.filename.trim(), photo.fileSize ?? 0].join("\u001F");
 }
 
-function countDuplicatePhotos(photos: SortablePhoto[]) {
+function countDuplicatePhotos(photos: DuplicatePhotoCandidate[]) {
   const groups = new Map<string, number>();
 
   for (const photo of photos) {
@@ -48,6 +49,8 @@ export function PhotoManager({
   galleryId,
   galleryMode,
   photos,
+  photoSummary,
+  filteredPhotoCount,
   sections = [],
   activeSet = "all",
   activeSearch = "",
@@ -57,6 +60,8 @@ export function PhotoManager({
   galleryId: string;
   galleryMode: string;
   photos: SortablePhoto[];
+  photoSummary: Array<Pick<SortablePhoto, "id" | "filename" | "deliveryStage" | "mediaType" | "fileSize">>;
+  filteredPhotoCount: number;
   sections?: Array<{ id: string; title: string }>;
   activeSet?: string | null;
   activeSearch?: string | null;
@@ -64,18 +69,18 @@ export function PhotoManager({
 }) {
   const proofingGallery = isProofingGallery(galleryMode);
   const selectedSet = new Set(selectedPhotoIds);
-  const rawCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW).length;
-  const finalCount = photos.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL).length;
-  const selectedCount = photos.filter((photo) => selectedSet.has(photo.id)).length;
+  const rawCount = photoSummary.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW).length;
+  const finalCount = photoSummary.filter((photo) => photo.deliveryStage === PHOTO_DELIVERY_STAGE_FINAL).length;
+  const selectedCount = photoSummary.filter((photo) => selectedSet.has(photo.id)).length;
   const selectedLightroomList = lightroomFilenameList(
-    photos.filter((photo) => selectedSet.has(photo.id)).map((photo) => photo.filename)
+    photoSummary.filter((photo) => selectedSet.has(photo.id)).map((photo) => photo.filename)
   );
-  const duplicateCount = countDuplicatePhotos(photos);
+  const duplicateCount = countDuplicatePhotos(photoSummary);
   const normalizedActiveSet = normalizePhotoManagerSet(activeSet);
   const normalizedSearch = (activeSearch ?? "").trim();
   const filenameSearch = parsePhotoFilenameSearch(normalizedSearch);
-  const basePhotos = proofingGallery
-    ? photos.filter((photo) => {
+  const basePhotoCount = proofingGallery
+    ? photoSummary.filter((photo) => {
         if (normalizedActiveSet === "raw") {
           return photo.deliveryStage === PHOTO_DELIVERY_STAGE_RAW;
         }
@@ -89,13 +94,10 @@ export function PhotoManager({
         }
 
         return true;
-      })
-    : photos;
-  const displayedPhotos = normalizedSearch
-    ? basePhotos.filter((photo) => photoMatchesFilenameSearch(photo.filename, filenameSearch))
-    : basePhotos;
+      }).length
+    : photoSummary.length;
   const photoSetTabs = [
-    { key: "all", label: "Összes", count: photos.length },
+    { key: "all", label: "Összes", count: photoSummary.length },
     { key: "raw", label: "Nyers képek", count: rawCount },
     { key: "selected", label: "Ügyfél által kiválasztottak", count: selectedCount },
     { key: "final", label: "Kész képek", count: finalCount }
@@ -135,7 +137,7 @@ export function PhotoManager({
               </ConfirmSubmitButton>
             </form>
           ) : null}
-          {photos.length > 1 ? (
+          {photoSummary.length > 1 ? (
             <form action={reorderGalleryPhotosAction.bind(null, galleryId)}>
               <FormSubmitButton
                 variant="secondary"
@@ -224,9 +226,9 @@ export function PhotoManager({
         <p className="mt-2 text-xs text-graphite/70">
           {normalizedSearch
             ? filenameSearch.isList
-              ? `${displayedPhotos.length} kép található a bemásolt ${filenameSearch.terms.length} egyedi fájlnévből. A „Láthatók kijelölése” gombbal egyszerre kijelölheted őket.`
-              : `${displayedPhotos.length} találat / ${basePhotos.length} kép ebben a nézetben.`
-            : `${basePhotos.length} kép ebben a nézetben.`}
+              ? `${filteredPhotoCount} kép található a bemásolt ${filenameSearch.terms.length} egyedi fájnévből. A „Láthatók kijelölése” gombbal a betöltött találatokat egyszerre kijelölheted.`
+              : `${filteredPhotoCount} találat / ${basePhotoCount} kép ebben a nézetben.`
+            : `${basePhotoCount} kép ebben a nézetben.`}
         </p>
         <p className="mt-1 text-xs text-graphite/55">
           Több fájlnevet külön sorban, vesszővel, pontosvesszővel, tabulátorral vagy szóközzel elválasztva is beilleszthetsz. A kiterjesztés nem kötelező.
@@ -240,6 +242,7 @@ export function PhotoManager({
         galleryId={galleryId}
         galleryMode={galleryMode}
         photos={photos}
+        totalPhotoCount={filteredPhotoCount}
         sections={sections}
         selectedPhotoIds={selectedPhotoIds}
       />

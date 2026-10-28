@@ -53,8 +53,6 @@ export type SortablePhoto = {
 export type PhotoManagerSet = "all" | "raw" | "final" | "selected";
 
 const STALE_PROCESSING_BADGE_MS = 2 * 60 * 60 * 1000;
-const INITIAL_VISIBLE_PHOTO_COUNT = 120;
-const VISIBLE_PHOTO_INCREMENT = 120;
 const PHOTO_GRID_COLUMN_STORAGE_KEY = "speter.admin.photoGridColumns";
 const PHOTO_GRID_COLUMN_OPTIONS = [3, 4, 5, 6, 7] as const;
 
@@ -101,7 +99,7 @@ function shouldShowProcessingBadge(photo: SortablePhoto) {
 }
 
 function photosChanged(left: SortablePhoto[], right: SortablePhoto[]) {
-  return left.some((photo, index) => photo.id !== right[index]?.id);
+  return left.length !== right.length || left.some((photo, index) => photo.id !== right[index]?.id);
 }
 
 function photoPreviewStyle(photo: SortablePhoto): CSSProperties {
@@ -124,6 +122,7 @@ export type PhotoSortableGridProps = {
   galleryId: string;
   galleryMode: string;
   photos: SortablePhoto[];
+  totalPhotoCount: number;
   sections?: Array<{ id: string; title: string }>;
   selectedPhotoIds: string[];
 };
@@ -136,22 +135,25 @@ export function PhotoSortableGrid({
   galleryId,
   galleryMode,
   photos,
+  totalPhotoCount,
   sections = [],
   selectedPhotoIds
 }: PhotoSortableGridProps) {
+  const [serverPhotos, setServerPhotos] = useState(() => photos);
   const [orderedPhotos, setOrderedPhotos] = useState(() => photos);
   const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
   const [dropTargetPhotoId, setDropTargetPhotoId] = useState<string | null>(null);
   const [gridColumnCount, setGridColumnCount] = useState<PhotoGridColumnCount>(3);
   const [bulkSelectedPhotoIds, setBulkSelectedPhotoIds] = useState<Set<string>>(() => new Set());
-  const [visiblePhotoCount, setVisiblePhotoCount] = useState(INITIAL_VISIBLE_PHOTO_COUNT);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
   const lastLiveMoveRef = useRef<{ draggedId: string; targetId: string } | null>(null);
   const lastBulkSelectionAnchorIdRef = useRef<string | null>(null);
   const proofingGallery = isProofingGallery(galleryMode);
   const selectedSet = useMemo(() => new Set(selectedPhotoIds), [selectedPhotoIds]);
   const normalizedSearch = activeSearch.trim().toLowerCase();
   const filenameSearch = useMemo(() => parsePhotoFilenameSearch(activeSearch), [activeSearch]);
-  const hasUnsavedOrder = photosChanged(orderedPhotos, photos);
+  const hasUnsavedOrder = photosChanged(orderedPhotos, serverPhotos);
   const compactGrid = gridColumnCount >= 5;
   const basePhotos = useMemo(() => {
     if (!proofingGallery) {
@@ -177,12 +179,13 @@ export function PhotoSortableGrid({
   const displayedPhotos = normalizedSearch
     ? basePhotos.filter((photo) => photoMatchesFilenameSearch(photo.filename, filenameSearch))
     : basePhotos;
-  const visiblePhotos = displayedPhotos.slice(0, visiblePhotoCount);
-  const remainingPhotoCount = Math.max(0, displayedPhotos.length - visiblePhotos.length);
+  const visiblePhotos = displayedPhotos;
+  const remainingPhotoCount = Math.max(0, totalPhotoCount - orderedPhotos.length);
   const displayedPhotoIds = useMemo(() => displayedPhotos.map((photo) => photo.id), [displayedPhotos]);
   const bulkSelectedCount = bulkSelectedPhotoIds.size;
   const selectedVisibleCount = displayedPhotoIds.filter((photoId) => bulkSelectedPhotoIds.has(photoId)).length;
   const allDisplayedSelected = displayedPhotoIds.length > 0 && selectedVisibleCount === displayedPhotoIds.length;
+  const canReorder = activeSet === "all" && !normalizedSearch && remainingPhotoCount === 0;
 
   useEffect(() => {
     const storedColumnCount = Number(window.localStorage.getItem(PHOTO_GRID_COLUMN_STORAGE_KEY));
@@ -191,6 +194,12 @@ export function PhotoSortableGrid({
       setGridColumnCount(storedColumnCount as PhotoGridColumnCount);
     }
   }, []);
+
+  useEffect(() => {
+    setServerPhotos(photos);
+    setOrderedPhotos(photos);
+    setLoadMoreError("");
+  }, [activeSearch, activeSet, photos]);
 
   useEffect(() => {
     const currentPhotoIds = new Set(photos.map((photo) => photo.id));
@@ -205,10 +214,6 @@ export function PhotoSortableGrid({
     }
   }, [photos]);
 
-  useEffect(() => {
-    setVisiblePhotoCount(INITIAL_VISIBLE_PHOTO_COUNT);
-  }, [activeSearch, activeSet]);
-
   function updateGridColumnCount(columnCount: PhotoGridColumnCount) {
     setGridColumnCount(columnCount);
     window.localStorage.setItem(PHOTO_GRID_COLUMN_STORAGE_KEY, String(columnCount));
@@ -221,7 +226,7 @@ export function PhotoSortableGrid({
   }
 
   function movePhoto(draggedId: string, targetId: string) {
-    if (draggedId === targetId) {
+    if (!canReorder || draggedId === targetId) {
       return;
     }
 
@@ -297,6 +302,57 @@ export function PhotoSortableGrid({
     });
   }
 
+  async function loadMorePhotos() {
+    if (isLoadingMore || remainingPhotoCount === 0) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setLoadMoreError("");
+
+    try {
+      const search = new URLSearchParams({
+        offset: String(orderedPhotos.length),
+        photoSet: activeSet
+      });
+
+      if (activeSearch.trim()) {
+        search.set("photoSearch", activeSearch.trim());
+      }
+
+      const response = await fetch(`/api/admin/galleries/${galleryId}/photos?${search.toString()}`, {
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        throw new Error("A további médiák betöltése nem sikerült.");
+      }
+
+      const payload = (await response.json()) as {
+        photos?: Array<Omit<SortablePhoto, "clientHiddenAt" | "processingRequestedAt"> & {
+          clientHiddenAt: string | null;
+          processingRequestedAt: string | null;
+        }>;
+      };
+      const nextPhotos = (payload.photos ?? []).map((photo) => ({
+        ...photo,
+        clientHiddenAt: photo.clientHiddenAt ? new Date(photo.clientHiddenAt) : null,
+        processingRequestedAt: photo.processingRequestedAt ? new Date(photo.processingRequestedAt) : null
+      }));
+
+      if (nextPhotos.length === 0) {
+        throw new Error("Nem érkezett több média. Frissítsd az oldalt, majd próbáld újra.");
+      }
+
+      setServerPhotos((current) => [...current, ...nextPhotos]);
+      setOrderedPhotos((current) => [...current, ...nextPhotos]);
+    } catch (error) {
+      setLoadMoreError(error instanceof Error ? error.message : "A további médiák betöltése nem sikerült.");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }
+
   return (
     <>
       <div className="mb-4 flex flex-col gap-3 rounded-lg border border-ink/10 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -304,6 +360,9 @@ export function PhotoSortableGrid({
           <p className="text-sm font-semibold text-ink">Képek egy sorban</p>
           <p className="mt-0.5 text-xs text-graphite/70">
             Nagy kijelzőn most {gridColumnCount} kép látszik egy sorban.
+            {!canReorder && activeSet === "all" && !normalizedSearch && remainingPhotoCount > 0
+              ? " A kézi sorrendezés az összes média betöltése után érhető el."
+              : ""}
           </p>
         </div>
         <div className="inline-flex w-full rounded-md border border-ink/10 bg-mist p-1 sm:w-auto">
@@ -374,7 +433,7 @@ export function PhotoSortableGrid({
           return (
             <div
               key={photo.id}
-              draggable
+              draggable={canReorder}
               aria-grabbed={isDragging}
               onDragStart={(event) => {
                 setDraggedPhotoId(photo.id);
@@ -418,7 +477,7 @@ export function PhotoSortableGrid({
                 event.preventDefault();
                 resetDragState();
               }}
-              className={`group relative mb-4 inline-block w-full transform-gpu cursor-grab break-inside-avoid overflow-hidden rounded-lg border bg-white align-top shadow-sm transition-[transform,box-shadow,border-color,opacity] duration-200 ease-out active:cursor-grabbing ${
+              className={`group relative mb-4 inline-block w-full transform-gpu break-inside-avoid overflow-hidden rounded-lg border bg-white align-top shadow-sm transition-[transform,box-shadow,border-color,opacity] duration-200 ease-out ${canReorder ? "cursor-grab active:cursor-grabbing" : "cursor-default"} ${
                 isDragging
                   ? "scale-[1.02] rotate-[0.35deg] border-brass/70 opacity-85 shadow-[0_18px_45px_rgba(17,17,17,0.16)] ring-2 ring-brass/25"
                   : isDropTarget
@@ -467,14 +526,16 @@ export function PhotoSortableGrid({
                     sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
                   />
                 )}
-                <span
-                  className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                    isDragging ? "bg-ink text-white" : "bg-white/90 text-ink"
-                  }`}
-                >
-                  <GripVertical size={13} />
-                  Húzd
-                </span>
+                {canReorder ? (
+                  <span
+                    className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                      isDragging ? "bg-ink text-white" : "bg-white/90 text-ink"
+                    }`}
+                  >
+                    <GripVertical size={13} />
+                    Húzd
+                  </span>
+                ) : null}
                 {coverPhotoId === photo.id ? (
                   <span className="absolute left-3 bottom-3 inline-flex items-center gap-1.5 rounded-md bg-white/90 px-2.5 py-1 text-xs font-medium text-ink">
                     <Star size={13} />
@@ -630,15 +691,19 @@ export function PhotoSortableGrid({
       {remainingPhotoCount > 0 ? (
         <div className="mt-5 flex flex-col items-center gap-2 rounded-lg border border-ink/10 bg-white px-4 py-5 text-center shadow-soft">
           <p className="text-sm text-graphite/70">
-            {visiblePhotos.length} / {displayedPhotos.length} kép megjelenítve
+            {orderedPhotos.length} / {totalPhotoCount} kép megjelenítve
           </p>
           <button
             type="button"
-            onClick={() => setVisiblePhotoCount((current) => current + VISIBLE_PHOTO_INCREMENT)}
+            onClick={loadMorePhotos}
+            disabled={isLoadingMore}
             className="inline-flex h-11 items-center justify-center rounded-md bg-ink px-5 text-sm font-medium text-white transition hover:bg-graphite"
           >
-            További {Math.min(VISIBLE_PHOTO_INCREMENT, remainingPhotoCount)} kép megjelenítése
+            {isLoadingMore
+              ? "Betöltés…"
+              : `További ${Math.min(120, remainingPhotoCount)} kép megjelenítése`}
           </button>
+          {loadMoreError ? <p className="text-xs font-medium text-red-700">{loadMoreError}</p> : null}
         </div>
       ) : null}
 
@@ -659,7 +724,7 @@ export function PhotoSortableGrid({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setOrderedPhotos(photos)}
+              onClick={() => setOrderedPhotos(serverPhotos)}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/12 bg-white px-3 text-sm font-medium text-graphite transition hover:bg-ink/5"
             >
               <Undo2 size={15} />
