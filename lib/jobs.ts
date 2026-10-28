@@ -11,6 +11,7 @@ import {
   ensureDownloadPackageAccessToken,
   favoriteListIdFromScope,
   guestUploadSelectionDownloadScope,
+  isAdminFavoriteDownloadScope,
   isGuestUploadDownloadScope,
   isFavoriteDownloadScope,
   publicDownloadQualityFromScope,
@@ -209,12 +210,14 @@ async function findFavoriteZipPhotos({
   galleryId,
   listId,
   offset,
-  limit
+  limit,
+  includeRestricted = false
 }: {
   galleryId: string;
   listId: string;
   offset: number;
   limit: number | null;
+  includeRestricted?: boolean;
 }) {
   const list = await prisma.galleryFavoriteList.findFirst({
     where: {
@@ -227,8 +230,12 @@ async function findFavoriteZipPhotos({
         where: {
           photo: {
             galleryId,
-            isClientHidden: false,
-            deliveryStage: PHOTO_DELIVERY_STAGE_FINAL
+            ...(includeRestricted
+              ? {}
+              : {
+                  isClientHidden: false,
+                  deliveryStage: PHOTO_DELIVERY_STAGE_FINAL
+                })
           }
         },
         orderBy: { createdAt: "asc" },
@@ -1168,6 +1175,7 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
   const downloadPackageId = downloadPackage.id;
   const quality = publicDownloadQualityFromScope(downloadPackage.scope);
   const favoriteListId = favoriteListIdFromScope(downloadPackage.scope);
+  const adminFavoriteScope = isAdminFavoriteDownloadScope(downloadPackage.scope);
   const guestUploadScope = isGuestUploadDownloadScope(downloadPackage.scope);
   const selectedGuestPhotoIds = Array.isArray(downloadPackage.photoIds)
     ? downloadPackage.photoIds.filter((value): value is string => typeof value === "string" && Boolean(value))
@@ -1237,11 +1245,21 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
     throw new Error("Diese Galerie wurde nicht gefunden.");
   }
 
-  if (!guestUploadScope && !isPaidDownloadScope(downloadPackage.scope) && (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))) {
+  if (
+    !guestUploadScope &&
+    !adminFavoriteScope &&
+    !isPaidDownloadScope(downloadPackage.scope) &&
+    (!gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(gallery.deliveryMode))
+  ) {
     throw new Error("Downloads sind für diese Galerie derzeit deaktiviert.");
   }
 
-  if (!guestUploadScope && isProofingGallery(gallery.galleryMode) && gallery.proofingStatus !== PROOFING_STATUS_DELIVERED) {
+  if (
+    !guestUploadScope &&
+    !adminFavoriteScope &&
+    isProofingGallery(gallery.galleryMode) &&
+    gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
+  ) {
     throw new Error("Die finalen Fotos sind noch nicht freigegeben.");
   }
 
@@ -1252,7 +1270,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
           galleryId: gallery.id,
           listId: favoriteListId,
           offset: downloadPackage.photoOffset,
-          limit: downloadPackage.photoLimit
+          limit: downloadPackage.photoLimit,
+          includeRestricted: adminFavoriteScope
         })
       : gallery.photos;
 
@@ -1374,7 +1393,8 @@ export async function generateGalleryZip(payload: ZipGenerationPayload) {
             galleryId: gallery.id,
             listId: favoriteListId,
             offset: downloadPackage.photoOffset,
-            limit: downloadPackage.photoLimit
+            limit: downloadPackage.photoLimit,
+            includeRestricted: adminFavoriteScope
           })).map((photo) => ({ id: photo.id }))
         : await prisma.photo.findMany({
             where: { galleryId: gallery.id, isClientHidden: false, deliveryStage: PHOTO_DELIVERY_STAGE_FINAL },

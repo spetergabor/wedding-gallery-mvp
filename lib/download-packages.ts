@@ -10,6 +10,7 @@ export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web";
 export const LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE_V2 = "public_web_v2";
 export const PUBLIC_WEB_DOWNLOAD_SCOPE = "public_web_v3";
 export const FAVORITE_DOWNLOAD_SCOPE_PREFIX = "favorites:";
+export const ADMIN_FAVORITE_DOWNLOAD_SCOPE_PREFIX = "admin_favorites:";
 export const PUBLIC_DOWNLOAD_SCOPES = [
   PUBLIC_DOWNLOAD_SCOPE,
   LEGACY_PUBLIC_WEB_DOWNLOAD_SCOPE,
@@ -33,14 +34,30 @@ export function favoriteDownloadScope(listId: string) {
   return `${FAVORITE_DOWNLOAD_SCOPE_PREFIX}${listId}`;
 }
 
-export function favoriteListIdFromScope(scope: string | null | undefined) {
-  return scope?.startsWith(FAVORITE_DOWNLOAD_SCOPE_PREFIX)
-    ? scope.slice(FAVORITE_DOWNLOAD_SCOPE_PREFIX.length)
+export function adminFavoriteDownloadScope(listId: string) {
+  return `${ADMIN_FAVORITE_DOWNLOAD_SCOPE_PREFIX}${listId}`;
+}
+
+export function adminFavoriteListIdFromScope(scope: string | null | undefined) {
+  return scope?.startsWith(ADMIN_FAVORITE_DOWNLOAD_SCOPE_PREFIX)
+    ? scope.slice(ADMIN_FAVORITE_DOWNLOAD_SCOPE_PREFIX.length)
     : null;
+}
+
+export function favoriteListIdFromScope(scope: string | null | undefined) {
+  if (scope?.startsWith(FAVORITE_DOWNLOAD_SCOPE_PREFIX)) {
+    return scope.slice(FAVORITE_DOWNLOAD_SCOPE_PREFIX.length);
+  }
+
+  return adminFavoriteListIdFromScope(scope);
 }
 
 export function isFavoriteDownloadScope(scope: string | null | undefined) {
   return Boolean(favoriteListIdFromScope(scope));
+}
+
+export function isAdminFavoriteDownloadScope(scope: string | null | undefined) {
+  return Boolean(adminFavoriteListIdFromScope(scope));
 }
 
 export function isGuestUploadDownloadScope(scope: string | null | undefined) {

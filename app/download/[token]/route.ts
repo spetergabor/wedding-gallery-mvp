@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { createPresignedPhotoDownloadUrl } from "@/lib/storage";
 import { PROOFING_STATUS_DELIVERED, isProofingGallery } from "@/lib/proofing";
 import { galleryZipFileName } from "@/lib/jobs";
-import { isGuestUploadDownloadScope, publicDownloadQualityFromScope } from "@/lib/download-packages";
+import {
+  favoriteListIdFromScope,
+  isAdminFavoriteDownloadScope,
+  isGuestUploadDownloadScope,
+  publicDownloadQualityFromScope
+} from "@/lib/download-packages";
 import { galleryDeliveryAllowsDownloads } from "@/lib/gallery-delivery";
 import { isPaidPurchaseScope } from "@/lib/gallery-sales-shared";
 
@@ -42,6 +47,7 @@ export async function GET(
       accessTokenExpiresAt: true,
       gallery: {
         select: {
+          id: true,
           title: true,
           downloadsEnabled: true,
           deliveryMode: true,
@@ -58,6 +64,7 @@ export async function GET(
 
   if (
     !isGuestUploadDownloadScope(downloadPackage.scope) &&
+    !isAdminFavoriteDownloadScope(downloadPackage.scope) &&
     !isPaidPurchaseScope(downloadPackage.scope) &&
     (!downloadPackage.gallery.downloadsEnabled || !galleryDeliveryAllowsDownloads(downloadPackage.gallery.deliveryMode))
   ) {
@@ -65,6 +72,7 @@ export async function GET(
   }
 
   if (
+    !isAdminFavoriteDownloadScope(downloadPackage.scope) &&
     isProofingGallery(downloadPackage.gallery.galleryMode) &&
     downloadPackage.gallery.proofingStatus !== PROOFING_STATUS_DELIVERED
   ) {
@@ -75,10 +83,23 @@ export async function GET(
     return plainTextResponse("Dieser Download-Link ist abgelaufen.", 410);
   }
 
+  const favoriteListId = favoriteListIdFromScope(downloadPackage.scope);
+  const favoriteList = favoriteListId
+    ? await prisma.galleryFavoriteList.findFirst({
+        where: {
+          id: favoriteListId,
+          galleryId: downloadPackage.gallery.id
+        },
+        select: { name: true }
+      })
+    : null;
+  const downloadTitle = favoriteList
+    ? `${downloadPackage.gallery.title}-${favoriteList.name}`
+    : downloadPackage.gallery.title;
   const signedUrl = await createPresignedPhotoDownloadUrl({
     r2Key: downloadPackage.r2Key,
     filename: galleryZipFileName(
-      downloadPackage.gallery.title,
+      downloadTitle,
       downloadPackage.partIndex,
       downloadPackage.partCount,
       publicDownloadQualityFromScope(downloadPackage.scope)

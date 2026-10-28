@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Copy, Download, Heart } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Copy, Download, FileSpreadsheet, Heart, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/button";
+import {
+  getAdminFavoriteListZipStateAction,
+  requestAdminFavoriteListZipAction
+} from "@/lib/admin-favorite-download-actions";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { lightroomFilenameList } from "@/lib/photo-filename";
 
@@ -25,6 +29,133 @@ function filenamesText(list: FavoriteList, withoutExtensions: boolean) {
   const filenames = list.items.map((item) => item.photo.filename);
 
   return withoutExtensions ? lightroomFilenameList(filenames) : filenames.join("\n");
+}
+
+type FavoriteZipState = Awaited<ReturnType<typeof requestAdminFavoriteListZipAction>>;
+
+function FavoriteListZipDownload({ listId }: { listId: string }) {
+  const [zipState, setZipState] = useState<FavoriteZipState | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+
+  async function startDownload() {
+    if (isStarting || zipState?.status === "pending" || zipState?.status === "processing") {
+      return;
+    }
+
+    setIsStarting(true);
+
+    try {
+      setZipState(await requestAdminFavoriteListZipAction(listId));
+    } catch {
+      setZipState({
+        ok: false,
+        message: "A ZIP készítését nem sikerült elindítani.",
+        status: "failed",
+        packageId: null,
+        processedCount: 0,
+        photoCount: 0,
+        packages: []
+      });
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
+  useEffect(() => {
+    const packageId = zipState?.packageId;
+
+    if (!packageId || !["pending", "processing"].includes(zipState.status)) {
+      return;
+    }
+
+    const activePackageId = packageId;
+    let mounted = true;
+
+    async function refreshState() {
+      try {
+        const result = await getAdminFavoriteListZipStateAction(activePackageId);
+
+        if (mounted) {
+          setZipState(result);
+        }
+      } catch {
+        if (mounted) {
+          setZipState((current) =>
+            current
+              ? {
+                  ...current,
+                  ok: false,
+                  message: "A ZIP állapotát nem sikerült lekérni.",
+                  status: "failed"
+                }
+              : current
+          );
+        }
+      }
+    }
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshState();
+      }
+    };
+    const interval = window.setInterval(refreshWhenVisible, 3000);
+
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    void refreshState();
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [zipState?.packageId, zipState?.status]);
+
+  if (zipState?.status === "completed" && zipState.packages.length > 0) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {zipState.packages.map((downloadPackage) => (
+          <a
+            key={downloadPackage.id}
+            href={downloadPackage.downloadUrl}
+            download={downloadPackage.filename}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite"
+          >
+            <Download size={16} />
+            {downloadPackage.partCount > 1
+              ? `Képek ZIP ${downloadPackage.partIndex + 1}/${downloadPackage.partCount}`
+              : "Képek ZIP letöltése"}
+          </a>
+        ))}
+      </div>
+    );
+  }
+
+  const isPreparing = isStarting || zipState?.status === "pending" || zipState?.status === "processing";
+  const progressLabel =
+    zipState?.photoCount && zipState.processedCount > 0
+      ? ` (${zipState.processedCount}/${zipState.photoCount})`
+      : "";
+
+  return (
+    <div>
+      <Button type="button" onClick={() => void startDownload()} disabled={isPreparing}>
+        {isPreparing ? <LoaderCircle size={16} className="animate-spin" /> : <Download size={16} />}
+        {isStarting
+          ? "Indítás…"
+          : zipState?.status === "processing"
+            ? `ZIP készül${progressLabel}`
+            : zipState?.status === "pending"
+              ? "ZIP várakozik"
+              : "Képek letöltése"}
+      </Button>
+      {zipState && (!zipState.ok || isPreparing) ? (
+        <p className={`mt-1 max-w-64 text-xs ${zipState.ok ? "text-graphite/60" : "text-red-700"}`}>
+          {zipState.message}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: FavoriteList[]; mode?: "favorites" | "proofing" }) {
@@ -102,19 +233,22 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                     </p>
                   ) : null}
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button type="button" variant="secondary" onClick={() => void handleCopy(list)}>
-                    {copiedListId === list.id ? <Check size={16} /> : <Copy size={16} />}
-                    {copiedListId === list.id ? "Másolva" : "Fájlnevek másolása"}
-                  </Button>
-                  <a
-                    href={`/api/admin/favorite-lists/${encodeURIComponent(list.id)}/download`}
-                    download
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
-                  >
-                    <Download size={16} />
-                    Lista letöltése
-                  </a>
+                <div className="flex shrink-0 flex-wrap items-start gap-2">
+                  <FavoriteListZipDownload listId={list.id} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" onClick={() => void handleCopy(list)}>
+                      {copiedListId === list.id ? <Check size={16} /> : <Copy size={16} />}
+                      {copiedListId === list.id ? "Másolva" : "Fájlnevek másolása"}
+                    </Button>
+                    <a
+                      href={`/api/admin/favorite-lists/${encodeURIComponent(list.id)}/download`}
+                      download
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-4 text-sm font-medium text-ink transition hover:border-ink/30"
+                    >
+                      <FileSpreadsheet size={16} />
+                      CSV
+                    </a>
+                  </div>
                 </div>
               </div>
 
