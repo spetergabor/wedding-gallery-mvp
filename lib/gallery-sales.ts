@@ -198,7 +198,9 @@ export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: Ga
     where: {
       galleryId: purchase.gallery.id,
       scope,
-      status: { in: ["pending", "processing", "completed", "failed"] }
+      status: { in: ["pending", "processing", "completed", "failed"] },
+      partIndex: 0,
+      partCount: 1
     },
     orderBy: [{ partIndex: "asc" }, { createdAt: "asc" }],
     select: {
@@ -216,7 +218,6 @@ export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: Ga
   if (packages.length === 0) {
     const ranges = createZipPartRanges(purchase.gallery.photos, normalizedQuality);
     const partCount = ranges.length;
-    const groupId = partCount > 1 ? scope : null;
 
     packages = await prisma.$transaction(
       ranges.map((range, partIndex) =>
@@ -230,7 +231,7 @@ export async function fulfillPaidGalleryPurchase(purchaseId: string, quality: Ga
             partCount,
             photoOffset: range.offset,
             photoLimit: range.limit,
-            groupId
+            groupId: null
           },
           select: {
             id: true,
@@ -404,7 +405,9 @@ export async function ensurePaidGalleryPurchaseFulfillmentForSession(galleryId: 
         where: {
           galleryId,
           scope,
-          status: { in: ["pending", "processing", "completed", "failed"] }
+          status: { in: ["pending", "processing", "completed", "failed"] },
+          partIndex: 0,
+          partCount: 1
         },
         select: { id: true }
       });

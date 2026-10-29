@@ -184,7 +184,7 @@ function statusMeta(group: ZipGroupSummary | null, photoCount: number) {
   if (group.staleCount > 0 && !group.hasActiveWork) {
     return {
       label: "Új ZIP szükséges",
-      description: "A publikus képlista változott, ezért a vendégeknek új ZIP részeket kell készíteni.",
+      description: "A publikus képlista változott, ezért a vendégeknek új ZIP fájlt kell készíteni.",
       className: "bg-brass/15 text-brass",
       icon: AlertCircle
     };
@@ -414,9 +414,9 @@ export function ZipPreparationStatus({
         <div className="mt-4 rounded-md border border-brass/25 bg-brass/10 p-3">
           <p className="text-sm font-semibold text-ink">A publikus képlista változott</p>
           <div className="mt-2 space-y-1 text-sm text-graphite/75">
-            <p>Új ZIP részek szükségesek.</p>
+            <p>Új ZIP fájl szükséges.</p>
             <p>Régi linkek már nem ideálisak, mert nem biztos, hogy a vendégeknek szánt aktuális listát tartalmazzák.</p>
-            {primaryGroup?.hasActiveWork ? <p>Az új ZIP részek előkészítése már folyamatban van.</p> : null}
+            {primaryGroup?.hasActiveWork ? <p>Az új ZIP fájl előkészítése már folyamatban van.</p> : null}
           </div>
         </div>
       ) : null}

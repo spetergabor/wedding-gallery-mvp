@@ -1,6 +1,5 @@
 import { revalidatePath } from "next/cache";
 import { PassThrough, Readable } from "node:stream";
-import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ZipArchive } from "archiver";
 import sharp from "sharp";
@@ -41,7 +40,6 @@ import { normalizeCustomerLanguage } from "@/lib/customer-language";
 export const ZIP_GENERATION_JOB = "zip_generation";
 const STALE_ZIP_PROCESSING_MS = 15 * 60 * 1000;
 const REMOTE_FILE_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
-const WEB_DOWNLOAD_ESTIMATED_IMAGE_BYTES = 1024 * 1024;
 const WEB_DOWNLOAD_MAX_SIZE = 2400;
 const WEB_DOWNLOAD_JPEG_QUALITY = 76;
 const ZIP_TRIGGER_DISPATCH_CONCURRENCY = readPositiveInteger(process.env.ZIP_TRIGGER_DISPATCH_CONCURRENCY, 8, 1);
@@ -156,39 +154,15 @@ function readPositiveInteger(value: string | undefined, fallback: number, minimu
   return parsed;
 }
 
-const ZIP_PART_TARGET_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_PART_TARGET_MB, 2048, 256);
 const ZIP_UPLOAD_PART_SIZE_BYTES = readPositiveMegabytes(process.env.GALLERY_ZIP_UPLOAD_PART_SIZE_MB, 16, 5);
 
-export function createZipPartRanges(photos: Array<{ fileSize: number | null; mediaType?: string | null }>, quality: GalleryDownloadQuality) {
-  const ranges: Array<{ offset: number; limit: number }> = [];
-  let offset = 0;
-  let currentBytes = 0;
-  let currentCount = 0;
-
-  for (const photo of photos) {
-    const size =
-      quality === "web" && photo.mediaType !== "video"
-        ? WEB_DOWNLOAD_ESTIMATED_IMAGE_BYTES
-        : photo.fileSize && photo.fileSize > 0
-          ? photo.fileSize
-          : 25 * 1024 * 1024;
-
-    if (currentCount > 0 && currentBytes + size > ZIP_PART_TARGET_BYTES) {
-      ranges.push({ offset, limit: currentCount });
-      offset += currentCount;
-      currentBytes = 0;
-      currentCount = 0;
-    }
-
-    currentBytes += size;
-    currentCount += 1;
-  }
-
-  if (currentCount > 0) {
-    ranges.push({ offset, limit: currentCount });
-  }
-
-  return ranges.length > 0 ? ranges : [{ offset: 0, limit: photos.length }];
+export function createZipPartRanges(
+  photos: Array<{ fileSize: number | null; mediaType?: string | null }>,
+  _quality: GalleryDownloadQuality
+) {
+  // The archive is streamed as ZIP64 into one R2 object. R2's multipart upload
+  // still chunks the transfer internally, but guests always receive one ZIP.
+  return [{ offset: 0, limit: photos.length }];
 }
 
 function isCompletePackageSet(packages: Array<{ status: string; downloadUrl: string | null; partIndex: number; partCount: number }>) {
@@ -678,6 +652,8 @@ export async function preparePublicGalleryZipPackages(
       galleryId,
       scope: downloadScope,
       status: "completed",
+      partIndex: 0,
+      partCount: 1,
       photoCount: gallery.photos.length,
       downloadUrl: { not: null },
       r2Key: { not: null },
@@ -718,6 +694,8 @@ export async function preparePublicGalleryZipPackages(
       galleryId,
       scope: downloadScope,
       status: { in: ["pending", "processing"] },
+      partIndex: 0,
+      partCount: 1,
       photoCount: gallery.photos.length
     },
     orderBy: [{ createdAt: "desc" }, { partIndex: "asc" }],
@@ -761,7 +739,6 @@ export async function preparePublicGalleryZipPackages(
 
   const ranges = createZipPartRanges(gallery.photos, quality);
   const partCount = ranges.length;
-  const groupId = partCount > 1 ? randomUUID() : null;
   const createdPackages = await prisma.$transaction(
     ranges.map((range, partIndex) =>
       prisma.galleryDownloadPackage.create({
@@ -774,7 +751,7 @@ export async function preparePublicGalleryZipPackages(
           partCount,
           photoOffset: range.offset,
           photoLimit: range.limit,
-          groupId
+          groupId: null
         },
         select: {
           id: true,
@@ -853,6 +830,8 @@ export async function prepareGuestGalleryZipPackages(
       galleryId,
       scope,
       status: "completed",
+      partIndex: 0,
+      partCount: 1,
       photoCount: gallery.guestUploads.length,
       downloadUrl: { not: null },
       r2Key: { not: null },
@@ -893,6 +872,8 @@ export async function prepareGuestGalleryZipPackages(
       galleryId,
       scope,
       status: { in: ["pending", "processing"] },
+      partIndex: 0,
+      partCount: 1,
       photoCount: gallery.guestUploads.length
     },
     orderBy: [{ createdAt: "desc" }, { partIndex: "asc" }],
@@ -940,7 +921,6 @@ export async function prepareGuestGalleryZipPackages(
 
   const ranges = createZipPartRanges(gallery.guestUploads, "original");
   const partCount = ranges.length;
-  const groupId = partCount > 1 ? randomUUID() : null;
   const createdPackages = await prisma.$transaction(
     ranges.map((range, partIndex) =>
       prisma.galleryDownloadPackage.create({
@@ -956,7 +936,7 @@ export async function prepareGuestGalleryZipPackages(
           photoIds: selectedPhotoIds
             ? gallery.guestUploads.slice(range.offset, range.offset + range.limit).map((upload) => upload.id)
             : undefined,
-          groupId
+          groupId: null
         },
         select: {
           id: true,

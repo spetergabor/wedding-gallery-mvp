@@ -185,7 +185,9 @@ function requestPackageSummary(request: DownloadRequestGroup) {
   const expectedPartCount = Math.max(...request.packages.map((downloadPackage) => downloadPackage.partCount), request.packages.length, 1);
   const readyCount = request.packages.filter((downloadPackage) => downloadPackage.status === "completed" && downloadPackage.downloadUrl).length;
 
-  return `${packageQualityLabel(firstPackage.scope)} · ${readyCount}/${expectedPartCount} ZIP rész`;
+  return expectedPartCount === 1
+    ? `${packageQualityLabel(firstPackage.scope)} · ${readyCount === 1 ? "ZIP kész" : "ZIP készül"}`
+    : `${packageQualityLabel(firstPackage.scope)} · ${readyCount}/${expectedPartCount} régi ZIP rész`;
 }
 
 export function DownloadLog({ galleryId, downloads, packages }: { galleryId: string; downloads: DownloadEntry[]; packages: DownloadPackage[] }) {

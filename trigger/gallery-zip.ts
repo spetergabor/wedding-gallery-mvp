@@ -14,7 +14,7 @@ const machine = machinePresets.find((preset) => preset === process.env.TRIGGER_Z
 
 export const galleryZipTask = task({
   id: "gallery-zip",
-  description: "Build one streaming ZIP archive part for a gallery and upload it to R2.",
+  description: "Build one streaming ZIP64 archive for a gallery and upload it to R2.",
   queue: {
     name: "gallery-zip",
     concurrencyLimit: Number.isFinite(concurrencyLimit) ? concurrencyLimit : 4

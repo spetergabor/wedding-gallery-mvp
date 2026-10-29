@@ -1,6 +1,6 @@
 "use server";
 
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -537,6 +537,8 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
       galleryId,
       scope: downloadScope,
       status: "completed",
+      partIndex: 0,
+      partCount: 1,
       photoCount: gallery.photos.length,
       downloadUrl: { not: null },
       r2Key: { not: null },
@@ -569,6 +571,8 @@ export async function requestGalleryDownloadPackageAction(galleryId: string, ema
         galleryId,
         scope: downloadScope,
         status: { in: ["pending", "processing"] },
+        partIndex: 0,
+        partCount: 1,
         photoCount: gallery.photos.length
       },
       orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { createdAt: "desc" }],
@@ -815,6 +819,8 @@ export async function requestFavoriteListDownloadPackageAction(galleryId: string
       galleryId,
       scope: downloadScope,
       status: "completed",
+      partIndex: 0,
+      partCount: 1,
       photoCount: favoritePhotos.length,
       downloadUrl: { not: null },
       r2Key: { not: null },
@@ -848,6 +854,8 @@ export async function requestFavoriteListDownloadPackageAction(galleryId: string
         galleryId,
         scope: downloadScope,
         status: { in: ["pending", "processing"] },
+        partIndex: 0,
+        partCount: 1,
         photoCount: favoritePhotos.length
       },
       orderBy: [{ groupId: "desc" }, { partIndex: "asc" }, { createdAt: "desc" }],
@@ -884,7 +892,6 @@ export async function requestFavoriteListDownloadPackageAction(galleryId: string
   if (!activePackages) {
     const ranges = createZipPartRanges(favoritePhotos, quality);
     const partCount = ranges.length;
-    const groupId = partCount > 1 ? randomUUID() : null;
     activePackages = await prisma.$transaction(
       ranges.map((range, partIndex) =>
         prisma.galleryDownloadPackage.create({
@@ -897,7 +904,7 @@ export async function requestFavoriteListDownloadPackageAction(galleryId: string
             partCount,
             photoOffset: range.offset,
             photoLimit: range.limit,
-            groupId
+            groupId: null
           },
           select: {
             id: true,
@@ -1190,7 +1197,9 @@ export async function getPaidGalleryPurchaseDownloadState(galleryId: string, ses
       where: {
         galleryId,
         scope: fulfillment.scope,
-        status: { in: ["pending", "processing", "completed", "failed"] }
+        status: { in: ["pending", "processing", "completed", "failed"] },
+        partIndex: 0,
+        partCount: 1
       },
       orderBy: [{ partIndex: "asc" }, { createdAt: "asc" }],
       select: {

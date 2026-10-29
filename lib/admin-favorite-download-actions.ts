@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 import { adminOwnedWhere, favoriteListAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
@@ -179,6 +178,8 @@ export async function requestAdminFavoriteListZipAction(listId: string): Promise
       galleryId: list.gallery.id,
       scope,
       status: "completed",
+      partIndex: 0,
+      partCount: 1,
       photoCount: favoritePhotos.length,
       downloadUrl: { not: null },
       r2Key: { not: null },
@@ -206,6 +207,8 @@ export async function requestAdminFavoriteListZipAction(listId: string): Promise
       galleryId: list.gallery.id,
       scope,
       status: { in: ["pending", "processing"] },
+      partIndex: 0,
+      partCount: 1,
       photoCount: favoritePhotos.length,
       createdAt: { gte: list.updatedAt }
     },
@@ -226,7 +229,6 @@ export async function requestAdminFavoriteListZipAction(listId: string): Promise
   } else {
     const ranges = createZipPartRanges(favoritePhotos, "original");
     const partCount = ranges.length;
-    const groupId = partCount > 1 ? randomUUID() : null;
     activePackages = await prisma.$transaction(
       ranges.map((range, partIndex) =>
         prisma.galleryDownloadPackage.create({
@@ -239,7 +241,7 @@ export async function requestAdminFavoriteListZipAction(listId: string): Promise
             partCount,
             photoOffset: range.offset,
             photoLimit: range.limit,
-            groupId
+            groupId: null
           },
           select: packageSelect
         })
