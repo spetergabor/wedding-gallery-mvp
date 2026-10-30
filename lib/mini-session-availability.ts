@@ -5,6 +5,7 @@ import {
   miniSessionDateKey,
   miniSessionSlotOverlaps,
   parseMiniSessionLocalDateTime,
+  MINI_SESSION_BOOKING_MODE_RECURRING,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   type MiniSessionBusyTime,
   type MiniSessionSlot
@@ -40,6 +41,7 @@ type MiniSessionAvailabilityOptions = {
   rangeDays?: number;
   excludeBookingId?: string;
   excludeProjectId?: string | null;
+  ignoreExternalCalendarConflicts?: boolean;
 };
 
 function slotRange(slots: MiniSessionSlot[]) {
@@ -80,19 +82,21 @@ function projectBusyTime(project: { eventDate: Date | null; startTime: string | 
   return { startsAt, endsAt };
 }
 
-export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessionSlot[], options: Pick<MiniSessionAvailabilityOptions, "excludeBookingId" | "excludeProjectId"> = {}) {
+export async function getMiniSessionBusyTimes(
+  adminId: string,
+  slots: MiniSessionSlot[],
+  options: Pick<
+    MiniSessionAvailabilityOptions,
+    "excludeBookingId" | "excludeProjectId" | "ignoreExternalCalendarConflicts"
+  > = {}
+) {
   const range = slotRange(slots);
 
   if (!range) {
     return [];
   }
 
-  const rangeStartKey = miniSessionDateKey(range.startsAt);
-  const rangeEndKey = miniSessionDateKey(range.endsAt);
-  const projectRangeStartsAt = parseMiniSessionLocalDateTime(rangeStartKey, "00:00") ?? range.startsAt;
-  const projectRangeEndsAt = parseMiniSessionLocalDateTime(rangeEndKey, "23:59") ?? range.endsAt;
-
-  const [bookings, projects, meetings, calendarBlocks, googleCalendarBusyTimes] = await Promise.all([
+  const [bookings, calendarBlocks] = await Promise.all([
     prisma.miniSessionBooking.findMany({
       where: {
         ...(options.excludeBookingId ? { id: { not: options.excludeBookingId } } : {}),
@@ -106,6 +110,34 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
         endsAt: true
       }
     }),
+    prisma.adminCalendarBlock.findMany({
+      where: {
+        adminId,
+        startsAt: { lt: range.endsAt },
+        endsAt: { gt: range.startsAt }
+      },
+      select: {
+        startsAt: true,
+        endsAt: true
+      }
+    })
+  ]);
+
+  const protectedBusyTimes = [
+    ...bookings.map((booking) => ({ startsAt: booking.startsAt, endsAt: booking.endsAt })),
+    ...calendarBlocks.map((block) => ({ startsAt: block.startsAt, endsAt: block.endsAt }))
+  ];
+
+  if (options.ignoreExternalCalendarConflicts) {
+    return protectedBusyTimes;
+  }
+
+  const rangeStartKey = miniSessionDateKey(range.startsAt);
+  const rangeEndKey = miniSessionDateKey(range.endsAt);
+  const projectRangeStartsAt = parseMiniSessionLocalDateTime(rangeStartKey, "00:00") ?? range.startsAt;
+  const projectRangeEndsAt = parseMiniSessionLocalDateTime(rangeEndKey, "23:59") ?? range.endsAt;
+
+  const [projects, meetings, googleCalendarBusyTimes] = await Promise.all([
     prisma.customerProject.findMany({
       where: {
         ...(options.excludeProjectId ? { id: { not: options.excludeProjectId } } : {}),
@@ -136,17 +168,6 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
         endTime: true
       }
     }),
-    prisma.adminCalendarBlock.findMany({
-      where: {
-        adminId,
-        startsAt: { lt: range.endsAt },
-        endsAt: { gt: range.startsAt }
-      },
-      select: {
-        startsAt: true,
-        endsAt: true
-      }
-    }),
     getGoogleCalendarBusyTimesForAdmin(adminId, range.startsAt, range.endsAt)
   ]);
 
@@ -158,8 +179,7 @@ export async function getMiniSessionBusyTimes(adminId: string, slots: MiniSessio
     .filter((busyTime): busyTime is MiniSessionBusyTime => Boolean(busyTime));
 
   return [
-    ...bookings.map((booking) => ({ startsAt: booking.startsAt, endsAt: booking.endsAt })),
-    ...calendarBlocks.map((block) => ({ startsAt: block.startsAt, endsAt: block.endsAt })),
+    ...protectedBusyTimes,
     ...projectBusyTimes,
     ...meetingBusyTimes,
     ...googleCalendarBusyTimes
@@ -174,7 +194,13 @@ export async function getAvailableMiniSessionSlots(
     createMiniSessionSlots(session, options),
     session.minBookingNoticeMinutes
   );
-  const busyTimes = await getMiniSessionBusyTimes(session.adminId, slots, options);
+  const busyTimes = await getMiniSessionBusyTimes(session.adminId, slots, {
+    ...options,
+    // A fixed mini-session day is an explicit availability declaration. It must not
+    // be hidden by the project or Google Calendar event that represents the event itself.
+    ignoreExternalCalendarConflicts:
+      options.ignoreExternalCalendarConflicts ?? session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
+  });
 
   return filterMiniSessionSlotsByBusyTimes(slots, busyTimes);
 }
@@ -182,7 +208,10 @@ export async function getAvailableMiniSessionSlots(
 export async function hasMiniSessionSlotConflict(
   adminId: string,
   slot: MiniSessionBusyTime,
-  options: Pick<MiniSessionAvailabilityOptions, "excludeBookingId" | "excludeProjectId"> = {}
+  options: Pick<
+    MiniSessionAvailabilityOptions,
+    "excludeBookingId" | "excludeProjectId" | "ignoreExternalCalendarConflicts"
+  > = {}
 ) {
   const booking = await prisma.miniSessionBooking.findFirst({
     where: {
@@ -210,6 +239,10 @@ export async function hasMiniSessionSlotConflict(
 
   if (calendarBlock) {
     return true;
+  }
+
+  if (options.ignoreExternalCalendarConflicts) {
+    return false;
   }
 
   const dateKey = miniSessionDateKey(slot.startsAt);

@@ -1003,7 +1003,11 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
     redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=notice`);
   }
 
-  if (await hasMiniSessionSlotConflict(session.adminId, slot)) {
+  if (
+    await hasMiniSessionSlotConflict(session.adminId, slot, {
+      ignoreExternalCalendarConflicts: session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
+    })
+  ) {
     redirect(`/admin/mini-sessions/${session.id}?tab=slots&error=taken`);
   }
 
@@ -1187,7 +1191,11 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
     redirect(`${bookingPath}?error=notice`);
   }
 
-  if (await hasMiniSessionSlotConflict(session.adminId, slot)) {
+  if (
+    await hasMiniSessionSlotConflict(session.adminId, slot, {
+      ignoreExternalCalendarConflicts: session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
+    })
+  ) {
     redirect(`${bookingPath}?error=taken`);
   }
 
@@ -1568,7 +1576,9 @@ export async function rescheduleMiniSessionBookingAction(token: string, formData
   if (
     await hasMiniSessionSlotConflict(booking.miniSession.adminId, slot, {
       excludeBookingId: booking.id,
-      excludeProjectId: booking.projectId
+      excludeProjectId: booking.projectId,
+      ignoreExternalCalendarConflicts:
+        booking.miniSession.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
     })
   ) {
     redirect(`/mini-session/${slug}/reschedule/${token}?error=taken`);
