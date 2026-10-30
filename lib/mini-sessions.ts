@@ -78,6 +78,17 @@ type MiniSessionLike = {
   }>;
 };
 
+type MiniSessionEventWorkDaysLike = {
+  bookingMode?: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  eventDays?: Array<{
+    date: Date;
+    startsAt?: string;
+    endsAt?: string;
+  }>;
+};
+
 function slotToken(date: Date) {
   return date.toISOString();
 }
@@ -363,6 +374,40 @@ export function createMiniSessionSlots(
   }
 
   return createDailySlotsFromDateRange(session.startsAt, session.endsAt, session.durationMinutes);
+}
+
+export function miniSessionEventWorkDays(session: MiniSessionEventWorkDaysLike) {
+  if (session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING) {
+    return [];
+  }
+
+  const fallbackStartTime = miniSessionTimeInput(session.startsAt);
+  const fallbackEndTime = miniSessionTimeInput(session.endsAt);
+  const eventDays = Array.from(
+    new Map(
+      (session.eventDays ?? [])
+        .slice()
+        .sort((left, right) => left.date.getTime() - right.date.getTime())
+        .map((eventDay) => [miniSessionDateKey(eventDay.date), eventDay])
+    ).entries()
+  );
+
+  if (eventDays.length === 0) {
+    return [{
+      key: miniSessionDateKey(session.startsAt),
+      startsAt: session.startsAt,
+      endsAt: session.endsAt
+    }];
+  }
+
+  return eventDays.flatMap(([key, eventDay]) => {
+    const startTime = isTimeValue(eventDay.startsAt ?? "") ? eventDay.startsAt! : fallbackStartTime;
+    const endTime = isTimeValue(eventDay.endsAt ?? "") ? eventDay.endsAt! : fallbackEndTime;
+    const startsAt = parseMiniSessionLocalDateTime(key, startTime);
+    const endsAt = parseMiniSessionLocalDateTime(key, endTime);
+
+    return startsAt && endsAt && endsAt > startsAt ? [{ key, startsAt, endsAt }] : [];
+  });
 }
 
 export function miniSessionSlotOverlaps(slot: MiniSessionBusyTime, busyTime: MiniSessionBusyTime) {

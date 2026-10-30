@@ -36,6 +36,9 @@ import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLab
 import { ensureLeadPipelineSchema, leadEventTypeLabel, leadStatusLabel, normalizeLeadStatus } from "@/lib/leads";
 import {
   formatMiniSessionSlot,
+  miniSessionDateKey,
+  miniSessionEventWorkDays,
+  MINI_SESSION_BOOKING_MODE_RECURRING,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
   MINI_SESSION_BOOKING_STATUS_BOOKED
@@ -139,6 +142,16 @@ type DashboardUpcomingMiniSessionBooking = {
     title: string;
     location: string;
   };
+};
+
+type DashboardUpcomingMiniSessionDay = {
+  key: string;
+  miniSessionId: string;
+  title: string;
+  location: string;
+  startsAt: Date;
+  endsAt: Date;
+  bookingCount: number;
 };
 
 type DashboardUpcomingMeeting = {
@@ -513,13 +526,16 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Munkák",
     projectsTitle: "Következő munkák",
-    projectsDescription: "Ügyfélprojektek, meetingek és egyszerű időpontfoglalások egy időrendben.",
+    projectsDescription: "Ügyfélprojektek, meetingek, mini session napok és egyszerű időpontfoglalások egy időrendben.",
     openAllWork: "Összes munka",
     openClients: "Ügyfelek",
     openBookings: "Foglalások",
     noUpcomingTitle: "Nincs közelgő munka",
-    noUpcomingDescription: "A jövőbeli projektek és egyszerű foglalások itt jelennek majd meg időrendben.",
+    noUpcomingDescription: "A jövőbeli projektek, mini session napok és egyszerű foglalások itt jelennek majd meg időrendben.",
     simpleBooking: "Egyszerű foglalás",
+    miniSessionDay: "Mini session nap",
+    scheduled: "Meghirdetve",
+    bookingCount: (count: number) => `${count} foglalás`,
     clientMeeting: "Ügyfélmeeting",
     clientTask: "Feladat",
     booked: "Foglalva",
@@ -629,13 +645,16 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Arbeiten",
     projectsTitle: "Nächste Arbeiten",
-    projectsDescription: "Kundenprojekte, Meetings und einfache Terminbuchungen in chronologischer Reihenfolge.",
+    projectsDescription: "Kundenprojekte, Meetings, Mini-Session-Tage und einfache Terminbuchungen in chronologischer Reihenfolge.",
     openAllWork: "Alle Arbeiten",
     openClients: "Kunden",
     openBookings: "Buchungen",
     noUpcomingTitle: "Keine anstehenden Arbeiten",
-    noUpcomingDescription: "Zukünftige Projekte und einfache Buchungen erscheinen hier chronologisch.",
+    noUpcomingDescription: "Zukünftige Projekte, Mini-Session-Tage und einfache Buchungen erscheinen hier chronologisch.",
     simpleBooking: "Einfache Buchung",
+    miniSessionDay: "Mini-Session-Tag",
+    scheduled: "Geplant",
+    bookingCount: (count: number) => `${count} ${count === 1 ? "Buchung" : "Buchungen"}`,
     clientMeeting: "Kundenmeeting",
     clientTask: "Aufgabe",
     booked: "Gebucht",
@@ -745,13 +764,16 @@ const DASHBOARD_COPY = {
     },
     projectsEyebrow: "Work",
     projectsTitle: "Upcoming work",
-    projectsDescription: "Client projects, meetings and simple appointment bookings in chronological order.",
+    projectsDescription: "Client projects, meetings, mini session days and simple appointment bookings in chronological order.",
     openAllWork: "All work",
     openClients: "Clients",
     openBookings: "Bookings",
     noUpcomingTitle: "No upcoming work",
-    noUpcomingDescription: "Future projects and simple bookings will appear here in chronological order.",
+    noUpcomingDescription: "Future projects, mini session days and simple bookings will appear here in chronological order.",
     simpleBooking: "Simple booking",
+    miniSessionDay: "Mini session day",
+    scheduled: "Scheduled",
+    bookingCount: (count: number) => `${count} booking${count === 1 ? "" : "s"}`,
     clientMeeting: "Client meeting",
     clientTask: "Task",
     booked: "Booked",
@@ -779,6 +801,7 @@ function UpcomingProjectsSection({
   language,
   now,
   projects,
+  miniSessionDays,
   bookings,
   meetings,
   tasks
@@ -787,6 +810,7 @@ function UpcomingProjectsSection({
   language: AdminLanguage;
   now: Date;
   projects: DashboardUpcomingProject[];
+  miniSessionDays: DashboardUpcomingMiniSessionDay[];
   bookings: DashboardUpcomingMiniSessionBooking[];
   meetings: DashboardUpcomingMeeting[];
   tasks: DashboardUpcomingTask[];
@@ -821,6 +845,20 @@ function UpcomingProjectsSection({
         badges: [copy.simpleBooking, copy.booked] as [string, string],
         footer: `${copy.calendar.miniSessionAttendees(booking.attendeeCount)} · ${booking.email}`,
         footerLabel: copy.calendar.miniSessionBooking
+      })),
+    ...miniSessionDays
+      .filter((day) => day.endsAt.getTime() > now.getTime())
+      .map((day) => ({
+        key: `mini-session-day-${day.key}`,
+        date: day.startsAt,
+        href: `/admin/mini-sessions/${day.miniSessionId}?tab=slots`,
+        title: day.title,
+        subtitle: copy.miniSessionDay,
+        time: formatMiniSessionSlot(day.startsAt, day.endsAt, miniSessionLanguageForAdmin(language)),
+        venue: day.location,
+        badges: [copy.miniSessionDay, copy.scheduled] as [string, string],
+        footer: copy.bookingCount(day.bookingCount),
+        footerLabel: copy.miniSessionDay
       })),
     ...meetings
       .filter((meeting) => workEndsAfterNow(meeting.eventDate, meeting.endTime, now))
@@ -1183,6 +1221,7 @@ export default async function AdminDashboardPage() {
   const [
     upcomingProjects,
     upcomingMiniSessionBookings,
+    upcomingMiniSessions,
     upcomingMeetings,
     upcomingTasks,
     calendarProjects,
@@ -1263,6 +1302,42 @@ export default async function AdminDashboardPage() {
             title: true,
             location: true
           }
+        }
+      }
+    }),
+    prisma.miniSession.findMany({
+      where: {
+        ...adminOwnedWhere(admin),
+        bookingMode: { not: MINI_SESSION_BOOKING_MODE_RECURRING },
+        isActive: true,
+        OR: [
+          { eventDays: { some: { date: { gte: today } } } },
+          { eventDays: { none: {} }, endsAt: { gt: now } }
+        ]
+      },
+      orderBy: [{ sessionDate: "asc" }, { createdAt: "asc" }],
+      take: 50,
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        bookingMode: true,
+        startsAt: true,
+        endsAt: true,
+        eventDays: {
+          orderBy: { date: "asc" },
+          select: {
+            date: true,
+            startsAt: true,
+            endsAt: true
+          }
+        },
+        bookings: {
+          where: {
+            status: MINI_SESSION_BOOKING_STATUS_BOOKED,
+            source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED }
+          },
+          select: { startsAt: true }
         }
       }
     }),
@@ -1782,6 +1857,19 @@ export default async function AdminDashboardPage() {
       }
     })
   ]);
+  const upcomingMiniSessionDays: DashboardUpcomingMiniSessionDay[] = upcomingMiniSessions.flatMap((session) =>
+    miniSessionEventWorkDays(session).map((day) => ({
+      key: `${session.id}-${day.key}`,
+      miniSessionId: session.id,
+      title: session.title,
+      location: session.location,
+      startsAt: day.startsAt,
+      endsAt: day.endsAt,
+      bookingCount: session.bookings.filter(
+        (booking) => miniSessionDateKey(booking.startsAt) === day.key
+      ).length
+    }))
+  );
   const locationPoints = createViewLocationPoints(viewLocations);
   const seenZipGalleryIds = new Set<string>();
   const actionableZipPackages = problemZipPackages.filter((downloadPackage) => {
@@ -2167,6 +2255,7 @@ export default async function AdminDashboardPage() {
         language={language}
         now={now}
         projects={upcomingProjects}
+        miniSessionDays={upcomingMiniSessionDays}
         bookings={upcomingMiniSessionBookings}
         meetings={upcomingMeetings}
         tasks={upcomingTasks}

@@ -9,7 +9,14 @@ import { requireAdmin } from "@/lib/auth";
 import { customerMeetingStatusLabel, customerMeetingTypeLabel } from "@/lib/customer-meeting-options";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { customerTaskPriorityLabel, customerTaskStatusLabel, customerTaskTypeLabel } from "@/lib/customer-task-options";
-import { formatMiniSessionSlot, MINI_SESSION_BOOKING_SOURCE_BLOCKED, MINI_SESSION_BOOKING_STATUS_BOOKED } from "@/lib/mini-sessions";
+import {
+  formatMiniSessionSlot,
+  miniSessionDateKey,
+  miniSessionEventWorkDays,
+  MINI_SESSION_BOOKING_MODE_RECURRING,
+  MINI_SESSION_BOOKING_SOURCE_BLOCKED,
+  MINI_SESSION_BOOKING_STATUS_BOOKED
+} from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
 import { workEndDate } from "@/lib/work-date";
 
@@ -17,7 +24,7 @@ const WORK_PAGE_COPY = {
   hu: {
     area: "Munkák",
     title: "Munkák",
-    description: "Ügyfélprojektek, meetingek, feladatok és egyszerű időpontfoglalások időrendi listája.",
+    description: "Ügyfélprojektek, meetingek, feladatok, mini session napok és egyszerű időpontfoglalások időrendi listája.",
     back: "Vissza a dashboardra",
     total: (count: number) => `${count} munka`,
     upcomingTitle: "Elkövetkező",
@@ -33,6 +40,9 @@ const WORK_PAGE_COPY = {
     task: "Feladat",
     meeting: "Meeting",
     miniSessionBooking: "Mini session foglalás",
+    miniSessionDay: "Mini session nap",
+    scheduled: "Meghirdetve",
+    bookingCount: (count: number) => `${count} foglalás`,
     attendees: (count: number) => `${count} fő`,
     missingVenue: "Nincs helyszín",
     missingTime: "Nincs időpont",
@@ -44,7 +54,7 @@ const WORK_PAGE_COPY = {
   de: {
     area: "Arbeiten",
     title: "Arbeiten",
-    description: "Chronologische Liste der Kundenprojekte, Meetings, Aufgaben und einfachen Terminbuchungen.",
+    description: "Chronologische Liste der Kundenprojekte, Meetings, Aufgaben, Mini-Session-Tage und einfachen Terminbuchungen.",
     back: "Zurück zum Dashboard",
     total: (count: number) => `${count} Arbeiten`,
     upcomingTitle: "Anstehend",
@@ -60,6 +70,9 @@ const WORK_PAGE_COPY = {
     task: "Aufgabe",
     meeting: "Meeting",
     miniSessionBooking: "Mini-Session-Buchung",
+    miniSessionDay: "Mini-Session-Tag",
+    scheduled: "Geplant",
+    bookingCount: (count: number) => `${count} ${count === 1 ? "Buchung" : "Buchungen"}`,
     attendees: (count: number) => `${count} ${count === 1 ? "Person" : "Personen"}`,
     missingVenue: "Kein Ort",
     missingTime: "Keine Uhrzeit",
@@ -71,7 +84,7 @@ const WORK_PAGE_COPY = {
   en: {
     area: "Work",
     title: "Work",
-    description: "Chronological list of client projects, meetings, tasks and simple appointment bookings.",
+    description: "Chronological list of client projects, meetings, tasks, mini session days and simple appointment bookings.",
     back: "Back to dashboard",
     total: (count: number) => `${count} work items`,
     upcomingTitle: "Upcoming",
@@ -87,6 +100,9 @@ const WORK_PAGE_COPY = {
     task: "Task",
     meeting: "Meeting",
     miniSessionBooking: "Mini session booking",
+    miniSessionDay: "Mini session day",
+    scheduled: "Scheduled",
+    bookingCount: (count: number) => `${count} booking${count === 1 ? "" : "s"}`,
     attendees: (count: number) => `${count} attendee${count === 1 ? "" : "s"}`,
     missingVenue: "No location",
     missingTime: "No time",
@@ -115,7 +131,7 @@ export default async function AdminWorkPage() {
   const now = new Date();
   const projectWhere = { customer: adminOwnedWhere(admin) };
 
-  const [projects, bookings, meetings, tasks] = await Promise.all([
+  const [projects, bookings, miniSessions, meetings, tasks] = await Promise.all([
     prisma.customerProject.findMany({
       where: {
         ...projectWhere,
@@ -167,6 +183,37 @@ export default async function AdminWorkPage() {
             title: true,
             location: true
           }
+        }
+      }
+    }),
+    prisma.miniSession.findMany({
+      where: {
+        ...adminOwnedWhere(admin),
+        bookingMode: { not: MINI_SESSION_BOOKING_MODE_RECURRING },
+        isActive: true
+      },
+      orderBy: [{ sessionDate: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        bookingMode: true,
+        startsAt: true,
+        endsAt: true,
+        eventDays: {
+          orderBy: { date: "asc" },
+          select: {
+            date: true,
+            startsAt: true,
+            endsAt: true
+          }
+        },
+        bookings: {
+          where: {
+            status: MINI_SESSION_BOOKING_STATUS_BOOKED,
+            source: { not: MINI_SESSION_BOOKING_SOURCE_BLOCKED }
+          },
+          select: { startsAt: true }
         }
       }
     }),
@@ -259,6 +306,23 @@ export default async function AdminWorkPage() {
       footer: `${copy.attendees(booking.attendeeCount)} · ${booking.email}`,
       footerLabel: copy.miniSessionBooking
     })),
+    ...miniSessions.flatMap((session) =>
+      miniSessionEventWorkDays(session).map((day) => ({
+        key: `mini-session-day-${session.id}-${day.key}`,
+        date: day.startsAt,
+        endsAt: day.endsAt,
+        href: `/admin/mini-sessions/${session.id}?tab=slots`,
+        title: session.title,
+        subtitle: copy.miniSessionDay,
+        time: formatMiniSessionSlot(day.startsAt, day.endsAt, miniSessionLanguageForAdmin(language)),
+        venue: session.location,
+        badges: [copy.miniSessionDay, copy.scheduled] as [string, string],
+        footer: copy.bookingCount(
+          session.bookings.filter((booking) => miniSessionDateKey(booking.startsAt) === day.key).length
+        ),
+        footerLabel: copy.miniSessionDay
+      }))
+    ),
     ...meetings.map((meeting) => ({
       key: `meeting-${meeting.id}`,
       date: meeting.eventDate,
