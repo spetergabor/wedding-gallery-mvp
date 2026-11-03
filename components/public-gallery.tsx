@@ -1761,7 +1761,7 @@ export function PublicGallery({
         .public-gallery-text-theme :where(.font-playfair) {
           font-family: var(--gallery-body-font-family);
         }
-        .public-gallery-text-theme :where(.text-ink, .text-graphite, .text-graphite\\/75, .text-graphite\\/70, .text-graphite\\/65, .text-graphite\\/60, .text-graphite\\/55, .text-graphite\\/50) {
+        .public-gallery-text-theme :where(.text-ink, .text-graphite, .text-graphite\\/75, .text-graphite\\/70, .text-graphite\\/65, .text-graphite\\/60, .text-graphite\\/55, .text-graphite\\/50):not(:is(button, button *, a, a *, [role="button"], [role="button"] *)) {
           color: var(--gallery-body-text-color);
         }
       `}</style>
@@ -1840,8 +1840,10 @@ export function PublicGallery({
                     title={!favoriteEmail || favoriteLists.length === 0 ? copy.openFavorites : proofingSelection ? copy.selection : copy.favorites}
                     aria-label={!favoriteEmail || favoriteLists.length === 0 ? copy.openFavorites : proofingSelection ? copy.selection : copy.favorites}
                     onClick={handleFavoritesToolbarClick}
-                    className={`group/toolbar relative inline-flex size-9 items-center justify-center rounded-md transition sm:size-10 ${
-                      showFavoritesOnly ? "bg-ink text-white" : "bg-white text-graphite hover:bg-ink/5 hover:text-ink"
+                    className={`group/toolbar relative inline-flex size-9 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/60 focus-visible:ring-offset-2 sm:size-10 ${
+                      showFavoritesOnly
+                        ? "border-ink bg-ink text-white hover:bg-graphite"
+                        : "border-ink/10 bg-white text-graphite hover:border-ink/25 hover:bg-ink/5 hover:text-ink"
                     } ${isFilteringFavorites ? "opacity-70" : ""}`}
                   >
                     <Heart size={17} fill={showFavoritesOnly ? "currentColor" : "none"} />
@@ -1862,7 +1864,7 @@ export function PublicGallery({
                     aria-label={toolbarDownloadLabel}
                     onClick={() => openDownloadDialog(toolbarDownloadMode)}
                     disabled={isZipping || photos.length === 0}
-                    className="group/toolbar relative inline-flex size-9 items-center justify-center rounded-md bg-ink text-white transition hover:bg-graphite disabled:cursor-not-allowed disabled:opacity-60 sm:size-10"
+                    className="group/toolbar relative inline-flex size-9 items-center justify-center rounded-md border border-ink bg-ink text-white transition hover:bg-graphite focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/60 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:size-10"
                   >
                     <Download size={17} />
                     <span className="pointer-events-none absolute right-0 top-[calc(100%+8px)] hidden whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-soft transition group-hover/toolbar:opacity-100 group-focus-visible/toolbar:opacity-100 sm:block">
@@ -1875,7 +1877,7 @@ export function PublicGallery({
                   title={shareState === "copied" ? copy.shareCopied : shareState === "failed" ? copy.shareFailed : copy.share}
                   aria-label={shareState === "copied" ? copy.shareCopied : copy.share}
                   onClick={() => void shareGallery()}
-                  className={`group/toolbar relative inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-md border px-0 transition sm:h-10 sm:min-w-10 ${
+                  className={`group/toolbar relative inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-md border px-0 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/60 focus-visible:ring-offset-2 sm:h-10 sm:min-w-10 ${
                     shareState === "copied"
                       ? "border-sage/25 bg-sage/10 text-sage"
                       : shareState === "failed"
