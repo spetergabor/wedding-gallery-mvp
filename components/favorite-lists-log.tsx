@@ -25,10 +25,10 @@ type FavoriteList = {
   }[];
 };
 
-function filenamesText(list: FavoriteList, withoutExtensions: boolean) {
+function filenamesText(list: FavoriteList) {
   const filenames = list.items.map((item) => item.photo.filename);
 
-  return withoutExtensions ? lightroomFilenameList(filenames) : filenames.join("\n");
+  return lightroomFilenameList(filenames);
 }
 
 type FavoriteZipState = Awaited<ReturnType<typeof requestAdminFavoriteListZipAction>>;
@@ -164,7 +164,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
 
   async function handleCopy(list: FavoriteList) {
     try {
-      await window.navigator.clipboard.writeText(filenamesText(list, proofingMode));
+      await window.navigator.clipboard.writeText(filenamesText(list));
       setCopiedListId(list.id);
       window.setTimeout(() => setCopiedListId(null), 2000);
     } catch {
@@ -180,7 +180,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
           <p className="mt-1 text-sm text-graphite/70">
             {proofingMode
               ? "Az ügyfél által kiválasztott képek email cím szerint, Lightroomhoz használható, kiterjesztés nélküli fájlnévlistával."
-              : "Email címhez mentett képkiválasztások, teljes fájlnévlistával. A listák CSV-ként is letölthetők."}
+              : "Email címhez mentett képkiválasztások, Lightroomhoz használható, kiterjesztés nélküli fájlnévlistával. A listák CSV-ként is letölthetők."}
           </p>
         </div>
         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-graphite">
@@ -238,7 +238,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="secondary" onClick={() => void handleCopy(list)}>
                       {copiedListId === list.id ? <Check size={16} /> : <Copy size={16} />}
-                      {copiedListId === list.id ? "Másolva" : "Fájlnevek másolása"}
+                      {copiedListId === list.id ? "Másolva" : "Lightroom lista másolása"}
                     </Button>
                     <a
                       href={`/api/admin/favorite-lists/${encodeURIComponent(list.id)}/download`}
@@ -256,7 +256,7 @@ export function FavoriteListsLog({ lists, mode = "favorites" }: { lists: Favorit
                 <div className="mt-4 rounded-md bg-paper p-3">
                   <div className="max-h-72 overflow-auto rounded-md bg-white px-3 py-2">
                     <pre className="whitespace-pre-wrap break-all font-mono text-sm leading-6 text-graphite">
-                      {filenamesText(list, proofingMode)}
+                      {filenamesText(list)}
                     </pre>
                   </div>
                 </div>

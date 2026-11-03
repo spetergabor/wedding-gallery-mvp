@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { favoriteListAccessWhere } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import { APP_TIME_ZONE } from "@/lib/date-format";
+import { photoFilenameWithoutExtension } from "@/lib/photo-filename";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -80,6 +81,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ lis
       "Lezárva",
       "Sorszám",
       "Fájlnév",
+      "Lightroom fájlnév",
       "Kedvenchez adva"
     ]),
     ...list.items.map((item, index) =>
@@ -93,6 +95,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ lis
         list.submittedAt ? dateFormatter.format(list.submittedAt) : "",
         index + 1,
         item.photo.filename,
+        photoFilenameWithoutExtension(item.photo.filename),
         dateFormatter.format(item.createdAt)
       ])
     )
@@ -108,6 +111,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ lis
         dateFormatter.format(list.createdAt),
         dateFormatter.format(list.updatedAt),
         list.submittedAt ? dateFormatter.format(list.submittedAt) : "",
+        "",
         "",
         "",
         ""
