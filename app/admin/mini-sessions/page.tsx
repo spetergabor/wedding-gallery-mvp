@@ -12,6 +12,7 @@ import {
   Mail,
   MapPin,
   Phone,
+  PlugZap,
   Plus,
   Settings2,
   Users,
@@ -69,6 +70,7 @@ import {
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { GALLERY_FULFILLMENT_MODE, IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
 import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
 
 type BookingHubTab = "overview" | "create" | "services" | "mini" | "bookings" | "calendar";
@@ -351,6 +353,13 @@ function ServiceCreateForm() {
             </select>
           </label>
           <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Fotózás típusa</span>
+            <select name="fulfillmentMode" defaultValue={IRIS_FULFILLMENT_MODE} className={fieldClass}>
+              <option value={IRIS_FULFILLMENT_MODE}>Íriszfotózás – közvetlen késztermék</option>
+              <option value={GALLERY_FULFILLMENT_MODE}>Portré / családi – válogatás és galéria</option>
+            </select>
+          </label>
+          <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
             <input name="date" type="date" required className={fieldClass} />
           </label>
@@ -500,6 +509,13 @@ function MiniSessionCreateForm() {
                   {theme.label}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-graphite">Fotózás típusa</span>
+            <select name="fulfillmentMode" defaultValue={GALLERY_FULFILLMENT_MODE} className={fieldClass}>
+              <option value={GALLERY_FULFILLMENT_MODE}>Portré / családi – válogatás és galéria</option>
+              <option value={IRIS_FULFILLMENT_MODE}>Íriszfotózás – közvetlen késztermék</option>
             </select>
           </label>
           <MiniSessionEventDaysField />
@@ -702,7 +718,7 @@ export default async function AdminMiniSessionsPage({
 
   return (
     <AdminShell>
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Időpontfoglaló</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Foglalási központ</h1>
@@ -710,6 +726,9 @@ export default async function AdminMiniSessionsPage({
             Állandó szolgáltatások, mini session napok, foglalások és globális naptárblokkolások egy helyen.
           </p>
         </div>
+        <Link href="/admin/mini-sessions/iris-retouch" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-ink transition hover:bg-ink/5">
+          <PlugZap size={16} /> Iris Retouch
+        </Link>
       </div>
 
       <BookingHubTabs currentTab={currentTab} createMode={createMode} />

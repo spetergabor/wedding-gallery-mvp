@@ -72,6 +72,7 @@ import {
   PROOFING_STATUS_PROCESSING
 } from "@/lib/proofing";
 import { isAnyRateLimited } from "@/lib/rate-limit";
+import { GALLERY_FULFILLMENT_MODE, IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
 import { normalizeSlug } from "@/lib/slug";
 import { logSystemEvent, systemEventErrorMessage } from "@/lib/system-events";
 import {
@@ -120,6 +121,12 @@ function miniSessionBookingModeFromForm(formData: FormData) {
   return formString(formData, "bookingMode") === MINI_SESSION_BOOKING_MODE_RECURRING
     ? MINI_SESSION_BOOKING_MODE_RECURRING
     : MINI_SESSION_BOOKING_MODE_SINGLE_DAY;
+}
+
+function miniSessionFulfillmentModeFromForm(formData: FormData) {
+  return formString(formData, "fulfillmentMode") === IRIS_FULFILLMENT_MODE
+    ? IRIS_FULFILLMENT_MODE
+    : GALLERY_FULFILLMENT_MODE;
 }
 
 function miniSessionEventDaysFromForm(formData: FormData) {
@@ -396,7 +403,8 @@ export async function createMiniSessionAction(formData: FormData) {
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
-  const postProductionWorkflowEnabled = formData.get("postProductionWorkflowEnabled") === "on";
+  const fulfillmentMode = miniSessionFulfillmentModeFromForm(formData);
+  const postProductionWorkflowEnabled = fulfillmentMode !== IRIS_FULFILLMENT_MODE && formData.get("postProductionWorkflowEnabled") === "on";
   const language = miniSessionLanguageFromForm(formData);
   const publicTheme = normalizeMiniSessionTheme(formString(formData, "publicTheme"));
   const notes = formString(formData, "notes");
@@ -458,6 +466,7 @@ export async function createMiniSessionAction(formData: FormData) {
         isActive: formData.get("isActive") === "on",
         createCustomerOnBooking: postProductionWorkflowEnabled,
         postProductionWorkflowEnabled,
+        fulfillmentMode,
         notes: notes || null,
         stylingNotes: stylingNotes || null,
         coverImageUrl: uploadedCover?.url ?? null,
@@ -523,6 +532,7 @@ export async function duplicateMiniSessionAction(id: string) {
       isActive: false,
       createCustomerOnBooking: source.createCustomerOnBooking,
       postProductionWorkflowEnabled: source.postProductionWorkflowEnabled,
+      fulfillmentMode: source.fulfillmentMode,
       notes: source.notes,
       stylingNotes: source.stylingNotes,
       coverImageUrl: source.coverImageUrl,
@@ -779,7 +789,8 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
   const bookingWindowDays = normalizeBookingWindowDays(parseInteger(formString(formData, "bookingWindowDays"), 60));
   const minBookingNoticeMinutes = miniSessionMinBookingNoticeFromForm(formData);
   const availabilityRules = bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? miniSessionAvailabilityRulesFromForm(formData) : [];
-  const postProductionWorkflowEnabled = formData.get("postProductionWorkflowEnabled") === "on";
+  const fulfillmentMode = miniSessionFulfillmentModeFromForm(formData);
+  const postProductionWorkflowEnabled = fulfillmentMode !== IRIS_FULFILLMENT_MODE && formData.get("postProductionWorkflowEnabled") === "on";
   const language = miniSessionLanguageFromForm(formData);
   const publicTheme = normalizeMiniSessionTheme(formString(formData, "publicTheme"));
   const notes = formString(formData, "notes");
@@ -836,6 +847,7 @@ export async function updateMiniSessionAction(id: string, formData: FormData) {
         isActive: formData.get("isActive") === "on",
         createCustomerOnBooking: postProductionWorkflowEnabled,
         postProductionWorkflowEnabled,
+        fulfillmentMode,
         notes: notes || null,
         stylingNotes: stylingNotes || null,
         availabilityRules: {

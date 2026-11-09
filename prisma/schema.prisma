@@ -56,6 +56,18 @@ model Admin {
   invoices                   CustomerInvoice[]
   invoiceNumberSequences     InvoiceNumberSequence[]
   giftCardOrders             GiftCardOrder[]
+  irisRetouchIntegration     IrisRetouchIntegration?
+}
+
+model IrisRetouchIntegration {
+  id         String    @id @default(cuid())
+  adminId    String    @unique
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  admin      Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([lastUsedAt])
 }
 
 model SubscriptionPlan {
@@ -685,6 +697,7 @@ model MiniSession {
   isActive                      Boolean                   @default(true)
   createCustomerOnBooking       Boolean                   @default(true)
   postProductionWorkflowEnabled Boolean                   @default(true)
+  fulfillmentMode               String                    @default("gallery")
   notes                         String?
   stylingNotes                  String?
   coverImageUrl                 String?
@@ -702,6 +715,7 @@ model MiniSession {
   @@index([sessionDate])
   @@index([startsAt])
   @@index([isActive])
+  @@index([fulfillmentMode])
 }
 
 model MiniSessionEventDay {
@@ -766,6 +780,11 @@ model MiniSessionBooking {
   finalDeliveredAt        DateTime?
   proofingGalleryId       String?          @unique
   finalGalleryId          String?          @unique
+  irisStatus              String?
+  irisCheckedInAt         DateTime?
+  irisDeliveredAt         DateTime?
+  irisExternalClientId    String?
+  irisFolderName          String?
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
   miniSession             MiniSession      @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
@@ -785,6 +804,7 @@ model MiniSessionBooking {
   @@index([cancelToken])
   @@index([googleCalendarEventId])
   @@index([workflowStatus])
+  @@index([irisStatus])
 }
 
 model CustomerProject {

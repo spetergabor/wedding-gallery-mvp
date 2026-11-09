@@ -58,6 +58,7 @@ import {
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
+import { GALLERY_FULFILLMENT_MODE, IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
 import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
 
 type MiniSessionTab = "overview" | "bookings" | "slots" | "settings";
@@ -1291,6 +1292,14 @@ export default async function AdminMiniSessionDetailPage({
                     Bekapcsolva minden új foglalásból ügyfél és projekt készül, valamint elérhető a teljes utómunka-folyamat. Kikapcsolva az új foglalás csak időpont marad. A korábban létrehozott ügyfelek nem törlődnek.
                   </span>
                 </span>
+              </label>
+              <label className="block space-y-2 sm:col-span-2">
+                <span className="text-sm font-medium text-graphite">Fotózás típusa</span>
+                <select name="fulfillmentMode" defaultValue={session.fulfillmentMode} className={fieldClass}>
+                  <option value={GALLERY_FULFILLMENT_MODE}>Portré / családi – válogatás és galéria</option>
+                  <option value={IRIS_FULFILLMENT_MODE}>Íriszfotózás – közvetlen késztermék</option>
+                </select>
+                <span className="block text-xs leading-5 text-graphite/60">Íriszfotózásnál nem készül Spetly-ügyfél, projekt vagy galéria; a foglalás az Iris Retouchba szinkronizálható.</span>
               </label>
               <label className="block space-y-2 sm:col-span-2">
                 <span className="text-sm font-medium text-graphite">Hol</span>
