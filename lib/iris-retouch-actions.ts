@@ -5,7 +5,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
-import { createIrisRetouchToken, hashIrisRetouchToken } from "@/lib/iris-retouch-auth";
+import {
+  createIrisRetouchToken,
+  GALLERY_FULFILLMENT_MODE,
+  hashIrisRetouchToken,
+  IRIS_FULFILLMENT_MODE
+} from "@/lib/iris-retouch-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function generateIrisRetouchTokenAction() {
@@ -35,4 +40,21 @@ export async function revokeIrisRetouchTokenAction() {
   await prisma.irisRetouchIntegration.deleteMany({ where: { adminId } });
   revalidatePath("/admin/mini-sessions/iris-retouch");
   redirect("/admin/mini-sessions/iris-retouch?revoked=1");
+}
+
+export async function setIrisRetouchTagAction(id: string, enabled: boolean) {
+  const admin = await requireAdmin();
+  const adminId = ownerAdminId(admin);
+  await prisma.miniSession.updateMany({
+    where: { id, adminId },
+    data: enabled
+      ? {
+          fulfillmentMode: IRIS_FULFILLMENT_MODE,
+          createCustomerOnBooking: false,
+          postProductionWorkflowEnabled: false
+        }
+      : { fulfillmentMode: GALLERY_FULFILLMENT_MODE }
+  });
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath("/admin/mini-sessions/iris-retouch");
 }

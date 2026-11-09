@@ -70,7 +70,7 @@ import {
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
-import { GALLERY_FULFILLMENT_MODE, IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
+import { IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
 import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
 
 type BookingHubTab = "overview" | "create" | "services" | "mini" | "bookings" | "calendar";
@@ -315,6 +315,28 @@ function MinBookingNoticeSelect({ defaultValue = 0 }: { defaultValue?: number })
   );
 }
 
+function IrisRetouchTagField({ defaultChecked = false }: { defaultChecked?: boolean }) {
+  return (
+    <label className="flex items-start gap-3 rounded-md border border-brass/30 bg-brass/10 px-4 py-4 text-sm text-graphite md:col-span-2">
+      <input
+        name="irisRetouchTag"
+        type="checkbox"
+        defaultChecked={defaultChecked}
+        className="mt-0.5 size-4 rounded border-ink/20"
+      />
+      <span>
+        <span className="flex flex-wrap items-center gap-2 font-medium text-ink">
+          Iris Retouch
+          <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Írisz</span>
+        </span>
+        <span className="mt-1 block leading-5 text-graphite/65">
+          A címkével ez a foglaló megjelenik az Iris Retouchban. Nem készül hozzá Spetly-ügyfél, válogatás vagy galéria.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 function ServiceCreateForm() {
   return (
     <form action={createMiniSessionAction} encType="multipart/form-data" className="mt-6 space-y-6">
@@ -352,13 +374,7 @@ function ServiceCreateForm() {
               ))}
             </select>
           </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Fotózás típusa</span>
-            <select name="fulfillmentMode" defaultValue={IRIS_FULFILLMENT_MODE} className={fieldClass}>
-              <option value={IRIS_FULFILLMENT_MODE}>Íriszfotózás – közvetlen késztermék</option>
-              <option value={GALLERY_FULFILLMENT_MODE}>Portré / családi – válogatás és galéria</option>
-            </select>
-          </label>
+          <IrisRetouchTagField defaultChecked />
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
             <input name="date" type="date" required className={fieldClass} />
@@ -511,13 +527,7 @@ function MiniSessionCreateForm() {
               ))}
             </select>
           </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-graphite">Fotózás típusa</span>
-            <select name="fulfillmentMode" defaultValue={GALLERY_FULFILLMENT_MODE} className={fieldClass}>
-              <option value={GALLERY_FULFILLMENT_MODE}>Portré / családi – válogatás és galéria</option>
-              <option value={IRIS_FULFILLMENT_MODE}>Íriszfotózás – közvetlen késztermék</option>
-            </select>
-          </label>
+          <IrisRetouchTagField />
           <MiniSessionEventDaysField />
           <label className="block space-y-2 md:col-span-2">
             <span className="text-sm font-medium text-graphite">Helyszín</span>
@@ -1048,6 +1058,11 @@ export default async function AdminMiniSessionsPage({
                           <span className={`rounded-full px-3 py-1 text-xs font-medium ${session.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
                             {session.isActive ? "Aktív" : "Rejtett"}
                           </span>
+                          {session.fulfillmentMode === IRIS_FULFILLMENT_MODE ? (
+                            <span className="rounded-full bg-brass/15 px-3 py-1 text-xs font-semibold text-brass">
+                              Iris Retouch
+                            </span>
+                          ) : null}
                         </div>
                         <div className="mt-3 flex flex-wrap gap-3 text-sm text-graphite/70">
                           <span className="inline-flex items-center gap-1.5">

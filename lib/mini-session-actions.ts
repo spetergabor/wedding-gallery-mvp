@@ -124,7 +124,7 @@ function miniSessionBookingModeFromForm(formData: FormData) {
 }
 
 function miniSessionFulfillmentModeFromForm(formData: FormData) {
-  return formString(formData, "fulfillmentMode") === IRIS_FULFILLMENT_MODE
+  return formData.get("irisRetouchTag") === "on" || formString(formData, "fulfillmentMode") === IRIS_FULFILLMENT_MODE
     ? IRIS_FULFILLMENT_MODE
     : GALLERY_FULFILLMENT_MODE;
 }

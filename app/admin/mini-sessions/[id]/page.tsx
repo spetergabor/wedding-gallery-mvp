@@ -58,7 +58,7 @@ import {
   miniSessionTimeInput
 } from "@/lib/mini-sessions";
 import { prisma } from "@/lib/prisma";
-import { GALLERY_FULFILLMENT_MODE, IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
+import { IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
 import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@/lib/mini-session-workflow";
 
 type MiniSessionTab = "overview" | "bookings" | "slots" | "settings";
@@ -1293,13 +1293,22 @@ export default async function AdminMiniSessionDetailPage({
                   </span>
                 </span>
               </label>
-              <label className="block space-y-2 sm:col-span-2">
-                <span className="text-sm font-medium text-graphite">Fotózás típusa</span>
-                <select name="fulfillmentMode" defaultValue={session.fulfillmentMode} className={fieldClass}>
-                  <option value={GALLERY_FULFILLMENT_MODE}>Portré / családi – válogatás és galéria</option>
-                  <option value={IRIS_FULFILLMENT_MODE}>Íriszfotózás – közvetlen késztermék</option>
-                </select>
-                <span className="block text-xs leading-5 text-graphite/60">Íriszfotózásnál nem készül Spetly-ügyfél, projekt vagy galéria; a foglalás az Iris Retouchba szinkronizálható.</span>
+              <label className="flex items-start gap-3 rounded-md border border-brass/30 bg-brass/10 px-4 py-4 text-sm text-graphite sm:col-span-2">
+                <input
+                  name="irisRetouchTag"
+                  type="checkbox"
+                  defaultChecked={session.fulfillmentMode === IRIS_FULFILLMENT_MODE}
+                  className="mt-0.5 size-4 rounded border-ink/20"
+                />
+                <span>
+                  <span className="flex flex-wrap items-center gap-2 font-medium text-ink">
+                    Iris Retouch címke
+                    <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Írisz</span>
+                  </span>
+                  <span className="mt-1 block leading-5 text-graphite/65">
+                    Bekapcsolva ez a foglaló megjelenik az Iris Retouchban, és nem készül hozzá Spetly-ügyfél, projekt vagy galéria.
+                  </span>
+                </span>
               </label>
               <label className="block space-y-2 sm:col-span-2">
                 <span className="text-sm font-medium text-graphite">Hol</span>
