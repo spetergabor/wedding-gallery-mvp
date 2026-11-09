@@ -1302,11 +1302,11 @@ export default async function AdminMiniSessionDetailPage({
                 />
                 <span>
                   <span className="flex flex-wrap items-center gap-2 font-medium text-ink">
-                    Iris Retouch címke
+                    irismoment címke
                     <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Írisz</span>
                   </span>
                   <span className="mt-1 block leading-5 text-graphite/65">
-                    Bekapcsolva ez a foglaló megjelenik az Iris Retouchban, és nem készül hozzá Spetly-ügyfél, projekt vagy galéria.
+                    Bekapcsolva ez a foglaló megjelenik az irismoment alkalmazásban, és nem készül hozzá Spetly-ügyfél, projekt vagy galéria.
                   </span>
                 </span>
               </label>

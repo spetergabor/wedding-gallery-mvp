@@ -16,7 +16,7 @@ export function hashIrisRetouchToken(token: string) {
 }
 
 export function createIrisRetouchToken() {
-  return `irt_${randomBytes(32).toString("base64url")}`;
+  return `irm_${randomBytes(32).toString("base64url")}`;
 }
 
 export function readIrisRetouchToken(request: NextRequest) {

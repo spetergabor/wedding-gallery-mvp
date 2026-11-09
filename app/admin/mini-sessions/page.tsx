@@ -315,7 +315,7 @@ function MinBookingNoticeSelect({ defaultValue = 0 }: { defaultValue?: number })
   );
 }
 
-function IrisRetouchTagField({ defaultChecked = false }: { defaultChecked?: boolean }) {
+function IrisMomentTagField({ defaultChecked = false }: { defaultChecked?: boolean }) {
   return (
     <label className="flex items-start gap-3 rounded-md border border-brass/30 bg-brass/10 px-4 py-4 text-sm text-graphite md:col-span-2">
       <input
@@ -326,11 +326,11 @@ function IrisRetouchTagField({ defaultChecked = false }: { defaultChecked?: bool
       />
       <span>
         <span className="flex flex-wrap items-center gap-2 font-medium text-ink">
-          Iris Retouch
+          irismoment
           <span className="rounded-full bg-brass px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Írisz</span>
         </span>
         <span className="mt-1 block leading-5 text-graphite/65">
-          A címkével ez a foglaló megjelenik az Iris Retouchban. Nem készül hozzá Spetly-ügyfél, válogatás vagy galéria.
+          A címkével ez a foglaló megjelenik az irismoment alkalmazásban. Nem készül hozzá Spetly-ügyfél, válogatás vagy galéria.
         </span>
       </span>
     </label>
@@ -374,7 +374,7 @@ function ServiceCreateForm() {
               ))}
             </select>
           </label>
-          <IrisRetouchTagField defaultChecked />
+          <IrisMomentTagField defaultChecked />
           <label className="block space-y-2">
             <span className="text-sm font-medium text-graphite">Foglalható ettől</span>
             <input name="date" type="date" required className={fieldClass} />
@@ -527,7 +527,7 @@ function MiniSessionCreateForm() {
               ))}
             </select>
           </label>
-          <IrisRetouchTagField />
+          <IrisMomentTagField />
           <MiniSessionEventDaysField />
           <label className="block space-y-2 md:col-span-2">
             <span className="text-sm font-medium text-graphite">Helyszín</span>
@@ -736,8 +736,8 @@ export default async function AdminMiniSessionsPage({
             Állandó szolgáltatások, mini session napok, foglalások és globális naptárblokkolások egy helyen.
           </p>
         </div>
-        <Link href="/admin/mini-sessions/iris-retouch" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-ink transition hover:bg-ink/5">
-          <PlugZap size={16} /> Iris Retouch
+        <Link href="/admin/mini-sessions/irismoment" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-ink transition hover:bg-ink/5">
+          <PlugZap size={16} /> irismoment
         </Link>
       </div>
 
@@ -1060,7 +1060,7 @@ export default async function AdminMiniSessionsPage({
                           </span>
                           {session.fulfillmentMode === IRIS_FULFILLMENT_MODE ? (
                             <span className="rounded-full bg-brass/15 px-3 py-1 text-xs font-semibold text-brass">
-                              Iris Retouch
+                              irismoment
                             </span>
                           ) : null}
                         </div>
