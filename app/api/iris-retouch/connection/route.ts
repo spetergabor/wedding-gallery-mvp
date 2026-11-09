@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateIrisRetouch } from "@/lib/iris-retouch-auth";
 import { loadInvoiceWorkspaceSettings } from "@/lib/customer-invoices";
+import { IRISMOMENT_INVOICE_PRICING } from "@/lib/irismoment-pricing";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
       name: choice.issuer.name,
       taxMode: choice.invoiceSettings.invoiceTaxMode
     })),
+    invoicePricing: IRISMOMENT_INVOICE_PRICING,
     connectedAt: integration.createdAt.toISOString(),
     lastUsedAt: integration.lastUsedAt?.toISOString() ?? null
   });
