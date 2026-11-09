@@ -25,6 +25,9 @@ export type InvoicePdfInput = {
   subtotalCents: number;
   taxCents: number;
   totalCents: number;
+  paidCents?: number;
+  paidAt?: Date | null;
+  paymentMethod?: string | null;
   documentType: string;
   relatedNumber?: string | null;
   cancellationReason?: string | null;
@@ -70,6 +73,12 @@ export async function createCustomerInvoicePdf(invoice: InvoicePdfInput) {
   const margin = 48;
   const contentWidth = A4.width - margin * 2;
   let y = A4.height - 55;
+  const fullyPaid = (invoice.paidCents ?? 0) >= invoice.totalCents && invoice.totalCents > 0;
+  const paymentMethod = invoice.paymentMethod === "card"
+    ? "Karte"
+    : invoice.paymentMethod === "cash"
+      ? "Barzahlung"
+      : invoice.paymentMethod === "bank_transfer" ? "Überweisung" : "Bezahlt";
 
   const drawPageHeader = (continuation = false) => {
     page.drawText(invoiceTitle(invoice.documentType).toUpperCase(), { x: margin, y, size: 9, font: bold, color: brass });
@@ -90,6 +99,12 @@ export async function createCustomerInvoicePdf(invoice: InvoicePdfInput) {
   };
 
   drawPageHeader();
+  if (fullyPaid) {
+    page.drawRectangle({ x: margin, y: y - 4, width: contentWidth, height: 27, color: rgb(0.9, 0.97, 0.92) });
+    page.drawText("BEREITS BEZAHLT", { x: margin + 10, y: y + 5, size: 10, font: bold, color: rgb(0.08, 0.42, 0.2) });
+    right(page, "OFFENER BETRAG 0,00 EUR", margin + 10, y + 5, contentWidth - 20, bold, 9, rgb(0.08, 0.42, 0.2));
+    y -= 40;
+  }
   page.drawText("RECHNUNG AN", { x: margin, y, size: 8, font: bold, color: brass });
   page.drawText(invoice.customer.name, { x: margin, y: y - 17, size: 11, font: bold, color: ink });
   const address = [invoice.customer.addressLine1, [invoice.customer.postalCode, invoice.customer.city].filter(Boolean).join(" "), invoice.customer.country, invoice.customer.uid ? `UID: ${invoice.customer.uid}` : null, invoice.customer.email].filter(Boolean) as string[];
@@ -102,7 +117,9 @@ export async function createCustomerInvoicePdf(invoice: InvoicePdfInput) {
     ["Rechnungsnummer", invoice.number],
     ...(invoice.relatedNumber ? [["Originalrechnung", invoice.relatedNumber]] : []),
     ["Rechnungsdatum", formatInvoiceDate(invoice.issueDate)],
-    ["Fälligkeitsdatum", formatInvoiceDate(invoice.dueDate)],
+    ...(fullyPaid
+      ? [["Bezahlt am", invoice.paidAt ? formatInvoiceDate(invoice.paidAt) : formatInvoiceDate(invoice.issueDate)], ["Zahlungsart", paymentMethod]]
+      : [["Fälligkeitsdatum", formatInvoiceDate(invoice.dueDate)]]),
     ["Leistungszeitraum", period]
   ];
   details.forEach(([label, value], index) => {
@@ -152,6 +169,13 @@ export async function createCustomerInvoicePdf(invoice: InvoicePdfInput) {
   page.drawText(invoice.documentType === "cancellation" ? "STORNOBETRAG" : "GESAMTBETRAG", { x: totalsX, y, size: 9, font: bold, color: muted });
   right(page, formatInvoiceMoney(invoice.totalCents, invoice.currency), totalsX, y - 3, A4.width - margin - totalsX, bold, 15); y -= 42;
 
+  if (fullyPaid) {
+    page.drawRectangle({ x: totalsX - 10, y: y - 2, width: A4.width - margin - totalsX + 10, height: 28, color: rgb(0.9, 0.97, 0.92) });
+    page.drawText("BEZAHLT", { x: totalsX, y: y + 8, size: 9, font: bold, color: rgb(0.08, 0.42, 0.2) });
+    right(page, "0,00 EUR offen", totalsX, y + 8, A4.width - margin - totalsX, bold, 9, rgb(0.08, 0.42, 0.2));
+    y -= 38;
+  }
+
   if (invoice.cancellationReason) {
     page.drawText(`Stornogrund: ${safeText(invoice.cancellationReason)}`, { x: margin, y, size: 8.5, font: regular, color: muted }); y -= 24;
   }
@@ -160,7 +184,7 @@ export async function createCustomerInvoicePdf(invoice: InvoicePdfInput) {
   page.drawRectangle({ x: margin, y: y - noticeHeight + 8, width: contentWidth, height: noticeHeight, color: paper });
   noticeLines.forEach((line, index) => page.drawText(line, { x: margin + 10, y: y - 5 - index * 11, size: 8, font: regular, color: muted })); y -= noticeHeight + 14;
   page.drawText(invoice.issuer.name, { x: margin, y, size: 8.5, font: bold, color: ink }); y -= 13;
-  const footer = `${invoice.issuer.addressLine1} · ${invoice.issuer.postalCode} ${invoice.issuer.city} · IBAN: ${invoice.issuer.iban}${invoice.issuer.bic ? ` · BIC: ${invoice.issuer.bic}` : ""}`;
+  const footer = `${invoice.issuer.addressLine1} · ${invoice.issuer.postalCode} ${invoice.issuer.city}${fullyPaid ? "" : ` · IBAN: ${invoice.issuer.iban}${invoice.issuer.bic ? ` · BIC: ${invoice.issuer.bic}` : ""}`}`;
   wrap(footer, regular, 7.5, contentWidth).forEach((line, index) => page.drawText(line, { x: margin, y: y - index * 10, size: 7.5, font: regular, color: muted }));
   page.drawText(`Steuernummer: ${invoice.issuer.taxNumber}${invoice.issuer.uid ? ` · UID: ${invoice.issuer.uid}` : ""}`, { x: margin, y: y - 20, size: 7.5, font: regular, color: muted });
 

@@ -21,6 +21,8 @@ export type IrismomentInvoiceInput = {
   description: string;
   totalCents: number;
   issuerKey: string;
+  paymentMethod: "card" | "cash" | "unpaid";
+  paidAt?: Date;
   addressLine1?: string;
   postalCode?: string;
   city?: string;
@@ -68,6 +70,8 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
     );
   }
   const marker = requestMarker(input);
+  const isPaid = input.paymentMethod === "card" || input.paymentMethod === "cash";
+  const paidAt = isPaid ? input.paidAt ?? new Date() : null;
   const existing = await prisma.customerInvoice.findFirst({
     where: { adminId, externalReference: marker },
     select: { id: true, number: true, status: true, totalCents: true, sentAt: true }
@@ -117,7 +121,7 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
           issuerKey: issuerChoice.id,
           externalReference: marker,
           title: `Rechnung ${number}`,
-          status: "final",
+          status: isPaid ? "paid" : "final",
           number,
           issueDate: now,
           dueDate,
@@ -132,9 +136,11 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
           taxCents,
           totalCents: input.totalCents,
           amountCents: input.totalCents,
+          paidCents: isPaid ? input.totalCents : 0,
+          paidAt,
           publicToken: createInvoicePublicToken(),
           finalizedAt: now,
-          remindersEnabled: workspace.invoiceSettings.invoiceRemindersEnabled,
+          remindersEnabled: isPaid ? false : workspace.invoiceSettings.invoiceRemindersEnabled,
           items: {
             create: [{
               position: 0,
@@ -147,7 +153,17 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
               taxAmountCents: taxCents,
               amountCents: input.totalCents
             }]
-          }
+          },
+          ...(isPaid ? {
+            payments: {
+              create: {
+                amountCents: input.totalCents,
+                paidAt: paidAt!,
+                method: input.paymentMethod,
+                note: "Vor Ort über irismoment als bezahlt erfasst."
+              }
+            }
+          } : {})
         },
         select: { id: true, number: true, status: true, totalCents: true, sentAt: true }
       });

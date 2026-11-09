@@ -17,10 +17,18 @@ async function generatedInvoiceForDocument(invoiceId: string, adminId?: string) 
     where: { id: invoiceId, ...(adminId ? { adminId } : {}) },
     include: {
       items: { orderBy: { position: "asc" } },
+      payments: { orderBy: { paidAt: "desc" } },
       relatedInvoice: { select: { number: true } },
       customer: { select: { preferredLanguage: true } }
     }
   });
+}
+
+function paymentMethodLabel(method: string | null | undefined) {
+  if (method === "card") return "Karte";
+  if (method === "cash") return "Barzahlung";
+  if (method === "bank_transfer") return "Überweisung";
+  return "Bezahlt";
 }
 
 export async function persistGeneratedInvoicePdf(invoiceId: string, adminId: string) {
@@ -39,6 +47,9 @@ export async function persistGeneratedInvoicePdf(invoiceId: string, adminId: str
     subtotalCents: invoice.subtotalCents ?? invoice.totalCents,
     taxCents: invoice.taxCents ?? 0,
     totalCents: invoice.totalCents,
+    paidCents: invoice.paidCents,
+    paidAt: invoice.paidAt,
+    paymentMethod: invoice.payments[0]?.method ?? null,
     documentType: invoice.documentType,
     relatedNumber: invoice.relatedInvoice?.number,
     cancellationReason: invoice.cancellationReason,
@@ -81,17 +92,26 @@ export async function deliverGeneratedInvoice(
   if (!recipients.length) return "no-email" as const;
   if (!process.env.RESEND_API_KEY) return "unavailable" as const;
   const publicUrl = `${appBaseUrl()}/rechnung/${invoice.publicToken}`;
+  const totalCents = invoice.totalCents ?? invoice.amountCents ?? 0;
+  const fullyPaid = totalCents > 0 && invoice.paidCents >= totalCents;
   const openAmount = formatInvoiceMoney(
-    Math.max(0, (invoice.totalCents ?? invoice.amountCents ?? 0) - invoice.paidCents),
+    Math.max(0, totalCents - invoice.paidCents),
     invoice.currency
   );
-  const dueDateLabel = invoice.dueDate
+  const totalAmount = formatInvoiceMoney(totalCents, invoice.currency);
+  const payment = invoice.payments[0];
+  const paymentDateLabel = (payment?.paidAt ?? invoice.paidAt)?.toLocaleDateString("de-AT", { timeZone: "Europe/Vienna" }) ?? null;
+  const paymentLabel = paymentMethodLabel(payment?.method);
+  const paymentPhrase = payment?.method === "cash" ? "in bar" : payment?.method === "card" ? "mit Karte" : `per ${paymentLabel}`;
+  const dueDateLabel = !fullyPaid && invoice.dueDate
     ? invoice.dueDate.toLocaleDateString("de-AT", { timeZone: "UTC" })
     : null;
-  const emailSubject = `${type === "reminder" ? "Zahlungserinnerung" : "Rechnung"}: ${invoice.number}`;
+  const emailSubject = `${type === "reminder" ? "Zahlungserinnerung" : fullyPaid ? "Zahlungsbestätigung und Rechnung" : "Rechnung"}: ${invoice.number}`;
   const emailMessage = type === "reminder"
     ? `Bitte beachte den noch offenen Betrag von ${openAmount}${dueDateLabel ? ` zur Rechnung mit Fälligkeit ${dueDateLabel}` : ""}.`
-    : `Die Rechnung ${invoice.number} ist bereit.`;
+    : fullyPaid
+      ? `Vielen Dank! Der Gesamtbetrag von ${totalAmount} wurde${paymentDateLabel ? ` am ${paymentDateLabel}` : ""} vor Ort ${paymentPhrase} bezahlt. Es besteht kein offener Betrag.`
+      : `Die Rechnung ${invoice.number} ist bereit.`;
   const delivery = await prisma.deliveryLog.create({ data: {
     adminId,
     channel: "email",
@@ -111,10 +131,10 @@ export async function deliverGeneratedInvoice(
       coupleName: party.name,
       invoiceTitle: type === "reminder" ? `Zahlungserinnerung ${invoice.number}` : invoice.number,
       invoiceUrl: publicUrl,
-      amountLabel: openAmount,
+      amountLabel: fullyPaid ? totalAmount : openAmount,
       dueDateLabel,
       subject: emailSubject,
-      heading: type === "reminder" ? "Zahlungserinnerung" : "Rechnung",
+      heading: type === "reminder" ? "Zahlungserinnerung" : fullyPaid ? "Zahlungsbestätigung und Rechnung" : "Rechnung",
       message: emailMessage,
       ctaLabel: type === "reminder" ? "Rechnung öffnen" : undefined,
       language: normalizeCustomerLanguage(invoice.customer?.preferredLanguage ?? "de")

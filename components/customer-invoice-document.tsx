@@ -12,6 +12,9 @@ export type InvoiceDocumentData = {
   subtotalCents: number;
   taxCents: number;
   totalCents: number;
+  paidCents?: number;
+  paidAt?: Date | null;
+  paymentMethod?: string | null;
   documentType: string;
   relatedNumber?: string | null;
   status?: string;
@@ -24,6 +27,8 @@ export type InvoiceDocumentData = {
 
 export function CustomerInvoiceDocument({ invoice, compact = false }: { invoice: InvoiceDocumentData; compact?: boolean }) {
   const taxable = invoice.taxMode === "taxable";
+  const fullyPaid = invoice.status === "paid" || ((invoice.paidCents ?? 0) >= invoice.totalCents && invoice.totalCents > 0);
+  const paymentMethod = invoice.paymentMethod === "card" ? "Karte" : invoice.paymentMethod === "cash" ? "Barzahlung" : invoice.paymentMethod === "bank_transfer" ? "Überweisung" : "Bezahlt";
   return (
     <article className={`invoice-document-root relative mx-auto w-full overflow-hidden bg-white text-ink shadow-soft ${compact ? "p-5 text-[10px]" : "max-w-[900px] p-7 sm:p-10 lg:p-12"}`}>
       {invoice.status === "cancelled" ? (
@@ -41,6 +46,8 @@ export function CustomerInvoiceDocument({ invoice, compact = false }: { invoice:
           </span>
         </div>
       </header>
+
+      {fullyPaid ? <div className="mt-6 flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><strong className="uppercase tracking-[0.12em]">Bereits bezahlt</strong><span className="text-sm font-semibold">Offener Betrag 0,00 €</span></div> : null}
 
       <section className="grid gap-8 py-8 sm:grid-cols-2">
         <div>
@@ -60,7 +67,7 @@ export function CustomerInvoiceDocument({ invoice, compact = false }: { invoice:
             <dt>Rechnungsnummer</dt><dd className="font-medium text-ink">{invoice.number}</dd>
             {invoice.relatedNumber ? <><dt>Originalrechnung</dt><dd className="font-medium text-ink">{invoice.relatedNumber}</dd></> : null}
             <dt>Rechnungsdatum</dt><dd className="font-medium text-ink">{formatInvoiceDate(invoice.issueDate)}</dd>
-            <dt>Fälligkeitsdatum</dt><dd className="font-medium text-ink">{formatInvoiceDate(invoice.dueDate)}</dd>
+            {fullyPaid ? <><dt>Bezahlt am</dt><dd className="font-medium text-ink">{formatInvoiceDate(invoice.paidAt ?? invoice.issueDate)}</dd><dt>Zahlungsart</dt><dd className="font-medium text-ink">{paymentMethod}</dd></> : <><dt>Fälligkeitsdatum</dt><dd className="font-medium text-ink">{formatInvoiceDate(invoice.dueDate)}</dd></>}
             {invoice.serviceDateFrom ? <><dt>Leistungszeitraum</dt><dd className="font-medium text-ink">{formatInvoiceDate(invoice.serviceDateFrom)}{invoice.serviceDateTo && invoice.serviceDateTo.getTime() !== invoice.serviceDateFrom.getTime() ? ` – ${formatInvoiceDate(invoice.serviceDateTo)}` : ""}</dd></> : null}
           </dl>
         </div>
@@ -82,6 +89,7 @@ export function CustomerInvoiceDocument({ invoice, compact = false }: { invoice:
       <div className="ml-auto mt-7 w-full max-w-sm space-y-2 text-right">
         {taxable ? <><p className="flex justify-between text-graphite/70"><span>Netto</span><span>{formatInvoiceMoney(invoice.subtotalCents, invoice.currency)}</span></p><p className="flex justify-between text-graphite/70"><span>USt.</span><span>{formatInvoiceMoney(invoice.taxCents, invoice.currency)}</span></p></> : null}
         <p className="flex items-baseline justify-between border-t border-ink/15 pt-3"><span className="text-xs font-semibold uppercase tracking-[0.12em] text-graphite/70">{invoice.documentType === "cancellation" ? "Stornobetrag" : "Gesamtbetrag"}</span><strong className="text-xl">{formatInvoiceMoney(invoice.totalCents, invoice.currency)}</strong></p>
+        {fullyPaid ? <p className="flex justify-between rounded-md bg-emerald-50 px-3 py-2 font-semibold text-emerald-800"><span>Bezahlt · {paymentMethod}</span><span>0,00 € offen</span></p> : null}
       </div>
 
       <footer className="mt-9 space-y-5">
@@ -90,7 +98,7 @@ export function CustomerInvoiceDocument({ invoice, compact = false }: { invoice:
         <div className="text-xs leading-relaxed text-graphite/70">
           <strong className="text-ink">{invoice.issuer.name}</strong><br />
           {invoice.issuer.addressLine1} · {invoice.issuer.postalCode} {invoice.issuer.city}<br />
-          IBAN: {invoice.issuer.iban}{invoice.issuer.bic ? ` · BIC: ${invoice.issuer.bic}` : ""}<br />
+          {fullyPaid ? null : <>IBAN: {invoice.issuer.iban}{invoice.issuer.bic ? ` · BIC: ${invoice.issuer.bic}` : ""}<br /></>}
           Steuernummer: {invoice.issuer.taxNumber}{invoice.issuer.uid ? ` · UID: ${invoice.issuer.uid}` : ""}
         </div>
       </footer>

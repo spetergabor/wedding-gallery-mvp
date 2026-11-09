@@ -23,9 +23,14 @@ function parsePayload(value: unknown): IrismomentInvoiceInput {
   const description = text(payload.description, 500);
   const totalCents = Number(payload.totalCents);
   const issuerKey = text(payload.issuerKey, 100) || "default";
+  const paymentMethod = text(payload.paymentMethod, 30) || "unpaid";
+  const paidAtText = text(payload.paidAt, 50);
+  const paidAt = paidAtText ? new Date(paidAtText) : undefined;
   if (!requestId || !externalClientId || customerName.length < 2 || !description ||
       !/^\S+@\S+\.\S+$/.test(customerEmail) || !Number.isSafeInteger(totalCents) ||
-      totalCents < 1 || totalCents > 1_000_000) {
+      totalCents < 1 || totalCents > 1_000_000 ||
+      !["card", "cash", "unpaid"].includes(paymentMethod) ||
+      (paymentMethod !== "unpaid" && (!paidAt || Number.isNaN(paidAt.getTime())))) {
     throw new IrismomentInvoiceError(
       "invalid_invoice",
       "Ellenőrizd az ügyfél nevét, e-mail-címét, a számla megnevezését és az összeget.",
@@ -40,6 +45,8 @@ function parsePayload(value: unknown): IrismomentInvoiceInput {
     description,
     totalCents,
     issuerKey,
+    paymentMethod: paymentMethod as IrismomentInvoiceInput["paymentMethod"],
+    paidAt,
     addressLine1: text(payload.addressLine1, 300) || undefined,
     postalCode: text(payload.postalCode, 30) || undefined,
     city: text(payload.city, 150) || undefined,
