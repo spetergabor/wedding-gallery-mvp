@@ -816,7 +816,7 @@ export async function listMultipartUploadParts({
   const parts: Array<{ etag: string; partNumber: number; size: number }> = [];
   let partNumberMarker: string | undefined;
 
-  do {
+  while (true) {
     const startedAt = Date.now();
     console.info("R2 multipart parts list started", {
       r2Key,
@@ -853,8 +853,18 @@ export async function listMultipartUploadParts({
       }
     }
 
-    partNumberMarker = listed.NextPartNumberMarker;
-  } while (partNumberMarker);
+    if (!listed.IsTruncated) {
+      break;
+    }
+
+    const nextPartNumberMarker = listed.NextPartNumberMarker;
+
+    if (!nextPartNumberMarker || nextPartNumberMarker === partNumberMarker) {
+      throw new Error("R2 multipart parts list pagination did not advance.");
+    }
+
+    partNumberMarker = nextPartNumberMarker;
+  }
 
   return parts.sort((left, right) => left.partNumber - right.partNumber);
 }
