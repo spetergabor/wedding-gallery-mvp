@@ -6,6 +6,7 @@ import {
   INVOICE_TAX_NOTICE,
   allocateInvoiceNumber,
   createInvoicePublicToken,
+  invoiceIssuerChoice,
   loadInvoiceWorkspaceSettings,
   missingIssuerFields
 } from "@/lib/customer-invoices";
@@ -19,6 +20,7 @@ export type IrismomentInvoiceInput = {
   customerEmail: string;
   description: string;
   totalCents: number;
+  issuerKey: string;
   addressLine1?: string;
   postalCode?: string;
   city?: string;
@@ -32,7 +34,7 @@ export class IrismomentInvoiceError extends Error {
 }
 
 function requestMarker(input: IrismomentInvoiceInput) {
-  return `irismoment:${input.externalClientId}:${input.requestId}`;
+  return `irismoment:${input.issuerKey}:${input.externalClientId}:${input.requestId}`;
 }
 
 function responseInvoice(invoice: {
@@ -54,8 +56,10 @@ function responseInvoice(invoice: {
 export async function createAndSendIrismomentInvoice(adminId: string, input: IrismomentInvoiceInput) {
   const workspace = await loadInvoiceWorkspaceSettings(adminId);
   if (!workspace) throw new IrismomentInvoiceError("workspace_not_found", "A Spetly workspace nem található.", 404);
-  const taxMode = workspace.invoiceSettings.invoiceTaxMode === "taxable" ? "taxable" : "small_business";
-  const missing = missingIssuerFields(workspace.issuer, taxMode);
+  const issuerChoice = invoiceIssuerChoice(workspace, input.issuerKey);
+  if (!issuerChoice) throw new IrismomentInvoiceError("issuer_not_found", "A kiválasztott számlakibocsátó nem található.", 404);
+  const taxMode = issuerChoice.invoiceSettings.invoiceTaxMode === "taxable" ? "taxable" : "small_business";
+  const missing = missingIssuerFields(issuerChoice.issuer, taxMode);
   if (missing.length) {
     throw new IrismomentInvoiceError(
       "invoice_settings_incomplete",
@@ -79,8 +83,8 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
 
   const now = new Date();
   const dueDate = new Date(now);
-  dueDate.setUTCDate(dueDate.getUTCDate() + workspace.invoiceSettings.invoiceDueDays);
-  const vatRate = taxMode === "taxable" ? workspace.invoiceSettings.invoiceDefaultVatRate : 0;
+  dueDate.setUTCDate(dueDate.getUTCDate() + issuerChoice.invoiceSettings.invoiceDueDays);
+  const vatRate = taxMode === "taxable" ? issuerChoice.invoiceSettings.invoiceDefaultVatRate : 0;
   const subtotalCents = vatRate > 0
     ? Math.round(input.totalCents * 100 / (100 + vatRate))
     : input.totalCents;
@@ -103,12 +107,14 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
         adminId,
         issueDate: now,
         kind: "invoice",
-        prefix: workspace.invoiceSettings.invoicePrefix,
-        sequenceStart: workspace.invoiceSettings.invoiceSequenceStart
+        prefix: issuerChoice.invoiceSettings.invoicePrefix,
+        sequenceStart: issuerChoice.invoiceSettings.invoiceSequenceStart,
+        sequenceKey: issuerChoice.id
       });
       return tx.customerInvoice.create({
         data: {
           adminId,
+          issuerKey: issuerChoice.id,
           externalReference: marker,
           title: `Rechnung ${number}`,
           status: "final",
@@ -119,7 +125,7 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
           serviceDateTo: now,
           currency: "EUR",
           taxMode,
-          issuerSnapshot: workspace.issuer,
+          issuerSnapshot: issuerChoice.issuer,
           customerSnapshot: party,
           taxNotice: taxMode === "taxable" ? INVOICE_STANDARD_TAX_NOTICE : INVOICE_TAX_NOTICE,
           subtotalCents,

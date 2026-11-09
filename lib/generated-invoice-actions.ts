@@ -13,6 +13,7 @@ import {
   allocateInvoiceNumber,
   createDraftInvoiceNumber,
   createInvoicePublicToken,
+  invoiceIssuerChoice,
   invoiceDate,
   loadInvoiceWorkspaceSettings,
   missingIssuerFields,
@@ -87,7 +88,11 @@ function validDateInput(raw: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw);
 }
 
-async function invoiceFormData(adminId: string, formData: FormData) {
+async function invoiceFormData(
+  adminId: string,
+  formData: FormData,
+  workspace: NonNullable<Awaited<ReturnType<typeof loadInvoiceWorkspaceSettings>>>
+) {
   const customerIdInput = value(formData, "customerId");
   const projectIdInput = value(formData, "projectId");
   const customerName = value(formData, "customerName");
@@ -98,6 +103,8 @@ async function invoiceFormData(adminId: string, formData: FormData) {
   const serviceDateFromInput = value(formData, "serviceDateFrom");
   const serviceDateToInput = value(formData, "serviceDateTo");
   const taxMode = value(formData, "taxMode") === "taxable" ? "taxable" as const : "small_business" as const;
+  const issuerKey = value(formData, "issuerKey") || "default";
+  const issuerChoice = invoiceIssuerChoice(workspace, issuerKey);
   const intentInput = value(formData, "intent");
   const intent = intentInput === "send" ? "send" as const : intentInput === "finalize" ? "finalize" as const : "draft" as const;
   const items = parseItems(value(formData, "itemsJson"));
@@ -107,6 +114,7 @@ async function invoiceFormData(adminId: string, formData: FormData) {
   if (intent === "send" && !customerEmail && !secondaryEmail) return { error: "E-mailes küldéshez add meg az ügyfél e-mail-címét." } as const;
   if (![issueDateInput, dueDateInput, serviceDateFromInput, serviceDateToInput].every(validDateInput)) return { error: "Ellenőrizd a számla dátumait." } as const;
   if (!items) return { error: "Ellenőrizd a számlatételeket." } as const;
+  if (!issuerChoice) return { error: "A kiválasztott számlakibocsátó nem található." } as const;
   const issueDate = invoiceDate(issueDateInput);
   const dueDate = invoiceDate(dueDateInput);
   const serviceDateFrom = invoiceDate(serviceDateFromInput);
@@ -139,6 +147,8 @@ async function invoiceFormData(adminId: string, formData: FormData) {
     customerId: customer?.id ?? null,
     projectId: project?.id ?? null,
     preferredLanguage: customer?.preferredLanguage ?? "de",
+    issuerKey,
+    issuerChoice,
     party,
     issueDate,
     dueDate,
@@ -154,9 +164,11 @@ async function invoiceFormData(adminId: string, formData: FormData) {
 async function finalizeStoredInvoice(invoiceId: string, adminId: string) {
   const workspace = await loadInvoiceWorkspaceSettings(adminId);
   if (!workspace) return { error: "A workspace nem található." };
-  const invoice = await prisma.customerInvoice.findFirst({ where: { id: invoiceId, adminId, status: "draft" }, select: { id: true, issueDate: true, taxMode: true, totalCents: true, customerSnapshot: true, documentType: true } });
+  const invoice = await prisma.customerInvoice.findFirst({ where: { id: invoiceId, adminId, status: "draft" }, select: { id: true, issuerKey: true, issueDate: true, taxMode: true, totalCents: true, customerSnapshot: true, documentType: true } });
   if (!invoice?.issueDate || invoice.totalCents === null) return { error: "A piszkozat nem véglegesíthető." };
-  const missing = missingIssuerFields(workspace.issuer, invoice.taxMode);
+  const issuerChoice = invoiceIssuerChoice(workspace, invoice.issuerKey);
+  if (!issuerChoice) return { error: "A piszkozat számlakibocsátója már nem elérhető." };
+  const missing = missingIssuerFields(issuerChoice.issuer, invoice.taxMode);
   if (missing.length) return { error: `A Beállítások / Számlázás részben töltsd ki: ${missing.join(", ")}.` };
   const party = parseInvoiceParty(invoice.customerSnapshot);
   if (invoice.totalCents > 1_000_000 && !party.uid) return { error: "10 000 EUR feletti számlához add meg az ügyfél UID-számát." };
@@ -166,10 +178,11 @@ async function finalizeStoredInvoice(invoiceId: string, adminId: string) {
         adminId,
         issueDate: invoice.issueDate!,
         kind: "invoice",
-        prefix: workspace.invoiceSettings.invoicePrefix,
-        sequenceStart: workspace.invoiceSettings.invoiceSequenceStart
+        prefix: issuerChoice.invoiceSettings.invoicePrefix,
+        sequenceStart: issuerChoice.invoiceSettings.invoiceSequenceStart,
+        sequenceKey: invoice.issuerKey
       });
-      const changed = await tx.customerInvoice.updateMany({ where: { id: invoice.id, adminId, status: "draft" }, data: { number: official, title: `${invoice.documentType === "correction" ? "Berichtigte Rechnung" : "Rechnung"} ${official}`, status: "final", finalizedAt: new Date(), issuerSnapshot: workspace.issuer } });
+      const changed = await tx.customerInvoice.updateMany({ where: { id: invoice.id, adminId, status: "draft" }, data: { number: official, title: `${invoice.documentType === "correction" ? "Berichtigte Rechnung" : "Rechnung"} ${official}`, status: "final", finalizedAt: new Date(), issuerSnapshot: issuerChoice.issuer } });
       if (changed.count !== 1) throw new Error("INVOICE_ALREADY_FINALIZED");
       return official;
     });
@@ -184,24 +197,25 @@ async function finalizeStoredInvoice(invoiceId: string, adminId: string) {
 export async function saveGeneratedInvoiceAction(_: GeneratedInvoiceActionState, formData: FormData): Promise<GeneratedInvoiceActionState> {
   const session = await requireAdmin();
   const adminId = ownerAdminId(session);
-  const parsed = await invoiceFormData(adminId, formData);
-  if (parsed.error) return { error: parsed.error };
   const workspace = await loadInvoiceWorkspaceSettings(adminId);
   if (!workspace) return { error: "A workspace nem található." };
+  const parsed = await invoiceFormData(adminId, formData, workspace);
+  if (parsed.error) return { error: parsed.error };
   if (parsed.intent !== "draft") {
-    const missing = missingIssuerFields(workspace.issuer, parsed.taxMode);
+    const missing = missingIssuerFields(parsed.issuerChoice.issuer, parsed.taxMode);
     if (missing.length) return { error: `A Beállítások / Számlázás részben töltsd ki: ${missing.join(", ")}.` };
   }
   const draftNumber = createDraftInvoiceNumber();
   const invoice = await prisma.$transaction(async (tx) => {
     let number = draftNumber;
     if (parsed.intent !== "draft") {
-      number = await allocateInvoiceNumber(tx, { adminId, issueDate: parsed.issueDate, kind: "invoice", prefix: workspace.invoiceSettings.invoicePrefix, sequenceStart: workspace.invoiceSettings.invoiceSequenceStart });
+      number = await allocateInvoiceNumber(tx, { adminId, issueDate: parsed.issueDate, kind: "invoice", prefix: parsed.issuerChoice.invoiceSettings.invoicePrefix, sequenceStart: parsed.issuerChoice.invoiceSettings.invoiceSequenceStart, sequenceKey: parsed.issuerKey });
     }
     return tx.customerInvoice.create({ data: {
       adminId,
       customerId: parsed.customerId,
       projectId: parsed.projectId,
+      issuerKey: parsed.issuerKey,
       title: `${parsed.intent === "draft" ? "Piszkozat" : "Rechnung"} ${number}`,
       status: parsed.intent === "draft" ? "draft" : "final",
       number,
@@ -211,7 +225,7 @@ export async function saveGeneratedInvoiceAction(_: GeneratedInvoiceActionState,
       serviceDateTo: parsed.serviceDateTo,
       currency: "EUR",
       taxMode: parsed.taxMode,
-      issuerSnapshot: workspace.issuer,
+      issuerSnapshot: parsed.issuerChoice.issuer,
       customerSnapshot: parsed.party,
       taxNotice: parsed.taxMode === "taxable" ? INVOICE_STANDARD_TAX_NOTICE : INVOICE_TAX_NOTICE,
       subtotalCents: parsed.subtotalCents,
@@ -235,24 +249,25 @@ export async function updateGeneratedInvoiceAction(invoiceId: string, _: Generat
   const adminId = ownerAdminId(session);
   const current = await prisma.customerInvoice.findFirst({ where: { id: invoiceId, adminId, status: "draft" }, select: { id: true, documentType: true } });
   if (!current) return { error: "Csak piszkozat szerkeszthető." };
-  const parsed = await invoiceFormData(adminId, formData);
-  if (parsed.error) return { error: parsed.error };
   const workspace = await loadInvoiceWorkspaceSettings(adminId);
   if (!workspace) return { error: "A workspace nem található." };
+  const parsed = await invoiceFormData(adminId, formData, workspace);
+  if (parsed.error) return { error: parsed.error };
   if (parsed.intent !== "draft") {
-    const missing = missingIssuerFields(workspace.issuer, parsed.taxMode);
+    const missing = missingIssuerFields(parsed.issuerChoice.issuer, parsed.taxMode);
     if (missing.length) return { error: `A Beállítások / Számlázás részben töltsd ki: ${missing.join(", ")}.` };
   }
   await prisma.$transaction(async (tx) => {
     const changed = await tx.customerInvoice.updateMany({ where: { id: invoiceId, adminId, status: "draft" }, data: {
       customerId: parsed.customerId,
       projectId: parsed.projectId,
+      issuerKey: parsed.issuerKey,
       issueDate: parsed.issueDate,
       dueDate: parsed.dueDate,
       serviceDateFrom: parsed.serviceDateFrom,
       serviceDateTo: parsed.serviceDateTo,
       taxMode: parsed.taxMode,
-      issuerSnapshot: workspace.issuer,
+      issuerSnapshot: parsed.issuerChoice.issuer,
       customerSnapshot: parsed.party,
       taxNotice: parsed.taxMode === "taxable" ? INVOICE_STANDARD_TAX_NOTICE : INVOICE_TAX_NOTICE,
       subtotalCents: parsed.subtotalCents,
@@ -334,6 +349,7 @@ export async function cancelGeneratedInvoiceAction(invoiceId: string, formData: 
   const workspace = await loadInvoiceWorkspaceSettings(adminId);
   const invoice = await prisma.customerInvoice.findFirst({ where: { id: invoiceId, adminId }, include: { items: { orderBy: { position: "asc" } }, relatedDocuments: { where: { documentType: "cancellation" }, select: { id: true }, take: 1 } } });
   if (!workspace || !invoice || invoice.status === "draft" || invoice.documentType === "cancellation") redirect(invoicePath(invoiceId, "unchanged"));
+  const issuerChoice = invoiceIssuerChoice(workspace, invoice.issuerKey) ?? invoiceIssuerChoice(workspace, "default")!;
   if (invoice.relatedDocuments[0]) redirect(invoicePath(invoice.relatedDocuments[0].id, "unchanged"));
   const reason = value(formData, "reason").slice(0, 500) || null;
   let cancellation: { id: string };
@@ -345,11 +361,12 @@ export async function cancelGeneratedInvoiceAction(invoiceId: string, formData: 
         data: { status: "cancelled", cancelledAt: now, cancellationReason: reason }
       });
       if (claimed.count !== 1) throw new Error("INVOICE_ALREADY_CANCELLED");
-      const number = await allocateInvoiceNumber(tx, { adminId, issueDate: now, kind: "cancellation", prefix: workspace.invoiceSettings.invoiceCancellationPrefix, sequenceStart: 1 });
+      const number = await allocateInvoiceNumber(tx, { adminId, issueDate: now, kind: "cancellation", prefix: issuerChoice.invoiceSettings.invoiceCancellationPrefix, sequenceStart: 1, sequenceKey: invoice.issuerKey });
       return tx.customerInvoice.create({ data: {
         adminId,
         customerId: invoice.customerId,
         projectId: invoice.projectId,
+        issuerKey: invoice.issuerKey,
         title: `Stornorechnung ${number}`,
         status: "final",
         number,
@@ -361,7 +378,7 @@ export async function cancelGeneratedInvoiceAction(invoiceId: string, formData: 
         documentType: "cancellation",
         relatedInvoiceId: invoice.id,
         taxMode: invoice.taxMode,
-        issuerSnapshot: invoice.issuerSnapshot ?? workspace.issuer,
+        issuerSnapshot: invoice.issuerSnapshot ?? issuerChoice.issuer,
         customerSnapshot: invoice.customerSnapshot ?? {},
         taxNotice: invoice.taxNotice,
         subtotalCents: -(invoice.subtotalCents ?? invoice.totalCents ?? invoice.amountCents ?? 0),
@@ -391,12 +408,14 @@ export async function createCorrectionInvoiceDraftAction(invoiceId: string) {
   if (!invoice) redirect(invoicePath(invoiceId, "unchanged"));
   if (invoice.relatedDocuments[0]) redirect(`/admin/invoices/${invoice.relatedDocuments[0].id}/edit`);
   const workspace = await loadInvoiceWorkspaceSettings(adminId);
+  const issuerChoice = workspace ? invoiceIssuerChoice(workspace, invoice.issuerKey) : null;
   const now = new Date();
-  const due = new Date(now); due.setUTCDate(due.getUTCDate() + (workspace?.invoiceSettings.invoiceDueDays ?? 14));
+  const due = new Date(now); due.setUTCDate(due.getUTCDate() + (issuerChoice?.invoiceSettings.invoiceDueDays ?? workspace?.invoiceSettings.invoiceDueDays ?? 14));
   const created = await prisma.customerInvoice.create({ data: {
     adminId,
     customerId: invoice.customerId,
     projectId: invoice.projectId,
+    issuerKey: invoice.issuerKey,
     title: `Helyesbítő piszkozat ${invoice.number}`,
     status: "draft",
     number: createDraftInvoiceNumber(),

@@ -43,6 +43,15 @@ export type InvoiceSettings = {
   invoiceFollowupDays: number;
 };
 
+export type InvoiceIssuerChoice = {
+  id: string;
+  label: string;
+  issuer: InvoiceIssuer;
+  invoiceSettings: Pick<InvoiceSettings,
+    "invoicePrefix" | "invoiceCancellationPrefix" | "invoiceSequenceStart" |
+    "invoiceDueDays" | "invoiceTaxMode" | "invoiceDefaultVatRate">;
+};
+
 export function formatInvoiceMoney(cents: number, currency = "EUR", locale = "de-AT") {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
 }
@@ -116,7 +125,8 @@ export async function loadInvoiceWorkspaceSettings(adminId: string) {
       city: true,
       country: true,
       taxNumber: true,
-      siteSettings: true
+      siteSettings: true,
+      invoiceIssuerProfiles: { where: { isActive: true }, orderBy: [{ label: "asc" }, { createdAt: "asc" }] }
     }
   });
   if (!admin) return null;
@@ -144,7 +154,42 @@ export async function loadInvoiceWorkspaceSettings(adminId: string) {
     invoiceOverdueDays: settings?.invoiceOverdueDays ?? 1,
     invoiceFollowupDays: settings?.invoiceFollowupDays ?? 7
   };
-  return { admin, settings, issuer, invoiceSettings };
+  const issuerChoices: InvoiceIssuerChoice[] = [
+    {
+      id: "default",
+      label: issuer.name || "Alapértelmezett kibocsátó",
+      issuer,
+      invoiceSettings
+    },
+    ...admin.invoiceIssuerProfiles.map((profile) => ({
+      id: profile.id,
+      label: profile.label,
+      issuer: {
+        name: profile.name,
+        addressLine1: profile.addressLine1,
+        postalCode: profile.postalCode,
+        city: profile.city,
+        country: profile.country,
+        iban: profile.iban,
+        bic: profile.bic,
+        taxNumber: profile.taxNumber,
+        uid: profile.uid
+      },
+      invoiceSettings: {
+        invoicePrefix: profile.invoicePrefix,
+        invoiceCancellationPrefix: profile.invoiceCancellationPrefix,
+        invoiceSequenceStart: profile.invoiceSequenceStart,
+        invoiceDueDays: profile.invoiceDueDays,
+        invoiceTaxMode: profile.invoiceTaxMode,
+        invoiceDefaultVatRate: profile.invoiceDefaultVatRate
+      }
+    }))
+  ];
+  return { admin, settings, issuer, invoiceSettings, issuerChoices };
+}
+
+export function invoiceIssuerChoice<Workspace extends { issuerChoices: InvoiceIssuerChoice[] }>(workspace: Workspace, issuerKey: string) {
+  return workspace.issuerChoices.find((choice) => choice.id === issuerKey) ?? null;
 }
 
 export function missingIssuerFields(issuer: InvoiceIssuer, taxMode: string) {
@@ -163,13 +208,14 @@ export function missingIssuerFields(issuer: InvoiceIssuer, taxMode: string) {
 
 export async function allocateInvoiceNumber(
   tx: Prisma.TransactionClient,
-  input: { adminId: string; issueDate: Date; kind: "invoice" | "cancellation"; prefix: string; sequenceStart: number }
+  input: { adminId: string; issueDate: Date; kind: "invoice" | "cancellation"; prefix: string; sequenceStart: number; sequenceKey?: string }
 ) {
   const year = input.issueDate.getUTCFullYear();
   const prefix = input.prefix.trim() || (input.kind === "cancellation" ? "ST" : "RE");
   const numberPrefix = `${prefix}-${year}-`;
+  const issuerKey = input.sequenceKey || "default";
   const existing = await tx.customerInvoice.findMany({
-    where: { adminId: input.adminId, number: { startsWith: numberPrefix } },
+    where: { adminId: input.adminId, issuerKey, number: { startsWith: numberPrefix } },
     select: { number: true }
   });
   const highest = existing.reduce((max, row) => {
@@ -177,10 +223,11 @@ export async function allocateInvoiceNumber(
     return Number.isInteger(value) ? Math.max(max, value) : max;
   }, 0);
   const seed = Math.max(highest + 1, Math.max(1, input.sequenceStart));
-  const sequenceId = `${input.adminId}:${year}:${input.kind}`;
+  const sequenceKind = issuerKey === "default" ? input.kind : `${input.kind}:${issuerKey}`;
+  const sequenceId = `${input.adminId}:${year}:${sequenceKind}`;
   const rows = await tx.$queryRaw<Array<{ value: number }>>`
     INSERT INTO "InvoiceNumberSequence" ("id", "adminId", "year", "kind", "nextValue", "createdAt", "updatedAt")
-    VALUES (${sequenceId}, ${input.adminId}, ${year}, ${input.kind}, ${seed + 1}, NOW(), NOW())
+    VALUES (${sequenceId}, ${input.adminId}, ${year}, ${sequenceKind}, ${seed + 1}, NOW(), NOW())
     ON CONFLICT ("adminId", "year", "kind") DO UPDATE
     SET "nextValue" = GREATEST("InvoiceNumberSequence"."nextValue", ${seed}) + 1,
         "updatedAt" = NOW()

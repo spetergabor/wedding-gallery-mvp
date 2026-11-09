@@ -21,6 +21,15 @@ type Candidate = {
 type Project = { id: string; customerId: string; title: string; eventDate: string };
 type CustomerState = Candidate & { selected: boolean };
 type LineItem = { id: number; description: string; quantity: string; unit: string; unitPrice: string; vatRate: string };
+type IssuerOption = {
+  id: string;
+  label: string;
+  issuer: InvoiceIssuer;
+  suggestedNumber: string;
+  invoiceDueDays: number;
+  taxMode: "small_business" | "taxable";
+  defaultVatRate: number;
+};
 
 const units = [
   ["Stk", "Darab (Stk)"], ["pauschal", "Átalány (pauschal)"], ["Std", "Óra (Std)"], ["UE", "Tanóra (UE)"], ["%", "Százalék (%)"],
@@ -43,7 +52,8 @@ export function CustomerInvoiceComposer({
   suggestedNumber,
   today,
   dueDate,
-  issuer,
+  issuerOptions,
+  initialIssuerKey = "default",
   initialTaxMode,
   defaultVatRate,
   invoiceId,
@@ -61,7 +71,8 @@ export function CustomerInvoiceComposer({
   suggestedNumber: string;
   today: string;
   dueDate: string;
-  issuer: InvoiceIssuer;
+  issuerOptions: IssuerOption[];
+  initialIssuerKey?: string;
   initialTaxMode: "small_business" | "taxable";
   defaultVatRate: number;
   invoiceId?: string;
@@ -91,6 +102,8 @@ export function CustomerInvoiceComposer({
   const [projectId, setProjectId] = useState(initialProjectId);
   const [dates, setDates] = useState({ issueDate: today, dueDate, from: initialServiceFrom ?? today, to: initialServiceTo ?? today });
   const [taxMode, setTaxMode] = useState<"small_business" | "taxable">(initialTaxMode);
+  const [issuerKey, setIssuerKey] = useState(initialIssuerKey);
+  const selectedIssuer = issuerOptions.find((option) => option.id === issuerKey) ?? issuerOptions[0];
   const normalizedVat = [10, 13, 20].includes(defaultVatRate) ? String(defaultVatRate) : "20";
   const [items, setItems] = useState<LineItem[]>(() => initialItems?.length ? initialItems.map((item, index) => ({ id: index + 1, ...item })) : [{ id: 1, description: "Fotografische Leistungen", quantity: "1", unit: "pauschal", unitPrice: "", vatRate: normalizedVat }]);
   const [nextId, setNextId] = useState((initialItems?.length ?? 1) + 1);
@@ -130,8 +143,19 @@ export function CustomerInvoiceComposer({
     setDates((current) => ({ ...current, issueDate: fieldValue, dueDate: Number.isNaN(nextDue.getTime()) ? current.dueDate : nextDue.toISOString().slice(0, 10) }));
   }
 
+  function changeIssuer(nextKey: string) {
+    const next = issuerOptions.find((option) => option.id === nextKey);
+    if (!next) return;
+    setIssuerKey(nextKey);
+    setTaxMode(next.taxMode);
+    const issue = new Date(`${dates.issueDate}T12:00:00Z`);
+    const nextDue = new Date(issue); nextDue.setUTCDate(nextDue.getUTCDate() + next.invoiceDueDays);
+    setDates((current) => ({ ...current, dueDate: nextDue.toISOString().slice(0, 10) }));
+    setItems((current) => current.map((item) => ({ ...item, vatRate: String(next.defaultVatRate) })));
+  }
+
   const preview = {
-    number: suggestedNumber,
+    number: invoiceId ? suggestedNumber : selectedIssuer.suggestedNumber,
     issueDate: new Date(`${dates.issueDate}T12:00:00Z`),
     dueDate: new Date(`${dates.dueDate}T12:00:00Z`),
     serviceDateFrom: new Date(`${dates.from}T12:00:00Z`),
@@ -145,18 +169,20 @@ export function CustomerInvoiceComposer({
     documentType,
     relatedNumber,
     customer: { name: customer.name || "Kundenname", email: customer.primaryEmail, secondaryEmail: customer.secondaryEmail, addressLine1: customer.addressLine1, postalCode: customer.postalCode, city: customer.city, country: customer.country, uid: customer.uid },
-    issuer,
+    issuer: selectedIssuer.issuer,
     items: items.map((item) => ({ id: item.id, description: item.description || "Leistung", quantity: amounts(item, taxMode).quantity, unit: item.unit, unitPriceCents: amounts(item, taxMode).unitPriceCents, vatRate: Number(item.vatRate), amountCents: amounts(item, taxMode).total }))
   };
 
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="customerId" value={customer.selected ? customer.id : ""} />
+      <input type="hidden" name="issuerKey" value={issuerKey} />
       <input type="hidden" name="itemsJson" value={itemsJson} />
       <input type="hidden" name="taxMode" value={taxMode} />
       <div className="grid min-w-0 items-start gap-6 2xl:grid-cols-[minmax(0,1.05fr)_minmax(460px,.95fr)]">
         <div className="min-w-0 space-y-5">
           {state.error ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{state.error}</div> : null}
+          <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6"><h2 className="font-semibold text-ink">Számlakibocsátó</h2><p className="mt-1 text-sm text-graphite/65">A választott személy adatai, bankszámlája és saját számlasorozata kerül a bizonylatra.</p><label className="mt-4 block space-y-2"><span className="text-sm font-medium text-graphite">Kibocsátó</span><select value={issuerKey} onChange={(event) => changeIssuer(event.target.value)} className={fieldClass}>{issuerOptions.map((option) => <option key={option.id} value={option.id}>{option.label} · {option.issuer.name}</option>)}</select></label></section>
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
             <header className="flex gap-3 border-b border-ink/10 pb-4"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-semibold text-white">1</span><div><h2 className="font-semibold text-ink">Ügyfél és projekt</h2><p className="mt-1 text-sm text-graphite/65">Keress Spetly-ügyfelet, vagy írj be teljesen kézi adatokat.</p></div></header>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -177,7 +203,7 @@ export function CustomerInvoiceComposer({
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
             <header className="flex gap-3 border-b border-ink/10 pb-4"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-semibold text-white">2</span><div><h2 className="font-semibold text-ink">Rechnungsdetails</h2><p className="mt-1 text-sm text-graphite/65">A hivatalos sorszámot csak véglegesítéskor foglaljuk le.</p></div></header>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <label className="space-y-2"><span className="text-sm font-medium text-graphite">Rechnungsnummer</span><input value={suggestedNumber} readOnly className={`${fieldClass} bg-paper`}/></label>
+              <label className="space-y-2"><span className="text-sm font-medium text-graphite">Rechnungsnummer</span><input value={invoiceId ? suggestedNumber : selectedIssuer.suggestedNumber} readOnly className={`${fieldClass} bg-paper`}/></label>
               <label className="space-y-2"><span className="text-sm font-medium text-graphite">Rechnungsdatum</span><input name="issueDate" type="date" required value={dates.issueDate} onChange={(event) => changeIssueDate(event.target.value)} className={fieldClass}/></label>
               <label className="space-y-2"><span className="text-sm font-medium text-graphite">Fälligkeitsdatum</span><input name="dueDate" type="date" required value={dates.dueDate} onChange={(event) => setDates((current) => ({ ...current, dueDate: event.target.value }))} className={fieldClass}/></label>
               <label className="space-y-2"><span className="text-sm font-medium text-graphite">Leistung von</span><input name="serviceDateFrom" type="date" required value={dates.from} onChange={(event) => setDates((current) => ({ ...current, from: event.target.value, to: current.to < event.target.value ? event.target.value : current.to }))} className={fieldClass}/></label>
@@ -208,7 +234,7 @@ export function CustomerInvoiceComposer({
       <div className="sticky bottom-3 z-10 flex flex-wrap justify-end gap-2 rounded-lg border border-ink/10 bg-white/95 p-3 shadow-xl backdrop-blur">
         <button type="button" onClick={() => document.getElementById("invoice-live-preview")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="inline-flex h-11 items-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium"><Eye size={17}/> Előnézet</button>
         <button type="submit" name="intent" value="draft" disabled={pending} className="inline-flex h-11 items-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium disabled:opacity-50"><Save size={17}/>{pending ? "Mentés…" : "Mentés"}</button>
-        <details className="relative"><summary className="inline-flex h-11 cursor-pointer list-none items-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white marker:hidden"><FileCheck2 size={17}/> Ellenőrzés és küldés</summary><div className="absolute bottom-14 right-0 w-[min(420px,calc(100vw-2rem))] rounded-lg border border-ink/10 bg-white p-5 shadow-2xl"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brass">Számla ellenőrzése</p><h3 className="mt-2 text-lg font-semibold">Készen áll a véglegesítésre?</h3><p className="mt-2 text-sm leading-6 text-graphite/70">Véglegesítés után a tartalom és a hivatalos számlaszám már nem módosítható.</p><div className="mt-4 rounded-md bg-paper p-3"><strong className="block">{suggestedNumber}</strong><span className="mt-1 block text-sm text-graphite/65">{customer.name || "Nincs ügyfél"} · {formatInvoiceMoney(total)}</span></div><div className="mt-4 grid gap-2"><button type="submit" name="intent" value="finalize" disabled={pending} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium"><FileCheck2 size={16}/> Véglegesítés e-mail nélkül</button><button type="submit" name="intent" value="send" disabled={pending || (!customer.primaryEmail && !customer.secondaryEmail)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white disabled:opacity-40"><Mail size={16}/> Véglegesítés és küldés</button></div></div></details>
+        <details className="relative"><summary className="inline-flex h-11 cursor-pointer list-none items-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white marker:hidden"><FileCheck2 size={17}/> Ellenőrzés és küldés</summary><div className="absolute bottom-14 right-0 w-[min(420px,calc(100vw-2rem))] rounded-lg border border-ink/10 bg-white p-5 shadow-2xl"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brass">Számla ellenőrzése</p><h3 className="mt-2 text-lg font-semibold">Készen áll a véglegesítésre?</h3><p className="mt-2 text-sm leading-6 text-graphite/70">Véglegesítés után a tartalom és a hivatalos számlaszám már nem módosítható.</p><div className="mt-4 rounded-md bg-paper p-3"><strong className="block">{invoiceId ? suggestedNumber : selectedIssuer.suggestedNumber}</strong><span className="mt-1 block text-sm text-graphite/65">{selectedIssuer.label} · {customer.name || "Nincs ügyfél"} · {formatInvoiceMoney(total)}</span></div><div className="mt-4 grid gap-2"><button type="submit" name="intent" value="finalize" disabled={pending} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-ink/15 px-4 text-sm font-medium"><FileCheck2 size={16}/> Véglegesítés e-mail nélkül</button><button type="submit" name="intent" value="send" disabled={pending || (!customer.primaryEmail && !customer.secondaryEmail)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white disabled:opacity-40"><Mail size={16}/> Véglegesítés és küldés</button></div></div></details>
       </div>
     </form>
   );

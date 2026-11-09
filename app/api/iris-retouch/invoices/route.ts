@@ -22,6 +22,7 @@ function parsePayload(value: unknown): IrismomentInvoiceInput {
   const customerEmail = text(payload.customerEmail, 320).toLowerCase();
   const description = text(payload.description, 500);
   const totalCents = Number(payload.totalCents);
+  const issuerKey = text(payload.issuerKey, 100) || "default";
   if (!requestId || !externalClientId || customerName.length < 2 || !description ||
       !/^\S+@\S+\.\S+$/.test(customerEmail) || !Number.isSafeInteger(totalCents) ||
       totalCents < 1 || totalCents > 1_000_000) {
@@ -38,6 +39,7 @@ function parsePayload(value: unknown): IrismomentInvoiceInput {
     customerEmail,
     description,
     totalCents,
+    issuerKey,
     addressLine1: text(payload.addressLine1, 300) || undefined,
     postalCode: text(payload.postalCode, 30) || undefined,
     city: text(payload.city, 150) || undefined,
