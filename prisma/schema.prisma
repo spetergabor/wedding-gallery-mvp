@@ -1038,6 +1038,7 @@ model CustomerInvoice {
   adminId                String
   customerId             String?
   projectId              String?
+  externalReference      String?
   title                  String
   status                 String                   @default("open")
   originalFilename       String?
@@ -1086,6 +1087,7 @@ model CustomerInvoice {
   giftCardOrder          GiftCardOrder?           @relation("GiftCardOrderInvoice")
 
   @@unique([adminId, number])
+  @@unique([adminId, externalReference])
   @@index([adminId])
   @@index([customerId])
   @@index([projectId])

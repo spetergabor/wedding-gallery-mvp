@@ -7,7 +7,7 @@ import {
   loadInvoiceWorkspaceSettings,
   missingIssuerFields
 } from "@/lib/customer-invoices";
-import { persistGeneratedInvoicePdf } from "@/lib/generated-invoice-actions";
+import { persistGeneratedInvoicePdf } from "@/lib/generated-invoice-service";
 import { prisma } from "@/lib/prisma";
 
 type InvoiceGenerationResult =
