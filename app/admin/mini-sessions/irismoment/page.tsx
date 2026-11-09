@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { FormSubmitButton } from "@/components/form-submit-button";
+import { OneTimeConnectionKey } from "@/components/one-time-connection-key";
 import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import {
@@ -79,8 +80,8 @@ export default async function IrisMomentIntegrationPage({
           {oneTimeToken ? (
             <div className="mt-6 rounded-md border border-brass/30 bg-brass/10 p-4">
               <p className="font-semibold text-ink">Új kapcsolódási kulcs</p>
-              <p className="mt-1 text-xs text-graphite/65">Kattints a maszkolt mezőre, másold ki ⌘C-vel, majd illeszd be az irismoment alkalmazásba. Biztonsági okból később nem jelenik meg újra.</p>
-              <input type="password" readOnly value={oneTimeToken} className="mt-3 h-11 w-full rounded-md border border-ink/15 bg-white px-3 font-mono text-sm text-ink" />
+              <p className="mt-1 text-xs text-graphite/65">A „Kulcs másolása” gombbal másold a vágólapra, majd illeszd be az irismoment alkalmazásba. Biztonsági okból később nem jelenik meg újra.</p>
+              <OneTimeConnectionKey value={oneTimeToken} />
             </div>
           ) : null}
           {flags.revoked ? <p className="mt-5 rounded-md bg-sage/10 p-3 text-sm font-medium text-sage">A kapcsolat visszavonva.</p> : null}
