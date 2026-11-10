@@ -37,9 +37,61 @@ export async function generateIrisRetouchTokenAction() {
 export async function revokeIrisRetouchTokenAction() {
   const admin = await requireAdmin();
   const adminId = ownerAdminId(admin);
-  await prisma.irisRetouchIntegration.deleteMany({ where: { adminId } });
+  await prisma.$transaction([
+    prisma.irisRetouchIntegration.deleteMany({ where: { adminId } }),
+    prisma.irisMomentDevice.updateMany({ where: { adminId }, data: { revokedAt: new Date() } })
+  ]);
   revalidatePath("/admin/mini-sessions/irismoment");
   redirect("/admin/mini-sessions/irismoment?revoked=1");
+}
+
+export async function approveIrisMomentDeviceAction(authorizationId: string) {
+  const admin = await requireAdmin();
+  const adminId = ownerAdminId(admin);
+  const authorization = await prisma.irisMomentDeviceAuthorization.findUnique({
+    where: { id: authorizationId }
+  });
+  if (!authorization || authorization.status !== "pending" || authorization.expiresAt <= new Date()) {
+    redirect(`/admin/mini-sessions/irismoment/devices/authorize?id=${encodeURIComponent(authorizationId)}&expired=1`);
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.irisMomentDevice.upsert({
+      where: {
+        adminId_externalId: { adminId, externalId: authorization.deviceExternalId }
+      },
+      create: {
+        adminId,
+        externalId: authorization.deviceExternalId,
+        name: authorization.deviceName,
+        appVersion: authorization.appVersion,
+        tokenHash: authorization.tokenHash,
+        lastSeenAt: new Date()
+      },
+      update: {
+        name: authorization.deviceName,
+        appVersion: authorization.appVersion,
+        tokenHash: authorization.tokenHash,
+        lastSeenAt: new Date(),
+        revokedAt: null
+      }
+    });
+    await tx.irisMomentDeviceAuthorization.update({
+      where: { id: authorization.id },
+      data: { adminId, status: "approved", approvedAt: new Date() }
+    });
+  });
+  revalidatePath("/admin/mini-sessions/irismoment");
+  redirect(`/admin/mini-sessions/irismoment/devices/authorize?id=${encodeURIComponent(authorizationId)}&approved=1`);
+}
+
+export async function revokeIrisMomentDeviceAction(deviceId: string) {
+  const admin = await requireAdmin();
+  const adminId = ownerAdminId(admin);
+  await prisma.irisMomentDevice.updateMany({
+    where: { id: deviceId, adminId },
+    data: { revokedAt: new Date() }
+  });
+  revalidatePath("/admin/mini-sessions/irismoment");
 }
 
 export async function setIrisRetouchTagAction(id: string, enabled: boolean) {

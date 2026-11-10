@@ -58,6 +58,10 @@ model Admin {
   invoiceIssuerProfiles      InvoiceIssuerProfile[]
   giftCardOrders             GiftCardOrder[]
   irisRetouchIntegration     IrisRetouchIntegration?
+  irisMomentDevices          IrisMomentDevice[]
+  irisMomentDeviceAuthorizations IrisMomentDeviceAuthorization[]
+  irisMomentSharedClients    IrisMomentSharedClient[]
+  irisMomentActiveEvent      IrisMomentActiveEvent?
 }
 
 model IrisRetouchIntegration {
@@ -69,6 +73,77 @@ model IrisRetouchIntegration {
   admin      Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([lastUsedAt])
+}
+
+model IrisMomentDevice {
+  id                  String                    @id @default(cuid())
+  adminId             String
+  externalId          String
+  name                String
+  tokenHash           String?                   @unique
+  appVersion          String?
+  lastSeenAt          DateTime                  @default(now())
+  revokedAt           DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  admin               Admin                     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  sharedClientUpdates IrisMomentSharedClient[]
+
+  @@unique([adminId, externalId])
+  @@index([adminId, lastSeenAt])
+  @@index([revokedAt])
+}
+
+model IrisMomentDeviceAuthorization {
+  id               String    @id @default(cuid())
+  adminId          String?
+  tokenHash        String    @unique
+  deviceExternalId String
+  deviceName       String
+  appVersion       String?
+  status           String    @default("pending")
+  expiresAt        DateTime
+  approvedAt       DateTime?
+  usedAt           DateTime?
+  createdAt        DateTime  @default(now())
+  admin            Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@index([adminId])
+}
+
+model IrisMomentSharedClient {
+  id                String            @id
+  adminId           String
+  miniSessionId     String
+  name              String
+  email             String?
+  phone             String?
+  participantCount  Int?
+  notes             String?
+  participants      Json
+  effectOrders      Json
+  version           Int               @default(1)
+  updatedByDeviceId String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  admin             Admin             @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  miniSession       MiniSession       @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+  updatedByDevice   IrisMomentDevice? @relation(fields: [updatedByDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([adminId, miniSessionId])
+  @@index([miniSessionId, updatedAt])
+}
+
+model IrisMomentActiveEvent {
+  adminId           String            @id
+  miniSessionId     String
+  updatedByDeviceId String?
+  updatedAt         DateTime          @updatedAt
+  admin             Admin             @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  miniSession       MiniSession       @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+
+  @@index([miniSessionId])
 }
 
 model SubscriptionPlan {
@@ -709,6 +784,8 @@ model MiniSession {
   bookings                      MiniSessionBooking[]
   availabilityRules             MiniSessionAvailability[]
   eventDays                     MiniSessionEventDay[]
+  irisMomentSharedClients       IrisMomentSharedClient[]
+  irisMomentActiveWorkspaces    IrisMomentActiveEvent[]
 
   @@index([adminId])
   @@index([slug])

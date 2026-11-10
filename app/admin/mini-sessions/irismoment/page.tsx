@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarClock, CheckCircle2, KeyRound, Settings2, Tag, Unplug } from "lucide-react";
+import { ArrowLeft, CalendarClock, CheckCircle2, KeyRound, Laptop2, Settings2, Tag, Unplug } from "lucide-react";
 import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { ownerAdminId } from "@/lib/admin-scope";
 import { requireAdmin } from "@/lib/auth";
 import {
   generateIrisRetouchTokenAction,
+  revokeIrisMomentDeviceAction,
   revokeIrisRetouchTokenAction,
   setIrisRetouchTagAction
 } from "@/lib/iris-retouch-actions";
@@ -24,7 +25,7 @@ export default async function IrisMomentIntegrationPage({
   const adminId = ownerAdminId(admin);
   const flags = await searchParams;
   const oneTimeToken = flags.created ? (await cookies()).get("irismoment_token_once")?.value : undefined;
-  const [integration, sessions] = await Promise.all([
+  const [integration, sessions, devices] = await Promise.all([
     prisma.irisRetouchIntegration.findUnique({ where: { adminId } }),
     prisma.miniSession.findMany({
       where: { adminId },
@@ -38,6 +39,10 @@ export default async function IrisMomentIntegrationPage({
         fulfillmentMode: true,
         _count: { select: { bookings: true } }
       }
+    }),
+    prisma.irisMomentDevice.findMany({
+      where: { adminId, revokedAt: null },
+      orderBy: { lastSeenAt: "desc" }
     })
   ]);
   const irisSessions = sessions.filter((session) => session.fulfillmentMode === IRIS_FULFILLMENT_MODE);
@@ -97,6 +102,37 @@ export default async function IrisMomentIntegrationPage({
             ) : null}
           </div>
           {integration?.lastUsedAt ? <p className="mt-4 text-xs text-graphite/55">Utoljára használva: {integration.lastUsedAt.toLocaleString("hu-HU")}</p> : null}
+        </section>
+
+        <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-sage/15 text-sage"><Laptop2 size={18} /></div>
+            <div>
+              <h2 className="text-xl font-semibold text-ink">Kapcsolt irismoment eszközök</h2>
+              <p className="mt-1 text-sm leading-6 text-graphite/70">
+                Minden engedélyezett gép ugyanazt a munkateret látja. Új gépen az irismoment „Bejelentkezés a Spetlyvel” gombja nyitja meg az engedélyezést.
+              </p>
+            </div>
+          </div>
+          <div className="mt-5 divide-y divide-ink/10 overflow-hidden rounded-md border border-ink/10">
+            {devices.length === 0 ? (
+              <p className="bg-paper px-4 py-5 text-sm text-graphite/65">Még nincs külön engedélyezett eszköz.</p>
+            ) : devices.map((device) => {
+              const online = Date.now() - device.lastSeenAt.getTime() < 90_000;
+              return (
+                <div key={device.id} className="flex items-center gap-3 bg-white px-4 py-3">
+                  <span className={`size-2.5 rounded-full ${online ? "bg-sage" : "bg-graphite/25"}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-ink">{device.name}</p>
+                    <p className="text-xs text-graphite/55">{online ? "Online" : `Utoljára aktív: ${device.lastSeenAt.toLocaleString("hu-HU")}`}{device.appVersion ? ` · ${device.appVersion}` : ""}</p>
+                  </div>
+                  <form action={revokeIrisMomentDeviceAction.bind(null, device.id)}>
+                    <FormSubmitButton variant="danger" pendingLabel="Visszavonás…">Hozzáférés visszavonása</FormSubmitButton>
+                  </form>
+                </div>
+              );
+            })}
+          </div>
         </section>
 
         <section className="rounded-lg border border-ink/10 bg-white p-6 shadow-soft">
