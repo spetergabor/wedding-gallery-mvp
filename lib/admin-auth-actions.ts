@@ -24,23 +24,35 @@ function normalizeEmail(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();
 }
 
+function safeReturnTo(value: string) {
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\0")) return "";
+  return value.slice(0, 2_000);
+}
+
+function loginRedirectURL(parameters: Record<string, string>, returnTo: string) {
+  const query = new URLSearchParams(parameters);
+  if (returnTo) query.set("returnTo", returnTo);
+  return `/admin/login?${query.toString()}`;
+}
+
 export async function loginAction(formData: FormData) {
   const email = formString(formData, "email");
   const password = formString(formData, "password");
   const twoFactorCode = formString(formData, "twoFactorCode");
+  const returnTo = safeReturnTo(formString(formData, "returnTo"));
 
   if (twoFactorCode && !email && !password) {
     if (await isAnyRateLimited([{ scope: "auth:2fa", limit: 8, windowSeconds: 15 * 60, identifier: "pending" }])) {
-      redirect("/admin/login?twoFactor=1&error=rate_limit");
+      redirect(loginRedirectURL({ twoFactor: "1", error: "rate_limit" }, returnTo));
     }
 
     const result = await completePendingTwoFactorSignIn(twoFactorCode);
 
     if (result === "success") {
-      redirect("/admin/dashboard");
+      redirect(returnTo || "/admin/dashboard");
     }
 
-    redirect("/admin/login?twoFactor=1&error=1");
+    redirect(loginRedirectURL({ twoFactor: "1", error: "1" }, returnTo));
   }
 
   if (
@@ -49,24 +61,24 @@ export async function loginAction(formData: FormData) {
       { scope: "auth:login:ip", limit: 40, windowSeconds: 15 * 60, identifier: "global" }
     ])
   ) {
-    redirect("/admin/login?error=rate_limit");
+    redirect(loginRedirectURL({ error: "rate_limit" }, returnTo));
   }
 
   const result = await signInAdmin(email, password);
 
   if (result === "pending") {
-    redirect("/admin/login?approval=pending");
+    redirect(loginRedirectURL({ approval: "pending" }, returnTo));
   }
 
   if (result === "two_factor_required") {
-    redirect("/admin/login?twoFactor=1");
+    redirect(loginRedirectURL({ twoFactor: "1" }, returnTo));
   }
 
   if (result !== "success") {
-    redirect("/admin/login?error=1");
+    redirect(loginRedirectURL({ error: "1" }, returnTo));
   }
 
-  redirect("/admin/dashboard");
+  redirect(returnTo || "/admin/dashboard");
 }
 
 export async function registerAdminAction(formData: FormData) {

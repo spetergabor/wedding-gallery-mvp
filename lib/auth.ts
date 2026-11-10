@@ -251,11 +251,14 @@ export async function refreshAdminSession() {
   return toAdminSession(admin, workspaceMode);
 }
 
-export async function requireAdmin(options: { allowIncompleteOnboarding?: boolean } = {}) {
+export async function requireAdmin(options: { allowIncompleteOnboarding?: boolean; returnTo?: string } = {}) {
   const admin = await getAdminSession();
 
   if (!admin) {
-    redirect("/admin/login");
+    const returnTo = options.returnTo;
+    redirect(returnTo
+      ? `/admin/login?returnTo=${encodeURIComponent(returnTo)}`
+      : "/admin/login");
   }
 
   if (admin.status !== "approved") {

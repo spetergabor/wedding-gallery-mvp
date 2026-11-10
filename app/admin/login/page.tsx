@@ -9,7 +9,14 @@ import { FormSubmitButton } from "@/components/form-submit-button";
 export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ approval?: string; error?: string; registered?: string; reset?: string; twoFactor?: string }>;
+  searchParams: Promise<{
+    approval?: string;
+    error?: string;
+    registered?: string;
+    reset?: string;
+    twoFactor?: string;
+    returnTo?: string;
+  }>;
 }) {
   const [params, alreadyHasAdmin] = await Promise.all([searchParams, hasAnyAdmin()]);
   const needsTwoFactor = params.twoFactor === "1";
@@ -66,6 +73,7 @@ export default async function AdminLoginPage({
 
         {needsTwoFactor ? (
           <form action={loginAction} className="space-y-4">
+            {params.returnTo ? <input type="hidden" name="returnTo" value={params.returnTo} /> : null}
             <label className="block space-y-2">
               <span className="text-sm font-medium text-graphite">Kétfaktoros kód</span>
               <input
@@ -80,12 +88,16 @@ export default async function AdminLoginPage({
             </label>
 
             <FormSubmitButton className="w-full" pendingLabel="Belépés...">Belépés</FormSubmitButton>
-            <Link href="/admin/login" className="block text-center text-sm font-medium text-graphite/70 hover:text-ink">
+            <Link
+              href={params.returnTo ? `/admin/login?returnTo=${encodeURIComponent(params.returnTo)}` : "/admin/login"}
+              className="block text-center text-sm font-medium text-graphite/70 hover:text-ink"
+            >
               Belépés újrakezdése
             </Link>
           </form>
         ) : (
           <form action={loginAction} className="space-y-4">
+            {params.returnTo ? <input type="hidden" name="returnTo" value={params.returnTo} /> : null}
             <label className="block space-y-2">
               <span className="text-sm font-medium text-graphite">Email</span>
               <input

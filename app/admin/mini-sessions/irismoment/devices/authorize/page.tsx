@@ -1,7 +1,7 @@
 import { CheckCircle2, Laptop2, ShieldCheck, TimerOff } from "lucide-react";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
-import { FormSubmitButton } from "@/components/form-submit-button";
+import { AutoAuthorizeIrismomentDevice } from "@/components/auto-authorize-irismoment-device";
 import { approveIrisMomentDeviceAction } from "@/lib/iris-retouch-actions";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
@@ -11,8 +11,11 @@ export default async function AuthorizeIrisMomentDevicePage({
 }: {
   searchParams: Promise<{ id?: string; approved?: string; expired?: string }>;
 }) {
-  await requireAdmin();
   const flags = await searchParams;
+  const returnTo = flags.id
+    ? `/admin/mini-sessions/irismoment/devices/authorize?id=${encodeURIComponent(flags.id)}`
+    : "/admin/mini-sessions/irismoment/devices/authorize";
+  await requireAdmin({ returnTo });
   const authorization = flags.id
     ? await prisma.irisMomentDeviceAuthorization.findUnique({ where: { id: flags.id } })
     : null;
@@ -47,9 +50,7 @@ export default async function AuthorizeIrisMomentDevicePage({
               <ShieldCheck size={18} className="mt-0.5 shrink-0 text-sage" />
               Az engedélyezés után ez a gép a munkatér közös eseményeit és ügyféladatait láthatja és szerkesztheti.
             </p>
-            <form action={approveIrisMomentDeviceAction.bind(null, authorization.id)} className="mt-6">
-              <FormSubmitButton pendingLabel="Engedélyezés…"><ShieldCheck size={16} /> Eszköz engedélyezése</FormSubmitButton>
-            </form>
+            <AutoAuthorizeIrismomentDevice action={approveIrisMomentDeviceAction.bind(null, authorization.id)} />
           </>
         )}
         <Link href="/admin/mini-sessions/irismoment" className="mt-6 inline-block text-sm font-medium text-graphite hover:text-ink">
