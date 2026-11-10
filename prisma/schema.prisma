@@ -124,6 +124,7 @@ model IrisMomentSharedClient {
   participants      Json
   effectOrders      Json
   version           Int               @default(1)
+  deletedAt         DateTime?
   updatedByDeviceId String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -133,6 +134,7 @@ model IrisMomentSharedClient {
 
   @@index([adminId, miniSessionId])
   @@index([miniSessionId, updatedAt])
+  @@index([miniSessionId, deletedAt])
 }
 
 model IrisMomentActiveEvent {

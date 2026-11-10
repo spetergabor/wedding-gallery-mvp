@@ -29,6 +29,7 @@ function serializeClient(client: {
   id: string; name: string; email: string | null; phone: string | null;
   participantCount: number | null; notes: string | null; participants: Prisma.JsonValue;
   effectOrders: Prisma.JsonValue; version: number; updatedAt: Date;
+  deletedAt: Date | null;
   updatedByDevice: { id: string; externalId: string; name: string } | null;
 }) {
   return {
@@ -41,6 +42,7 @@ function serializeClient(client: {
     participants: client.participants,
     effectOrders: client.effectOrders,
     version: client.version,
+    deletedAt: client.deletedAt?.toISOString() ?? null,
     updatedAt: client.updatedAt.toISOString(),
     updatedByDevice: client.updatedByDevice
   };
@@ -129,6 +131,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (existing.adminId !== auth.adminId || existing.miniSessionId !== eventId) {
     return NextResponse.json({ ok: false, code: "client_scope_conflict" }, { status: 409 });
   }
+  if (existing.deletedAt) {
+    return NextResponse.json({ ok: false, code: "client_deleted", client: serializeClient(existing) }, { status: 409 });
+  }
   if (existing.version !== baseVersion) {
     return NextResponse.json({ ok: false, code: "version_conflict", client: serializeClient(existing) }, { status: 409 });
   }
@@ -149,4 +154,42 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     include: clientInclude
   });
   return NextResponse.json({ ok: true, client: serializeClient(updated) });
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await authenticateIrisRetouch(request);
+  if (!auth) return NextResponse.json({ ok: false, code: "invalid_token" }, { status: 401 });
+  const { id: eventId } = await params;
+  if (!await eventFor(auth.adminId, eventId)) {
+    return NextResponse.json({ ok: false, code: "event_not_found" }, { status: 404 });
+  }
+  const payload = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const clientId = text(payload?.id, 100);
+  const baseVersion = Number.isInteger(payload?.baseVersion) ? Number(payload?.baseVersion) : -1;
+  if (!clientId || baseVersion < 0) {
+    return NextResponse.json({ ok: false, code: "invalid_client" }, { status: 400 });
+  }
+  const existing = await prisma.irisMomentSharedClient.findFirst({
+    where: { id: clientId, adminId: auth.adminId, miniSessionId: eventId },
+    include: clientInclude
+  });
+  if (!existing) return NextResponse.json({ ok: true, client: null });
+  if (existing.deletedAt) return NextResponse.json({ ok: true, client: serializeClient(existing) });
+  if (existing.version !== baseVersion) {
+    return NextResponse.json({ ok: false, code: "version_conflict", client: serializeClient(existing) }, { status: 409 });
+  }
+  const changed = await prisma.irisMomentSharedClient.updateMany({
+    where: { id: clientId, adminId: auth.adminId, miniSessionId: eventId, version: baseVersion, deletedAt: null },
+    data: { deletedAt: new Date(), updatedByDeviceId: auth.device?.id ?? null, version: { increment: 1 } }
+  });
+  if (changed.count !== 1) {
+    const current = await prisma.irisMomentSharedClient.findUnique({ where: { id: clientId }, include: clientInclude });
+    return NextResponse.json({
+      ok: false, code: "version_conflict", client: current ? serializeClient(current) : null
+    }, { status: 409 });
+  }
+  const deleted = await prisma.irisMomentSharedClient.findUniqueOrThrow({
+    where: { id: clientId }, include: clientInclude
+  });
+  return NextResponse.json({ ok: true, client: serializeClient(deleted) });
 }
