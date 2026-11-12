@@ -23,6 +23,7 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 import { Alert } from "@/components/alert";
 import { AdminCalendarBlockPicker } from "@/components/admin-calendar-block-picker";
+import { AdminCalendarBlockScopeForm } from "@/components/admin-calendar-block-scope-form";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { CopyLinkButton } from "@/components/copy-link-button";
@@ -32,6 +33,7 @@ import { MiniSessionCoverUploadBox } from "@/components/mini-session-cover-uploa
 import { MiniSessionEventDaysField } from "@/components/mini-session-event-days-field";
 import { MiniSessionBookingFilters } from "@/components/mini-session-booking-filters";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
+import { adminCalendarBlockAppliesToSession, adminCalendarBlockScopeLabel } from "@/lib/admin-calendar-blocks";
 import { requireAdmin } from "@/lib/auth";
 import { customerProjectTypeLabel } from "@/lib/customer-project-options";
 import { miniSessionPublicUrl } from "@/lib/email";
@@ -603,6 +605,7 @@ export default async function AdminMiniSessionsPage({
     calendarBlocked?: string;
     calendarDeleted?: string;
     calendarError?: string;
+    calendarUpdated?: string;
     bookingStatusUpdated?: string;
     bookingStatusError?: string;
   }>;
@@ -642,7 +645,14 @@ export default async function AdminMiniSessionsPage({
     }),
     prisma.adminCalendarBlock.findMany({
       where: { adminId: workspaceAdminId },
-      orderBy: [{ startsAt: "asc" }, { createdAt: "desc" }]
+      orderBy: [{ startsAt: "asc" }, { createdAt: "desc" }],
+      include: {
+        targets: {
+          include: {
+            miniSession: { select: { id: true, title: true, bookingMode: true } }
+          }
+        }
+      }
     }),
     prisma.customerProject.findMany({
       where: {
@@ -716,6 +726,11 @@ export default async function AdminMiniSessionsPage({
   const todayCalendarBlocks = calendarBlocks.filter((block) => block.startsAt < tomorrow && block.endsAt > today);
   const expiredCalendarBlocks = calendarBlocks.filter((block) => block.endsAt < now);
   const nextCalendarBlock = activeCalendarBlocks.find((block) => block.startsAt >= today) ?? activeCalendarBlocks[0] ?? null;
+  const affectedSessionCount = new Set(activeCalendarBlocks.flatMap((block) =>
+    sessions
+      .filter((session) => adminCalendarBlockAppliesToSession(block, session))
+      .map((session) => session.id)
+  )).size;
   const hasInactivePublicPages = sessions.some((session) => !session.isActive);
   const dashboardIssues = [
     freeSlotCount === 0 ? "Nincs szabad idősáv a jelenlegi foglalóknál." : null,
@@ -752,11 +767,13 @@ export default async function AdminMiniSessionsPage({
         {flags.calendarError === "missing" ? <Alert title="Hibás naptár tiltás." variant="error">Jelölj ki legalább egy jövőbeni napot a naptárban.</Alert> : null}
         {flags.calendarError === "already-blocked" ? <Alert title="Ez az időszak már tiltva van." variant="error">Válassz másik napot vagy idősávot, illetve töröld a meglévő tiltást a listából.</Alert> : null}
         {flags.calendarError === "invalid-time" ? <Alert title="Hibás idősáv." variant="error">A záró időpontnak később kell lennie a kezdő időpontnál.</Alert> : null}
+        {flags.calendarError === "targets" ? <Alert title="Nincs kiválasztott foglaló." variant="error">Jelölj ki legalább egy olyan foglalót, amelyre a tiltás vonatkozzon.</Alert> : null}
         {flags.bookingStatusError ? <Alert title="A foglalás állapota nem módosítható." variant="error">Törölt vagy blokkolt időpontnál nem lehet ezt az állapotot beállítani.</Alert> : null}
         {flags.bookingStatusUpdated ? <Alert title="Foglalás állapota frissítve." variant="success" /> : null}
         {flags.deleted ? <Alert title="Foglaló törölve." variant="success" /> : null}
         {flags.calendarBlocked ? <Alert title="Naptár tiltás hozzáadva." variant="success">Az érintett idősávok egyik foglalóban sem lesznek elérhetők.</Alert> : null}
         {flags.calendarDeleted ? <Alert title="Naptár tiltás törölve." variant="success" /> : null}
+        {flags.calendarUpdated ? <Alert title="A naptártiltás hatóköre frissítve." variant="success" /> : null}
       </div>
 
       {currentTab === "overview" ? (
@@ -1321,9 +1338,9 @@ export default async function AdminMiniSessionsPage({
                   <CalendarDays size={15} />
                   Naptár beállítások
                 </div>
-                <h2 className="mt-2 text-lg font-semibold text-ink">Globális blokkolt időszakok</h2>
+                <h2 className="mt-2 text-lg font-semibold text-ink">Foglalási tiltások</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
-                  Ha itt kiveszel egy napot, hetet vagy időszakot, az minden állandó szolgáltatásból és mini session foglalóból kiesik.
+                  Tilts le egy napot vagy időszakot minden foglalóban, csak az állandó szolgáltatásokban vagy az általad kiválasztott oldalakon.
                 </p>
               </div>
               <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
@@ -1341,7 +1358,7 @@ export default async function AdminMiniSessionsPage({
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Ma érintett</p>
               </div>
               <div className="rounded-md bg-paper px-3 py-3">
-                <p className="text-lg font-semibold text-ink">{sessions.length}</p>
+                <p className="text-lg font-semibold text-ink">{affectedSessionCount}</p>
                 <p className="mt-1 text-xs uppercase tracking-[0.12em] text-graphite/55">Érintett foglaló</p>
               </div>
               <div className="rounded-md bg-paper px-3 py-3">
@@ -1359,7 +1376,15 @@ export default async function AdminMiniSessionsPage({
                   startDate: miniSessionDateKey(block.startsAt),
                   endDate: miniSessionDateKey(block.endsAt),
                   startTime: miniSessionTimeInput(block.startsAt),
-                  endTime: miniSessionTimeInput(block.endsAt)
+                  endTime: miniSessionTimeInput(block.endsAt),
+                  scope: block.scope,
+                  audienceLabel: adminCalendarBlockScopeLabel(block, block.targets.map((target) => target.miniSession.title))
+                }))}
+                sessions={sessions.map((session) => ({
+                  id: session.id,
+                  title: session.title,
+                  bookingMode: session.bookingMode,
+                  isActive: session.isActive
                 }))}
               />
 
@@ -1391,7 +1416,22 @@ export default async function AdminMiniSessionsPage({
                             </span>
                           </div>
                           <p className="mt-1 text-sm text-graphite/70">{formatCalendarBlockRange(block.startsAt, block.endsAt)}</p>
+                          <p className="mt-1 text-xs font-medium text-brass">
+                            {adminCalendarBlockScopeLabel(block, block.targets.map((target) => target.miniSession.title))}
+                          </p>
                           {block.notes ? <p className="mt-1 text-xs leading-5 text-graphite/60">{block.notes}</p> : null}
+                          {block.endsAt >= now ? (
+                            <AdminCalendarBlockScopeForm
+                              blockId={block.id}
+                              currentScope={block.scope}
+                              currentTargetIds={block.targets.map((target) => target.miniSessionId)}
+                              sessions={sessions.map((session) => ({
+                                id: session.id,
+                                title: session.title,
+                                bookingMode: session.bookingMode
+                              }))}
+                            />
+                          ) : null}
                         </div>
                         <form action={deleteAdminCalendarBlockAction.bind(null, block.id)}>
                           <ConfirmSubmitButton

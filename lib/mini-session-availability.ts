@@ -10,6 +10,7 @@ import {
   type MiniSessionBusyTime,
   type MiniSessionSlot
 } from "@/lib/mini-sessions";
+import { adminCalendarBlockAppliesToSession } from "@/lib/admin-calendar-blocks";
 import { getGoogleCalendarBusyTimesForAdmin } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 
@@ -42,6 +43,8 @@ type MiniSessionAvailabilityOptions = {
   excludeBookingId?: string;
   excludeProjectId?: string | null;
   ignoreExternalCalendarConflicts?: boolean;
+  miniSessionId?: string;
+  bookingMode?: string | null;
 };
 
 function slotRange(slots: MiniSessionSlot[]) {
@@ -88,6 +91,7 @@ export async function getMiniSessionBusyTimes(
   options: Pick<
     MiniSessionAvailabilityOptions,
     "excludeBookingId" | "excludeProjectId" | "ignoreExternalCalendarConflicts"
+    | "miniSessionId" | "bookingMode"
   > = {}
 ) {
   const range = slotRange(slots);
@@ -118,14 +122,23 @@ export async function getMiniSessionBusyTimes(
       },
       select: {
         startsAt: true,
-        endsAt: true
+        endsAt: true,
+        scope: true,
+        targets: { select: { miniSessionId: true } }
       }
     })
   ]);
 
+  const applicableCalendarBlocks = options.miniSessionId
+    ? calendarBlocks.filter((block) => adminCalendarBlockAppliesToSession(block, {
+        id: options.miniSessionId!,
+        bookingMode: options.bookingMode
+      }))
+    : calendarBlocks.filter((block) => block.scope === "all");
+
   const protectedBusyTimes = [
     ...bookings.map((booking) => ({ startsAt: booking.startsAt, endsAt: booking.endsAt })),
-    ...calendarBlocks.map((block) => ({ startsAt: block.startsAt, endsAt: block.endsAt }))
+    ...applicableCalendarBlocks.map((block) => ({ startsAt: block.startsAt, endsAt: block.endsAt }))
   ];
 
   if (options.ignoreExternalCalendarConflicts) {
@@ -196,6 +209,8 @@ export async function getAvailableMiniSessionSlots(
   );
   const busyTimes = await getMiniSessionBusyTimes(session.adminId, slots, {
     ...options,
+    miniSessionId: session.id,
+    bookingMode: session.bookingMode,
     // A fixed mini-session day is an explicit availability declaration. It must not
     // be hidden by the project or Google Calendar event that represents the event itself.
     ignoreExternalCalendarConflicts:
@@ -211,6 +226,7 @@ export async function hasMiniSessionSlotConflict(
   options: Pick<
     MiniSessionAvailabilityOptions,
     "excludeBookingId" | "excludeProjectId" | "ignoreExternalCalendarConflicts"
+    | "miniSessionId" | "bookingMode"
   > = {}
 ) {
   const booking = await prisma.miniSessionBooking.findFirst({
@@ -228,16 +244,26 @@ export async function hasMiniSessionSlotConflict(
     return true;
   }
 
-  const calendarBlock = await prisma.adminCalendarBlock.findFirst({
+  const calendarBlocks = await prisma.adminCalendarBlock.findMany({
     where: {
       adminId,
       startsAt: { lt: slot.endsAt },
       endsAt: { gt: slot.startsAt }
     },
-    select: { id: true }
+    select: {
+      scope: true,
+      targets: { select: { miniSessionId: true } }
+    }
   });
 
-  if (calendarBlock) {
+  const hasApplicableCalendarBlock = options.miniSessionId
+    ? calendarBlocks.some((block) => adminCalendarBlockAppliesToSession(block, {
+        id: options.miniSessionId!,
+        bookingMode: options.bookingMode
+      }))
+    : calendarBlocks.some((block) => block.scope === "all");
+
+  if (hasApplicableCalendarBlock) {
     return true;
   }
 

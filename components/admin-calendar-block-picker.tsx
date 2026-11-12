@@ -1,9 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, MousePointer2, X } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, ChevronLeft, ChevronRight, Clock3, ListChecks, MousePointer2, Users, X } from "lucide-react";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { createAdminCalendarDaysBlockAction } from "@/lib/mini-session-actions";
+import {
+  ADMIN_CALENDAR_BLOCK_SCOPE_ALL,
+  ADMIN_CALENDAR_BLOCK_SCOPE_RECURRING,
+  ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED,
+  type AdminCalendarBlockScope
+} from "@/lib/admin-calendar-blocks";
+import { MINI_SESSION_BOOKING_MODE_RECURRING } from "@/lib/mini-sessions";
 
 type ExistingCalendarBlock = {
   id: string;
@@ -12,6 +19,15 @@ type ExistingCalendarBlock = {
   endDate: string;
   startTime: string;
   endTime: string;
+  scope: string;
+  audienceLabel: string;
+};
+
+type CalendarBlockSession = {
+  id: string;
+  title: string;
+  bookingMode: string;
+  isActive: boolean;
 };
 
 const WEEKDAYS = ["H", "K", "Sze", "Cs", "P", "Szo", "V"];
@@ -33,15 +49,19 @@ function formatSelectedDate(value: string) {
 
 export function AdminCalendarBlockPicker({
   todayDate,
-  existingBlocks
+  existingBlocks,
+  sessions
 }: {
   todayDate: string;
   existingBlocks: ExistingCalendarBlock[];
+  sessions: CalendarBlockSession[];
 }) {
   const [todayYear, todayMonth] = todayDate.split("-").map((part) => Number.parseInt(part, 10));
   const [monthCursor, setMonthCursor] = useState({ year: todayYear, month: todayMonth - 1 });
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
   const [blockMode, setBlockMode] = useState<"full-day" | "time-slot">("full-day");
+  const [blockScope, setBlockScope] = useState<AdminCalendarBlockScope>(ADMIN_CALENDAR_BLOCK_SCOPE_RECURRING);
+  const [targetSessionIds, setTargetSessionIds] = useState<Set<string>>(new Set());
   const selectedDateList = useMemo(() => [...selectedDates].sort(), [selectedDates]);
   const todayOrdinal = dateOrdinal(todayDate);
   const firstWeekday = (new Date(Date.UTC(monthCursor.year, monthCursor.month, 1)).getUTCDay() + 6) % 7;
@@ -64,7 +84,7 @@ export function AdminCalendarBlockPicker({
   function isFullDayBlock(block: ExistingCalendarBlock, value: string) {
     const startsAtDayStart = block.startDate < value || (block.startDate === value && block.startTime <= "00:00");
     const endsAtDayEnd = block.endDate > value || (block.endDate === value && block.endTime >= "23:59");
-    return startsAtDayStart && endsAtDayEnd;
+    return startsAtDayStart && endsAtDayEnd && block.scope === ADMIN_CALENDAR_BLOCK_SCOPE_ALL;
   }
 
   function changeMonth(offset: number) {
@@ -85,10 +105,24 @@ export function AdminCalendarBlockPicker({
     });
   }
 
+  function toggleTargetSession(id: string) {
+    setTargetSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const recurringSessionCount = sessions.filter((session) => session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING).length;
+  const selectedAudienceIsValid = blockScope !== ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED || targetSessionIds.size > 0;
+
   return (
     <form action={createAdminCalendarDaysBlockAction} className="rounded-lg border border-ink/10 bg-paper p-4 sm:p-5">
       <input type="hidden" name="selectedDates" value={selectedDateList.join(",")} />
       <input type="hidden" name="blockMode" value={selectedDateList.length === 1 ? blockMode : "full-day"} />
+      <input type="hidden" name="blockScope" value={blockScope} />
+      {[...targetSessionIds].map((id) => <input key={id} type="hidden" name="targetSessionIds" value={id} />)}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -142,7 +176,7 @@ export function AdminCalendarBlockPicker({
             const blockTitle = dayBlocks.map((block) => {
               const startsAt = block.startDate < value ? "00:00" : block.startTime;
               const endsAt = block.endDate > value ? "23:59" : block.endTime;
-              return `${block.title} (${startsAt}–${endsAt})`;
+              return `${block.title} · ${block.audienceLabel} (${startsAt}–${endsAt})`;
             }).join("\n");
 
             return (
@@ -218,6 +252,77 @@ export function AdminCalendarBlockPicker({
         </div>
       ) : null}
 
+      <div className="mt-5 rounded-md border border-ink/10 bg-white p-3 sm:p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-graphite/55">Melyik foglalókat tiltsa?</p>
+        <div className="mt-3 grid gap-2">
+          <button
+            type="button"
+            onClick={() => setBlockScope(ADMIN_CALENDAR_BLOCK_SCOPE_RECURRING)}
+            className={`flex items-start gap-3 rounded-md border px-3 py-3 text-left transition ${blockScope === ADMIN_CALENDAR_BLOCK_SCOPE_RECURRING ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-graphite hover:border-ink/25"}`}
+          >
+            <BriefcaseBusiness size={17} className="mt-0.5 shrink-0" />
+            <span>
+              <span className="block text-sm font-semibold">Csak az állandó szolgáltatásokat</span>
+              <span className={`mt-0.5 block text-xs leading-5 ${blockScope === ADMIN_CALENDAR_BLOCK_SCOPE_RECURRING ? "text-white/70" : "text-graphite/60"}`}>
+                {recurringSessionCount} állandó foglaló tiltása; a mini session napok aktívak maradnak.
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBlockScope(ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED)}
+            className={`flex items-start gap-3 rounded-md border px-3 py-3 text-left transition ${blockScope === ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-graphite hover:border-ink/25"}`}
+          >
+            <ListChecks size={17} className="mt-0.5 shrink-0" />
+            <span>
+              <span className="block text-sm font-semibold">Kiválasztott foglalókat</span>
+              <span className={`mt-0.5 block text-xs leading-5 ${blockScope === ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED ? "text-white/70" : "text-graphite/60"}`}>
+                Te választod ki, mely szolgáltatásokra vagy mini sessionökre vonatkozzon.
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBlockScope(ADMIN_CALENDAR_BLOCK_SCOPE_ALL)}
+            className={`flex items-start gap-3 rounded-md border px-3 py-3 text-left transition ${blockScope === ADMIN_CALENDAR_BLOCK_SCOPE_ALL ? "border-ink bg-ink text-white" : "border-ink/10 bg-paper text-graphite hover:border-ink/25"}`}
+          >
+            <Users size={17} className="mt-0.5 shrink-0" />
+            <span>
+              <span className="block text-sm font-semibold">Minden foglalót</span>
+              <span className={`mt-0.5 block text-xs leading-5 ${blockScope === ADMIN_CALENDAR_BLOCK_SCOPE_ALL ? "text-white/70" : "text-graphite/60"}`}>
+                Teljes távolléthez: az állandó és az egyszeri mini session foglalók is leállnak.
+              </span>
+            </span>
+          </button>
+        </div>
+
+        {blockScope === ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED ? (
+          <div className="mt-4 rounded-md border border-ink/10 bg-paper p-3">
+            <p className="text-xs font-medium text-graphite">Érintett foglalók</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {sessions.map((session) => (
+                <label key={session.id} className="flex cursor-pointer items-start gap-2 rounded-md bg-white px-3 py-2.5 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={targetSessionIds.has(session.id)}
+                    onChange={() => toggleTargetSession(session.id)}
+                    className="mt-0.5 size-4 rounded border-ink/20"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{session.title}</span>
+                    <span className="block text-[11px] text-graphite/55">
+                      {session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING ? "Állandó szolgáltatás" : "Mini session nap"}
+                      {!session.isActive ? " · Rejtett" : ""}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {!selectedAudienceIsValid ? <p className="mt-2 text-xs text-red-700">Jelölj ki legalább egy foglalót.</p> : null}
+          </div>
+        ) : null}
+      </div>
+
       <div className="mt-5 rounded-md border border-ink/10 bg-white p-3">
         {selectedDateList.length > 0 ? (
           <>
@@ -239,7 +344,7 @@ export function AdminCalendarBlockPicker({
       </div>
 
       <div className="mt-4 border-t border-ink/10 pt-4">
-        <FormSubmitButton disabled={selectedDateList.length === 0} pendingLabel="Napok letiltása..." className="w-full sm:w-auto">
+        <FormSubmitButton disabled={selectedDateList.length === 0 || !selectedAudienceIsValid} pendingLabel="Napok letiltása..." className="w-full sm:w-auto">
           {blockMode === "time-slot" && selectedDateList.length === 1 ? <Clock3 size={15} /> : <CalendarDays size={15} />}
           {blockMode === "time-slot" && selectedDateList.length === 1 ? "Idősáv letiltása" : "Kijelölt napok letiltása"}
         </FormSubmitButton>

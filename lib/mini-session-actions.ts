@@ -9,6 +9,14 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { adminNotificationChannelEnabled, getAdminNotificationPreferences } from "@/lib/admin-notification-preferences";
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
+import {
+  ADMIN_CALENDAR_BLOCK_SCOPE_ALL,
+  ADMIN_CALENDAR_BLOCK_SCOPE_RECURRING,
+  ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED,
+  adminCalendarBlockAppliesToSession,
+  normalizeAdminCalendarBlockScope,
+  type AdminCalendarBlockScope
+} from "@/lib/admin-calendar-blocks";
 import { requireAdmin } from "@/lib/auth";
 import { DELIVERY_CHANNEL_EMAIL, runLoggedDelivery } from "@/lib/delivery-log";
 import {
@@ -584,13 +592,19 @@ export async function createAdminCalendarBlockAction(formData: FormData) {
     redirect("/admin/mini-sessions?tab=calendar&calendarError=missing");
   }
 
+  const audience = await resolveCalendarBlockAudience(formData, workspaceAdminId);
+
   await prisma.adminCalendarBlock.create({
     data: {
       adminId: workspaceAdminId,
       title,
       startsAt,
       endsAt,
-      notes: notes || null
+      notes: notes || null,
+      scope: audience.scope,
+      targets: audience.targetSessionIds.length > 0
+        ? { create: audience.targetSessionIds.map((miniSessionId) => ({ miniSessionId })) }
+        : undefined
     }
   });
 
@@ -638,6 +652,73 @@ function fullCalendarDayRange(date: string) {
     : null;
 }
 
+type CalendarBlockAudienceSession = {
+  id: string;
+  bookingMode: string;
+};
+
+type ResolvedCalendarBlockAudience = {
+  scope: AdminCalendarBlockScope;
+  targetSessionIds: string[];
+  audienceSessions: CalendarBlockAudienceSession[];
+};
+
+async function resolveCalendarBlockAudience(
+  formData: FormData,
+  adminId: string
+): Promise<ResolvedCalendarBlockAudience> {
+  const scope = normalizeAdminCalendarBlockScope(formString(formData, "blockScope"));
+  const requestedTargetIds = [...new Set(formData.getAll("targetSessionIds")
+    .filter((value): value is string => typeof value === "string" && Boolean(value)))]
+    .slice(0, 100);
+
+  if (scope === ADMIN_CALENDAR_BLOCK_SCOPE_ALL) {
+    return { scope, targetSessionIds: [], audienceSessions: [] };
+  }
+
+  const audienceSessions = await prisma.miniSession.findMany({
+    where: {
+      adminId,
+      ...(scope === ADMIN_CALENDAR_BLOCK_SCOPE_RECURRING
+        ? { bookingMode: MINI_SESSION_BOOKING_MODE_RECURRING }
+        : { id: { in: requestedTargetIds } })
+    },
+    select: { id: true, bookingMode: true }
+  });
+
+  if (audienceSessions.length === 0 || (
+    scope === ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED && audienceSessions.length !== requestedTargetIds.length
+  )) {
+    redirect("/admin/mini-sessions?tab=calendar&calendarError=targets");
+  }
+
+  return {
+    scope,
+    targetSessionIds: scope === ADMIN_CALENDAR_BLOCK_SCOPE_SELECTED
+      ? audienceSessions.map((session) => session.id)
+      : [],
+    audienceSessions
+  };
+}
+
+type CalendarBlockWithTargets = {
+  scope: string;
+  targets: Array<{ miniSessionId: string }>;
+};
+
+function calendarBlockAudienceIsCovered(
+  existingBlocks: CalendarBlockWithTargets[],
+  audience: ResolvedCalendarBlockAudience
+) {
+  if (audience.scope === ADMIN_CALENDAR_BLOCK_SCOPE_ALL) {
+    return existingBlocks.some((block) => normalizeAdminCalendarBlockScope(block.scope) === ADMIN_CALENDAR_BLOCK_SCOPE_ALL);
+  }
+
+  return audience.audienceSessions.every((session) =>
+    existingBlocks.some((block) => adminCalendarBlockAppliesToSession(block, session))
+  );
+}
+
 export async function createAdminCalendarDaysBlockAction(formData: FormData) {
   const admin = await requireAdmin();
   const workspaceAdminId = ownerAdminId(admin);
@@ -645,6 +726,7 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
   const blockMode = formString(formData, "blockMode") === "time-slot" ? "time-slot" : "full-day";
   const submittedDateKeys = normalizedCalendarDateKeys(formString(formData, "selectedDates"))
     .filter((date) => date >= todayDate);
+  const audience = await resolveCalendarBlockAudience(formData, workspaceAdminId);
 
   if (submittedDateKeys.length === 0) {
     redirect("/admin/mini-sessions?tab=calendar&calendarError=missing");
@@ -669,16 +751,19 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
       redirect("/admin/mini-sessions?tab=calendar&calendarError=invalid-time");
     }
 
-    const coveringBlock = await prisma.adminCalendarBlock.findFirst({
+    const coveringBlocks = await prisma.adminCalendarBlock.findMany({
       where: {
         adminId: workspaceAdminId,
         startsAt: { lte: startsAt },
         endsAt: { gte: endsAt }
       },
-      select: { id: true }
+      select: {
+        scope: true,
+        targets: { select: { miniSessionId: true } }
+      }
     });
 
-    if (coveringBlock) {
+    if (calendarBlockAudienceIsCovered(coveringBlocks, audience)) {
       redirect("/admin/mini-sessions?tab=calendar&calendarError=already-blocked");
     }
 
@@ -688,7 +773,11 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
         title: "Nem foglalható idősáv",
         startsAt,
         endsAt,
-        notes: null
+        notes: null,
+        scope: audience.scope,
+        targets: audience.targetSessionIds.length > 0
+          ? { create: audience.targetSessionIds.map((miniSessionId) => ({ miniSessionId })) }
+          : undefined
       }
     });
 
@@ -703,11 +792,19 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
       startsAt: { lte: lastRange.endsAt },
       endsAt: { gte: firstRange.startsAt }
     },
-    select: { startsAt: true, endsAt: true }
+    select: {
+      startsAt: true,
+      endsAt: true,
+      scope: true,
+      targets: { select: { miniSessionId: true } }
+    }
   });
   const availableDateKeys = submittedDateKeys.filter((date) => {
     const range = fullCalendarDayRange(date);
-    return Boolean(range && !existingBlocks.some((block) => block.startsAt <= range.startsAt && block.endsAt >= range.endsAt));
+    const coveringBlocks = range
+      ? existingBlocks.filter((block) => block.startsAt <= range.startsAt && block.endsAt >= range.endsAt)
+      : [];
+    return Boolean(range && !calendarBlockAudienceIsCovered(coveringBlocks, audience));
   });
   const groups = groupConsecutiveCalendarDates(availableDateKeys);
 
@@ -715,20 +812,24 @@ export async function createAdminCalendarDaysBlockAction(formData: FormData) {
     redirect("/admin/mini-sessions?tab=calendar&calendarError=already-blocked");
   }
 
-  await prisma.adminCalendarBlock.createMany({
-    data: groups.flatMap((group) => {
+  await prisma.$transaction(groups.flatMap((group) => {
       const startsAt = fullCalendarDayRange(group[0])?.startsAt;
       const endsAt = fullCalendarDayRange(group.at(-1)!)?.endsAt;
 
-      return startsAt && endsAt ? [{
-        adminId: workspaceAdminId,
-        title: group.length === 1 ? "Nem foglalható nap" : "Nem foglalható időszak",
-        startsAt,
-        endsAt,
-        notes: null
-      }] : [];
-    })
-  });
+      return startsAt && endsAt ? [prisma.adminCalendarBlock.create({
+        data: {
+          adminId: workspaceAdminId,
+          title: group.length === 1 ? "Nem foglalható nap" : "Nem foglalható időszak",
+          startsAt,
+          endsAt,
+          notes: null,
+          scope: audience.scope,
+          targets: audience.targetSessionIds.length > 0
+            ? { create: audience.targetSessionIds.map((miniSessionId) => ({ miniSessionId })) }
+            : undefined
+        }
+      })] : [];
+    }));
 
   revalidatePath("/admin/mini-sessions");
   revalidatePath("/mini-session/[slug]", "page");
@@ -756,6 +857,36 @@ export async function deleteAdminCalendarBlockAction(id: string) {
   revalidatePath("/admin/mini-sessions");
   revalidatePath("/mini-session/[slug]", "page");
   redirect("/admin/mini-sessions?tab=calendar&calendarDeleted=1");
+}
+
+export async function updateAdminCalendarBlockScopeAction(id: string, formData: FormData) {
+  const admin = await requireAdmin();
+  const workspaceAdminId = ownerAdminId(admin);
+  const block = await prisma.adminCalendarBlock.findFirst({
+    where: { id, adminId: workspaceAdminId },
+    select: { id: true }
+  });
+
+  if (!block) {
+    redirect("/admin/mini-sessions?tab=calendar");
+  }
+
+  const audience = await resolveCalendarBlockAudience(formData, workspaceAdminId);
+
+  await prisma.adminCalendarBlock.update({
+    where: { id: block.id },
+    data: {
+      scope: audience.scope,
+      targets: {
+        deleteMany: {},
+        create: audience.targetSessionIds.map((miniSessionId) => ({ miniSessionId }))
+      }
+    }
+  });
+
+  revalidatePath("/admin/mini-sessions");
+  revalidatePath("/mini-session/[slug]", "page");
+  redirect("/admin/mini-sessions?tab=calendar&calendarUpdated=1");
 }
 
 export async function updateMiniSessionAction(id: string, formData: FormData) {
@@ -1017,6 +1148,8 @@ export async function createAdminMiniSessionBookingAction(id: string, formData: 
 
   if (
     await hasMiniSessionSlotConflict(session.adminId, slot, {
+      miniSessionId: session.id,
+      bookingMode: session.bookingMode,
       ignoreExternalCalendarConflicts: session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
     })
   ) {
@@ -1205,6 +1338,8 @@ export async function bookMiniSessionAction(slug: string, formData: FormData) {
 
   if (
     await hasMiniSessionSlotConflict(session.adminId, slot, {
+      miniSessionId: session.id,
+      bookingMode: session.bookingMode,
       ignoreExternalCalendarConflicts: session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
     })
   ) {
@@ -1589,6 +1724,8 @@ export async function rescheduleMiniSessionBookingAction(token: string, formData
     await hasMiniSessionSlotConflict(booking.miniSession.adminId, slot, {
       excludeBookingId: booking.id,
       excludeProjectId: booking.projectId,
+      miniSessionId: booking.miniSession.id,
+      bookingMode: booking.miniSession.bookingMode,
       ignoreExternalCalendarConflicts:
         booking.miniSession.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
     })

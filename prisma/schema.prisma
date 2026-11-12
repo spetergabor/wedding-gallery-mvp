@@ -9,59 +9,59 @@ datasource db {
 }
 
 model Admin {
-  id                         String                       @id @default(cuid())
-  name                       String
-  email                      String                       @unique
-  passwordHash               String
-  legalName                  String?
-  birthDate                  DateTime?
-  birthPlace                 String?
-  phone                      String?
-  addressLine                String?
-  postalCode                 String?
-  city                       String?
-  country                    String?
-  taxNumber                  String?
-  businessRegistrationNumber String?
-  profileNotes               String?
-  role                       String                       @default("photographer")
-  status                     String                       @default("pending")
-  approvedAt                 DateTime?
-  approvedById               String?
-  onboardingCompletedAt      DateTime?
-  twoFactorEnabled           Boolean                      @default(false)
-  twoFactorSecret            String?
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime                     @updatedAt
-  galleries                  Gallery[]
-  customers                  Customer[]
-  notifications              AdminNotification[]
-  notificationPreference     AdminNotificationPreference?
-  calendarBlocks             AdminCalendarBlock[]
-  googleCalendarIntegration  GoogleCalendarIntegration?
-  siteSettings               SiteSettings?
-  leads                      Lead[]
-  miniSessions               MiniSession[]
-  teamMembers                AdminTeamMembership[]        @relation("TeamOwner")
-  teamMembership             AdminTeamMembership?         @relation("TeamMember")
-  passwordResetTokens        AdminPasswordResetToken[]
-  systemEventsAsActor        SystemEvent[]                @relation("SystemEventActor")
-  systemEventsAsTarget       SystemEvent[]                @relation("SystemEventTarget")
-  deliveryLogs               DeliveryLog[]
-  stripeConnectIntegration   StripeConnectIntegration?
-  galleryPurchases           GalleryPurchase[]
-  albumDesigns               AlbumDesign[]
-  tasks                      CustomerTask[]
-  planOverride               AdminPlanOverride?
-  invoices                   CustomerInvoice[]
-  invoiceNumberSequences     InvoiceNumberSequence[]
-  invoiceIssuerProfiles      InvoiceIssuerProfile[]
-  giftCardOrders             GiftCardOrder[]
-  irisRetouchIntegration     IrisRetouchIntegration?
-  irisMomentDevices          IrisMomentDevice[]
+  id                             String                          @id @default(cuid())
+  name                           String
+  email                          String                          @unique
+  passwordHash                   String
+  legalName                      String?
+  birthDate                      DateTime?
+  birthPlace                     String?
+  phone                          String?
+  addressLine                    String?
+  postalCode                     String?
+  city                           String?
+  country                        String?
+  taxNumber                      String?
+  businessRegistrationNumber     String?
+  profileNotes                   String?
+  role                           String                          @default("photographer")
+  status                         String                          @default("pending")
+  approvedAt                     DateTime?
+  approvedById                   String?
+  onboardingCompletedAt          DateTime?
+  twoFactorEnabled               Boolean                         @default(false)
+  twoFactorSecret                String?
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  galleries                      Gallery[]
+  customers                      Customer[]
+  notifications                  AdminNotification[]
+  notificationPreference         AdminNotificationPreference?
+  calendarBlocks                 AdminCalendarBlock[]
+  googleCalendarIntegration      GoogleCalendarIntegration?
+  siteSettings                   SiteSettings?
+  leads                          Lead[]
+  miniSessions                   MiniSession[]
+  teamMembers                    AdminTeamMembership[]           @relation("TeamOwner")
+  teamMembership                 AdminTeamMembership?            @relation("TeamMember")
+  passwordResetTokens            AdminPasswordResetToken[]
+  systemEventsAsActor            SystemEvent[]                   @relation("SystemEventActor")
+  systemEventsAsTarget           SystemEvent[]                   @relation("SystemEventTarget")
+  deliveryLogs                   DeliveryLog[]
+  stripeConnectIntegration       StripeConnectIntegration?
+  galleryPurchases               GalleryPurchase[]
+  albumDesigns                   AlbumDesign[]
+  tasks                          CustomerTask[]
+  planOverride                   AdminPlanOverride?
+  invoices                       CustomerInvoice[]
+  invoiceNumberSequences         InvoiceNumberSequence[]
+  invoiceIssuerProfiles          InvoiceIssuerProfile[]
+  giftCardOrders                 GiftCardOrder[]
+  irisRetouchIntegration         IrisRetouchIntegration?
+  irisMomentDevices              IrisMomentDevice[]
   irisMomentDeviceAuthorizations IrisMomentDeviceAuthorization[]
-  irisMomentSharedClients    IrisMomentSharedClient[]
-  irisMomentActiveEvent      IrisMomentActiveEvent?
+  irisMomentSharedClients        IrisMomentSharedClient[]
+  irisMomentActiveEvent          IrisMomentActiveEvent?
 }
 
 model IrisRetouchIntegration {
@@ -76,17 +76,17 @@ model IrisRetouchIntegration {
 }
 
 model IrisMomentDevice {
-  id                  String                    @id @default(cuid())
+  id                  String                   @id @default(cuid())
   adminId             String
   externalId          String
   name                String
-  tokenHash           String?                   @unique
+  tokenHash           String?                  @unique
   appVersion          String?
-  lastSeenAt          DateTime                  @default(now())
+  lastSeenAt          DateTime                 @default(now())
   revokedAt           DateTime?
-  createdAt           DateTime                  @default(now())
-  updatedAt           DateTime                  @updatedAt
-  admin               Admin                     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  admin               Admin                    @relation(fields: [adminId], references: [id], onDelete: Cascade)
   sharedClientUpdates IrisMomentSharedClient[]
 
   @@unique([adminId, externalId])
@@ -138,12 +138,12 @@ model IrisMomentSharedClient {
 }
 
 model IrisMomentActiveEvent {
-  adminId           String            @id
+  adminId           String      @id
   miniSessionId     String
   updatedByDeviceId String?
-  updatedAt         DateTime          @updatedAt
-  admin             Admin             @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  miniSession       MiniSession       @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+  updatedAt         DateTime    @updatedAt
+  admin             Admin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  miniSession       MiniSession @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
 
   @@index([miniSessionId])
 }
@@ -357,20 +357,34 @@ model ResendWebhookEvent {
 }
 
 model AdminCalendarBlock {
-  id        String   @id @default(cuid())
+  id        String                     @id @default(cuid())
   adminId   String
   title     String
   startsAt  DateTime
   endsAt    DateTime
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  scope     String                     @default("all")
+  createdAt DateTime                   @default(now())
+  updatedAt DateTime                   @updatedAt
+  admin     Admin                      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  targets   AdminCalendarBlockTarget[]
 
   @@index([adminId])
   @@index([startsAt])
   @@index([endsAt])
   @@index([adminId, startsAt])
+  @@index([adminId, scope, startsAt])
+}
+
+model AdminCalendarBlockTarget {
+  blockId       String
+  miniSessionId String
+  createdAt     DateTime           @default(now())
+  block         AdminCalendarBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  miniSession   MiniSession        @relation(fields: [miniSessionId], references: [id], onDelete: Cascade)
+
+  @@id([blockId, miniSessionId])
+  @@index([miniSessionId])
 }
 
 model GoogleCalendarIntegration {
@@ -758,36 +772,37 @@ model GiftCardOrder {
 }
 
 model MiniSession {
-  id                            String                    @id @default(cuid())
+  id                            String                     @id @default(cuid())
   adminId                       String
   title                         String
-  slug                          String                    @unique
+  slug                          String                     @unique
   location                      String
-  bookingMode                   String                    @default("single_day")
-  bookingWindowDays             Int                       @default(60)
+  bookingMode                   String                     @default("single_day")
+  bookingWindowDays             Int                        @default(60)
   sessionDate                   DateTime
   startsAt                      DateTime
   endsAt                        DateTime
   durationMinutes               Int
-  minBookingNoticeMinutes       Int                       @default(0)
-  language                      String                    @default("hu")
-  publicTheme                   String                    @default("default")
-  isActive                      Boolean                   @default(true)
-  createCustomerOnBooking       Boolean                   @default(true)
-  postProductionWorkflowEnabled Boolean                   @default(true)
-  fulfillmentMode               String                    @default("gallery")
+  minBookingNoticeMinutes       Int                        @default(0)
+  language                      String                     @default("hu")
+  publicTheme                   String                     @default("default")
+  isActive                      Boolean                    @default(true)
+  createCustomerOnBooking       Boolean                    @default(true)
+  postProductionWorkflowEnabled Boolean                    @default(true)
+  fulfillmentMode               String                     @default("gallery")
   notes                         String?
   stylingNotes                  String?
   coverImageUrl                 String?
   coverImageR2Key               String?
-  createdAt                     DateTime                  @default(now())
-  updatedAt                     DateTime                  @updatedAt
-  admin                         Admin                     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime                   @updatedAt
+  admin                         Admin                      @relation(fields: [adminId], references: [id], onDelete: Cascade)
   bookings                      MiniSessionBooking[]
   availabilityRules             MiniSessionAvailability[]
   eventDays                     MiniSessionEventDay[]
   irisMomentSharedClients       IrisMomentSharedClient[]
   irisMomentActiveWorkspaces    IrisMomentActiveEvent[]
+  calendarBlockTargets          AdminCalendarBlockTarget[]
 
   @@index([adminId])
   @@index([slug])
