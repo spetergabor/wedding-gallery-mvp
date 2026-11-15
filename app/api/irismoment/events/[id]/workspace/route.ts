@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateIrisRetouch, IRIS_FULFILLMENT_MODE } from "@/lib/iris-retouch-auth";
 import { prisma } from "@/lib/prisma";
@@ -52,6 +53,48 @@ const clientInclude = {
   updatedByDevice: { select: { id: true, externalId: true, name: true } }
 } satisfies Prisma.IrisMomentSharedClientInclude;
 
+function workspaceTag(adminId: string, eventId: string) {
+  return `irismoment-workspace:${adminId}:${eventId}`;
+}
+
+function cachedFullWorkspace(adminId: string, eventId: string) {
+  return unstable_cache(
+    async () => {
+      const [clients, devices] = await Promise.all([
+        prisma.irisMomentSharedClient.findMany({
+          where: { adminId, miniSessionId: eventId },
+          include: clientInclude,
+          orderBy: { updatedAt: "asc" }
+        }),
+        prisma.irisMomentDevice.findMany({
+          where: {
+            adminId,
+            revokedAt: null,
+            lastSeenAt: { gte: new Date(Date.now() - 5 * 60_000) }
+          },
+          select: { id: true, externalId: true, name: true, appVersion: true, lastSeenAt: true },
+          orderBy: { lastSeenAt: "desc" }
+        })
+      ]);
+      return {
+        serverTime: new Date().toISOString(),
+        clients: clients.map(serializeClient),
+        devices: devices.map((device) => ({ ...device, lastSeenAt: device.lastSeenAt.toISOString() }))
+      };
+    },
+    ["irismoment-full-workspace-v2", adminId, eventId],
+    { revalidate: 60, tags: [workspaceTag(adminId, eventId)] }
+  )();
+}
+
+function validSince(request: NextRequest) {
+  const raw = request.nextUrl.searchParams.get("since");
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime()) || parsed.getTime() > Date.now() + 5_000) return null;
+  return parsed;
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticateIrisRetouch(request);
   if (!auth) return NextResponse.json({ ok: false, code: "invalid_token" }, { status: 401 });
@@ -59,27 +102,50 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!await eventFor(auth.adminId, id)) {
     return NextResponse.json({ ok: false, code: "event_not_found" }, { status: 404 });
   }
+  const since = validSince(request);
+  if (!since) {
+    const workspace = await cachedFullWorkspace(auth.adminId, id);
+    return NextResponse.json({
+      ok: true,
+      fullSnapshot: true,
+      pollAfterMs: 15_000,
+      ...workspace
+    });
+  }
+
+  // Use a fixed upper bound so a write that lands while this query is running
+  // is picked up by the following request instead of falling between cursors.
+  const cutoff = new Date();
+  const includeDevices = request.nextUrl.searchParams.get("includeDevices") === "1";
   const [clients, devices] = await Promise.all([
     prisma.irisMomentSharedClient.findMany({
-      where: { adminId: auth.adminId, miniSessionId: id },
+      where: {
+        adminId: auth.adminId,
+        miniSessionId: id,
+        updatedAt: { gt: since, lte: cutoff }
+      },
       include: clientInclude,
       orderBy: { updatedAt: "asc" }
     }),
-    prisma.irisMomentDevice.findMany({
-      where: {
-        adminId: auth.adminId,
-        revokedAt: null,
-        lastSeenAt: { gte: new Date(Date.now() - 5 * 60_000) }
-      },
-      select: { id: true, externalId: true, name: true, appVersion: true, lastSeenAt: true },
-      orderBy: { lastSeenAt: "desc" }
-    })
+    includeDevices
+      ? prisma.irisMomentDevice.findMany({
+          where: {
+            adminId: auth.adminId,
+            revokedAt: null,
+            lastSeenAt: { gte: new Date(Date.now() - 5 * 60_000) }
+          },
+          select: { id: true, externalId: true, name: true, appVersion: true, lastSeenAt: true },
+          orderBy: { lastSeenAt: "desc" }
+        })
+      : Promise.resolve(null)
   ]);
   return NextResponse.json({
     ok: true,
-    serverTime: new Date().toISOString(),
+    fullSnapshot: false,
+    pollAfterMs: 15_000,
+    serverTime: cutoff.toISOString(),
     clients: clients.map(serializeClient),
-    devices: devices.map((device) => ({ ...device, lastSeenAt: device.lastSeenAt.toISOString() }))
+    devices: devices?.map((device) => ({ ...device, lastSeenAt: device.lastSeenAt.toISOString() })) ?? null
   });
 }
 
@@ -126,6 +192,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data: { id: clientId, adminId: auth.adminId, miniSessionId: eventId, ...data },
       include: clientInclude
     });
+    revalidateTag(workspaceTag(auth.adminId, eventId));
     return NextResponse.json({ ok: true, client: serializeClient(created) });
   }
   if (existing.adminId !== auth.adminId || existing.miniSessionId !== eventId) {
@@ -153,6 +220,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     where: { id: clientId },
     include: clientInclude
   });
+  revalidateTag(workspaceTag(auth.adminId, eventId));
   return NextResponse.json({ ok: true, client: serializeClient(updated) });
 }
 
@@ -191,5 +259,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const deleted = await prisma.irisMomentSharedClient.findUniqueOrThrow({
     where: { id: clientId }, include: clientInclude
   });
+  revalidateTag(workspaceTag(auth.adminId, eventId));
   return NextResponse.json({ ok: true, client: serializeClient(deleted) });
 }

@@ -33,29 +33,33 @@ export async function authenticateIrisRetouch(request: NextRequest) {
   const token = readIrisRetouchToken(request);
   if (!token) return null;
   const tokenHash = hashIrisRetouchToken(token);
-  const integration = await prisma.irisRetouchIntegration.findUnique({
-    where: { tokenHash },
-    include: {
-      admin: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          siteSettings: { select: { businessName: true } }
+  // Device tokens can never belong to the legacy integration table. Skipping
+  // that guaranteed miss halves the authentication reads for current apps.
+  if (!token.startsWith("irmd_")) {
+    const integration = await prisma.irisRetouchIntegration.findUnique({
+      where: { tokenHash },
+      include: {
+        admin: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            siteSettings: { select: { businessName: true } }
+          }
         }
       }
+    });
+    if (integration) {
+      if (!integration.lastUsedAt || Date.now() - integration.lastUsedAt.getTime() > 60_000) {
+        await prisma.irisRetouchIntegration.update({
+          where: { id: integration.id },
+          data: { lastUsedAt: new Date() }
+        });
+      }
+      const legacyDevice = await touchLegacyDevice(request, integration.adminId);
+      if (legacyDevice.blocked) return null;
+      return { ...integration, device: legacyDevice.device };
     }
-  });
-  if (integration) {
-    if (!integration.lastUsedAt || Date.now() - integration.lastUsedAt.getTime() > 60_000) {
-      await prisma.irisRetouchIntegration.update({
-        where: { id: integration.id },
-        data: { lastUsedAt: new Date() }
-      });
-    }
-    const legacyDevice = await touchLegacyDevice(request, integration.adminId);
-    if (legacyDevice.blocked) return null;
-    return { ...integration, device: legacyDevice.device };
   }
 
   const device = await prisma.irisMomentDevice.findUnique({
@@ -72,7 +76,7 @@ export async function authenticateIrisRetouch(request: NextRequest) {
     }
   });
   if (!device || device.revokedAt) return null;
-  if (Date.now() - device.lastSeenAt.getTime() > 15_000) {
+  if (Date.now() - device.lastSeenAt.getTime() > 60_000) {
     await prisma.irisMomentDevice.update({
       where: { id: device.id },
       data: {
@@ -102,10 +106,14 @@ async function touchLegacyDevice(request: NextRequest, adminId: string) {
     where: { adminId_externalId: { adminId, externalId } }
   });
   if (existing?.revokedAt) return { device: existing, blocked: true };
-  const device = await prisma.irisMomentDevice.upsert({
-    where: { adminId_externalId: { adminId, externalId } },
-    create: { adminId, externalId, name, appVersion, lastSeenAt: new Date() },
-    update: { name, appVersion, lastSeenAt: new Date() }
-  });
+  const metadataChanged = existing?.name !== name || existing?.appVersion !== appVersion;
+  const needsHeartbeat = !existing || Date.now() - existing.lastSeenAt.getTime() > 60_000;
+  const device = existing && !metadataChanged && !needsHeartbeat
+    ? existing
+    : await prisma.irisMomentDevice.upsert({
+        where: { adminId_externalId: { adminId, externalId } },
+        create: { adminId, externalId, name, appVersion, lastSeenAt: new Date() },
+        update: { name, appVersion, lastSeenAt: new Date() }
+      });
   return { device, blocked: false };
 }
