@@ -244,23 +244,23 @@ export function AlbumDesignManager({
           <div
             className={`mt-3 grid gap-3 md:grid-cols-2 ${
               standaloneMode
-                ? "xl:grid-cols-[1fr_1fr_1.2fr_auto]"
-                : "xl:grid-cols-[0.9fr_1fr_1.15fr_0.9fr_auto]"
+                ? "xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)_minmax(0,1.25fr)_minmax(170px,auto)]"
+                : "2xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(170px,auto)]"
             }`}
           >
-            <label className="grid gap-1.5">
+            <label className="grid min-w-0 gap-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">1. Név</span>
               <input
                 name="title"
                 placeholder="pl. Dalma album v1"
-                className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                className="h-11 min-w-0 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
               />
             </label>
-            <label className="grid gap-1.5">
+            <label className="grid min-w-0 gap-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">2. Sablon</span>
               <select
                 name="templateDesignId"
-                className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                className="h-11 min-w-0 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
                 defaultValue=""
               >
                 <option value="">Üres album – sablon nélkül</option>
@@ -272,11 +272,11 @@ export function AlbumDesignManager({
                 ))}
               </select>
             </label>
-            <label className="grid gap-1.5">
+            <label className="grid min-w-0 gap-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">3. Képforrás</span>
               <select
                 name="sourceId"
-                className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                className="h-11 min-w-0 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
                 defaultValue=""
               >
                 <option value="">Saját képeket töltök fel</option>
@@ -302,11 +302,11 @@ export function AlbumDesignManager({
               </select>
             </label>
             {!standaloneMode ? (
-              <label className="grid gap-1.5">
+              <label className="grid min-w-0 gap-1.5">
                 <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">4. Projekt</span>
                 <select
                   name="projectId"
-                  className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                  className="h-11 min-w-0 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
                   defaultValue=""
                 >
                   <option value="">Nincs projekthez kapcsolva</option>
@@ -318,7 +318,7 @@ export function AlbumDesignManager({
                 </select>
               </label>
             ) : null}
-            <div className="grid gap-1.5">
+            <div className="grid min-w-0 gap-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">{standaloneMode ? "4." : "5."} Mentés</span>
               <FormSubmitButton className="h-11" pendingLabel="Létrehozás...">
                 <Plus size={16} />
