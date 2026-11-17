@@ -13,6 +13,7 @@ import {
 } from "@/lib/album-design-export";
 import { requireAdmin } from "@/lib/auth";
 import { createAlbumReviewTitle } from "@/lib/album-review-title";
+import { normalizeAlbumDesignSlotFrames } from "@/lib/album-design-slot-frames";
 import { ALBUM_LAYOUT_TEMPLATES, getAlbumLayoutTemplate, pickRandomAlbumLayoutTemplate, type AlbumLayoutTemplate } from "@/lib/album-design-templates";
 import { prisma } from "@/lib/prisma";
 import { GALLERY_MODE_ALBUM_SOURCE, GALLERY_MODE_FULL } from "@/lib/proofing";
@@ -151,6 +152,27 @@ function getOrderedSlotFrames(
       fallback
     );
   });
+}
+
+function getAlbumSlotFrameDrafts(formData: FormData, spreadId: string, layout: AlbumLayoutTemplate) {
+  const slotIndexes = getOrderedFormStrings(formData, `spread-${spreadId}-frameIndexes`).map((value) => Number.parseInt(value, 10));
+
+  if (slotIndexes.length === 0) {
+    return null;
+  }
+
+  if (slotIndexes.some((slotIndex) => !Number.isFinite(slotIndex) || !layout.slots[slotIndex])) {
+    return null;
+  }
+
+  const frames = getOrderedSlotFrames(formData, layout, slotIndexes, {
+    x: `spread-${spreadId}-frameX`,
+    y: `spread-${spreadId}-frameY`,
+    width: `spread-${spreadId}-frameWidth`,
+    height: `spread-${spreadId}-frameHeight`
+  });
+
+  return slotIndexes.map((slotIndex, index) => ({ slotIndex, ...frames[index] }));
 }
 
 function getAlbumTextItemDrafts(formData: FormData, spreadId: string) {
@@ -475,6 +497,7 @@ async function requireFavoritePhoto({
 export async function createAlbumDesignAction(customerId: string | null, formData: FormData) {
   const { admin, customer } = await requireAlbumDesignContext(customerId);
   const title = formString(formData, "title") || "Albumterv";
+  const templateDesignId = formString(formData, "templateDesignId");
   const source = parseAlbumDesignSource(formData);
   const favoriteListId = source.favoriteListId;
   const requestedSourceGalleryId = source.sourceGalleryId;
@@ -524,6 +547,61 @@ export async function createAlbumDesignAction(customerId: string | null, formDat
     redirect(albumDesignRedirectPath(customerId, "albumDesignError=project"));
   }
 
+  const templateDesign = templateDesignId
+    ? await prisma.albumDesign.findFirst({
+        where: {
+          ...albumDesignAccessWhere(admin, templateDesignId),
+          spreads: {
+            some: {
+              items: { some: {} }
+            }
+          }
+        },
+        select: {
+          spreads: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            select: {
+              title: true,
+              layoutKey: true,
+              slotGapPx: true,
+              slotFrames: true,
+              sortOrder: true,
+              items: {
+                orderBy: { slotIndex: "asc" },
+                select: {
+                  slotIndex: true,
+                  x: true,
+                  y: true,
+                  width: true,
+                  height: true
+                }
+              },
+              textItems: {
+                orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                select: {
+                  text: true,
+                  x: true,
+                  y: true,
+                  width: true,
+                  height: true,
+                  fontFamily: true,
+                  fontSize: true,
+                  lineHeight: true,
+                  color: true,
+                  textAlign: true,
+                  sortOrder: true
+                }
+              }
+            }
+          }
+        }
+      })
+    : null;
+
+  if (templateDesignId && !templateDesign) {
+    redirect(albumDesignRedirectPath(customerId, "albumDesignError=template"));
+  }
+
   const sourceGalleryId = favoriteList
     ? null
     : existingSourceGallery?.id ??
@@ -533,20 +611,54 @@ export async function createAlbumDesignAction(customerId: string | null, formDat
         title
       }));
 
-  await prisma.albumDesign.create({
+  const templateSpreads = (templateDesign?.spreads ?? []).filter((spread) => spread.items.length > 0 || spread.textItems.length > 0);
+  const createdDesign = await prisma.albumDesign.create({
     data: {
       adminId: ownerAdminId(admin),
       customerId: customer?.id ?? null,
       projectId,
       favoriteListId: favoriteList?.id ?? null,
       sourceGalleryId,
-      title
-    }
+      title,
+      spreads:
+        templateSpreads.length > 0
+          ? {
+              create: templateSpreads.map((spread, index) => ({
+                title: spread.title,
+                layoutKey: spread.layoutKey,
+                slotGapPx: spread.slotGapPx,
+                slotFrames: normalizeAlbumDesignSlotFrames(spread.layoutKey, spread.slotFrames, spread.items),
+                sortOrder: index + 1,
+                textItems: {
+                  create: spread.textItems.map((item) => ({
+                    text: item.text,
+                    x: item.x,
+                    y: item.y,
+                    width: item.width,
+                    height: item.height,
+                    fontFamily: item.fontFamily,
+                    fontSize: item.fontSize,
+                    lineHeight: item.lineHeight,
+                    color: item.color,
+                    textAlign: item.textAlign,
+                    sortOrder: item.sortOrder
+                  }))
+                }
+              }))
+            }
+          : undefined
+    },
+    select: { id: true }
   });
 
   revalidateAlbumDesignPaths(customerId);
   revalidatePath("/admin/clients");
-  redirect(albumDesignRedirectPath(customerId, "albumDesignCreated=1"));
+  redirect(
+    albumDesignRedirectPath(
+      customerId,
+      albumDesignEditorRedirectQuery(createdDesign.id, templateSpreads.length > 0 ? "albumDesignTemplateCreated=1" : "albumDesignCreated=1")
+    )
+  );
 }
 
 export async function updateAlbumDesignAssignmentAction(customerId: string | null, designId: string, formData: FormData) {
@@ -717,6 +829,7 @@ export async function createEmptyAlbumDesignSpreadInlineAction(customerId: strin
       title: true,
       layoutKey: true,
       slotGapPx: true,
+      slotFrames: true,
       sortOrder: true
     }
   });
@@ -856,6 +969,7 @@ export async function updateAlbumDesignSpreadAction(customerId: string | null, d
     where: { id: spread.id },
     data: {
       layoutKey: layout.key,
+      slotFrames: normalizeAlbumDesignSlotFrames(layout.key, null),
       items: {
         deleteMany: {},
         create: createSpreadItems(layout, photoIds)
@@ -903,6 +1017,7 @@ export async function updateAlbumDesignSpreadLayoutOnlyAction(customerId: string
     where: { id: spread.id },
     data: {
       layoutKey: layout.key,
+      slotFrames: normalizeAlbumDesignSlotFrames(layout.key, null),
       items: {
         deleteMany: {},
         create: createSpreadItemsForSlotIndexes(
@@ -956,6 +1071,7 @@ export async function regenerateAlbumDesignSpreadLayoutAction(customerId: string
     where: { id: spread.id },
     data: {
       layoutKey: layout.key,
+      slotFrames: normalizeAlbumDesignSlotFrames(layout.key, null),
       items: {
         deleteMany: {},
         create: createSpreadItems(layout, shufflePhotoIds(photoIds))
@@ -1360,7 +1476,8 @@ async function persistAlbumDesignSpreadDrafts(customerId: string | null, designI
     },
     select: {
       id: true,
-      layoutKey: true
+      layoutKey: true,
+      slotFrames: true
     }
   });
 
@@ -1391,8 +1508,13 @@ async function persistAlbumDesignSpreadDrafts(customerId: string | null, designI
       ? null
       : Math.min(1000, Math.max(0, parsedSlotGapPx));
     const textItems = getAlbumTextItemDrafts(formData, spread.id);
+    const submittedSlotFrames = getAlbumSlotFrameDrafts(formData, spread.id, layout);
 
-    if ((photoIds.length === 0 && textItems.length === 0) || photoIds.length > layout.slots.length || slotIndexes.some((slotIndex) => !layout.slots[slotIndex])) {
+    if (
+      (photoIds.length === 0 && textItems.length === 0 && !submittedSlotFrames) ||
+      photoIds.length > layout.slots.length ||
+      slotIndexes.some((slotIndex) => !layout.slots[slotIndex])
+    ) {
       throw new AlbumDesignSpreadDraftSaveError("photo-count");
     }
 
@@ -1403,6 +1525,7 @@ async function persistAlbumDesignSpreadDrafts(customerId: string | null, designI
       slotIndexes,
       cropPositions,
       slotFrames,
+      submittedSlotFrames,
       slotGapPx,
       textItems
     };
@@ -1425,6 +1548,7 @@ async function persistAlbumDesignSpreadDrafts(customerId: string | null, designI
         where: { id: draft.spread.id },
         data: {
           slotGapPx: draft.slotGapPx,
+          ...(draft.submittedSlotFrames ? { slotFrames: draft.submittedSlotFrames } : {}),
           items: {
             deleteMany: {},
             create: createSpreadItemsForSlotIndexes(draft.layout, draft.photoIds, draft.slotIndexes, draft.cropPositions, draft.slotFrames)

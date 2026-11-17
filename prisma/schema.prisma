@@ -1028,17 +1028,18 @@ model AlbumDesign {
 }
 
 model AlbumDesignSpread {
-  id        String                      @id @default(cuid())
-  designId  String
-  title     String?
-  layoutKey String
-  slotGapPx Float?
-  sortOrder Int                         @default(0)
-  createdAt DateTime                    @default(now())
-  updatedAt DateTime                    @updatedAt
-  design    AlbumDesign                 @relation(fields: [designId], references: [id], onDelete: Cascade)
-  items     AlbumDesignSpreadItem[]
-  textItems AlbumDesignSpreadTextItem[]
+  id         String                      @id @default(cuid())
+  designId   String
+  title      String?
+  layoutKey  String
+  slotGapPx  Float?
+  slotFrames Json?
+  sortOrder  Int                         @default(0)
+  createdAt  DateTime                    @default(now())
+  updatedAt  DateTime                    @updatedAt
+  design     AlbumDesign                 @relation(fields: [designId], references: [id], onDelete: Cascade)
+  items      AlbumDesignSpreadItem[]
+  textItems  AlbumDesignSpreadTextItem[]
 
   @@index([designId])
   @@index([designId, sortOrder])

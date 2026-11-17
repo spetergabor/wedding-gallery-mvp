@@ -24,6 +24,7 @@ function getAlbumWorkflowOpen(flags: {
   albumError?: string;
   albumMode?: string;
   albumDesignCreated?: string;
+  albumDesignTemplateCreated?: string;
   albumDesignDeleted?: string;
   albumDesignUpdated?: string;
   albumDesignExported?: string;
@@ -47,6 +48,7 @@ function getAlbumWorkflowOpen(flags: {
       flags.albumError ||
       flags.albumMode ||
       flags.albumDesignCreated ||
+      flags.albumDesignTemplateCreated ||
       flags.albumDesignDeleted ||
       flags.albumDesignUpdated ||
       flags.albumDesignExported ||
@@ -75,6 +77,7 @@ export default async function AdminAlbumsPage({
     albumError?: string;
     albumMode?: string;
     albumDesignCreated?: string;
+    albumDesignTemplateCreated?: string;
     albumDesignDeleted?: string;
     albumDesignUpdated?: string;
     albumDesignExported?: string;
@@ -292,6 +295,15 @@ export default async function AdminAlbumsPage({
     customerName: gallery.customer?.coupleName ?? null,
     photoCount: gallery._count.photos
   }));
+  const albumTemplateOptions = albumDesigns
+    .filter((design) => design.spreads.some((spread) => spread.items.length > 0))
+    .map((design) => ({
+      id: design.id,
+      title: design.title,
+      customerName: design.customer?.coupleName ?? null,
+      spreadCount: design.spreads.filter((spread) => spread.items.length > 0 || spread.textItems.length > 0).length,
+      updatedAt: design.updatedAt
+    }));
 
   return (
     <AdminShell>
@@ -312,6 +324,7 @@ export default async function AdminAlbumsPage({
         {flags.albumError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumError === "missing" ? <Alert title="Az album ellenőrző nem található." variant="error" /> : null}
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
+        {flags.albumDesignTemplateCreated ? <Alert title="Albumterv létrehozva a kiválasztott sablonból. Már csak a képeket kell behelyezni." variant="success" /> : null}
         {flags.albumDesignDeleted ? <Alert title="Albumterv törölve." variant="success" /> : null}
         {flags.albumDesignUpdated ? <Alert title="Albumterv kapcsolata mentve." variant="success" /> : null}
         {flags.albumDesignExported ? <Alert title={`${flags.albumDesignExported} albumterv oldalpár bekerült az album ellenőrzőbe.`} variant="success" /> : null}
@@ -323,6 +336,7 @@ export default async function AdminAlbumsPage({
         {flags.albumSpreadDeleted ? <Alert title="Album oldalpár törölve." variant="success" /> : null}
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
         {flags.albumDesignError === "source-gallery" ? <Alert title="A kiválasztott galéria nem található vagy nincs benne kép." variant="error" /> : null}
+        {flags.albumDesignError === "template" ? <Alert title="A kiválasztott albumsablon már nem érhető el." variant="error" /> : null}
         {flags.albumDesignError === "customer" ? <Alert title="Az album ellenőrzőhöz előbb ügyfélhez kell rendelni az albumtervet." variant="error" /> : null}
         {flags.albumDesignError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
@@ -346,6 +360,7 @@ export default async function AdminAlbumsPage({
             favoriteLists={favoriteListOptions}
             sourceGalleries={sourceGalleryOptions}
             designs={albumDesigns}
+            templates={albumTemplateOptions}
             projects={albumProjectOptions}
             customers={customers}
             workspaceView={flags.albumWorkspace === "new" ? "new" : "projects"}

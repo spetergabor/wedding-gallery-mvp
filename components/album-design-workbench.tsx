@@ -16,6 +16,7 @@ import {
   saveAlbumDesignSpreadDraftsInlineAction,
   updateAlbumDesignSpreadLayoutOnlyAction
 } from "@/lib/album-design-actions";
+import { albumDesignSlotFramesToMap, normalizeAlbumDesignSlotFrames } from "@/lib/album-design-slot-frames";
 import { ALBUM_LAYOUT_TEMPLATES, ALBUM_SPREAD_BACKGROUND, getAlbumLayoutPreviewSlotInsetPx, getAlbumSlotEdgeInsetsPx } from "@/lib/album-design-templates";
 import { GALLERY_MODE_ALBUM_SOURCE, PHOTO_DELIVERY_STAGE_FINAL } from "@/lib/proofing";
 
@@ -65,6 +66,7 @@ type AlbumSpread = {
   title: string | null;
   layoutKey: string;
   slotGapPx: number | null;
+  slotFrames: unknown;
   sortOrder: number;
   items: SpreadItem[];
   textItems: SpreadTextItem[];
@@ -152,6 +154,41 @@ function createTextDraftMap(spreads: AlbumSpread[]) {
   return Object.fromEntries(spreads.map((spread) => [spread.id, [...spread.textItems].sort((left, right) => left.sortOrder - right.sortOrder)]));
 }
 
+function getSpreadSlotFrameMap(spread: AlbumSpread) {
+  return albumDesignSlotFramesToMap(
+    normalizeAlbumDesignSlotFrames(
+      spread.layoutKey,
+      spread.slotFrames,
+      spread.items.map((item) => ({
+        slotIndex: item.slotIndex,
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height
+      }))
+    )
+  );
+}
+
+function createSlotFrameDraftMap(spreads: AlbumSpread[]) {
+  return Object.fromEntries(spreads.map((spread) => [spread.id, getSpreadSlotFrameMap(spread)]));
+}
+
+function getSlotFrameSignature(frames: Record<number, SlotFrame>) {
+  return Object.entries(frames)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([slotIndex, frame]) =>
+      [slotIndex, formatCropPosition(frame.x), formatCropPosition(frame.y), formatCropPosition(frame.width), formatCropPosition(frame.height)].join(":")
+    )
+    .join("|");
+}
+
+function serializeSlotFrames(frames: Record<number, SlotFrame>) {
+  return Object.entries(frames)
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .map(([slotIndex, frame]) => ({ slotIndex: Number(slotIndex), ...frame }));
+}
+
 function normalizeSpreadOrder(spreads: AlbumSpread[]) {
   return spreads.map((spread, index) => {
     const sortOrder = index + 1;
@@ -172,11 +209,34 @@ function formatAlbumTextNumber(value: number) {
   return value.toFixed(2);
 }
 
-function SpreadDraftInputs({ spreadId, items, textItems, slotGapPx }: { spreadId: string; items: SpreadItem[]; textItems: SpreadTextItem[]; slotGapPx: number | null }) {
+function SpreadDraftInputs({
+  spreadId,
+  items,
+  textItems,
+  slotFrames,
+  slotGapPx
+}: {
+  spreadId: string;
+  items: SpreadItem[];
+  textItems: SpreadTextItem[];
+  slotFrames: Record<number, SlotFrame>;
+  slotGapPx: number | null;
+}) {
   return (
     <>
       <input type="hidden" name="draftSpreadIds" value={spreadId} />
       <input type="hidden" name={`spread-${spreadId}-slotGapPx`} value={slotGapPx ?? ""} />
+      {Object.entries(slotFrames)
+        .sort(([left], [right]) => Number(left) - Number(right))
+        .map(([slotIndex, frame]) => (
+          <span key={`all-frame-draft-${spreadId}-${slotIndex}`}>
+            <input type="hidden" name={`spread-${spreadId}-frameIndexes`} value={slotIndex} />
+            <input type="hidden" name={`spread-${spreadId}-frameX`} value={formatCropPosition(frame.x)} />
+            <input type="hidden" name={`spread-${spreadId}-frameY`} value={formatCropPosition(frame.y)} />
+            <input type="hidden" name={`spread-${spreadId}-frameWidth`} value={formatCropPosition(frame.width)} />
+            <input type="hidden" name={`spread-${spreadId}-frameHeight`} value={formatCropPosition(frame.height)} />
+          </span>
+        ))}
       {items.map((item) => (
         <span key={`all-draft-${spreadId}-${item.slotIndex}`}>
           <input type="hidden" name={`spread-${spreadId}-slotIndexes`} value={String(item.slotIndex)} />
@@ -309,7 +369,9 @@ export function AlbumDesignWorkbench({
       : orderedSpreads[0]?.id ?? "";
   const [isEditorOpen, setIsEditorOpen] = useState(initialEditorOpen);
   const [draftItemsBySpread, setDraftItemsBySpread] = useState<Record<string, SpreadItem[]>>(() => createDraftMap(spreads));
-  const [draftSlotFramesBySpread, setDraftSlotFramesBySpread] = useState<Record<string, Record<number, SlotFrame>>>({});
+  const [draftSlotFramesBySpread, setDraftSlotFramesBySpread] = useState<Record<string, Record<number, SlotFrame>>>(() =>
+    createSlotFrameDraftMap(spreads)
+  );
   const [draftSlotGapPxBySpread, setDraftSlotGapPxBySpread] = useState<Record<string, number | null>>(() =>
     Object.fromEntries(spreads.map((spread) => [spread.id, spread.slotGapPx]))
   );
@@ -349,18 +411,33 @@ export function AlbumDesignWorkbench({
     () => Object.fromEntries(localSpreads.map((spread) => [spread.id, getTextItemSignature(spread.textItems)])),
     [localSpreads]
   );
+  const originalSlotFrameSignaturesBySpread = useMemo(
+    () => Object.fromEntries(localSpreads.map((spread) => [spread.id, getSlotFrameSignature(getSpreadSlotFrameMap(spread))])),
+    [localSpreads]
+  );
   const changedSpreadIds = useMemo(
     () =>
       localSpreads
         .filter((spread) => {
           const photoSignatureChanged = getItemSignature(draftItemsBySpread[spread.id] ?? getOrderedItems(spread)) !== originalSignaturesBySpread[spread.id];
           const textSignatureChanged = getTextItemSignature(draftTextItemsBySpread[spread.id] ?? spread.textItems) !== originalTextSignaturesBySpread[spread.id];
+          const slotFrameSignatureChanged =
+            getSlotFrameSignature(draftSlotFramesBySpread[spread.id] ?? getSpreadSlotFrameMap(spread)) !== originalSlotFrameSignaturesBySpread[spread.id];
           const slotGapChanged = (draftSlotGapPxBySpread[spread.id] ?? null) !== spread.slotGapPx;
 
-          return photoSignatureChanged || textSignatureChanged || slotGapChanged;
+          return photoSignatureChanged || textSignatureChanged || slotFrameSignatureChanged || slotGapChanged;
         })
         .map((spread) => spread.id),
-    [draftItemsBySpread, draftSlotGapPxBySpread, draftTextItemsBySpread, localSpreads, originalSignaturesBySpread, originalTextSignaturesBySpread]
+    [
+      draftItemsBySpread,
+      draftSlotFramesBySpread,
+      draftSlotGapPxBySpread,
+      draftTextItemsBySpread,
+      localSpreads,
+      originalSignaturesBySpread,
+      originalSlotFrameSignaturesBySpread,
+      originalTextSignaturesBySpread
+    ]
   );
   const usedPhotoIds = useMemo(
     () => [
@@ -400,7 +477,7 @@ export function AlbumDesignWorkbench({
 
   useEffect(() => {
     setDraftItemsBySpread(createDraftMap(spreads));
-    setDraftSlotFramesBySpread({});
+    setDraftSlotFramesBySpread(createSlotFrameDraftMap(spreads));
     setDraftSlotGapPxBySpread(Object.fromEntries(spreads.map((spread) => [spread.id, spread.slotGapPx])));
   }, [spreads]);
 
@@ -837,6 +914,7 @@ export function AlbumDesignWorkbench({
         {
           items: [...(draftItemsBySpread[spreadId] ?? [])],
           textItems: [...(draftTextItemsBySpread[spreadId] ?? [])],
+          slotFrames: { ...(draftSlotFramesBySpread[spreadId] ?? {}) },
           slotGapPx: draftSlotGapPxBySpread[spreadId] ?? null
         }
       ])
@@ -856,6 +934,7 @@ export function AlbumDesignWorkbench({
                   ...spread,
                   items: savedDraft.items,
                   textItems: savedDraft.textItems,
+                  slotFrames: serializeSlotFrames(savedDraft.slotFrames),
                   slotGapPx: savedDraft.slotGapPx
                 }
               : spread;
@@ -882,8 +961,8 @@ export function AlbumDesignWorkbench({
         setDraftSlotFramesBySpread((current) => {
           const next = { ...current };
 
-          for (const spreadId of spreadIdsToSave) {
-            delete next[spreadId];
+          for (const [spreadId, savedDraft] of savedDrafts) {
+            next[spreadId] = savedDraft.slotFrames;
           }
 
           return next;
@@ -921,6 +1000,10 @@ export function AlbumDesignWorkbench({
         setDraftSlotGapPxBySpread((current) => ({
           ...current,
           [spread.id]: spread.slotGapPx
+        }));
+        setDraftSlotFramesBySpread((current) => ({
+          ...current,
+          [spread.id]: getSpreadSlotFrameMap(spread)
         }));
         setSelectedSlotBySpread((current) => ({
           ...current,
@@ -1144,6 +1227,7 @@ export function AlbumDesignWorkbench({
                         spreadId={spreadId}
                         items={draftItemsBySpread[spreadId] ?? []}
                         textItems={draftTextItemsBySpread[spreadId] ?? []}
+                        slotFrames={draftSlotFramesBySpread[spreadId] ?? {}}
                         slotGapPx={draftSlotGapPxBySpread[spreadId] ?? null}
                       />
                     ))}
@@ -1165,6 +1249,7 @@ export function AlbumDesignWorkbench({
                         spreadId={spread.id}
                         items={draftItemsBySpread[spread.id] ?? []}
                         textItems={draftTextItemsBySpread[spread.id] ?? []}
+                        slotFrames={draftSlotFramesBySpread[spread.id] ?? getSpreadSlotFrameMap(spread)}
                         slotGapPx={draftSlotGapPxBySpread[spread.id] ?? spread.slotGapPx}
                       />
                     ))}
@@ -1362,6 +1447,7 @@ export function AlbumDesignWorkbench({
                                 spreadId={spread.id}
                                 items={draftItems}
                                 textItems={draftTextItems}
+                                slotFrames={draftSlotFramesBySpread[spread.id] ?? getSpreadSlotFrameMap(spread)}
                                 slotGapPx={draftSlotGapPxBySpread[spread.id] ?? spread.slotGapPx}
                               />
                               <button

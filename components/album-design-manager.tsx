@@ -55,6 +55,14 @@ type AlbumCustomerOption = {
   coupleName: string;
 };
 
+export type AlbumTemplateOption = {
+  id: string;
+  title: string;
+  customerName: string | null;
+  spreadCount: number;
+  updatedAt: Date;
+};
+
 type AlbumDesign = {
   id: string;
   customerId: string | null;
@@ -93,6 +101,7 @@ type AlbumDesign = {
     title: string | null;
     layoutKey: string;
     slotGapPx: number | null;
+    slotFrames: unknown;
     sortOrder: number;
     textItems: Array<{
       id: string;
@@ -151,6 +160,7 @@ export function AlbumDesignManager({
   favoriteLists,
   sourceGalleries = [],
   designs,
+  templates = [],
   projects,
   customers = [],
   workspaceView = "projects",
@@ -162,6 +172,7 @@ export function AlbumDesignManager({
   favoriteLists: FavoriteList[];
   sourceGalleries?: SourceGalleryOption[];
   designs: AlbumDesign[];
+  templates?: AlbumTemplateOption[];
   projects: AlbumProjectOption[];
   customers?: AlbumCustomerOption[];
   workspaceView?: "projects" | "new";
@@ -230,7 +241,13 @@ export function AlbumDesignManager({
           className="mt-5 rounded-lg border border-ink/10 bg-paper p-4"
         >
           <p className="text-sm font-semibold text-ink">Új album indítása</p>
-          <div className={`mt-3 grid gap-3 ${standaloneMode ? "lg:grid-cols-[1.2fr_1.4fr_auto]" : "lg:grid-cols-[1fr_1.25fr_1fr_auto]"}`}>
+          <div
+            className={`mt-3 grid gap-3 md:grid-cols-2 ${
+              standaloneMode
+                ? "xl:grid-cols-[1fr_1fr_1.2fr_auto]"
+                : "xl:grid-cols-[0.9fr_1fr_1.15fr_0.9fr_auto]"
+            }`}
+          >
             <label className="grid gap-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">1. Név</span>
               <input
@@ -240,7 +257,23 @@ export function AlbumDesignManager({
               />
             </label>
             <label className="grid gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">2. Képforrás</span>
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">2. Sablon</span>
+              <select
+                name="templateDesignId"
+                className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
+                defaultValue=""
+              >
+                <option value="">Üres album – sablon nélkül</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.title}
+                    {template.customerName ? ` · ${template.customerName}` : ""} · {template.spreadCount} oldalpár
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">3. Képforrás</span>
               <select
                 name="sourceId"
                 className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
@@ -270,7 +303,7 @@ export function AlbumDesignManager({
             </label>
             {!standaloneMode ? (
               <label className="grid gap-1.5">
-                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">3. Projekt</span>
+                <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">4. Projekt</span>
                 <select
                   name="projectId"
                   className="h-11 rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition focus:border-ink/50"
@@ -286,13 +319,18 @@ export function AlbumDesignManager({
               </label>
             ) : null}
             <div className="grid gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">{standaloneMode ? "3." : "4."} Mentés</span>
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-graphite/55">{standaloneMode ? "4." : "5."} Mentés</span>
               <FormSubmitButton className="h-11" pendingLabel="Létrehozás...">
                 <Plus size={16} />
                 Új albumterv
               </FormSubmitButton>
             </div>
           </div>
+          {templates.length > 0 ? (
+            <p className="mt-3 text-xs leading-5 text-graphite/60">
+              A sablon az oldalpárokat, a slotok méretét és helyét, a képközöket és a szövegelemeket másolja. A korábbi album fotói nem kerülnek át.
+            </p>
+          ) : null}
         </form>
         ) : null}
       </div>

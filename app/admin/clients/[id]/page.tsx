@@ -44,7 +44,7 @@ import { CustomerTaskManager } from "@/components/customer-task-manager";
 import { InvoiceManager } from "@/components/invoice-manager";
 import { ensureAlbumReviewApprovalSchema } from "@/lib/album-review-actions";
 import { requireAdmin } from "@/lib/auth";
-import { customerAccessWhere } from "@/lib/admin-scope";
+import { albumDesignOwnedWhere, customerAccessWhere } from "@/lib/admin-scope";
 import { dateLocaleForAdmin, getAdminLanguage, type AdminLanguage } from "@/lib/admin-language";
 import { APP_TIME_ZONE } from "@/lib/date-format";
 import { customerProjectStatusLabel, customerProjectTypeLabel } from "@/lib/customer-project-options";
@@ -1239,6 +1239,7 @@ function getAlbumWorkflowOpen(flags: {
   albumUploaded?: string;
   albumError?: string;
   albumDesignCreated?: string;
+  albumDesignTemplateCreated?: string;
   albumDesignDeleted?: string;
   albumDesignUpdated?: string;
   albumDesignExported?: string;
@@ -1262,6 +1263,7 @@ function getAlbumWorkflowOpen(flags: {
       flags.albumUploaded ||
       flags.albumError ||
       flags.albumDesignCreated ||
+      flags.albumDesignTemplateCreated ||
       flags.albumDesignDeleted ||
       flags.albumDesignUpdated ||
       flags.albumDesignExported ||
@@ -1330,6 +1332,7 @@ export default async function AdminClientDetailPage({
     albumUploaded?: string;
     albumError?: string;
     albumDesignCreated?: string;
+    albumDesignTemplateCreated?: string;
     albumDesignDeleted?: string;
     albumDesignUpdated?: string;
     albumDesignExported?: string;
@@ -1714,7 +1717,7 @@ export default async function AdminClientDetailPage({
 
   await ensureAlbumReviewApprovalSchema();
 
-  const [albumReviews, albumFavoriteLists, albumDesigns, unassignedAlbumReviewCount, unassignedAlbumDesignCount] =
+  const [albumReviews, albumFavoriteLists, albumDesigns, albumTemplateDesigns, unassignedAlbumReviewCount, unassignedAlbumDesignCount] =
     await Promise.all([
       prisma.albumReview.findMany({
         where: { customerId: customer.id },
@@ -1830,6 +1833,31 @@ export default async function AdminClientDetailPage({
           }
         }
       }),
+      prisma.albumDesign.findMany({
+        where: {
+          ...albumDesignOwnedWhere(admin),
+          spreads: {
+            some: {
+              items: { some: {} }
+            }
+          }
+        },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          updatedAt: true,
+          customer: {
+            select: { coupleName: true }
+          },
+          spreads: {
+            where: {
+              OR: [{ items: { some: {} } }, { textItems: { some: {} } }]
+            },
+            select: { id: true }
+          }
+        }
+      }),
       prisma.albumReview.count({ where: { customerId: customer.id, projectId: null } }),
       prisma.albumDesign.count({ where: { customerId: customer.id, projectId: null } })
     ]);
@@ -1853,6 +1881,13 @@ export default async function AdminClientDetailPage({
   const albumProjectOptions = projectsByDate
     .filter((project) => project.projectType === "album" && project.status !== "archived")
     .map((project) => ({ id: project.id, title: project.title }));
+  const albumTemplateOptions = albumTemplateDesigns.map((design) => ({
+    id: design.id,
+    title: design.title,
+    customerName: design.customer?.coupleName ?? null,
+    spreadCount: design.spreads.length,
+    updatedAt: design.updatedAt
+  }));
   const taskProjectOptions = projectsByDate
     .filter((project) => project.status !== "archived")
     .map((project) => ({ id: project.id, title: project.title }));
@@ -1961,6 +1996,7 @@ export default async function AdminClientDetailPage({
         {flags.albumUpdated ? <Alert title="Album ellenőrző projektkapcsolata mentve." variant="success" /> : null}
         {flags.albumUploaded ? <Alert title={`${flags.albumUploaded} album oldalpár feltöltve.`} variant="success" /> : null}
         {flags.albumDesignCreated ? <Alert title="Albumterv létrehozva." variant="success" /> : null}
+        {flags.albumDesignTemplateCreated ? <Alert title="Albumterv létrehozva a kiválasztott sablonból. Már csak a képeket kell behelyezni." variant="success" /> : null}
         {flags.albumDesignDeleted ? <Alert title="Albumterv törölve." variant="success" /> : null}
         {flags.albumDesignUpdated ? <Alert title="Albumterv projektkapcsolata mentve." variant="success" /> : null}
         {flags.albumDesignExported ? <Alert title={`${flags.albumDesignExported} albumterv oldalpár bekerült az album ellenőrzőbe.`} variant="success" /> : null}
@@ -1975,6 +2011,7 @@ export default async function AdminClientDetailPage({
         {flags.albumError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "favorite-list" ? <Alert title="Válassz favorite listát az albumtervhez." variant="error" /> : null}
         {flags.albumDesignError === "source-gallery" ? <Alert title="A kiválasztott galéria nem található vagy nincs benne kép." variant="error" /> : null}
+        {flags.albumDesignError === "template" ? <Alert title="A kiválasztott albumsablon már nem érhető el." variant="error" /> : null}
         {flags.albumDesignError === "project" ? <Alert title="A kiválasztott album projekt nem található." variant="error" /> : null}
         {flags.albumDesignError === "photo-count" ? <Alert title="A kiválasztott képek száma nem passzol a layout sablonhoz." variant="error" /> : null}
         {flags.albumDesignError === "layout-count" ? <Alert title="Ehhez a képszámhoz még nincs album layout sablon." variant="error" /> : null}
@@ -2286,6 +2323,7 @@ export default async function AdminClientDetailPage({
                   photoCount: gallery._count.photos
                 }))}
               designs={albumDesigns}
+              templates={albumTemplateOptions}
               projects={albumProjectOptions}
               workspaceView={flags.albumWorkspace === "new" ? "new" : "projects"}
               activeDesignId={flags.albumDesignId ?? null}
