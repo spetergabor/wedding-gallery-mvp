@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AlertTriangle, ExternalLink, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EmailHealthStatus } from "@/lib/email-health";
 
-const POLL_INTERVAL_MS = 15_000;
+const ACTIVE_REFRESH_COOLDOWN_MS = 60_000;
 const ACKNOWLEDGED_INCIDENT_KEY = "spetly:email-health-acknowledged";
 
 function formatOccurredAt(value: string) {
@@ -17,10 +18,22 @@ function formatOccurredAt(value: string) {
 }
 
 export function EmailHealthAlert() {
+  const pathname = usePathname();
   const [status, setStatus] = useState<EmailHealthStatus | null>(null);
   const [open, setOpen] = useState(false);
+  const lastCheckedAtRef = useRef(0);
 
   const checkHealth = useCallback(async () => {
+    const now = Date.now();
+
+    if (now - lastCheckedAtRef.current < ACTIVE_REFRESH_COOLDOWN_MS) {
+      return;
+    }
+
+    // Record the attempt before the request so simultaneous focus/visibility
+    // events cannot start duplicate database-backed health checks.
+    lastCheckedAtRef.current = now;
+
     try {
       const response = await fetch("/api/admin/email-health", { cache: "no-store" });
       const nextStatus = (await response.json()) as EmailHealthStatus;
@@ -39,18 +52,22 @@ export function EmailHealthAlert() {
   }, []);
 
   useEffect(() => {
+    // Check once when the admin shell mounts. Further checks are event-driven:
+    // a permanently open admin tab must not keep the Neon compute awake.
     void checkHealth();
-    const intervalId = window.setInterval(() => void checkHealth(), POLL_INTERVAL_MS);
-    const refreshWhenVisible = () => {
+    const refreshWhenActive = () => {
       if (document.visibilityState === "visible") void checkHealth();
     };
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+    window.addEventListener("focus", refreshWhenActive);
+    window.addEventListener("pageshow", refreshWhenActive);
 
     return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+      window.removeEventListener("focus", refreshWhenActive);
+      window.removeEventListener("pageshow", refreshWhenActive);
     };
-  }, [checkHealth]);
+  }, [checkHealth, pathname]);
 
   const incident = status?.incident;
   if (!incident) return null;
