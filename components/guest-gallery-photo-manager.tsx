@@ -19,6 +19,7 @@ import type {
 } from "@/lib/guest-gallery-admin";
 
 type StatusCounts = Record<GuestGalleryAdminStatusFilter, number>;
+const REVISION_REFRESH_COOLDOWN_MS = 60_000;
 
 const STATUS_FILTERS: Array<{ value: GuestGalleryAdminStatusFilter; label: string }> = [
   { value: "all", label: "Összes" },
@@ -87,6 +88,7 @@ export function GuestGalleryPhotoManager({
   const firstPageInFlightRef = useRef(false);
   const loadMoreInFlightRef = useRef(false);
   const revisionCheckInFlightRef = useRef(false);
+  const lastRevisionCheckAtRef = useRef(0);
   const revisionRef = useRef(initialRevision);
   const requestSequenceRef = useRef(0);
   const didMountFiltersRef = useRef(false);
@@ -172,35 +174,49 @@ export function GuestGalleryPhotoManager({
     }
   }, [galleryId]);
 
-  useEffect(() => {
-    const intervalId = window.setInterval(async () => {
-      if (
-        document.visibilityState !== "visible" ||
-        revisionCheckInFlightRef.current ||
-        firstPageInFlightRef.current ||
-        loadMoreInFlightRef.current
-      ) {
-        return;
+  const checkForUpdates = useCallback(async () => {
+    const now = Date.now();
+
+    if (
+      document.visibilityState !== "visible" ||
+      now - lastRevisionCheckAtRef.current < REVISION_REFRESH_COOLDOWN_MS ||
+      revisionCheckInFlightRef.current ||
+      firstPageInFlightRef.current ||
+      loadMoreInFlightRef.current
+    ) {
+      return;
+    }
+
+    lastRevisionCheckAtRef.current = now;
+    revisionCheckInFlightRef.current = true;
+
+    try {
+      const result = await getAdminGuestGalleryRevisionAction(galleryId, revisionRef.current);
+
+      if (result.ok && !result.unchanged) {
+        revisionRef.current = result.revision;
+        setHasUpdates(true);
       }
-
-      revisionCheckInFlightRef.current = true;
-
-      try {
-        const result = await getAdminGuestGalleryRevisionAction(galleryId, revisionRef.current);
-
-        if (result.ok && !result.unchanged) {
-          revisionRef.current = result.revision;
-          setHasUpdates(true);
-        }
-      } catch {
-        // A háttérellenőrzés hibája nem zavarhatja meg a folyamatban lévő moderálást.
-      } finally {
-        revisionCheckInFlightRef.current = false;
-      }
-    }, 10_000);
-
-    return () => window.clearInterval(intervalId);
+    } catch {
+      // A háttérellenőrzés hibája nem zavarhatja meg a folyamatban lévő moderálást.
+    } finally {
+      revisionCheckInFlightRef.current = false;
+    }
   }, [galleryId]);
+
+  useEffect(() => {
+    const refreshWhenActive = () => void checkForUpdates();
+
+    document.addEventListener("visibilitychange", refreshWhenActive);
+    window.addEventListener("focus", refreshWhenActive);
+    window.addEventListener("pageshow", refreshWhenActive);
+
+    return () => {
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+      window.removeEventListener("focus", refreshWhenActive);
+      window.removeEventListener("pageshow", refreshWhenActive);
+    };
+  }, [checkForUpdates]);
 
   useEffect(() => {
     if (!didMountFiltersRef.current) {

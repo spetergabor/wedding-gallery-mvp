@@ -73,6 +73,7 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const PARALLEL_UPLOADS = 4;
 const MAX_AUTOMATIC_UPLOAD_ATTEMPTS = 3;
 const QUEUE_PERSIST_DEBOUNCE_MS = 350;
+const PASSIVE_REFRESH_COOLDOWN_MS = 60_000;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const OPEN_GUEST_UPLOAD_EVENT = "spetly:open-guest-photo-upload";
 
@@ -99,7 +100,7 @@ const COPY = {
     approvalSuccess: (count: number) => `${count} ${count === 1 ? "Foto wartet" : "Fotos warten"} auf Freigabe.`,
     duplicateSuccess: (count: number) => `${count} ${count === 1 ? "Duplikat wurde" : "Duplikate wurden"} übersprungen.`,
     partialError: (count: number) => `${count} ${count === 1 ? "Foto konnte" : "Fotos konnten"} nicht hochgeladen werden. Versuche nur diese erneut.`,
-    live: "Wird automatisch aktualisiert",
+    live: "Aktualisiert bei Rückkehr",
     processing: "Vorschau wird erstellt",
     loadingMore: "Weitere Fotos werden geladen...",
     loadMoreError: "Weitere Fotos konnten nicht geladen werden.",
@@ -148,7 +149,7 @@ const COPY = {
     approvalSuccess: (count: number) => `${count} kép jóváhagyásra vár.`,
     duplicateSuccess: (count: number) => `${count} duplikált kép kihagyva.`,
     partialError: (count: number) => `${count} kép feltöltése megszakadt. Csak ezeket próbáld újra.`,
-    live: "Automatikusan frissül",
+    live: "Visszatéréskor frissül",
     processing: "Előnézet készül",
     loadingMore: "További képek betöltése...",
     loadMoreError: "A további képeket nem sikerült betölteni.",
@@ -389,6 +390,7 @@ export function GuestPhotoUpload({
   const photosRef = useRef(initialPhotos);
   const liveCursorRef = useRef<GuestPhotoCursor | null>(initialLiveCursor);
   const refreshInFlightRef = useRef(false);
+  const lastPassiveRefreshAtRef = useRef(0);
   const loadMoreInFlightRef = useRef(false);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const prepareInFlightRef = useRef(false);
@@ -663,21 +665,27 @@ export function GuestPhotoUpload({
 
   useEffect(() => {
     getOrCreateGuestKey();
-    const intervalId = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        void refreshPhotos();
+    const refreshWhenActive = () => {
+      const now = Date.now();
+
+      if (
+        document.visibilityState !== "visible" ||
+        now - lastPassiveRefreshAtRef.current < PASSIVE_REFRESH_COOLDOWN_MS
+      ) {
+        return;
       }
-    }, 8000);
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void refreshPhotos();
-      }
+
+      lastPassiveRefreshAtRef.current = now;
+      void refreshPhotos();
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+    window.addEventListener("focus", refreshWhenActive);
+    window.addEventListener("pageshow", refreshWhenActive);
     return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+      window.removeEventListener("focus", refreshWhenActive);
+      window.removeEventListener("pageshow", refreshWhenActive);
     };
   }, [getOrCreateGuestKey, refreshPhotos]);
 
