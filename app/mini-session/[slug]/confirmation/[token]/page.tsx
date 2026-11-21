@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { MiniSessionConfirmationActions } from "@/components/mini-session-confirmation-actions";
+import { MiniSessionEmbedBookingCompleted } from "@/components/mini-session-embed-booking-completed";
 import { MiniSessionEmbedConfirmationPopup } from "@/components/mini-session-embed-confirmation-popup";
 import {
   miniSessionBookingCalendarUrl,
@@ -42,6 +43,7 @@ export default async function MiniSessionConfirmationPage({
   const booking = await prisma.miniSessionBooking.findUnique({
     where: { cancelToken: token },
     select: {
+      id: true,
       name: true,
       email: true,
       attendeeCount: true,
@@ -115,6 +117,10 @@ export default async function MiniSessionConfirmationPage({
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-paper px-4 py-6 text-ink sm:px-6 sm:py-10">
+      <MiniSessionEmbedBookingCompleted
+        eventId={`mini_session_booking_${booking.id}`}
+        slug={booking.miniSession.slug}
+      />
       <MiniSessionEmbedConfirmationPopup
         confirmationHref={`/mini-session/${slug}/confirmation/${token}`}
         embeddedOnly
