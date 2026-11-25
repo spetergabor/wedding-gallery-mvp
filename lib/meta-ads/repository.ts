@@ -249,6 +249,55 @@ export class MetaAdsRepository {
     });
   }
 
+  async upsertPlacementInsight(accountId: string, brand: MetaBrand, source: Record<string, unknown>, insight: NormalizedInsight) {
+    const campaignExternalId = typeof source.campaign_id === "string" ? source.campaign_id : "unknown";
+    const adSetExternalId = typeof source.adset_id === "string" ? source.adset_id : "unknown";
+    const adExternalId = typeof source.ad_id === "string" ? source.ad_id : insight.entityExternalId;
+    const publisherPlatform = typeof source.publisher_platform === "string" ? source.publisher_platform : "unknown";
+    const platformPosition = typeof source.platform_position === "string" ? source.platform_position : "unknown";
+    const impressionDevice = typeof source.impression_device === "string" ? source.impression_device : "unknown";
+    const key = {
+      accountId,
+      date: insight.date,
+      adExternalId,
+      publisherPlatform,
+      platformPosition,
+      impressionDevice,
+      attributionSetting: insight.attributionSetting
+    };
+    const data = {
+      brand,
+      campaignExternalId,
+      adSetExternalId,
+      spend: decimal(insight.spend),
+      impressions: insight.impressions,
+      reach: insight.reach,
+      linkClicks: insight.linkClicks,
+      outboundClicks: insight.outboundClicks,
+      landingPageViews: insight.landingPageViews,
+      leads: insight.leads,
+      purchases: insight.purchases,
+      videoThreeSecondViews: insight.videoThreeSecondViews,
+      videoThruplays: insight.videoThruplays,
+      videoP25Views: insight.videoP25Views,
+      videoP50Views: insight.videoP50Views,
+      videoP75Views: insight.videoP75Views,
+      videoP95Views: insight.videoP95Views,
+      videoP100Views: insight.videoP100Views,
+      actionValues: json(insight.actionValues),
+      metricStatuses: json(insight.metricStatuses),
+      dataStatus: insight.dataStatus,
+      syncedAt: new Date()
+    };
+    return this.db.metaPlacementInsight.upsert({
+      where: {
+        accountId_date_adExternalId_publisherPlatform_platformPosition_impressionDevice_attributionSetting: key
+      },
+      create: { ...key, ...data },
+      update: data
+    });
+  }
+
   async recordSnapshot(accountId: string, entityLevel: MetaEntityLevel, entityExternalId: string, payload: JsonRecord) {
     const account = await this.db.metaAdAccount.findUniqueOrThrow({ where: { id: accountId }, select: { brand: true } });
     const payloadHash = stablePayloadHash(payload);

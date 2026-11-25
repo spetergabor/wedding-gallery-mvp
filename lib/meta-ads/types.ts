@@ -20,6 +20,7 @@ export type MetaAdsRuntimeConfig = {
   accounts: MetaAccountMapping[];
   requestTimeoutMs: number;
   maxRetries: number;
+  recentRefreshDays: number;
 };
 
 export type GraphPage<T> = {
@@ -51,6 +52,9 @@ export type MetaInsightPayload = {
   date_start: string;
   date_stop: string;
   attribution_setting?: string;
+  publisher_platform?: string;
+  platform_position?: string;
+  impression_device?: string;
   spend?: string;
   impressions?: string;
   reach?: string;

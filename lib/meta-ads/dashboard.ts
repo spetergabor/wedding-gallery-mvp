@@ -1,5 +1,6 @@
 import { buildAnalytics, calculateMetrics } from "@/lib/meta-ads/analytics";
 import { metaAdsConfigurationStatus } from "@/lib/meta-ads/config";
+import { deriveMetaHealthState } from "@/lib/meta-ads/health";
 import { prisma } from "@/lib/prisma";
 import type { AnalyticsPoint } from "@/lib/meta-ads/types";
 
@@ -78,6 +79,42 @@ export async function getMetaCreativePerformance(brand?: string) {
   return [...grouped.values()].map((entry) => ({ ...entry, performance: calculateMetrics(entry.rows), rows: undefined }));
 }
 
+export async function getMetaPlacementPerformance(input: { brand?: string; campaignExternalId?: string; days?: number }) {
+  const days = Math.min(180, Math.max(1, Number.isFinite(input.days) ? input.days! : 30));
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - days + 1);
+  const rows = await prisma.metaPlacementInsight.findMany({
+    where: {
+      date: { gte: since },
+      ...(input.brand ? { brand: input.brand } : {}),
+      ...(input.campaignExternalId ? { campaignExternalId: input.campaignExternalId } : {})
+    }
+  });
+  const grouped = new Map<string, { publisherPlatform: string; platformPosition: string; impressionDevice: string; spend: number; impressions: number; linkClicks: number; outboundClicks: number; landingPageViews: number; leads: number; purchases: number }>();
+  for (const row of rows) {
+    const key = `${row.publisherPlatform}|${row.platformPosition}|${row.impressionDevice}`;
+    const value = grouped.get(key) ?? { publisherPlatform: row.publisherPlatform, platformPosition: row.platformPosition, impressionDevice: row.impressionDevice, spend: 0, impressions: 0, linkClicks: 0, outboundClicks: 0, landingPageViews: 0, leads: 0, purchases: 0 };
+    value.spend += Number(row.spend ?? 0);
+    value.impressions += Number(row.impressions ?? 0);
+    value.linkClicks += Number(row.linkClicks ?? 0);
+    value.outboundClicks += Number(row.outboundClicks ?? 0);
+    value.landingPageViews += Number(row.landingPageViews ?? 0);
+    value.leads += Number(row.leads ?? 0);
+    value.purchases += Number(row.purchases ?? 0);
+    grouped.set(key, value);
+  }
+  const placements = [...grouped.values()].map((row) => ({
+    ...row,
+    cpm: row.impressions ? row.spend / row.impressions * 1_000 : null,
+    linkCtr: row.impressions ? row.linkClicks / row.impressions * 100 : null,
+    costPerLandingPageView: row.landingPageViews ? row.spend / row.landingPageViews : null,
+    costPerLead: row.leads ? row.spend / row.leads : null,
+    reach: null,
+    frequency: null
+  })).sort((a, b) => b.spend - a.spend);
+  return { days, placements, caveats: ["Reach and frequency are intentionally not summed across placement breakdown rows.", "Creative format remains unclassified unless verified asset metadata is available."] };
+}
+
 export async function getMetaBrandOverview(now = new Date()) {
   const since = new Date(now);
   since.setUTCDate(since.getUTCDate() - 180);
@@ -140,18 +177,94 @@ function nextSchedule(now: Date, match: (parts: Record<string, string>) => boole
 }
 
 export async function getMetaAdsMonitoring(now = new Date()) {
-  const [runs, locks] = await Promise.all([
-    prisma.metaSyncRun.findMany({ orderBy: { startedAt: "desc" }, take: 100 }),
-    prisma.metaJobLock.findMany({ orderBy: { lockedAt: "desc" } })
-  ]);
+  let databaseConnected = false;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    databaseConnected = true;
+  } catch {
+    databaseConnected = false;
+  }
+  const configuration = metaAdsConfigurationStatus();
+  const [runs, locks, storedAccounts, dataRange, activeAlerts, businessConfigs] = databaseConnected
+    ? await Promise.all([
+      prisma.metaSyncRun.findMany({ orderBy: { startedAt: "desc" }, take: 100 }),
+      prisma.metaJobLock.findMany({ orderBy: { lockedAt: "desc" } }),
+      prisma.metaAdAccount.findMany({ select: { id: true, externalId: true, brand: true, lastSyncedAt: true } }),
+      prisma.metaDailyInsight.aggregate({ _min: { date: true }, _max: { date: true, syncedAt: true } }),
+      prisma.metaAlert.count({ where: { status: "active" } }),
+      prisma.metaBusinessConfig.findMany()
+    ])
+    : [[], [], [], { _min: { date: null }, _max: { date: null, syncedAt: null } }, 0, []];
   const latest = runs[0] ?? null;
+  const lastSuccess = runs.find((run) => run.status === "success") ?? null;
+  const lastFailure = runs.find((run) => run.status === "failed") ?? null;
+  const mappedIds = new Set(configuration.accounts.map((account) => account.accountId));
+  const storedIds = new Set(storedAccounts.map((account) => account.externalId));
+  const mappingsComplete = mappedIds.size > 0 && mappedIds.size === storedIds.size && [...mappedIds].every((id) => storedIds.has(id));
+  const missingBusinessConfiguration = ["SPETER", "IRISMOMENT"].flatMap((brand) => {
+    const config = businessConfigs.find((item) => item.brand === brand);
+    if (!config) return [`${brand}:all`];
+    const missing: string[] = [];
+    if (brand === "SPETER") {
+      if (!config.qualifiedLeadDefinition) missing.push("qualifiedLeadDefinition");
+      if (!config.consultationDefinition) missing.push("consultationDefinition");
+      if (!config.bookingDefinition) missing.push("bookingDefinition");
+      if (config.customerAcquisitionCost == null) missing.push("customerAcquisitionCost");
+      if (config.contractValue == null) missing.push("contractValue");
+    } else {
+      if (!config.eventLocation) missing.push("eventLocation");
+      if (!config.eventDate) missing.push("eventDate");
+      if (config.availableAppointments == null) missing.push("availableAppointments");
+      if (config.bookedAppointments == null) missing.push("bookedAppointments");
+      if (config.costPerBookingTarget == null) missing.push("costPerBookingTarget");
+      if (config.averageCustomerValue == null) missing.push("averageCustomerValue");
+    }
+    return missing.map((field) => `${brand}:${field}`);
+  });
+  const schedulesActive = process.env.META_ADS_SCHEDULES_ACTIVE === "true" && Boolean(process.env.TRIGGER_SECRET_KEY);
+  const state = deriveMetaHealthState({
+    databaseConnected,
+    configured: configuration.configured,
+    connectedAccounts: storedAccounts.length,
+    syncing: locks.some((lock) => lock.key === "meta-ads:sync" && lock.expiresAt > now),
+    lastSuccessAt: lastSuccess?.completedAt ?? null,
+    lastFailureAt: lastFailure?.completedAt ?? lastFailure?.startedAt ?? null,
+    latestDataAt: dataRange._max.syncedAt,
+    mappingsComplete,
+    schedulesActive,
+    now
+  });
   return {
-    configuration: metaAdsConfigurationStatus(),
-    healthy: Boolean(latest?.status === "success" && latest.completedAt && now.getTime() - latest.completedAt.getTime() < 6 * 60 * 60 * 1_000),
+    state,
+    healthy: state === "HEALTHY",
+    checkedAt: now,
+    database: { connected: databaseConnected },
+    metaConnection: {
+      configured: configuration.configured,
+      tokenConfigured: configuration.tokenConfigured,
+      apiVersion: configuration.apiVersion,
+      connectedAccounts: storedAccounts.length
+    },
+    accountMapping: {
+      configured: configuration.accounts,
+      stored: storedAccounts.map((account) => ({ externalId: account.externalId, brand: account.brand, lastSyncedAt: account.lastSyncedAt })),
+      complete: mappingsComplete
+    },
+    configuration,
     latest,
+    lastSuccessfulSync: lastSuccess,
+    lastFailedSync: lastFailure,
+    dataFreshness: {
+      latestSyncedAt: dataRange._max.syncedAt,
+      latestDataDate: dataRange._max.date,
+      earliestDataDate: dataRange._min.date
+    },
+    activeAlerts,
+    missingBusinessConfiguration,
     runs,
     locks,
     schedule: {
+      deployedAndActive: schedulesActive,
       timezone: "Europe/Vienna",
       sync: "0 */3 * * *",
       dailyReport: "0 8 * * *",

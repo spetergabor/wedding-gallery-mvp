@@ -140,4 +140,18 @@ export class MetaAdsCollector {
       limit: 100
     });
   }
+
+  collectPlacementInsights(accountId: string, since: Date, until: Date) {
+    return this.client.paginate<MetaInsightPayload>(`${accountId}/insights`, {
+      fields: INSIGHT_FIELDS,
+      level: "ad",
+      breakdowns: "publisher_platform,platform_position,impression_device",
+      time_increment: 1,
+      time_range: JSON.stringify({
+        since: since.toISOString().slice(0, 10),
+        until: until.toISOString().slice(0, 10)
+      }),
+      limit: 100
+    });
+  }
 }

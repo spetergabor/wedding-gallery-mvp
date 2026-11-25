@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { detectAnomalies } from "@/lib/meta-ads/anomalies";
+import { detectAnomalies, resolveAnomalyThresholds } from "@/lib/meta-ads/anomalies";
 import { generateRecommendations } from "@/lib/meta-ads/recommendations";
 import type { CalculatedMetrics, PeriodComparison } from "@/lib/meta-ads/types";
 
@@ -35,4 +35,16 @@ test("recommendations are explainable and do not imply an automatic live mutatio
 test("low volume returns insufficient-data guidance", () => {
   const recommendations = generateRecommendations(comparison({ ...base, spend: 2, impressions: 100, linkClicks: 1, leads: 0 }, base, "low"), []);
   assert.equal(recommendations[0]?.type, "INSUFFICIENT_DATA");
+});
+
+test("brand-specific anomaly thresholds override the defaults", () => {
+  const input = comparison({ ...base, spend: 30, leads: 0, costPerLead: null });
+  assert.equal(detectAnomalies(input).some((item) => item.anomalyType === "SPEND_WITHOUT_LEADS"), true);
+  assert.equal(detectAnomalies(input, { minSpendWithoutLeads: 50 }).some((item) => item.anomalyType === "SPEND_WITHOUT_LEADS"), false);
+});
+
+test("campaign-type thresholds layer on top of brand defaults", () => {
+  const resolved = resolveAnomalyThresholds({ anomalyThresholds: { minSpendWithoutLeads: 40 }, campaignTypes: { OUTCOME_SALES: { minSpendWithoutLeads: 60 } } }, "OUTCOME_SALES");
+  assert.equal(resolved.minSpendWithoutLeads, 60);
+  assert.equal(resolved.ctrDeclinePercent, 30);
 });

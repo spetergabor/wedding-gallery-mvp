@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { buildAnalytics } from "@/lib/meta-ads/analytics";
-import { detectAnomalies } from "@/lib/meta-ads/anomalies";
+import { detectAnomalies, resolveAnomalyThresholds } from "@/lib/meta-ads/anomalies";
 import { generateRecommendations } from "@/lib/meta-ads/recommendations";
 import { stablePayloadHash } from "@/lib/meta-ads/hash";
 import { runMetaAdsSync, type MetaSyncMode } from "@/lib/meta-ads/sync";
@@ -201,24 +201,42 @@ export async function evaluateStoredMetaAds(now = new Date()) {
 
   for (const account of accounts) {
     alertCount += await evaluateOperationalState(account, now);
-    const entities = await prisma.metaDailyInsight.findMany({
+    const [entities, activeCampaigns] = await Promise.all([prisma.metaDailyInsight.findMany({
       where: {
         accountId: account.id,
         entityLevel: "campaign",
         date: { gte: evaluationStart }
       },
       orderBy: { date: "asc" }
-    });
+    }), prisma.metaCampaign.findMany({
+      where: { accountId: account.id, effectiveStatus: "ACTIVE" },
+      select: { externalId: true, objective: true }
+    })]);
+    const activeCampaignById = new Map(activeCampaigns.map((campaign) => [campaign.externalId, campaign]));
     const grouped = new Map<string, typeof entities>();
     for (const row of entities) {
       grouped.set(row.entityExternalId, [...(grouped.get(row.entityExternalId) ?? []), row]);
     }
 
     for (const [entityExternalId, rows] of grouped) {
+      const activeCampaign = activeCampaignById.get(entityExternalId);
+      if (!activeCampaign) {
+        await Promise.all([
+          prisma.metaAlert.updateMany({
+            where: { accountId: account.id, entityLevel: "campaign", entityExternalId, status: "active", anomalyType: { in: ANALYTICS_ANOMALY_TYPES } },
+            data: { status: "resolved", resolvedAt: now }
+          }),
+          prisma.metaRecommendation.updateMany({
+            where: { accountId: account.id, entityLevel: "campaign", entityExternalId, status: "active" },
+            data: { status: "superseded" }
+          })
+        ]);
+        continue;
+      }
       const analytics = buildAnalytics(rows.map(insightPoint), now);
       const primaryComparison = analytics.comparisons.find((comparison) => comparison.days === 7)!;
-      const anomalies = detectAnomalies(primaryComparison);
       const business = configByBrand.get(account.brand);
+      const anomalies = detectAnomalies(primaryComparison, resolveAnomalyThresholds(business?.thresholds, activeCampaign.objective));
       const recommendations = generateRecommendations(primaryComparison, anomalies, {
         costPerLead: business?.customerAcquisitionCost == null ? null : Number(business.customerAcquisitionCost),
         costPerBooking: business?.costPerBookingTarget == null ? null : Number(business.costPerBookingTarget)

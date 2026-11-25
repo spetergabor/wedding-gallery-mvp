@@ -52,13 +52,16 @@ export async function runMetaAdsSync(options: RunMetaAdsSyncOptions = {}) {
   const config = readMetaAdsRuntimeConfig();
   const mode = options.mode ?? "manual";
   const now = options.now ?? new Date();
-  const { since, until } = rangeFor(mode, now, options.lookbackDays);
+  const effectiveLookback = options.lookbackDays ?? (mode === "scheduled" ? config.recentRefreshDays : undefined);
+  const { since, until } = rangeFor(mode, now, effectiveLookback);
   const repository = options.repository ?? new MetaAdsRepository();
+  const apiTelemetry: Array<{ status: number; attempt: number; appUsage: string | null; adAccountUsage: string | null; insightsThrottle: string | null }> = [];
   const client = new MetaGraphClient({
     accessToken: config.accessToken,
     apiVersion: config.apiVersion,
     requestTimeoutMs: config.requestTimeoutMs,
-    maxRetries: config.maxRetries
+    maxRetries: config.maxRetries,
+    onResponse: (telemetry) => apiTelemetry.push(telemetry)
   });
   const collector = options.collector ?? new MetaAdsCollector(client);
   const selectedAccounts = options.accountIds?.length
@@ -74,6 +77,7 @@ export async function runMetaAdsSync(options: RunMetaAdsSyncOptions = {}) {
   const results: Array<Record<string, unknown>> = [];
   try {
     for (const mapping of selectedAccounts) {
+      const telemetryStart = apiTelemetry.length;
       const run = await repository.startSyncRun({
         brand: mapping.brand,
         mode,
@@ -84,6 +88,7 @@ export async function runMetaAdsSync(options: RunMetaAdsSyncOptions = {}) {
 
       let recordsRead = 0;
       let recordsWritten = 0;
+      let placementStatus: { status: "success" | "failed"; rows: number; error?: string } = { status: "success", rows: 0 };
       try {
         const accountPayload = await collector.getAccount(mapping.accountId);
         const account = await repository.upsertAccount(mapping.brand, mapping.accountId, accountPayload);
@@ -122,14 +127,46 @@ export async function runMetaAdsSync(options: RunMetaAdsSyncOptions = {}) {
           recordsWritten += insightStats.written;
         }
 
-        await repository.finishSyncRun(run.id, { status: "success", recordsRead, recordsWritten });
+        try {
+          const placementStats = await persistPages(
+            collector.collectPlacementInsights(mapping.accountId, accountRange.since, accountRange.until),
+            (row) => repository.upsertPlacementInsight(
+              account.id,
+              mapping.brand,
+              row,
+              normalizeInsight(row, "ad", row.attribution_setting || "account_default", now)
+            )
+          );
+          recordsRead += placementStats.read;
+          recordsWritten += placementStats.written;
+          placementStatus = { status: "success", rows: placementStats.written };
+        } catch (error) {
+          const rawMessage = error instanceof Error ? error.message : "Placement breakdown collection failed.";
+          placementStatus = {
+            status: "failed",
+            rows: 0,
+            error: config.accessToken ? rawMessage.split(config.accessToken).join("[REDACTED]").slice(0, 500) : rawMessage.slice(0, 500)
+          };
+        }
+
+        await repository.finishSyncRun(run.id, {
+          status: "success",
+          recordsRead,
+          recordsWritten,
+          metadata: {
+            apiRequests: apiTelemetry.length - telemetryStart,
+            lastRateLimitHeaders: apiTelemetry.slice(telemetryStart).at(-1) ?? null,
+            placement: placementStatus
+          }
+        });
         results.push({
           brand: mapping.brand,
           accountId: mapping.accountId,
           status: "success",
           range: { since: accountRange.since.toISOString(), until: accountRange.until.toISOString() },
           recordsRead,
-          recordsWritten
+          recordsWritten,
+          placement: placementStatus
         });
       } catch (error) {
         const code = error instanceof MetaTokenExpiredError
@@ -139,7 +176,14 @@ export async function runMetaAdsSync(options: RunMetaAdsSyncOptions = {}) {
             : "SYNC_FAILED";
         const rawMessage = error instanceof Error ? error.message : "Unknown Meta sync failure.";
         const message = config.accessToken ? rawMessage.split(config.accessToken).join("[REDACTED]") : rawMessage;
-        await repository.finishSyncRun(run.id, { status: "failed", recordsRead, recordsWritten, errorCode: code, errorMessage: message });
+        await repository.finishSyncRun(run.id, {
+          status: "failed",
+          recordsRead,
+          recordsWritten,
+          errorCode: code,
+          errorMessage: message,
+          metadata: { apiRequests: apiTelemetry.length - telemetryStart, lastRateLimitHeaders: apiTelemetry.slice(telemetryStart).at(-1) ?? null }
+        });
         results.push({ brand: mapping.brand, accountId: mapping.accountId, status: "failed", errorCode: code, errorMessage: message });
       }
     }

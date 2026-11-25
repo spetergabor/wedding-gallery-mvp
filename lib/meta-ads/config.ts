@@ -68,10 +68,11 @@ export function readMetaAdsRuntimeConfig(options: { requireToken?: boolean; requ
 
   return {
     accessToken,
-    apiVersion: process.env.META_GRAPH_API_VERSION?.trim() || "v24.0",
+    apiVersion: process.env.META_GRAPH_API_VERSION?.trim() || "v27.0",
     accounts,
     requestTimeoutMs: positiveInteger(process.env.META_ADS_REQUEST_TIMEOUT_MS, 30_000),
-    maxRetries: positiveInteger(process.env.META_ADS_MAX_RETRIES, 4)
+    maxRetries: positiveInteger(process.env.META_ADS_MAX_RETRIES, 4),
+    recentRefreshDays: positiveInteger(process.env.META_ADS_RECENT_REFRESH_DAYS, 7)
   };
 }
 
@@ -81,6 +82,7 @@ export function metaAdsConfigurationStatus() {
     configured: Boolean(config.accessToken && config.accounts.length > 0),
     tokenConfigured: Boolean(config.accessToken),
     apiVersion: config.apiVersion,
+    recentRefreshDays: config.recentRefreshDays,
     accounts: config.accounts.map(({ brand, accountId, name }) => ({ brand, accountId, name: name ?? null }))
   };
 }

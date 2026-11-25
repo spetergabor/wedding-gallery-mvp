@@ -4,7 +4,57 @@ function changed(value: number | null, threshold: number) {
   return value !== null && value >= threshold;
 }
 
-export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[] {
+export type AnomalyThresholds = {
+  minClicksForTrackingGap: number;
+  minSpendWithoutLeads: number;
+  spendSpikePercent: number;
+  maxLeadGrowthForSpendSpikePercent: number;
+  cplIncreasePercent: number;
+  conversionDropPercent: number;
+  ctrDeclinePercent: number;
+  cpmIncreasePercent: number;
+  minImpressionsForRateAlerts: number;
+  fatigueFrequency: number;
+  fatigueCtrDeclinePercent: number;
+  efficiencyImprovementPercent: number;
+};
+
+export const DEFAULT_ANOMALY_THRESHOLDS: AnomalyThresholds = {
+  minClicksForTrackingGap: 10,
+  minSpendWithoutLeads: 25,
+  spendSpikePercent: 50,
+  maxLeadGrowthForSpendSpikePercent: 20,
+  cplIncreasePercent: 35,
+  conversionDropPercent: 50,
+  ctrDeclinePercent: 30,
+  cpmIncreasePercent: 35,
+  minImpressionsForRateAlerts: 2_000,
+  fatigueFrequency: 3.5,
+  fatigueCtrDeclinePercent: 20,
+  efficiencyImprovementPercent: 25
+};
+
+export function normalizeAnomalyThresholds(value: unknown): AnomalyThresholds {
+  const candidate = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return Object.fromEntries(Object.entries(DEFAULT_ANOMALY_THRESHOLDS).map(([key, fallback]) => {
+    const parsed = Number(candidate[key]);
+    return [key, Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback];
+  })) as AnomalyThresholds;
+}
+
+export function resolveAnomalyThresholds(document: unknown, campaignType?: string | null): AnomalyThresholds {
+  const root = document && typeof document === "object" && !Array.isArray(document) ? document as Record<string, unknown> : {};
+  const base = normalizeAnomalyThresholds(root.anomalyThresholds);
+  if (!campaignType || !root.campaignTypes || typeof root.campaignTypes !== "object" || Array.isArray(root.campaignTypes)) return base;
+  const campaignOverride = (root.campaignTypes as Record<string, unknown>)[campaignType];
+  const normalizedOverride = campaignOverride && typeof campaignOverride === "object" && !Array.isArray(campaignOverride)
+    ? Object.fromEntries(Object.entries(campaignOverride as Record<string, unknown>).filter(([, value]) => Number.isFinite(Number(value)) && Number(value) >= 0))
+    : {};
+  return { ...base, ...normalizedOverride } as AnomalyThresholds;
+}
+
+export function detectAnomalies(comparison: PeriodComparison, overrides: Partial<AnomalyThresholds> = {}): DetectedAnomaly[] {
+  const thresholds = { ...DEFAULT_ANOMALY_THRESHOLDS, ...overrides };
   const { current, previous, changes, reliability } = comparison;
   const anomalies: DetectedAnomaly[] = [];
   const evidence = { window: comparison.label, current, previous, changes, notes: comparison.notes };
@@ -12,7 +62,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     anomalies.push({ ...anomaly, evidence, dataReliability: reliability });
   };
 
-  if (current.spend > 0 && current.landingPageViews === 0 && current.linkClicks >= 10) {
+  if (current.spend > 0 && current.landingPageViews === 0 && current.linkClicks >= thresholds.minClicksForTrackingGap) {
     add({
       anomalyType: "TRACKING_OR_LANDING_PAGE_GAP",
       severity: "CRITICAL",
@@ -23,7 +73,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if (current.spend >= 25 && current.leads === 0 && reliability !== "low") {
+  if (current.spend >= thresholds.minSpendWithoutLeads && current.leads === 0 && reliability !== "low") {
     add({
       anomalyType: "SPEND_WITHOUT_LEADS",
       severity: "WARNING",
@@ -34,7 +84,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if (changed(changes.spend, 50) && !changed(changes.leads, 20)) {
+  if (changed(changes.spend, thresholds.spendSpikePercent) && !changed(changes.leads, thresholds.maxLeadGrowthForSpendSpikePercent)) {
     add({
       anomalyType: "SPEND_SPIKE",
       severity: "WARNING",
@@ -45,7 +95,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if (changed(changes.costPerLead, 35) && current.leads >= 2) {
+  if (changed(changes.costPerLead, thresholds.cplIncreasePercent) && current.leads >= 2) {
     add({
       anomalyType: "CPL_INCREASE",
       severity: "WARNING",
@@ -56,7 +106,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if (changes.leads !== null && changes.leads <= -50 && previous.leads >= 3) {
+  if (changes.leads !== null && changes.leads <= -thresholds.conversionDropPercent && previous.leads >= 3) {
     add({
       anomalyType: "CONVERSION_DROP",
       severity: "WARNING",
@@ -67,7 +117,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if (changes.ctr !== null && changes.ctr <= -30 && current.impressions >= 2_000) {
+  if (changes.ctr !== null && changes.ctr <= -thresholds.ctrDeclinePercent && current.impressions >= thresholds.minImpressionsForRateAlerts) {
     add({
       anomalyType: "CTR_DECLINE",
       severity: "WARNING",
@@ -78,7 +128,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if (changed(changes.cpm, 35) && current.impressions >= 2_000) {
+  if (changed(changes.cpm, thresholds.cpmIncreasePercent) && current.impressions >= thresholds.minImpressionsForRateAlerts) {
     add({
       anomalyType: "CPM_INCREASE",
       severity: "INFO",
@@ -89,7 +139,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if ((current.frequency ?? 0) >= 3.5 && changes.ctr !== null && changes.ctr <= -20) {
+  if ((current.frequency ?? 0) >= thresholds.fatigueFrequency && changes.ctr !== null && changes.ctr <= -thresholds.fatigueCtrDeclinePercent) {
     add({
       anomalyType: "CREATIVE_FATIGUE",
       severity: "WARNING",
@@ -100,7 +150,7 @@ export function detectAnomalies(comparison: PeriodComparison): DetectedAnomaly[]
     });
   }
 
-  if (current.leads >= 3 && changes.costPerLead !== null && changes.costPerLead <= -25) {
+  if (current.leads >= 3 && changes.costPerLead !== null && changes.costPerLead <= -thresholds.efficiencyImprovementPercent) {
     add({
       anomalyType: "EFFICIENCY_IMPROVEMENT",
       severity: "OPPORTUNITY",

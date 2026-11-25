@@ -2,6 +2,14 @@ import type { GraphPage } from "@/lib/meta-ads/types";
 
 type FetchLike = typeof fetch;
 
+export type MetaApiResponseTelemetry = {
+  status: number;
+  attempt: number;
+  appUsage: string | null;
+  adAccountUsage: string | null;
+  insightsThrottle: string | null;
+};
+
 type MetaGraphClientOptions = {
   accessToken: string;
   apiVersion: string;
@@ -10,6 +18,7 @@ type MetaGraphClientOptions = {
   fetchImpl?: FetchLike;
   sleep?: (milliseconds: number) => Promise<void>;
   random?: () => number;
+  onResponse?: (telemetry: MetaApiResponseTelemetry) => void;
 };
 
 type GraphErrorBody = {
@@ -103,6 +112,13 @@ export class MetaGraphClient {
           },
           signal: controller.signal,
           cache: "no-store"
+        });
+        this.options.onResponse?.({
+          status: response.status,
+          attempt,
+          appUsage: response.headers.get("x-app-usage"),
+          adAccountUsage: response.headers.get("x-ad-account-usage"),
+          insightsThrottle: response.headers.get("x-fb-ads-insights-throttle")
         });
         const body = (await response.json().catch(() => ({}))) as T & GraphErrorBody;
 
