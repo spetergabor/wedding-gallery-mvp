@@ -36,6 +36,7 @@ export function statusLabel(value: string | null | undefined) {
   const normalized = (value || "unknown").toUpperCase();
   const labels: Record<string, string> = {
     ACTIVE: "Aktív",
+    COMPLETED: "Befejezett",
     PAUSED: "Szüneteltetett",
     ARCHIVED: "Befejezett",
     DELETED: "Törölt",

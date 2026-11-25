@@ -1,6 +1,7 @@
 import { buildAnalytics, calculateMetrics } from "@/lib/meta-ads/analytics";
 import { metaAdsConfigurationStatus } from "@/lib/meta-ads/config";
 import { deriveMetaHealthState } from "@/lib/meta-ads/health";
+import { resolveDeliveryStatus } from "@/lib/meta-ads/status";
 import { prisma } from "@/lib/prisma";
 import type { AnalyticsPoint } from "@/lib/meta-ads/types";
 
@@ -94,6 +95,7 @@ export async function getMetaCampaignPerformance(brand?: string, requestedDays =
   return campaigns.map((campaign) => ({
     ...campaign,
     days,
+    deliveryStatus: resolveDeliveryStatus(campaign),
     alertCount: alerts.filter((alert) => alert.entityExternalId === campaign.externalId).length,
     performance: calculateMetrics(insights.filter((row) => row.accountId === campaign.accountId && row.entityExternalId === campaign.externalId).map(point))
   }));
@@ -142,8 +144,8 @@ export async function getMetaAdPerformance(input: { brand?: string; campaignExte
     },
     include: {
       account: { select: { brand: true, currency: true } },
-      campaign: { select: { externalId: true, name: true } },
-      adSet: { select: { externalId: true, name: true } },
+      campaign: { select: { externalId: true, name: true, stopTime: true } },
+      adSet: { select: { externalId: true, name: true, endTime: true } },
       creative: true
     },
     orderBy: { lastSyncedAt: "desc" }
@@ -153,7 +155,17 @@ export async function getMetaAdPerformance(input: { brand?: string; campaignExte
   });
   return ads.map((ad) => {
     const rows = insights.filter((row) => row.accountId === ad.accountId && row.entityExternalId === ad.externalId);
-    return { ...ad, days, performance: calculateMetrics(rows.map(point)), video: videoMetrics(rows) };
+    return {
+      ...ad,
+      days,
+      deliveryStatus: resolveDeliveryStatus({
+        effectiveStatus: ad.effectiveStatus,
+        status: ad.status,
+        parentStopTime: ad.adSet?.endTime ?? ad.campaign?.stopTime
+      }),
+      performance: calculateMetrics(rows.map(point)),
+      video: videoMetrics(rows)
+    };
   });
 }
 
@@ -166,7 +178,7 @@ export async function getMetaAdSetPerformance(input: { brand?: string; campaignE
     },
     include: {
       account: { select: { brand: true, currency: true } },
-      campaign: { select: { externalId: true, name: true } },
+      campaign: { select: { externalId: true, name: true, stopTime: true } },
       _count: { select: { ads: true } }
     },
     orderBy: { lastSyncedAt: "desc" }
@@ -177,6 +189,12 @@ export async function getMetaAdSetPerformance(input: { brand?: string; campaignE
   return adSets.map((adSet) => ({
     ...adSet,
     days,
+    deliveryStatus: resolveDeliveryStatus({
+      effectiveStatus: adSet.effectiveStatus,
+      status: adSet.status,
+      stopTime: adSet.endTime,
+      parentStopTime: adSet.campaign?.stopTime
+    }),
     performance: calculateMetrics(insights.filter((row) => row.accountId === adSet.accountId && row.entityExternalId === adSet.externalId).map(point))
   }));
 }

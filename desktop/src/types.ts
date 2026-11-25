@@ -62,6 +62,7 @@ export type Campaign = {
   objective: string | null;
   status: string | null;
   effectiveStatus: string | null;
+  deliveryStatus: string;
   dailyBudget: string | number | null;
   lifetimeBudget: string | number | null;
   startTime: string | null;
@@ -79,6 +80,7 @@ export type AdSet = {
   campaignExternalId: string | null;
   name: string;
   effectiveStatus: string | null;
+  deliveryStatus: string;
   optimizationGoal: string | null;
   dailyBudget: string | number | null;
   lifetimeBudget: string | number | null;
@@ -113,6 +115,7 @@ export type Ad = {
   externalId: string;
   name: string;
   effectiveStatus: string | null;
+  deliveryStatus: string;
   campaignExternalId: string | null;
   campaign: { externalId: string; name: string } | null;
   adSet: { externalId: string; name: string } | null;
