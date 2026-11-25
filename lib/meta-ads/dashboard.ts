@@ -47,36 +47,138 @@ export async function getMetaAdsOverview(now = new Date()) {
   };
 }
 
-export async function getMetaCampaignPerformance(brand?: string) {
-  const [campaigns, insights] = await Promise.all([
+function insightSince(days = 30) {
+  const normalized = Math.min(365, Math.max(1, Number.isFinite(days) ? Math.floor(days) : 30));
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  since.setUTCDate(since.getUTCDate() - normalized + 1);
+  return { days: normalized, since };
+}
+
+function videoMetrics(rows: Array<{
+  videoThreeSecondViews: bigint | null;
+  videoThruplays: bigint | null;
+  videoAverageTime: unknown;
+  videoP25Views: bigint | null;
+  videoP50Views: bigint | null;
+  videoP75Views: bigint | null;
+  videoP95Views: bigint | null;
+  videoP100Views: bigint | null;
+}>) {
+  const sum = (key: "videoThreeSecondViews" | "videoThruplays" | "videoP25Views" | "videoP50Views" | "videoP75Views" | "videoP95Views" | "videoP100Views") =>
+    rows.reduce((total, row) => total + Number(row[key] ?? 0), 0);
+  const averageTimes = rows.map((row) => Number(row.videoAverageTime)).filter(Number.isFinite);
+  return {
+    videoPlayActions: sum("videoThreeSecondViews"),
+    videoThruplays: sum("videoThruplays"),
+    videoAverageTime: averageTimes.length ? averageTimes.reduce((total, value) => total + value, 0) / averageTimes.length : null,
+    videoP25Views: sum("videoP25Views"),
+    videoP50Views: sum("videoP50Views"),
+    videoP75Views: sum("videoP75Views"),
+    videoP95Views: sum("videoP95Views"),
+    videoP100Views: sum("videoP100Views")
+  };
+}
+
+export async function getMetaCampaignPerformance(brand?: string, requestedDays = 30) {
+  const { days, since } = insightSince(requestedDays);
+  const [campaigns, insights, alerts] = await Promise.all([
     prisma.metaCampaign.findMany({
       where: brand ? { account: { brand } } : undefined,
       include: { account: { select: { brand: true, currency: true } } },
       orderBy: { lastSyncedAt: "desc" }
     }),
-    prisma.metaDailyInsight.findMany({ where: { entityLevel: "campaign", ...(brand ? { brand } : {}) } })
+    prisma.metaDailyInsight.findMany({ where: { entityLevel: "campaign", date: { gte: since }, ...(brand ? { brand } : {}) } }),
+    prisma.metaAlert.findMany({ where: { status: "active", entityLevel: "campaign", ...(brand ? { brand } : {}) }, select: { entityExternalId: true } })
   ]);
   return campaigns.map((campaign) => ({
     ...campaign,
+    days,
+    alertCount: alerts.filter((alert) => alert.entityExternalId === campaign.externalId).length,
     performance: calculateMetrics(insights.filter((row) => row.accountId === campaign.accountId && row.entityExternalId === campaign.externalId).map(point))
   }));
 }
 
-export async function getMetaCreativePerformance(brand?: string) {
+export async function getMetaCreativePerformance(brand?: string, requestedDays = 30) {
+  const { days, since } = insightSince(requestedDays);
   const ads = await prisma.metaAd.findMany({
     where: { creativeId: { not: null }, ...(brand ? { account: { brand } } : {}) },
-    include: { creative: true, account: { select: { brand: true, currency: true } } }
+    include: {
+      creative: true,
+      campaign: { select: { externalId: true, name: true } },
+      account: { select: { brand: true, currency: true } }
+    }
   });
-  const insights = await prisma.metaDailyInsight.findMany({ where: { entityLevel: "ad", ...(brand ? { brand } : {}) } });
-  const grouped = new Map<string, { creative: (typeof ads)[number]["creative"]; brand: string; currency: string | null; rows: AnalyticsPoint[]; ads: string[] }>();
+  const insights = await prisma.metaDailyInsight.findMany({ where: { entityLevel: "ad", date: { gte: since }, ...(brand ? { brand } : {}) } });
+  const grouped = new Map<string, {
+    creative: (typeof ads)[number]["creative"];
+    brand: string;
+    currency: string | null;
+    rows: typeof insights;
+    ads: Array<{ externalId: string; name: string; campaignExternalId: string | null; campaignName: string | null }>;
+  }>();
   for (const ad of ads) {
     if (!ad.creativeId) continue;
     const entry = grouped.get(ad.creativeId) ?? { creative: ad.creative, brand: ad.account.brand, currency: ad.account.currency, rows: [], ads: [] };
-    entry.ads.push(ad.externalId);
-    entry.rows.push(...insights.filter((row) => row.accountId === ad.accountId && row.entityExternalId === ad.externalId).map(point));
+    entry.ads.push({ externalId: ad.externalId, name: ad.name, campaignExternalId: ad.campaignExternalId, campaignName: ad.campaign?.name ?? null });
+    entry.rows.push(...insights.filter((row) => row.accountId === ad.accountId && row.entityExternalId === ad.externalId));
     grouped.set(ad.creativeId, entry);
   }
-  return [...grouped.values()].map((entry) => ({ ...entry, performance: calculateMetrics(entry.rows), rows: undefined }));
+  return [...grouped.values()].map((entry) => ({
+    ...entry,
+    days,
+    performance: calculateMetrics(entry.rows.map(point)),
+    video: videoMetrics(entry.rows),
+    rows: undefined
+  }));
+}
+
+export async function getMetaAdPerformance(input: { brand?: string; campaignExternalId?: string; days?: number }) {
+  const { days, since } = insightSince(input.days);
+  const ads = await prisma.metaAd.findMany({
+    where: {
+      ...(input.brand ? { account: { brand: input.brand } } : {}),
+      ...(input.campaignExternalId ? { campaignExternalId: input.campaignExternalId } : {})
+    },
+    include: {
+      account: { select: { brand: true, currency: true } },
+      campaign: { select: { externalId: true, name: true } },
+      adSet: { select: { externalId: true, name: true } },
+      creative: true
+    },
+    orderBy: { lastSyncedAt: "desc" }
+  });
+  const insights = await prisma.metaDailyInsight.findMany({
+    where: { entityLevel: "ad", date: { gte: since }, ...(input.brand ? { brand: input.brand } : {}) }
+  });
+  return ads.map((ad) => {
+    const rows = insights.filter((row) => row.accountId === ad.accountId && row.entityExternalId === ad.externalId);
+    return { ...ad, days, performance: calculateMetrics(rows.map(point)), video: videoMetrics(rows) };
+  });
+}
+
+export async function getMetaAdSetPerformance(input: { brand?: string; campaignExternalId?: string; days?: number }) {
+  const { days, since } = insightSince(input.days);
+  const adSets = await prisma.metaAdSet.findMany({
+    where: {
+      ...(input.brand ? { account: { brand: input.brand } } : {}),
+      ...(input.campaignExternalId ? { campaignExternalId: input.campaignExternalId } : {})
+    },
+    include: {
+      account: { select: { brand: true, currency: true } },
+      campaign: { select: { externalId: true, name: true } },
+      _count: { select: { ads: true } }
+    },
+    orderBy: { lastSyncedAt: "desc" }
+  });
+  const insights = await prisma.metaDailyInsight.findMany({
+    where: { entityLevel: "adset", date: { gte: since }, ...(input.brand ? { brand: input.brand } : {}) }
+  });
+  return adSets.map((adSet) => ({
+    ...adSet,
+    days,
+    performance: calculateMetrics(insights.filter((row) => row.accountId === adSet.accountId && row.entityExternalId === adSet.externalId).map(point))
+  }));
 }
 
 export async function getMetaPlacementPerformance(input: { brand?: string; campaignExternalId?: string; days?: number }) {

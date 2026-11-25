@@ -1,0 +1,20 @@
+[package]
+name = "spetly-ads-manager"
+version = "1.0.0"
+description = "Read-only SPETLY Meta Ads intelligence desktop client"
+authors = ["SPETLY"]
+edition = "2021"
+
+[lib]
+name = "spetly_ads_manager_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+keyring = { version = "3", features = ["apple-native"] }
