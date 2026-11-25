@@ -165,6 +165,7 @@ type AdminMiniSessionBookingEmail = {
   email: string;
   phone: string;
   attendeeCount: number;
+  cancellationReason?: string;
   adminUrl: string;
   publicUrl?: string;
   calendarUrl?: string;
@@ -1227,6 +1228,7 @@ function adminMiniSessionBookingHtml(payload: AdminMiniSessionBookingEmail, titl
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Email</td><td style="padding: 4px 0;">${escapeHtml(payload.email)}</td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Telefon</td><td style="padding: 4px 0;">${escapeHtml(payload.phone)}</td></tr>
         <tr><td style="padding: 4px 16px 4px 0; color: #777;">Létszám</td><td style="padding: 4px 0;">${payload.attendeeCount}</td></tr>
+        ${payload.cancellationReason ? `<tr><td style="padding: 4px 16px 4px 0; color: #777; vertical-align: top;">Lemondás oka</td><td style="padding: 4px 0; white-space: pre-wrap;">${escapeHtml(payload.cancellationReason)}</td></tr>` : ""}
       </table>
       <p style="margin: 0 0 12px;">
         <a href="${escapeHtml(payload.adminUrl)}" style="display: inline-block; background: #171717; color: #fff; text-decoration: none; padding: 10px 14px; border-radius: 6px;">Mini session megnyitása</a>
@@ -1310,6 +1312,7 @@ export async function sendMiniSessionBookingCancelledEmail(payload: AdminMiniSes
         `Email: ${payload.email}`,
         `Telefon: ${payload.phone}`,
         `Létszám: ${payload.attendeeCount}`,
+        ...(payload.cancellationReason ? [`Lemondás oka: ${payload.cancellationReason}`] : []),
         ...(payload.calendarUrl ? [`Naptárból eltávolítás: ${payload.calendarUrl}`] : []),
         `Admin: ${payload.adminUrl}`
       ].join("\n"),

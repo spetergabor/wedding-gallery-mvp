@@ -1920,7 +1920,7 @@ export async function rescheduleMiniSessionBookingByAdminAction(bookingId: strin
   redirect(`/admin/mini-sessions/${booking.miniSession.id}?tab=${returnTab}&bookingRescheduled=1`);
 }
 
-export async function cancelMiniSessionBookingAction(token: string) {
+export async function cancelMiniSessionBookingAction(token: string, formData: FormData) {
   const booking = await prisma.miniSessionBooking.findUnique({
     where: { cancelToken: token },
     include: {
@@ -1946,6 +1946,12 @@ export async function cancelMiniSessionBookingAction(token: string) {
     redirect("/mini-session/cancelled?error=missing");
   }
 
+  const cancellationReason = formString(formData, "cancellationReason").slice(0, 500);
+
+  if (booking.status !== MINI_SESSION_BOOKING_STATUS_CANCELLED && cancellationReason.length < 3) {
+    redirect(`/mini-session/${booking.miniSession.slug}/cancel/${token}?error=reason_required`);
+  }
+
   if (
     await isAnyRateLimited([
       { scope: "public:mini-session-cancel:token", limit: 8, windowSeconds: 15 * 60, identifier: token },
@@ -1965,7 +1971,8 @@ export async function cancelMiniSessionBookingAction(token: string) {
         where: { id: booking.id },
         data: {
           status: MINI_SESSION_BOOKING_STATUS_CANCELLED,
-          cancelledAt
+          cancelledAt,
+          cancellationReason
         }
       });
 
@@ -2009,7 +2016,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
           adminId: booking.miniSession.adminId,
           type: "mini_session_cancellation",
           title: "Foglalás törölve ügyfél által",
-          message: `${booking.name} · ${booking.miniSession.title}`,
+          message: `${booking.name} · ${booking.miniSession.title} · Ok: ${cancellationReason}`,
           href: `/admin/mini-sessions/${booking.miniSession.id}?tab=bookings`
         }
       }).catch((error) => console.error("Mini session cancellation in-app notification failed", error));
@@ -2068,6 +2075,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
           email: booking.email,
           phone: booking.phone,
           attendeeCount: booking.attendeeCount,
+          cancellationReason,
           adminUrl,
           calendarUrl,
           calendarIcs: cancellationIcs,
@@ -2133,6 +2141,7 @@ export async function cancelMiniSessionBookingAction(token: string) {
         bookingId: booking.id,
         sessionId: booking.miniSession.id,
         email: booking.email,
+        cancellationReason,
         startsAt: booking.startsAt.toISOString(),
         endsAt: booking.endsAt.toISOString(),
         googleCalendarSyncStatus

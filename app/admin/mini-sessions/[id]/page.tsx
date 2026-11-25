@@ -885,7 +885,7 @@ export default async function AdminMiniSessionDetailPage({
                     : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                   const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
                   const canCloseBooking = isActive && booking.endsAt <= now;
-                  const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
+                  const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", booking.cancellationReason ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
                   const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
                   const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
                   const customerEmailDelivery = deliveryDisplay({
@@ -929,6 +929,7 @@ export default async function AdminMiniSessionDetailPage({
                         <p className="flex items-center gap-2"><Users size={14} /> {booking.attendeeCount} fő</p>
                       </div>
                       {booking.adminNote ? <p className="mt-3 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
+                      {booking.cancellationReason ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs leading-5 text-red-800"><strong>Lemondás oka:</strong> {booking.cancellationReason}</p> : null}
                       {session.postProductionWorkflowEnabled ? (
                         <Link
                           href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
@@ -980,7 +981,7 @@ export default async function AdminMiniSessionDetailPage({
                         : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
                       const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
                       const canCloseBooking = isActive && booking.endsAt <= now;
-                      const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
+                      const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", booking.cancellationReason ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
                       const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
                       const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
                       const customerEmailDelivery = deliveryDisplay({
@@ -1011,6 +1012,7 @@ export default async function AdminMiniSessionDetailPage({
                           <td className="px-4 py-3 text-ink">
                             {booking.name}
                             {booking.adminNote ? <p className="mt-1 text-xs text-graphite/55">{booking.adminNote}</p> : null}
+                            {booking.cancellationReason ? <p className="mt-1 max-w-xs text-xs leading-5 text-red-700"><strong>Lemondás oka:</strong> {booking.cancellationReason}</p> : null}
                           </td>
                           <td className="px-4 py-3 text-graphite/70">
                             <a className="block hover:text-ink" href={`mailto:${booking.email}`}>{booking.email}</a>

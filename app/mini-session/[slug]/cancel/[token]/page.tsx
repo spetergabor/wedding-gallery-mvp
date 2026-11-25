@@ -15,6 +15,9 @@ const MINI_SESSION_CANCEL_COPY = {
     title: "Időpont törlése",
     alreadyCancelled: "Ez a foglalás már korábban törölve lett.",
     intro: "Ha mégsem jó az időpont, itt tudod törölni a foglalásodat.",
+    reasonLabel: "Miért szeretnéd lemondani az időpontot?",
+    reasonHint: "Kérjük, röviden írd le a lemondás okát.",
+    reasonRequired: "A lemondáshoz írd le az okot.",
     rateLimited: "Túl sok törlési próbálkozás. Várj pár percet, majd próbáld újra.",
     pending: "Törlés...",
     submit: "Foglalás törlése"
@@ -23,6 +26,9 @@ const MINI_SESSION_CANCEL_COPY = {
     title: "Termin stornieren",
     alreadyCancelled: "Diese Buchung wurde bereits storniert.",
     intro: "Falls der Termin doch nicht passt, kannst du deine Buchung hier stornieren.",
+    reasonLabel: "Warum möchtest du den Termin stornieren?",
+    reasonHint: "Bitte beschreibe kurz den Grund für die Stornierung.",
+    reasonRequired: "Bitte gib einen Grund für die Stornierung an.",
     rateLimited: "Zu viele Stornierungsversuche. Bitte warte kurz und versuche es erneut.",
     pending: "Stornieren...",
     submit: "Buchung stornieren"
@@ -66,6 +72,7 @@ export default async function CancelMiniSessionBookingPage({
         </p>
 
         {flags.error === "rate_limit" ? <div className="mt-5"><Alert title={copy.rateLimited} variant="error" /></div> : null}
+        {flags.error === "reason_required" ? <div className="mt-5"><Alert title={copy.reasonRequired} variant="error" /></div> : null}
 
         <div className="mt-6 rounded-md border border-ink/10 bg-paper p-4">
           <p className="text-sm font-semibold text-ink">{booking.miniSession.title}</p>
@@ -78,7 +85,20 @@ export default async function CancelMiniSessionBookingPage({
 
         {!alreadyCancelled ? (
           <form action={cancelMiniSessionBookingAction.bind(null, token)} className="mt-6">
-            <FormSubmitButton variant="danger" pendingLabel={copy.pending}>{copy.submit}</FormSubmitButton>
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-ink">{copy.reasonLabel}</span>
+              <textarea
+                name="cancellationReason"
+                required
+                minLength={3}
+                maxLength={500}
+                rows={5}
+                aria-describedby="cancellation-reason-hint"
+                className="w-full rounded-md border border-ink/15 bg-white px-3 py-3 text-sm text-ink outline-none transition placeholder:text-graphite/40 focus:border-brass focus:ring-2 focus:ring-brass/15"
+              />
+              <span id="cancellation-reason-hint" className="block text-xs leading-5 text-graphite/60">{copy.reasonHint}</span>
+            </label>
+            <FormSubmitButton variant="danger" pendingLabel={copy.pending} className="mt-5">{copy.submit}</FormSubmitButton>
           </form>
         ) : null}
       </section>

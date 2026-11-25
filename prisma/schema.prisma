@@ -863,6 +863,7 @@ model MiniSessionBooking {
   adminEmailSentAt        DateTime?
   reminderEmailSentAt     DateTime?
   cancelledAt             DateTime?
+  cancellationReason     String?
   cancellationEmailSentAt DateTime?
   googleCalendarEventId   String?
   googleCalendarId        String?
