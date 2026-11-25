@@ -181,8 +181,8 @@ function GlobalFilters({ brand, setBrand, days, setDays, status, setStatus, show
         {PERIODS.map((period) => <option key={period.value} value={period.value}>{period.label}</option>)}
       </select>
       {showStatus ? (
-        <select className="select" value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">Összes státusz</option><option value="active">Aktív</option><option value="paused">Szüneteltetett</option><option value="completed">Befejezett</option>
+        <select className="select" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Kampánystátusz szűrése">
+          <option value="all">Összes kampány</option><option value="active">Csak aktívak</option><option value="paused">Szüneteltetettek</option><option value="completed">Befejezettek</option>
         </select>
       ) : null}
     </div>
@@ -254,11 +254,11 @@ function OverviewView({ brand, days, currency, metrics, comparison, trends, camp
   );
 }
 
-type SortKey = "name" | "spend" | "impressions" | "ctr" | "cpc" | "leads" | "cpl";
+type SortKey = "startTime" | "name" | "spend" | "impressions" | "ctr" | "cpc" | "leads" | "cpl";
 
 function CampaignsView({ campaigns, currency, brand, days, onSelect }: { campaigns: Campaign[]; currency: string; brand: Brand; days: number; onSelect: (campaign: Campaign) => void }) {
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("spend");
+  const [sort, setSort] = useState<SortKey>("startTime");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [hidden, setHidden] = useStoredState<string[]>("desktop-hidden-columns", []);
@@ -266,6 +266,7 @@ function CampaignsView({ campaigns, currency, brand, days, onSelect }: { campaig
   const rows = useMemo(() => {
     const values = campaigns.filter((campaign) => campaign.name.toLowerCase().includes(query.toLowerCase()));
     const metric = (campaign: Campaign) => {
+      if (sort === "startTime") return campaign.startTime ? new Date(campaign.startTime).getTime() : 0;
       if (sort === "name") return campaign.name;
       if (sort === "spend") return campaign.performance.spend;
       if (sort === "impressions") return campaign.performance.impressions;
@@ -296,7 +297,7 @@ function CampaignsView({ campaigns, currency, brand, days, onSelect }: { campaig
         {!hidden.includes("cpl") && <th className="sortable" onClick={() => sortBy("cpl")}>CPL</th>}{!hidden.includes("alerts") && <th>Riasztás</th>}<th></th>
       </tr></thead><tbody>
         {rows.map((campaign) => <tr className="clickable" key={campaign.id} onClick={() => onSelect(campaign)}>
-          <td><div className="cell-title">{campaign.name}</div><div className="cell-sub">{campaign.externalId}</div></td><td><Badge value={campaign.deliveryStatus}/></td><td>{campaign.objective?.replaceAll("_", " ") || "—"}</td>
+          <td><div className="cell-title">{campaign.name}</div><div className="cell-sub">Indulás: {dateTime(campaign.startTime)} · {campaign.externalId}</div></td><td><Badge value={campaign.deliveryStatus}/></td><td>{campaign.objective?.replaceAll("_", " ") || "—"}</td>
           {!hidden.includes("budget") && <td>{campaign.dailyBudget ? `${money(Number(campaign.dailyBudget), currency)} / nap` : campaign.lifetimeBudget ? money(Number(campaign.lifetimeBudget), currency) : "—"}</td>}
           {!hidden.includes("spend") && <td>{money(campaign.performance.spend, currency)}</td>}{!hidden.includes("impressions") && <td>{number(campaign.performance.impressions)}</td>}
           {!hidden.includes("reach") && <td>{number(campaign.performance.reach)}</td>}{!hidden.includes("frequency") && <td>{number(campaign.performance.frequency, 2)}</td>}
@@ -461,7 +462,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="titlebar"><span className="titlebar-title">SPETLY Ads Manager</span><span className="titlebar-status">{monitoring?.healthy ? <><CheckCircle2 size={14}/>Healthy</> : <><AlertTriangle size={14}/>Ellenőrzés</>}</span></header>
     <aside className="sidebar"><div className="brand-lockup"><strong>SPETLY</strong><span>Ads Manager</span></div><nav className="nav-list">{NAV_ITEMS.map((item) => <button key={item.id} className={`nav-button ${view === item.id ? "active" : ""}`} onClick={() => { setView(item.id); setSelectedCampaign(null); }}><item.icon/>{item.label}</button>)}</nav><div className="sidebar-footer">macOS · v1.0 · read-only</div></aside>
-    <main className="content"><div className="page"><div className="page-head"><div><h1>{pageTitle}</h1><p>{view === "overview" ? "A legfontosabb Meta Ads üzleti adatok egy helyen." : view === "monitoring" ? "Felhőalapú adatgyűjtés és rendszerállapot." : "Valós, read-only production adatok."}</p></div>{!["monitoring", "settings"].includes(view) ? <GlobalFilters brand={brand} setBrand={setBrand} days={days} setDays={setDays} status={campaignStatus} setStatus={setCampaignStatus} showStatus={["campaigns", "ads"].includes(view)}/> : null}</div>
+    <main className="content"><div className="page"><div className="page-head"><div><h1>{pageTitle}</h1><p>{view === "overview" ? "A legfontosabb Meta Ads üzleti adatok egy helyen." : view === "monitoring" ? "Felhőalapú adatgyűjtés és rendszerállapot." : "Valós, read-only production adatok."}</p></div>{!["monitoring", "settings"].includes(view) ? <GlobalFilters brand={brand} setBrand={setBrand} days={days} setDays={setDays} status={campaignStatus} setStatus={setCampaignStatus} showStatus={view === "campaigns"}/> : null}</div>
       <ErrorBanner error={anyError} retry={() => queryClient.invalidateQueries()}/>
       {view === "overview" && <OverviewView brand={brand} days={days} currency={currency} metrics={metrics} comparison={comparison} trends={trendsQ.data?.trends || []} campaigns={campaigns} alerts={alerts} recommendations={recommendations} latestSync={account?.lastSyncedAt}/>}
       {view === "campaigns" && <CampaignsView campaigns={campaigns} currency={currency} brand={brand} days={days} onSelect={setSelectedCampaign}/>}
