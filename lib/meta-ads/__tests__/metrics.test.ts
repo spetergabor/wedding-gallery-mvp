@@ -26,3 +26,14 @@ test("normalization keeps missing metrics null and marks recent attribution data
   assert.equal(normalized.metricStatuses.purchases, "missing");
   assert.equal(normalized.dataStatus, "provisional");
 });
+
+test("normalization maps the Graph API v27 video play field to three-second views", () => {
+  const normalized = normalizeInsight({
+    account_id: "123",
+    date_start: "2026-11-20",
+    date_stop: "2026-11-20",
+    video_play_actions: [{ action_type: "video_view", value: "42" }]
+  }, "account", "7d_click_1d_view", new Date("2026-11-25T12:00:00Z"));
+
+  assert.equal(normalized.videoThreeSecondViews, BigInt(42));
+});

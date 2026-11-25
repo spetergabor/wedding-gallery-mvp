@@ -95,7 +95,9 @@ export const INSIGHT_FIELDS = [
   "cpc",
   "actions",
   "cost_per_action_type",
-  "video_3_sec_watched_actions",
+  // Meta Graph API v27 exposes 3-second video plays via video_play_actions.
+  // video_3_sec_watched_actions is rejected as an invalid insights field.
+  "video_play_actions",
   "video_thruplay_watched_actions",
   "video_avg_time_watched_actions",
   "video_p25_watched_actions",

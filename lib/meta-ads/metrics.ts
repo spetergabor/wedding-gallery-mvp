@@ -98,7 +98,7 @@ export function normalizeInsight(
     leads: leads === null ? null : BigInt(Math.round(leads)),
     purchases: purchases === null ? null : BigInt(Math.round(purchases)),
     costPerResult: costPerLead ?? costPerPurchase,
-    videoThreeSecondViews: bigintValue(actionValue(payload.video_3_sec_watched_actions, ["video_view"])),
+    videoThreeSecondViews: bigintValue(actionValue(payload.video_play_actions, ["video_view"])),
     videoThruplays: bigintValue(actionValue(payload.video_thruplay_watched_actions, ["video_view"])),
     videoAverageTime: actionValue(payload.video_avg_time_watched_actions, ["video_view"]),
     videoP25Views: bigintValue(actionValue(payload.video_p25_watched_actions, ["video_view"])),

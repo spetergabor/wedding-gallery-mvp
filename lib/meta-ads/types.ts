@@ -67,7 +67,7 @@ export type MetaInsightPayload = {
   cpc?: string;
   actions?: MetaAction[];
   cost_per_action_type?: MetaAction[];
-  video_3_sec_watched_actions?: MetaAction[];
+  video_play_actions?: MetaAction[];
   video_thruplay_watched_actions?: MetaAction[];
   video_avg_time_watched_actions?: MetaAction[];
   video_p25_watched_actions?: MetaAction[];
