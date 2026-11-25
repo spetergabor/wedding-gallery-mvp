@@ -9,7 +9,7 @@ Jelölések: **ÉLESEN ELLENŐRZÖTT** = production környezetben igazolt; **TES
 | Terület | Állapot | Eredmény |
 |---|---|---|
 | GitHub `main` | ÉLESEN ELLENŐRZÖTT | Phase 1.2 kód és Meta v27 kompatibilitási javítás pusholva. |
-| Vercel production | ÉLESEN ELLENŐRZÖTT | `ee62155` deployment `Ready` (1m 19s); `spetly.app` alias aktív. |
+| Vercel production | ÉLESEN ELLENŐRZÖTT | `ba3b651` deployment `Ready` (1m 22s); `spetly.app` alias aktív. |
 | Trigger.dev production | ÉLESEN ELLENŐRZÖTT | `20261125.2`, 9 felismert task, ebből 5 Meta Ads task. |
 | Neon backup | ÉLESEN ELLENŐRZÖTT | `pre-phase-1-2-2026-11-25` permanens gyermekág létrehozva a production ágról. |
 | Placement migráció | ÉLESEN ELLENŐRZÖTT | `20261125130000_add_meta_placement_insights` alkalmazva; második migrációs ellenőrzésnél nem maradt függő migráció. |
@@ -70,7 +70,9 @@ Két aktívként jelölt traffic kampány található, de a betöltött időszak
 - `meta-ads-weekly-report`: hétfőn 08:00.
 - `meta-ads-monthly-report`: hónap első napján 08:00.
 - `meta-ads-manual-sync`: kézi, lépcsőzetes import és hibaelhárítás.
-- Minden schedule Trigger.devben production verzióhoz van rendelve. A sikeres 90 napos visszatöltés után a Vercel production környezetben a `META_ADS_SCHEDULES_ACTIVE=true` kapcsoló beállításra került; az éles deployment- és állapotellenőrzés a záró aktiválás része.
+- Minden schedule Trigger.devben production verzióhoz van rendelve, a háromórás szinkronnál `Active schedules: 1 of 1` igazolva.
+- A sikeres 90 napos visszatöltés után a Vercel production környezetben a `META_ADS_SCHEDULES_ACTIVE=true` kapcsoló beállításra és deploymentre került. Az élő monitoring állapota `HEALTHY`, a schedule-jelző `deployedAndActive: true`.
+- Az első production ütemezett-task teszt (`run_06h14h53lpger0kcsrumho68a2`) 4 perc 12 másodperc alatt sikeresen lezárult: SPETER 88/88, IRISMOMENT 613/613, 4 értékelt riasztás és 3 értékelt javaslat. Ez egyszeri próba volt; a normál háromórás schedule ezután önállóan fut.
 
 ## 7. Biztonság és rollback
 
@@ -88,6 +90,7 @@ Két aktívként jelölt traffic kampány található, de a betöltött időszak
 - Production migráció: sikeres.
 - Production Graph API account smoke: 2/2 sikeres.
 - Production import: 3/7/30/90 nap sikeres.
+- Production schedule-teszt: sikeres; élő monitoring `HEALTHY`.
 
 ## 9. Fennmaradó üzleti konfiguráció
 
