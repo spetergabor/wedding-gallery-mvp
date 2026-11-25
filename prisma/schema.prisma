@@ -1639,6 +1639,334 @@ model BackgroundJob {
   @@index([lockedAt])
 }
 
+model MetaAdAccount {
+  id              String               @id @default(cuid())
+  externalId      String               @unique
+  accountNumber   String?
+  brand           String
+  name            String?
+  currency        String?
+  timezoneName    String?
+  accountStatus   String?
+  disableReason   String?
+  lastSyncedAt    DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  campaigns       MetaCampaign[]
+  adSets          MetaAdSet[]
+  ads             MetaAd[]
+  creatives       MetaCreative[]
+  dailyInsights   MetaDailyInsight[]
+  snapshots       MetaEntitySnapshot[]
+  syncRuns        MetaSyncRun[]
+  alerts          MetaAlert[]
+  recommendations MetaRecommendation[]
+
+  @@index([brand])
+  @@index([lastSyncedAt])
+}
+
+model MetaCampaign {
+  id                 String        @id @default(cuid())
+  accountId          String
+  externalId         String
+  name               String
+  objective          String?
+  status             String?
+  effectiveStatus    String?
+  buyingType         String?
+  dailyBudget        Decimal?      @db.Decimal(18, 6)
+  lifetimeBudget     Decimal?      @db.Decimal(18, 6)
+  budgetRemaining    Decimal?      @db.Decimal(18, 6)
+  startTime          DateTime?
+  stopTime           DateTime?
+  configuredStatus   String?
+  attributionSetting String?
+  rawPayload         Json?
+  lastSyncedAt       DateTime
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  account            MetaAdAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  adSets             MetaAdSet[]
+  ads                MetaAd[]
+
+  @@unique([accountId, externalId])
+  @@index([accountId, effectiveStatus])
+  @@index([startTime])
+  @@index([stopTime])
+}
+
+model MetaAdSet {
+  id                 String        @id @default(cuid())
+  accountId          String
+  campaignId         String?
+  externalId         String
+  campaignExternalId String?
+  name               String
+  status             String?
+  effectiveStatus    String?
+  optimizationGoal   String?
+  billingEvent       String?
+  bidStrategy        String?
+  dailyBudget        Decimal?      @db.Decimal(18, 6)
+  lifetimeBudget     Decimal?      @db.Decimal(18, 6)
+  startTime          DateTime?
+  endTime            DateTime?
+  targeting          Json?
+  promotedObject     Json?
+  attributionSetting String?
+  rawPayload         Json?
+  lastSyncedAt       DateTime
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  account            MetaAdAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  campaign           MetaCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  ads                MetaAd[]
+
+  @@unique([accountId, externalId])
+  @@index([campaignId])
+  @@index([campaignExternalId])
+  @@index([accountId, effectiveStatus])
+}
+
+model MetaCreative {
+  id                   String        @id @default(cuid())
+  accountId            String
+  externalId           String
+  name                 String?
+  title                String?
+  body                 String?
+  callToActionType     String?
+  imageHash            String?
+  imageUrl             String?
+  videoId              String?
+  objectStorySpec      Json?
+  assetFeedSpec        Json?
+  degreesOfFreedomSpec Json?
+  rawPayload           Json?
+  lastSyncedAt         DateTime
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  account              MetaAdAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  ads                  MetaAd[]
+
+  @@unique([accountId, externalId])
+  @@index([accountId, videoId])
+  @@index([accountId, imageHash])
+}
+
+model MetaAd {
+  id                 String        @id @default(cuid())
+  accountId          String
+  campaignId         String?
+  adSetId            String?
+  creativeId         String?
+  externalId         String
+  campaignExternalId String?
+  adSetExternalId    String?
+  creativeExternalId String?
+  name               String
+  status             String?
+  effectiveStatus    String?
+  configuredStatus   String?
+  trackingSpecs      Json?
+  conversionSpecs    Json?
+  rawPayload         Json?
+  lastSyncedAt       DateTime
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  account            MetaAdAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  campaign           MetaCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  adSet              MetaAdSet?    @relation(fields: [adSetId], references: [id], onDelete: SetNull)
+  creative           MetaCreative? @relation(fields: [creativeId], references: [id], onDelete: SetNull)
+
+  @@unique([accountId, externalId])
+  @@index([campaignId])
+  @@index([adSetId])
+  @@index([creativeId])
+  @@index([accountId, effectiveStatus])
+}
+
+model MetaDailyInsight {
+  id                    String        @id @default(cuid())
+  accountId             String
+  brand                 String
+  entityLevel           String
+  entityExternalId      String
+  date                  DateTime
+  attributionSetting    String        @default("unknown")
+  spend                 Decimal?      @db.Decimal(18, 6)
+  impressions           BigInt?
+  reach                 BigInt?
+  frequency             Decimal?      @db.Decimal(18, 6)
+  cpm                   Decimal?      @db.Decimal(18, 6)
+  linkClicks            BigInt?
+  outboundClicks        BigInt?
+  ctr                   Decimal?      @db.Decimal(18, 6)
+  outboundCtr           Decimal?      @db.Decimal(18, 6)
+  cpc                   Decimal?      @db.Decimal(18, 6)
+  landingPageViews      BigInt?
+  leads                 BigInt?
+  purchases             BigInt?
+  costPerResult         Decimal?      @db.Decimal(18, 6)
+  videoThreeSecondViews BigInt?
+  videoThruplays        BigInt?
+  videoAverageTime      Decimal?      @db.Decimal(18, 6)
+  videoP25Views         BigInt?
+  videoP50Views         BigInt?
+  videoP75Views         BigInt?
+  videoP95Views         BigInt?
+  videoP100Views        BigInt?
+  actionValues          Json?
+  metricStatuses        Json
+  dataStatus            String        @default("complete")
+  sourceUpdatedAt       DateTime?
+  syncedAt              DateTime      @default(now())
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  account               MetaAdAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, entityLevel, entityExternalId, date, attributionSetting])
+  @@index([brand, date])
+  @@index([accountId, entityLevel, date])
+  @@index([entityExternalId, date])
+  @@index([dataStatus])
+}
+
+model MetaEntitySnapshot {
+  id               String        @id @default(cuid())
+  accountId        String
+  brand            String
+  entityLevel      String
+  entityExternalId String
+  capturedAt       DateTime      @default(now())
+  payloadHash      String
+  status           String?
+  dailyBudget      Decimal?      @db.Decimal(18, 6)
+  lifetimeBudget   Decimal?      @db.Decimal(18, 6)
+  creativeId       String?
+  payload          Json
+  account          MetaAdAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, entityLevel, entityExternalId, payloadHash])
+  @@index([accountId, entityLevel, entityExternalId, capturedAt])
+  @@index([brand, capturedAt])
+}
+
+model MetaSyncRun {
+  id             String         @id @default(cuid())
+  accountId      String?
+  brand          String?
+  mode           String
+  status         String         @default("running")
+  idempotencyKey String         @unique
+  startedAt      DateTime       @default(now())
+  completedAt    DateTime?
+  heartbeatAt    DateTime       @default(now())
+  rangeStart     DateTime?
+  rangeEnd       DateTime?
+  recordsRead    Int            @default(0)
+  recordsWritten Int            @default(0)
+  retryCount     Int            @default(0)
+  errorCode      String?
+  errorMessage   String?
+  metadata       Json?
+  account        MetaAdAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([status, startedAt])
+  @@index([brand, startedAt])
+  @@index([accountId, startedAt])
+}
+
+model MetaJobLock {
+  key       String   @id
+  ownerId   String
+  lockedAt  DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
+model MetaAlert {
+  id                String         @id @default(cuid())
+  fingerprint       String         @unique
+  accountId         String?
+  brand             String
+  entityLevel       String?
+  entityExternalId  String?
+  anomalyType       String
+  severity          String
+  title             String
+  evidence          Json
+  possibleCause     String?
+  recommendedAction String?
+  confidence        Decimal?       @db.Decimal(5, 4)
+  dataReliability   String
+  status            String         @default("active")
+  detectedAt        DateTime       @default(now())
+  lastSeenAt        DateTime       @default(now())
+  resolvedAt        DateTime?
+  occurrenceCount   Int            @default(1)
+  account           MetaAdAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([brand, status, severity])
+  @@index([accountId, status])
+  @@index([detectedAt])
+  @@index([lastSeenAt])
+}
+
+model MetaRecommendation {
+  id               String         @id @default(cuid())
+  fingerprint      String         @unique
+  accountId        String?
+  brand            String
+  entityLevel      String?
+  entityExternalId String?
+  type             String
+  title            String
+  recommendation   String
+  rationale        String
+  evidence         Json
+  potentialImpact  String
+  risk             String
+  confidence       Decimal?       @db.Decimal(5, 4)
+  reevaluateAt     DateTime?
+  status           String         @default("active")
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  account          MetaAdAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([brand, status, type])
+  @@index([accountId, status])
+  @@index([reevaluateAt])
+}
+
+model MetaBusinessConfig {
+  id                        String    @id @default(cuid())
+  brand                     String    @unique
+  qualifiedLeadDefinition   String?
+  consultationDefinition    String?
+  bookingDefinition         String?
+  customerAcquisitionCost   Decimal?  @db.Decimal(18, 6)
+  contractValue             Decimal?  @db.Decimal(18, 6)
+  eventLocation             String?
+  eventDate                 DateTime?
+  availableAppointments     Int?
+  bookedAppointments        Int?
+  costPerBookingTarget      Decimal?  @db.Decimal(18, 6)
+  averageCustomerValue      Decimal?  @db.Decimal(18, 6)
+  capacityUtilizationTarget Decimal?  @db.Decimal(8, 6)
+  currency                  String    @default("EUR")
+  timezone                  String    @default("Europe/Vienna")
+  thresholds                Json      @default("{}")
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  @@index([brand])
+}
+
 model GalleryView {
   id        String   @id @default(cuid())
   galleryId String

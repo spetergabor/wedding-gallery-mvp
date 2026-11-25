@@ -4,3 +4,16 @@
 - After pushing, verify the Vercel deployment status and report whether production deployment completed successfully.
 - Do not commit, push, or deploy when the user explicitly asks only for planning, review, diagnosis, or a report, or explicitly says not to publish yet.
 - Never include unrelated user changes in a commit. If unrelated changes prevent a safe isolated commit, stop and explain the conflict.
+
+## Meta Ads Intelligence
+
+- Goal: maintain a read-only, explainable intelligence layer for the SPETER wedding business and IRISMOMENT event/iris-photography business. Keep brand/account mappings explicit; never infer a brand from campaign naming alone.
+- Architecture: Next.js API routes, Prisma/PostgreSQL persistence, Trigger.dev schedules, and the isolated `lib/meta-ads` domain. Reuse these components before introducing new infrastructure.
+- Safety: Meta Graph API access in Phase 1 is GET-only. Never publish, pause, delete, retarget, change budgets, or otherwise mutate a live Meta asset. Recommendations must remain advisory and require a human decision.
+- Secrets: keep Meta tokens and account mappings in environment variables. Never put tokens in source, URLs, logs, snapshots, errors, fixtures, commits, or reports.
+- Data quality: never invent missing Meta or business values. Persist unavailable metrics as null with an explicit availability status; distinguish missing, measured zero, provisional attribution data, and not-applicable data.
+- History: daily insight imports must remain idempotent. Re-fetch recent days to absorb delayed attribution, retain timestamped status/budget/creative snapshots, and protect scheduled jobs with a database lock.
+- Analytics: calculate ratios from aggregated base metrics instead of averaging daily ratios. Always surface window, evidence, reliability, attribution caveats, and low-volume caveats with alerts and recommendations.
+- Business truth: Meta-reported conversions are not automatically bookings or revenue. SPETER CRM and IRISMOMENT booking data may become verified business sources in a later phase; do not silently equate them in Phase 1.
+- Testing: changes under `lib/meta-ads`, its API routes, schema, or schedules must pass `npm run test:meta-ads`, `npx tsc --noEmit`, Prisma validation/generation, and the production build. Add regression coverage for parsing, missing data, period math, deduplication, retries, anomaly logic, recommendation logic, and GET-only enforcement.
+- Operations: do not claim background monitoring is live until the production database migration, Meta environment variables, Meta permissions, and Trigger.dev deployment/schedules have all been verified. Use `/api/meta-ads/monitoring` to report the actual state.

@@ -13,6 +13,7 @@
     "prisma:deploy": "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 prisma migrate deploy",
     "zip-worker": "tsx workers/zip-worker.ts",
     "prisma:migrate": "prisma migrate dev",
+    "test:meta-ads": "node --import tsx --test lib/meta-ads/__tests__/*.test.ts",
     "r2:audit": "node work/r2-storage-audit.mjs",
     "r2:delete-stale-zips": "node work/r2-storage-audit.mjs --delete-stale-zips --delete",
     "r2:delete-orphans": "node work/r2-storage-audit.mjs --delete-orphans --delete"
