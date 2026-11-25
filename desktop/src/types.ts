@@ -63,6 +63,8 @@ export type Campaign = {
   status: string | null;
   effectiveStatus: string | null;
   deliveryStatus: string;
+  cityKey: string | null;
+  cityLabel: string | null;
   dailyBudget: string | number | null;
   lifetimeBudget: string | number | null;
   startTime: string | null;
@@ -72,6 +74,25 @@ export type Campaign = {
   performance: Metrics;
   alertCount: number;
   days: number;
+};
+
+export type CityOverview = {
+  key: string;
+  label: string;
+  bookingCount: number;
+  totalSlots: number;
+  freeSlots: number;
+  events: Array<{
+    id: string;
+    title: string;
+    location: string;
+    startsAt: string;
+    endsAt: string;
+    isActive: boolean;
+    bookingCount: number;
+    totalSlots: number;
+    freeSlots: number;
+  }>;
 };
 
 export type AdSet = {

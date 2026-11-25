@@ -1,4 +1,5 @@
 import { buildAnalytics, calculateMetrics } from "@/lib/meta-ads/analytics";
+import { resolveIrisMomentCity } from "@/lib/meta-ads/cities";
 import { metaAdsConfigurationStatus } from "@/lib/meta-ads/config";
 import { deriveMetaHealthState } from "@/lib/meta-ads/health";
 import { resolveDeliveryStatus } from "@/lib/meta-ads/status";
@@ -92,13 +93,18 @@ export async function getMetaCampaignPerformance(brand?: string, requestedDays =
     prisma.metaDailyInsight.findMany({ where: { entityLevel: "campaign", date: { gte: since }, ...(brand ? { brand } : {}) } }),
     prisma.metaAlert.findMany({ where: { status: "active", entityLevel: "campaign", ...(brand ? { brand } : {}) }, select: { entityExternalId: true } })
   ]);
-  return campaigns.map((campaign) => ({
-    ...campaign,
-    days,
-    deliveryStatus: resolveDeliveryStatus(campaign),
-    alertCount: alerts.filter((alert) => alert.entityExternalId === campaign.externalId).length,
-    performance: calculateMetrics(insights.filter((row) => row.accountId === campaign.accountId && row.entityExternalId === campaign.externalId).map(point))
-  }));
+  return campaigns.map((campaign) => {
+    const city = campaign.account.brand === "IRISMOMENT" ? resolveIrisMomentCity(campaign.name) : null;
+    return {
+      ...campaign,
+      days,
+      cityKey: city?.key ?? null,
+      cityLabel: city?.label ?? null,
+      deliveryStatus: resolveDeliveryStatus(campaign),
+      alertCount: alerts.filter((alert) => alert.entityExternalId === campaign.externalId).length,
+      performance: calculateMetrics(insights.filter((row) => row.accountId === campaign.accountId && row.entityExternalId === campaign.externalId).map(point))
+    };
+  });
 }
 
 export async function getMetaCreativePerformance(brand?: string, requestedDays = 30) {

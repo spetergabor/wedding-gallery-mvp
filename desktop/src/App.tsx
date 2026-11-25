@@ -14,7 +14,7 @@ import { apiGet, apiPost, hasSession, login, logout } from "./api";
 import { currencyFor, dateTime, money, number, percent, placementLabel, shortDate, statusLabel } from "./format";
 import type {
   Account, Ad, AdSet, AlertItem, Brand, BrandAnalytics, Campaign, CreativePerformance, Metrics, Monitoring,
-  Placement, Recommendation, ThemeMode, TrendRow, ViewId
+  CityOverview, Placement, Recommendation, ThemeMode, TrendRow, ViewId
 } from "./types";
 
 const NAV_ITEMS: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard }> = [
@@ -169,8 +169,9 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function GlobalFilters({ brand, setBrand, days, setDays, status, setStatus, showStatus = true }: {
-  brand: Brand; setBrand: (brand: Brand) => void; days: number; setDays: (days: number) => void; status: string; setStatus: (value: string) => void; showStatus?: boolean;
+function GlobalFilters({ brand, setBrand, days, setDays, status, setStatus, city, setCity, cityOptions, showStatus = true, showCity = false }: {
+  brand: Brand; setBrand: (brand: Brand) => void; days: number; setDays: (days: number) => void; status: string; setStatus: (value: string) => void;
+  city: string; setCity: (value: string) => void; cityOptions: Array<{ key: string; label: string }>; showStatus?: boolean; showCity?: boolean;
 }) {
   return (
     <div className="toolbar">
@@ -180,6 +181,12 @@ function GlobalFilters({ brand, setBrand, days, setDays, status, setStatus, show
       <select className="select" value={days} onChange={(event) => setDays(Number(event.target.value))}>
         {PERIODS.map((period) => <option key={period.value} value={period.value}>{period.label}</option>)}
       </select>
+      {showCity ? (
+        <select className="select" value={city} onChange={(event) => setCity(event.target.value)} aria-label="Város szűrése">
+          <option value="all">Összes város</option>
+          {cityOptions.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+        </select>
+      ) : null}
       {showStatus ? (
         <select className="select" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Kampánystátusz szűrése">
           <option value="all">Összes kampány</option><option value="active">Csak aktívak</option><option value="paused">Szüneteltetettek</option><option value="completed">Befejezettek</option>
@@ -256,7 +263,9 @@ function OverviewView({ brand, days, currency, metrics, comparison, trends, camp
 
 type SortKey = "startTime" | "name" | "spend" | "impressions" | "ctr" | "cpc" | "leads" | "cpl";
 
-function CampaignsView({ campaigns, currency, brand, days, onSelect }: { campaigns: Campaign[]; currency: string; brand: Brand; days: number; onSelect: (campaign: Campaign) => void }) {
+function CampaignsView({ campaigns, currency, brand, days, city, cityOverview, onSelect }: {
+  campaigns: Campaign[]; currency: string; brand: Brand; days: number; city: string; cityOverview: CityOverview | null; onSelect: (campaign: Campaign) => void;
+}) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("startTime");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
@@ -281,11 +290,29 @@ function CampaignsView({ campaigns, currency, brand, days, onSelect }: { campaig
       return direction === "asc" ? result : -result;
     });
   }, [campaigns, query, sort, direction]);
+  const cityMetrics = campaigns.reduce((total, campaign) => ({
+    spend: total.spend + campaign.performance.spend,
+    landingPageViews: total.landingPageViews + campaign.performance.landingPageViews,
+    leads: total.leads + campaign.performance.leads
+  }), { spend: 0, landingPageViews: 0, leads: 0 });
   function sortBy(key: SortKey) { if (sort === key) setDirection(direction === "asc" ? "desc" : "asc"); else { setSort(key); setDirection("desc"); } }
   function toggleColumn(key: string) { setHidden(hidden.includes(key) ? hidden.filter((item) => item !== key) : [...hidden, key]); }
 
   return (
     <Panel title={`${brand} kampányok`} action={<div className="toolbar"><div className="search-wrap"><Search/><input className="input search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Kampány keresése"/></div><button className="button icon-button" onClick={() => setColumnsOpen(!columnsOpen)} title="Oszlopok"><Columns3/></button></div>}>
+      {city !== "all" ? <div className="panel-body">
+        <div className="metric-row">
+          <div className="metric-mini"><span>Költés · {days} nap</span><strong>{money(cityMetrics.spend, currency)}</strong></div>
+          <div className="metric-mini"><span>Landing page view</span><strong>{number(cityMetrics.landingPageViews)}</strong></div>
+          <div className="metric-mini"><span>Meta lead</span><strong>{number(cityMetrics.leads)}</strong></div>
+          <div className="metric-mini"><span>Valódi foglalás</span><strong>{cityOverview ? number(cityOverview.bookingCount) : "—"}</strong></div>
+          <div className="metric-mini"><span>Szabad időpont</span><strong>{cityOverview ? `${number(cityOverview.freeSlots)} / ${number(cityOverview.totalSlots)}` : "—"}</strong></div>
+        </div>
+        <p style={{ color: "var(--muted-2)", fontSize: 11, marginTop: 10 }}>
+          {cityOverview?.events.length ? cityOverview.events.map((event) => `${event.title} · ${dateTime(event.startsAt)}`).join(" · ") : "Ehhez a városhoz nincs összekapcsolt IRISMOMENT-esemény."}
+          {" "}A Meta lead nem azonos automatikusan a valódi foglalással.
+        </p>
+      </div> : null}
       {columnsOpen ? <div className="panel-body" style={{ paddingBottom: 8 }}><div className="toolbar">{columns.map((key) => <label className="badge" key={key}><input type="checkbox" checked={!hidden.includes(key)} onChange={() => toggleColumn(key)}/>{key.toUpperCase()}</label>)}</div></div> : null}
       <div className="table-scroll"><table><thead><tr>
         <th className="sortable" onClick={() => sortBy("name")}>Kampány</th><th>Státusz</th><th>Cél</th>
@@ -402,6 +429,7 @@ export default function App() {
   const [brand, setBrand] = useStoredState<Brand>("desktop-brand", defaultBrand);
   const [days, setDays] = useStoredState<number>("desktop-days", defaultDays);
   const [campaignStatus, setCampaignStatus] = useStoredState("desktop-status", "all");
+  const [campaignCity, setCampaignCity] = useStoredState("desktop-city", "all");
   const [theme, setTheme] = useStoredState<ThemeMode>("desktop-theme", "system");
   const [refreshMinutes, setRefreshMinutes] = useStoredState<number>("desktop-refresh", 15);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -425,6 +453,11 @@ export default function App() {
     enabled
   });
   const campaignsQ = useQuery({ queryKey: ["campaigns", brand, days], queryFn: () => apiGet<ApiResponse<{ campaigns: Campaign[] }>>(`/api/meta-ads/campaigns?brand=${brand}&days=${days}`), enabled });
+  const citiesQ = useQuery({
+    queryKey: ["campaign-cities", days],
+    queryFn: () => apiGet<ApiResponse<{ cities: CityOverview[] }>>(`/api/meta-ads/cities?days=${days}`),
+    enabled: enabled && brand === "IRISMOMENT" && view === "campaigns"
+  });
   const trendsQ = useQuery({ queryKey: ["trends", brand, days], queryFn: () => apiGet<ApiResponse<{ trends: TrendRow[] }>>(`/api/meta-ads/trends?brand=${brand}&entityLevel=account&days=${days}`), enabled });
   const alertsQ = useQuery({ queryKey: ["alerts"], queryFn: () => apiGet<ApiResponse<{ alerts: AlertItem[] }>>("/api/meta-ads/alerts?status=active"), enabled });
   const recommendationsQ = useQuery({ queryKey: ["recommendations"], queryFn: () => apiGet<ApiResponse<{ recommendations: Recommendation[] }>>("/api/meta-ads/recommendations?status=active"), enabled });
@@ -445,7 +478,14 @@ export default function App() {
   const brandData = brandsQ.data?.brands.find((item) => item.brand === brand);
   const comparison = brandData?.analytics.comparisons.find((item) => item.days === (days === 2 ? 1 : days)) || brandData?.analytics.comparisons.find((item) => item.days === 30);
   const metrics = comparison?.current || brandData?.analytics.lifetime || ({ spend: 0, impressions: 0, reach: 0, linkClicks: 0, outboundClicks: 0, landingPageViews: 0, leads: 0, purchases: 0, frequency: null, cpm: null, ctr: null, outboundCtr: null, cpc: null, costPerLandingPageView: null, costPerLead: null, costPerPurchase: null, landingPageConversionRate: null } satisfies Metrics);
-  let campaigns = campaignsQ.data?.campaigns || [];
+  const allCampaigns = campaignsQ.data?.campaigns || [];
+  const cityOptionsMap = new Map<string, string>();
+  for (const campaign of allCampaigns) if (campaign.cityKey && campaign.cityLabel) cityOptionsMap.set(campaign.cityKey, campaign.cityLabel);
+  for (const city of citiesQ.data?.cities || []) cityOptionsMap.set(city.key, city.label);
+  const cityOptions = [...cityOptionsMap].map(([key, label]) => ({ key, label })).sort((left, right) => left.label.localeCompare(right.label, "hu"));
+  const selectedCityOverview = citiesQ.data?.cities.find((city) => city.key === campaignCity) ?? null;
+  let campaigns = allCampaigns;
+  if (brand === "IRISMOMENT" && campaignCity !== "all") campaigns = campaigns.filter((campaign) => campaign.cityKey === campaignCity);
   if (campaignStatus !== "all") campaigns = campaigns.filter((campaign) => campaignStatus === "active" ? campaign.deliveryStatus === "ACTIVE" : campaignStatus === "paused" ? campaign.deliveryStatus.includes("PAUSED") : ["ARCHIVED", "DELETED", "COMPLETED"].includes(campaign.deliveryStatus));
   const alerts = alertsQ.data?.alerts.filter((item) => item.brand === brand) || [];
   const recommendations = recommendationsQ.data?.recommendations.filter((item) => item.brand === brand) || [];
@@ -462,10 +502,10 @@ export default function App() {
   return <div className="app-shell">
     <header className="titlebar"><span className="titlebar-title">SPETLY Ads Manager</span><span className="titlebar-status">{monitoring?.healthy ? <><CheckCircle2 size={14}/>Healthy</> : <><AlertTriangle size={14}/>Ellenőrzés</>}</span></header>
     <aside className="sidebar"><div className="brand-lockup"><strong>SPETLY</strong><span>Ads Manager</span></div><nav className="nav-list">{NAV_ITEMS.map((item) => <button key={item.id} className={`nav-button ${view === item.id ? "active" : ""}`} onClick={() => { setView(item.id); setSelectedCampaign(null); }}><item.icon/>{item.label}</button>)}</nav><div className="sidebar-footer">macOS · v1.0 · read-only</div></aside>
-    <main className="content"><div className="page"><div className="page-head"><div><h1>{pageTitle}</h1><p>{view === "overview" ? "A legfontosabb Meta Ads üzleti adatok egy helyen." : view === "monitoring" ? "Felhőalapú adatgyűjtés és rendszerállapot." : "Valós, read-only production adatok."}</p></div>{!["monitoring", "settings"].includes(view) ? <GlobalFilters brand={brand} setBrand={setBrand} days={days} setDays={setDays} status={campaignStatus} setStatus={setCampaignStatus} showStatus={view === "campaigns"}/> : null}</div>
+    <main className="content"><div className="page"><div className="page-head"><div><h1>{pageTitle}</h1><p>{view === "overview" ? "A legfontosabb Meta Ads üzleti adatok egy helyen." : view === "monitoring" ? "Felhőalapú adatgyűjtés és rendszerállapot." : "Valós, read-only production adatok."}</p></div>{!["monitoring", "settings"].includes(view) ? <GlobalFilters brand={brand} setBrand={setBrand} days={days} setDays={setDays} status={campaignStatus} setStatus={setCampaignStatus} city={campaignCity} setCity={setCampaignCity} cityOptions={cityOptions} showStatus={view === "campaigns"} showCity={view === "campaigns" && brand === "IRISMOMENT"}/> : null}</div>
       <ErrorBanner error={anyError} retry={() => queryClient.invalidateQueries()}/>
       {view === "overview" && <OverviewView brand={brand} days={days} currency={currency} metrics={metrics} comparison={comparison} trends={trendsQ.data?.trends || []} campaigns={campaigns} alerts={alerts} recommendations={recommendations} latestSync={account?.lastSyncedAt}/>}
-      {view === "campaigns" && <CampaignsView campaigns={campaigns} currency={currency} brand={brand} days={days} onSelect={setSelectedCampaign}/>}
+      {view === "campaigns" && <CampaignsView campaigns={campaigns} currency={currency} brand={brand} days={days} city={brand === "IRISMOMENT" ? campaignCity : "all"} cityOverview={selectedCityOverview} onSelect={setSelectedCampaign}/>}
       {view === "ads" && <AdsView ads={adsQ.data?.ads || []} currency={currency}/>}
       {view === "creatives" && <CreativesView items={creativesQ.data?.creatives || []} currency={currency}/>}
       {view === "alerts" && <AlertsView alerts={alertsQ.data?.alerts || []} recommendations={recommendationsQ.data?.recommendations || []} brand={brand}/>}
