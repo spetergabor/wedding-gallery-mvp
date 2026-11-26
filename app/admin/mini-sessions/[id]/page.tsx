@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, Code2, CopyPlus, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, ChevronDown, Code2, CopyPlus, Download, ExternalLink, Eye, ImageIcon, Mail, MapPin, Phone, PlusCircle, Send, Settings2, Trash2, UploadCloud, Users, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -329,7 +329,7 @@ function BookingManagementActions({
 
   if (isClosedStatus) {
     return (
-      <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)} className="ml-auto w-full max-w-80">
+      <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)} className="ml-auto w-full max-w-40">
         <input type="hidden" name="returnTab" value="bookings" />
         <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_BOOKED} />
         <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
@@ -344,106 +344,118 @@ function BookingManagementActions({
   }
 
   return (
-    <div className="ml-auto grid w-full max-w-80 gap-2">
-      {canCloseBooking ? (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-          <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)}>
-            <input type="hidden" name="returnTab" value="bookings" />
-            <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_COMPLETED} />
-            <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
-              <CheckCircle2 size={13} />
-              Kész
-            </FormSubmitButton>
-          </form>
-          <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)}>
-            <input type="hidden" name="returnTab" value="bookings" />
-            <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_NO_SHOW} />
-            <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
-              <XCircle size={13} />
-              Nem jelent meg
-            </FormSubmitButton>
-          </form>
-        </div>
-      ) : null}
-
-      <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, bookingId)} className="grid gap-2">
-        <input type="hidden" name="returnTab" value="bookings" />
-        <select name="slot" required defaultValue={currentSlot.token} className="h-9 w-full rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none">
-          {rescheduleSlots.map((slot) => (
-            <option key={slot.token} value={slot.token}>
-              {showSlotDates
-                ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
-                : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
-            </option>
-          ))}
-        </select>
-        <div className="rounded-md border border-ink/10 bg-paper p-2.5">
-          <p className="text-[11px] font-medium text-graphite/70">Vagy egyedi admin időpont</p>
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_92px] gap-2">
-            <label className="grid gap-1">
-              <span className="text-[10px] uppercase tracking-[0.08em] text-graphite/50">Dátum</span>
-              <input
-                name="customDate"
-                type="date"
-                className="h-9 min-w-0 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none focus:border-ink/50"
-              />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-[10px] uppercase tracking-[0.08em] text-graphite/50">Kezdés</span>
-              <input
-                name="customStartTime"
-                type="time"
-                defaultValue={miniSessionTimeInput(currentSlot.startsAt)}
-                className="h-9 min-w-0 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none focus:border-ink/50"
-              />
-            </label>
+    <details className="group relative ml-auto w-full max-w-40">
+      <summary className="flex h-10 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-ink/15 bg-white px-3 text-sm font-semibold text-ink transition hover:border-ink/30 hover:bg-ink/[0.03] [&::-webkit-details-marker]:hidden">
+        Kezelés
+        <ChevronDown size={15} className="transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="absolute right-0 z-30 mt-2 grid max-h-[70vh] w-[min(20rem,calc(100vw-3rem))] gap-3 overflow-y-auto rounded-lg border border-ink/10 bg-white p-3 shadow-xl">
+        {canCloseBooking ? (
+          <div className="grid grid-cols-2 gap-2">
+            <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)}>
+              <input type="hidden" name="returnTab" value="bookings" />
+              <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_COMPLETED} />
+              <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
+                <CheckCircle2 size={13} />
+                Kész
+              </FormSubmitButton>
+            </form>
+            <form action={updateMiniSessionBookingStatusAction.bind(null, bookingId)}>
+              <input type="hidden" name="returnTab" value="bookings" />
+              <input type="hidden" name="status" value={MINI_SESSION_BOOKING_STATUS_NO_SHOW} />
+              <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
+                <XCircle size={13} />
+                Nem jelent meg
+              </FormSubmitButton>
+            </form>
           </div>
-          <p className="mt-2 text-[10px] leading-4 text-graphite/50">
-            Felülírja a heti napokat, naptártiltásokat és más foglaltsági jelzéseket is.
-          </p>
-        </div>
-        <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
-          Áthelyezés
-        </FormSubmitButton>
-      </form>
+        ) : null}
 
-      {hasRetryActions ? (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-          {showCustomerEmailRetry ? (
-            <form action={resendMiniSessionBookingConfirmationAction.bind(null, bookingId)}>
-              <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={bookingActionButtonClass}>
-                <Send size={13} />
-                Ügyfél e-mail
-              </FormSubmitButton>
-            </form>
-          ) : null}
-          {showAdminEmailRetry ? (
-            <form action={resendMiniSessionAdminNotificationAction.bind(null, bookingId)}>
-              <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={bookingActionButtonClass}>
-                <Send size={13} />
-                Admin e-mail
-              </FormSubmitButton>
-            </form>
-          ) : null}
-          {showCalendarRetry ? (
-            <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, bookingId)}>
-              <FormSubmitButton variant="secondary" pendingLabel="Sync..." className={bookingActionButtonClass}>
-                <CalendarClock size={13} />
-                Naptár sync
-              </FormSubmitButton>
-            </form>
-          ) : null}
-        </div>
-      ) : null}
+        <form action={rescheduleMiniSessionBookingByAdminAction.bind(null, bookingId)} className="grid gap-2 border-t border-ink/10 pt-3">
+          <input type="hidden" name="returnTab" value="bookings" />
+          <p className="text-xs font-semibold text-ink">Időpont áthelyezése</p>
+          <select name="slot" required defaultValue={currentSlot.token} className="h-9 w-full rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none">
+            {rescheduleSlots.map((slot) => (
+              <option key={slot.token} value={slot.token}>
+                {showSlotDates
+                  ? formatMiniSessionSlotWithDate(slot.startsAt, slot.endsAt)
+                  : formatMiniSessionSlot(slot.startsAt, slot.endsAt)}
+              </option>
+            ))}
+          </select>
+          <details className="group/custom rounded-md border border-ink/10 bg-paper">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[11px] font-medium text-graphite/70 [&::-webkit-details-marker]:hidden">
+              Egyedi admin időpont
+              <ChevronDown size={13} className="transition-transform group-open/custom:rotate-180" />
+            </summary>
+            <div className="border-t border-ink/10 p-2.5">
+              <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2">
+                <label className="grid gap-1">
+                  <span className="text-[10px] uppercase tracking-[0.08em] text-graphite/50">Dátum</span>
+                  <input
+                    name="customDate"
+                    type="date"
+                    className="h-9 min-w-0 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none focus:border-ink/50"
+                  />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-[10px] uppercase tracking-[0.08em] text-graphite/50">Kezdés</span>
+                  <input
+                    name="customStartTime"
+                    type="time"
+                    defaultValue={miniSessionTimeInput(currentSlot.startsAt)}
+                    className="h-9 min-w-0 rounded-md border border-ink/15 bg-white px-2 text-xs text-ink outline-none focus:border-ink/50"
+                  />
+                </label>
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-graphite/50">
+                Felülírja a heti napokat, naptártiltásokat és más foglaltsági jelzéseket is.
+              </p>
+            </div>
+          </details>
+          <FormSubmitButton variant="secondary" pendingLabel="Mentés..." className={bookingActionButtonClass}>
+            Áthelyezés
+          </FormSubmitButton>
+        </form>
 
-      <form action={cancelMiniSessionBookingByAdminAction.bind(null, bookingId)}>
-        <input type="hidden" name="returnTab" value="bookings" />
-        <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className={bookingActionButtonClass}>
-          <XCircle size={13} />
-          Törlés
-        </ConfirmSubmitButton>
-      </form>
-    </div>
+        {hasRetryActions ? (
+          <div className="grid grid-cols-2 gap-2 border-t border-ink/10 pt-3">
+            {showCustomerEmailRetry ? (
+              <form action={resendMiniSessionBookingConfirmationAction.bind(null, bookingId)}>
+                <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={bookingActionButtonClass}>
+                  <Send size={13} />
+                  Ügyfél e-mail
+                </FormSubmitButton>
+              </form>
+            ) : null}
+            {showAdminEmailRetry ? (
+              <form action={resendMiniSessionAdminNotificationAction.bind(null, bookingId)}>
+                <FormSubmitButton variant="secondary" pendingLabel="Küldés..." className={bookingActionButtonClass}>
+                  <Send size={13} />
+                  Admin e-mail
+                </FormSubmitButton>
+              </form>
+            ) : null}
+            {showCalendarRetry ? (
+              <form action={retryMiniSessionBookingCalendarSyncAction.bind(null, bookingId)}>
+                <FormSubmitButton variant="secondary" pendingLabel="Sync..." className={bookingActionButtonClass}>
+                  <CalendarClock size={13} />
+                  Naptár sync
+                </FormSubmitButton>
+              </form>
+            ) : null}
+          </div>
+        ) : null}
+
+        <form action={cancelMiniSessionBookingByAdminAction.bind(null, bookingId)} className="border-t border-ink/10 pt-3">
+          <input type="hidden" name="returnTab" value="bookings" />
+          <ConfirmSubmitButton variant="danger" message="Biztosan törlöd ezt a foglalást? Az időpont újra foglalható lesz." className={bookingActionButtonClass}>
+            <XCircle size={13} />
+            Foglalás törlése
+          </ConfirmSubmitButton>
+        </form>
+      </div>
+    </details>
   );
 }
 
@@ -884,7 +896,7 @@ export default async function AdminMiniSessionDetailPage({
                 Nincs találat a jelenlegi szűrésre.
               </div>
 
-              <div className="mt-5 space-y-3 md:hidden">
+              <div className="mt-5 space-y-3">
                 {contactBookings.map((booking) => {
                   const slotLabel = showSlotDates
                     ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
@@ -909,7 +921,7 @@ export default async function AdminMiniSessionDetailPage({
                   });
 
                   return (
-                    <div
+                    <article
                       key={booking.id}
                       data-mini-session-booking-item
                       data-mini-session-booking-record={booking.id}
@@ -917,156 +929,70 @@ export default async function AdminMiniSessionDetailPage({
                       data-mini-session-booking-source={booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL ? "manual" : "client"}
                       data-mini-session-booking-search={searchText}
                       hidden={!isActive}
-                      className={`${!isActive ? "hidden" : ""} rounded-md border border-ink/10 bg-paper p-4`}
+                      className={`${!isActive ? "hidden" : ""} rounded-lg border border-ink/10 bg-white shadow-[0_1px_0_rgba(17,17,17,0.02)] transition hover:border-ink/20`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-ink">{booking.name}</p>
-                          <p className="mt-1 text-sm text-graphite/65">{slotLabel}</p>
+                      <div className="grid gap-4 p-4 lg:grid-cols-[180px_minmax(0,1fr)_220px_160px] lg:items-center">
+                        <div className="rounded-md bg-paper px-3 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-graphite/50">Időpont</p>
+                          <p className="mt-1 text-sm font-semibold leading-5 text-ink">{slotLabel}</p>
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${statusBadgeClass(booking.status)}`}>{statusLabel(booking.status)}</span>
-                          <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
+
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-ink">{booking.name}</p>
+                            <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${statusBadgeClass(booking.status)}`}>{statusLabel(booking.status)}</span>
+                            <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
+                          </div>
+                          <div className="mt-2 flex flex-col gap-1 text-sm text-graphite/65 sm:flex-row sm:flex-wrap sm:gap-x-4">
+                            <a className="inline-flex min-w-0 items-center gap-2 hover:text-ink" href={`mailto:${booking.email}`}>
+                              <Mail className="shrink-0" size={14} />
+                              <span className="truncate">{booking.email}</span>
+                            </a>
+                            <a className="inline-flex items-center gap-2 hover:text-ink" href={`tel:${booking.phone}`}>
+                              <Phone className="shrink-0" size={14} />
+                              {booking.phone}
+                            </a>
+                            <span className="inline-flex items-center gap-2">
+                              <Users className="shrink-0" size={14} />
+                              {booking.attendeeCount} fő
+                            </span>
+                          </div>
+                          {booking.adminNote ? <p className="mt-2 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
+                          {booking.cancellationReason ? <p className="mt-2 max-w-2xl rounded-md bg-red-50 px-3 py-2 text-xs leading-5 text-red-800"><strong>Lemondás oka:</strong> {booking.cancellationReason}</p> : null}
+                        </div>
+                        <div className="space-y-2 rounded-md border border-ink/10 bg-paper px-3 py-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-graphite/50">Kézbesítés</p>
+                          <DeliveryStatusLine label="Ügyfél e-mail" display={customerEmailDelivery} />
+                          <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
+                          <DeliveryStatusLine label="Google Calendar" display={calendarDelivery} />
+                        </div>
+
+                        <div className="grid gap-2 lg:justify-items-end">
+                          {session.postProductionWorkflowEnabled ? (
+                            <Link
+                              href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
+                              className="inline-flex h-10 w-full max-w-40 items-center justify-between gap-2 rounded-md border border-brass/20 bg-brass/5 px-3 text-xs font-semibold text-ink transition hover:bg-brass/10"
+                            >
+                              <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
+                              <ArrowRight size={14} />
+                            </Link>
+                          ) : null}
+                          <BookingManagementActions
+                            bookingId={booking.id}
+                            status={booking.status}
+                            canCloseBooking={canCloseBooking}
+                            currentSlot={currentSlot}
+                            rescheduleSlots={rescheduleSlots}
+                            showSlotDates={showSlotDates}
+                            customerEmailDelivery={customerEmailDelivery}
+                            adminEmailDelivery={adminEmailDelivery}
+                            calendarDelivery={calendarDelivery}
+                          />
                         </div>
                       </div>
-                      <div className="mt-3 space-y-1 text-sm text-graphite/70">
-                        <a className="flex items-center gap-2 hover:text-ink" href={`mailto:${booking.email}`}><Mail size={14} /> {booking.email}</a>
-                        <a className="flex items-center gap-2 hover:text-ink" href={`tel:${booking.phone}`}><Phone size={14} /> {booking.phone}</a>
-                        <p className="flex items-center gap-2"><Users size={14} /> {booking.attendeeCount} fő</p>
-                      </div>
-                      {booking.adminNote ? <p className="mt-3 text-xs text-graphite/60">Megjegyzés: {booking.adminNote}</p> : null}
-                      {booking.cancellationReason ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs leading-5 text-red-800"><strong>Lemondás oka:</strong> {booking.cancellationReason}</p> : null}
-                      {session.postProductionWorkflowEnabled ? (
-                        <Link
-                          href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
-                          className="mt-3 flex items-center justify-between rounded-md border border-brass/20 bg-brass/5 px-3 py-2 text-sm font-medium text-ink transition hover:bg-brass/10"
-                        >
-                          <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
-                          <ArrowRight size={15} />
-                        </Link>
-                      ) : null}
-                      <div className="mt-3 space-y-2 rounded-md border border-ink/10 bg-white px-3 py-3">
-                        <DeliveryStatusLine label="Ügyfél e-mail" display={customerEmailDelivery} />
-                        <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
-                        <DeliveryStatusLine label="Google Calendar" display={calendarDelivery} />
-                      </div>
-                      <div className="mt-4">
-                        <BookingManagementActions
-                          bookingId={booking.id}
-                          status={booking.status}
-                          canCloseBooking={canCloseBooking}
-                          currentSlot={currentSlot}
-                          rescheduleSlots={rescheduleSlots}
-                          showSlotDates={showSlotDates}
-                          customerEmailDelivery={customerEmailDelivery}
-                          adminEmailDelivery={adminEmailDelivery}
-                          calendarDelivery={calendarDelivery}
-                        />
-                      </div>
-                    </div>
+                    </article>
                   );
                 })}
-              </div>
-
-              <div className="mt-5 hidden overflow-hidden rounded-md border border-ink/10 md:block">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-paper text-xs uppercase tracking-[0.12em] text-graphite/55">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Idősáv</th>
-                      <th className="px-4 py-3 font-medium">Név</th>
-                      <th className="px-4 py-3 font-medium">Elérhetőség</th>
-                      <th className="px-4 py-3 font-medium">Állapot</th>
-                      <th className="px-4 py-3 font-medium">Kézbesítés</th>
-                      <th className="px-4 py-3 font-medium">Műveletek</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ink/10">
-                    {contactBookings.map((booking) => {
-                      const slotLabel = showSlotDates
-                        ? formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)
-                        : formatMiniSessionSlot(booking.startsAt, booking.endsAt);
-                      const isActive = booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED;
-                      const canCloseBooking = isActive && booking.endsAt <= now;
-                      const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", booking.cancellationReason ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
-                      const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
-                      const rescheduleSlots = [currentSlot, ...rescheduleSlotOptions.filter((slot) => slot.token !== currentSlot.token)];
-                      const customerEmailDelivery = deliveryDisplay({
-                        log: deliveryLogFor(booking.id, "email.mini_session.customer_confirmation"),
-                        sentAt: booking.customerEmailSentAt
-                      });
-                      const adminEmailDelivery = deliveryDisplay({
-                        log: deliveryLogFor(booking.id, "email.mini_session.admin_notification"),
-                        sentAt: booking.adminEmailSentAt
-                      });
-                      const calendarDelivery = deliveryDisplay({
-                        log: deliveryLogFor(booking.id, "google_calendar.mini_session_booking.sync"),
-                        sentAt: booking.googleCalendarSyncedAt,
-                        error: booking.googleCalendarSyncError
-                      });
-
-                      return (
-                        <tr
-                          key={booking.id}
-                          data-mini-session-booking-item
-                          data-mini-session-booking-record={booking.id}
-                          data-mini-session-booking-status={booking.status}
-                          data-mini-session-booking-source={booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL ? "manual" : "client"}
-                          data-mini-session-booking-search={searchText}
-                          hidden={!isActive}
-                        >
-                          <td className="px-4 py-3 font-medium text-ink">{slotLabel}</td>
-                          <td className="px-4 py-3 text-ink">
-                            {booking.name}
-                            {booking.adminNote ? <p className="mt-1 text-xs text-graphite/55">{booking.adminNote}</p> : null}
-                            {booking.cancellationReason ? <p className="mt-1 max-w-xs text-xs leading-5 text-red-700"><strong>Lemondás oka:</strong> {booking.cancellationReason}</p> : null}
-                          </td>
-                          <td className="px-4 py-3 text-graphite/70">
-                            <a className="block hover:text-ink" href={`mailto:${booking.email}`}>{booking.email}</a>
-                            <a className="mt-1 block hover:text-ink" href={`tel:${booking.phone}`}>{booking.phone}</a>
-                            <p className="mt-1 text-xs">{booking.attendeeCount} fő</p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col items-start gap-1">
-                              <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${statusBadgeClass(booking.status)}`}>{statusLabel(booking.status)}</span>
-                              <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${sourceBadgeClass(booking.source)}`}>{sourceLabel(booking.source)}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="min-w-48 space-y-2">
-                              <DeliveryStatusLine label="Ügyfél e-mail" display={customerEmailDelivery} />
-                              <DeliveryStatusLine label="Admin e-mail" display={adminEmailDelivery} />
-                              <DeliveryStatusLine label="Google Calendar" display={calendarDelivery} />
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="grid min-w-52 gap-2">
-                              {session.postProductionWorkflowEnabled ? (
-                                <Link
-                                  href={`/admin/mini-sessions/${session.id}/bookings/${booking.id}`}
-                                  className="inline-flex h-9 items-center justify-between gap-2 rounded-md border border-brass/20 bg-brass/5 px-3 text-xs font-semibold text-ink transition hover:bg-brass/10"
-                                >
-                                  <span>{miniSessionWorkflowStageLabel(deriveMiniSessionWorkflowStage(booking))}</span>
-                                  <ArrowRight size={14} />
-                                </Link>
-                              ) : null}
-                              <BookingManagementActions
-                                bookingId={booking.id}
-                                status={booking.status}
-                                canCloseBooking={canCloseBooking}
-                                currentSlot={currentSlot}
-                                rescheduleSlots={rescheduleSlots}
-                                showSlotDates={showSlotDates}
-                                customerEmailDelivery={customerEmailDelivery}
-                                adminEmailDelivery={adminEmailDelivery}
-                                calendarDelivery={calendarDelivery}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </>
           )}
