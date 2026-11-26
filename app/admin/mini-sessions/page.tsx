@@ -5,18 +5,16 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
-  CopyPlus,
-  Download,
-  ExternalLink,
   ListChecks,
   Mail,
   MapPin,
+  MapPinned,
   Phone,
   PlugZap,
   Plus,
+  Repeat2,
   Settings2,
   Users,
-  XCircle,
   type LucideIcon
 } from "lucide-react";
 import Link from "next/link";
@@ -26,7 +24,6 @@ import { AdminCalendarBlockPicker } from "@/components/admin-calendar-block-pick
 import { AdminCalendarBlockScopeForm } from "@/components/admin-calendar-block-scope-form";
 import { AdminShell } from "@/components/admin-shell";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { CopyLinkButton } from "@/components/copy-link-button";
 import { EmptyState } from "@/components/empty-state";
 import { FormSubmitButton } from "@/components/form-submit-button";
 import { MiniSessionCoverUploadBox } from "@/components/mini-session-cover-upload-box";
@@ -35,28 +32,19 @@ import { MiniSessionBookingFilters } from "@/components/mini-session-booking-fil
 import { adminOwnedWhere, ownerAdminId } from "@/lib/admin-scope";
 import { adminCalendarBlockAppliesToSession, adminCalendarBlockScopeLabel } from "@/lib/admin-calendar-blocks";
 import { requireAdmin } from "@/lib/auth";
-import { customerProjectTypeLabel } from "@/lib/customer-project-options";
-import { miniSessionPublicUrl } from "@/lib/email";
-import { miniSessionEmbedCode } from "@/lib/mini-session-embed";
 import { getAvailableMiniSessionSlots } from "@/lib/mini-session-availability";
 import {
   createMiniSessionAction,
   deleteAdminCalendarBlockAction,
-  duplicateMiniSessionAction,
   updateMiniSessionBookingStatusAction
 } from "@/lib/mini-session-actions";
 import {
-  createMiniSessionSlots,
-  filterMiniSessionSlotsByBookingNotice,
   formatMiniSessionDate,
   formatMiniSessionEventSchedule,
   formatMiniSessionTime,
-  miniSessionModeLabel,
   MINI_SESSION_BOOKING_MODE_RECURRING,
   MINI_SESSION_BOOKING_MODE_SINGLE_DAY,
   formatMiniSessionSlotWithDate,
-  miniSessionLanguageLabel,
-  miniSessionMinBookingNoticeLabel,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_CLIENT,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
@@ -77,24 +65,12 @@ import { deriveMiniSessionWorkflowStage, miniSessionWorkflowStageLabel } from "@
 
 type BookingHubTab = "overview" | "create" | "services" | "mini" | "bookings" | "calendar";
 type BookingCreateMode = "service" | "mini";
+type BookingCategory = "iris" | "services" | "mini";
 
 const fieldClass =
   "h-12 w-full min-w-0 max-w-full rounded-md border border-ink/15 bg-paper px-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
 const textAreaClass =
   "min-h-24 w-full min-w-0 rounded-md border border-ink/15 bg-paper px-3 py-3 text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
-const sessionActionLinkClass =
-  "inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-ink/10 px-2.5 text-xs font-medium text-ink transition hover:bg-ink/5 sm:px-3 sm:text-sm md:w-auto";
-const sessionActionButtonClass =
-  "h-9 w-full min-w-0 whitespace-nowrap px-2.5 text-xs sm:px-3 sm:text-sm md:w-auto";
-
-const bookingHubTabs: Array<{ key: BookingHubTab; label: string; icon: LucideIcon }> = [
-  { key: "overview", label: "Áttekintés", icon: CheckCircle2 },
-  { key: "create", label: "Létrehozás", icon: Plus },
-  { key: "services", label: "Állandó szolgáltatások", icon: BriefcaseBusiness },
-  { key: "mini", label: "Mini session napok", icon: CalendarClock },
-  { key: "bookings", label: "Foglalások", icon: Users },
-  { key: "calendar", label: "Naptár beállítások", icon: CalendarDays }
-];
 
 function activeTab(value: string | undefined): BookingHubTab {
   if (value === "create" || value === "services" || value === "mini" || value === "bookings" || value === "calendar") {
@@ -106,6 +82,24 @@ function activeTab(value: string | undefined): BookingHubTab {
 
 function activeCreateMode(value: string | undefined): BookingCreateMode {
   return value === "mini" ? "mini" : "service";
+}
+
+function activeCategory(value: string | undefined): BookingCategory | null {
+  if (value === "iris" || value === "services" || value === "mini") {
+    return value;
+  }
+
+  return null;
+}
+
+function categoryHref(category: BookingCategory) {
+  return `/admin/mini-sessions?category=${category}`;
+}
+
+function isIrisSession(session: { fulfillmentMode: string | null; title: string; slug: string }) {
+  const searchable = `${session.title} ${session.slug}`.toLocaleLowerCase("de-AT");
+
+  return session.fulfillmentMode === IRIS_FULFILLMENT_MODE || searchable.includes("iris");
 }
 
 function hubHref(tab: BookingHubTab, createMode: BookingCreateMode) {
@@ -149,17 +143,6 @@ function addDays(date: Date, days: number) {
   return result;
 }
 
-function isInRange(date: Date, startsAt: Date, endsAt: Date) {
-  return date >= startsAt && date < endsAt;
-}
-
-function formatProjectTime(project: { startTime: string | null; endTime: string | null }) {
-  if (!project.startTime || !project.endTime) {
-    return null;
-  }
-
-  return `${project.startTime}-${project.endTime}`;
-}
 
 function miniSessionBookingStatusLabel(status: string) {
   if (status === MINI_SESSION_BOOKING_STATUS_CANCELLED) {
@@ -240,41 +223,6 @@ function CreateModeSwitch({ createMode }: { createMode: BookingCreateMode }) {
           Mini nap
         </Link>
       </div>
-    </div>
-  );
-}
-
-function BookingHubTabs({
-  currentTab,
-  createMode
-}: {
-  currentTab: BookingHubTab;
-  createMode: BookingCreateMode;
-}) {
-  return (
-    <div className="mb-6 overflow-hidden rounded-md border border-ink/12 bg-white">
-      <nav className="grid grid-cols-1 gap-0 border-b border-ink/10 bg-white sm:grid-cols-2 xl:grid-cols-6" aria-label="Időpontfoglaló fülek">
-        {bookingHubTabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = currentTab === tab.key;
-
-          return (
-            <Link
-              key={tab.key}
-              href={hubHref(tab.key, createMode)}
-              aria-current={isActive ? "page" : undefined}
-              className={`flex min-h-11 items-center justify-center gap-2 border-b border-ink/10 px-3 text-sm font-medium transition last:border-b-0 sm:border-r sm:last:border-r-0 xl:border-b-0 ${
-                isActive
-                  ? "border-b-2 border-b-ink/50 bg-paper text-ink ring-1 ring-ink/5 sm:border-b sm:border-r"
-                  : "text-graphite hover:bg-ink/[0.04] hover:text-ink"
-              }`}
-            >
-              <Icon size={16} />
-              {tab.label}
-            </Link>
-          );
-        })}
-      </nav>
     </div>
   );
 }
@@ -601,6 +549,7 @@ export default async function AdminMiniSessionsPage({
     error?: string;
     deleted?: string;
     tab?: string;
+    category?: string;
     create?: string;
     calendarBlocked?: string;
     calendarDeleted?: string;
@@ -614,12 +563,13 @@ export default async function AdminMiniSessionsPage({
   const workspaceAdminId = ownerAdminId(admin);
   const flags = await searchParams;
   const currentTab = activeTab(flags.tab);
+  const selectedCategory = activeCategory(flags.category)
+    ?? (currentTab === "services" ? "services" : currentTab === "mini" ? "mini" : null);
   const createMode = activeCreateMode(flags.create);
   const now = new Date();
   const today = startOfDay(now);
   const tomorrow = addDays(today, 1);
-  const weekEnd = addDays(today, 7);
-  const [sessions, calendarBlocks, weekProjects, siteSettings] = await Promise.all([
+  const [sessions, calendarBlocks] = await Promise.all([
     prisma.miniSession.findMany({
       where: adminOwnedWhere(admin),
       orderBy: [{ startsAt: "desc" }],
@@ -653,55 +603,30 @@ export default async function AdminMiniSessionsPage({
           }
         }
       }
-    }),
-    prisma.customerProject.findMany({
-      where: {
-        eventDate: {
-          gte: today,
-          lt: weekEnd
-        },
-        status: { not: "archived" },
-        customer: adminOwnedWhere(admin)
-      },
-      orderBy: [{ eventDate: "asc" }, { createdAt: "asc" }],
-      take: 12,
-      select: {
-        id: true,
-        title: true,
-        projectType: true,
-        eventDate: true,
-        startTime: true,
-        endTime: true,
-        venue: true,
-        customer: {
-          select: {
-            id: true,
-            coupleName: true
-          }
-        }
-      }
-    }),
-    prisma.siteSettings.findUnique({
-      where: { adminId: workspaceAdminId },
-      select: { publicSubdomain: true }
     })
   ]);
-  const publicSubdomain = siteSettings?.publicSubdomain ?? null;
-  const shouldLoadSessionMetrics = currentTab === "overview" || currentTab === "services" || currentTab === "mini";
-  const sessionMetricEntries = shouldLoadSessionMetrics
-    ? await Promise.all(
-        sessions.map(async (session) => {
-          const slots = createMiniSessionSlots(session);
-          const bookableSlots = filterMiniSessionSlotsByBookingNotice(slots, session.minBookingNoticeMinutes);
-          const availableSlots = await getAvailableMiniSessionSlots(session);
+  const irisSessions = sessions.filter(isIrisSession);
+  const recurringServices = sessions.filter(
+    (session) => !isIrisSession(session) && session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING
+  );
+  const miniSessionDays = sessions.filter(
+    (session) => !isIrisSession(session) && session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING
+  );
+  const sessionsForMetrics = selectedCategory === "iris"
+    ? irisSessions
+    : selectedCategory === "services"
+      ? recurringServices
+      : selectedCategory === "mini"
+        ? miniSessionDays
+        : [];
+  const sessionMetricEntries = await Promise.all(
+    sessionsForMetrics.map(async (session) => {
+      const availableSlots = await getAvailableMiniSessionSlots(session);
 
-          return [session.id, { bookableSlotCount: bookableSlots.length, freeSlotCount: availableSlots.length }] as const;
-        })
-      )
-    : [];
+      return [session.id, { freeSlotCount: availableSlots.length }] as const;
+    })
+  );
   const sessionMetrics = new Map(sessionMetricEntries);
-  const recurringServices = sessions.filter((session) => session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING);
-  const miniSessionDays = sessions.filter((session) => session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING);
   const contactBookings = sessions
     .flatMap((session) =>
       session.bookings
@@ -709,7 +634,6 @@ export default async function AdminMiniSessionsPage({
         .map((booking) => ({ session, booking }))
     )
     .sort((a, b) => b.booking.startsAt.getTime() - a.booking.startsAt.getTime());
-  const freeSlotCount = [...sessionMetrics.values()].reduce((total, metrics) => total + metrics.freeSlotCount, 0);
   const activeBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
   const completedBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_COMPLETED);
   const noShowBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_NO_SHOW);
@@ -718,12 +642,6 @@ export default async function AdminMiniSessionsPage({
   const manualBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL);
   const activeAttendeeCount = activeBookings.reduce((total, item) => total + item.booking.attendeeCount, 0);
   const uniqueContactCount = new Set(contactBookings.map((item) => item.booking.email.toLowerCase())).size;
-  const upcomingBookings = activeBookings
-    .filter((item) => item.booking.startsAt >= now)
-    .sort((a, b) => a.booking.startsAt.getTime() - b.booking.startsAt.getTime());
-  const todayBookingCount = activeBookings.filter((item) => isInRange(item.booking.startsAt, today, tomorrow)).length;
-  const weekBookingCount = activeBookings.filter((item) => isInRange(item.booking.startsAt, today, weekEnd)).length;
-  const todayProjectCount = weekProjects.filter((project) => project.eventDate && isInRange(project.eventDate, today, tomorrow)).length;
   const activeCalendarBlocks = calendarBlocks.filter((block) => block.endsAt >= now);
   const todayCalendarBlocks = calendarBlocks.filter((block) => block.startsAt < tomorrow && block.endsAt > today);
   const expiredCalendarBlocks = calendarBlocks.filter((block) => block.endsAt < now);
@@ -733,14 +651,46 @@ export default async function AdminMiniSessionsPage({
       .filter((session) => adminCalendarBlockAppliesToSession(block, session))
       .map((session) => session.id)
   )).size;
-  const hasInactivePublicPages = sessions.some((session) => !session.isActive);
-  const dashboardIssues = [
-    freeSlotCount === 0 ? "Nincs szabad idősáv a jelenlegi foglalóknál." : null,
-    nextCalendarBlock ? `Következő naptár tiltás: ${nextCalendarBlock.title} (${formatCalendarBlockRange(nextCalendarBlock.startsAt, nextCalendarBlock.endsAt)})` : null,
-    hasInactivePublicPages ? "Van rejtett foglalási oldal, amit érdemes ellenőrizni." : null
-  ].filter((issue): issue is string => Boolean(issue));
-  const showServices = currentTab === "services";
-  const showMiniDays = currentTab === "mini";
+  const categoryDefinitions: Array<{
+    key: BookingCategory;
+    title: string;
+    description: string;
+    icon: LucideIcon;
+    sessions: typeof sessions;
+    createMode: BookingCreateMode;
+  }> = [
+    {
+      key: "iris",
+      title: "Íriszfotózás városonként",
+      description: "A grazi állandó szolgáltatás és az íriszfotós roadshow-helyszínek egy helyen.",
+      icon: MapPinned,
+      sessions: irisSessions,
+      createMode: "service"
+    },
+    {
+      key: "services",
+      title: "Állandó szolgáltatások",
+      description: "Hetente ismétlődő, folyamatosan foglalható egyéb szolgáltatások.",
+      icon: Repeat2,
+      sessions: recurringServices,
+      createMode: "service"
+    },
+    {
+      key: "mini",
+      title: "Mini fotózás napok",
+      description: "Egyszeri, dátumhoz kötött fotózási események az íriszroadshow-kon kívül.",
+      icon: CalendarDays,
+      sessions: miniSessionDays,
+      createMode: "mini"
+    }
+  ];
+  const selectedCategoryDefinition = selectedCategory
+    ? categoryDefinitions.find((category) => category.key === selectedCategory) ?? null
+    : null;
+  const SelectedCategoryIcon = selectedCategoryDefinition?.icon ?? CalendarClock;
+  const nextEventSession = sessions
+    .filter((session) => session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING && session.endsAt >= now)
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())[0] ?? null;
   const showBookings = currentTab === "bookings";
 
   return (
@@ -750,15 +700,21 @@ export default async function AdminMiniSessionsPage({
           <p className="text-xs uppercase tracking-[0.16em] text-graphite/60">Időpontfoglaló</p>
           <h1 className="mt-2 text-3xl font-semibold text-ink">Foglalási központ</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-graphite/70">
-            Állandó szolgáltatások, mini session napok, foglalások és globális naptárblokkolások egy helyen.
+            Válassz kategóriát, majd kezeld annak foglalóit, időpontjait és beállításait.
           </p>
         </div>
-        <Link href="/admin/mini-sessions/irismoment" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-ink transition hover:bg-ink/5">
-          <PlugZap size={16} /> irismoment
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={hubHref("bookings", createMode)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+            <Users size={15} /> Összes foglalás
+          </Link>
+          <Link href={hubHref("calendar", createMode)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+            <CalendarDays size={15} /> Naptár
+          </Link>
+          <Link href={hubHref("create", "service")} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+            <Plus size={15} /> Új foglaló
+          </Link>
+        </div>
       </div>
-
-      <BookingHubTabs currentTab={currentTab} createMode={createMode} />
 
       <div className="mb-5 space-y-3">
         {flags.error === "missing" ? <Alert title="Hiányzó vagy hibás adat." variant="error" /> : null}
@@ -778,151 +734,74 @@ export default async function AdminMiniSessionsPage({
         {flags.calendarUpdated ? <Alert title="A naptártiltás hatóköre frissítve." variant="success" /> : null}
       </div>
 
-      {currentTab === "overview" ? (
-        <div className="space-y-6">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-              <p className="truncate text-lg font-semibold text-ink">
-                {upcomingBookings[0] ? formatMiniSessionDate(upcomingBookings[0].booking.startsAt) : "Nincs"}
-              </p>
-              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-                <CalendarClock size={13} />
-                Következő foglalás
-              </p>
-            </Link>
-            <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-              <p className="text-2xl font-semibold text-ink">{todayBookingCount + todayProjectCount}</p>
-              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-                <Users size={13} />
-                Fotózás ma
-              </p>
-            </Link>
-            <Link href={hubHref("bookings", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-              <p className="text-2xl font-semibold text-ink">{weekBookingCount + weekProjects.length}</p>
-              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-                <CalendarDays size={13} />
-                Következő 7 nap
-              </p>
-            </Link>
-            <Link href={hubHref("calendar", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-              <p className="text-2xl font-semibold text-ink">{activeCalendarBlocks.length}</p>
-              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-                <Ban size={13} />
-                Aktív tiltás
-              </p>
-            </Link>
-            <Link href={hubHref("services", createMode)} className="rounded-lg border border-ink/10 bg-white p-4 shadow-soft transition hover:border-ink/20">
-              <p className="text-2xl font-semibold text-sage">{freeSlotCount}</p>
-              <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55">
-                <CheckCircle2 size={13} />
-                Szabad idősáv
-              </p>
-            </Link>
+      {currentTab === "overview" && !selectedCategoryDefinition ? (
+        <div className="space-y-5">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-brass">Foglalható kategóriák</p>
+            <h2 className="mt-2 text-2xl font-semibold text-ink">Mit szeretnél kezelni?</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">
+              Először válassz kategóriát. A foglalók, időpontok és beállítások csak a kiválasztott területen jelennek meg.
+            </p>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-                <div>
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
-                    <ListChecks size={15} />
-                    Mai fókusz
+          <div className="grid gap-4 lg:grid-cols-3">
+            {categoryDefinitions.map((category) => {
+              const CategoryIcon = category.icon;
+              const bookingCount = category.sessions.reduce(
+                (total, session) => total + session.bookings.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED).length,
+                0
+              );
+              const activeCount = category.sessions.filter((session) => session.isActive).length;
+
+              return (
+                <Link
+                  key={category.key}
+                  href={categoryHref(category.key)}
+                  className="group relative flex min-h-64 flex-col rounded-lg border border-ink/10 bg-white p-5 shadow-soft transition hover:border-brass/50 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="flex size-11 items-center justify-center rounded-md bg-brass/10 text-brass">
+                      <CategoryIcon size={20} />
+                    </span>
+                    <ArrowRight size={18} className="text-graphite/40 transition group-hover:translate-x-1 group-hover:text-brass" />
                   </div>
-                  <h2 className="mt-2 text-lg font-semibold text-ink">Következő foglalások</h2>
-                </div>
-                <Link href={hubHref("bookings", createMode)} className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
-                  <Users size={14} />
-                  Összes foglalás
+                  <div className="mt-auto pt-8">
+                    <h3 className="text-lg font-semibold text-ink">{category.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-graphite/65">{category.description}</p>
+                    <p className="mt-4 text-xs font-medium text-graphite/60">
+                      {category.sessions.length} foglaló · {activeCount} aktív · {bookingCount} ügyfélfoglalás
+                    </p>
+                  </div>
                 </Link>
+              );
+            })}
+          </div>
+
+          {nextEventSession ? (
+            <section className="grid gap-4 rounded-lg border border-ink/10 bg-white p-4 shadow-soft sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-center">
+              <div className="rounded-md bg-paper px-3 py-3 text-center">
+                <p className="text-sm font-semibold text-ink">{formatMiniSessionDate(nextEventSession.startsAt)}</p>
+                <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-graphite/55">Következő esemény</p>
               </div>
-
-              {upcomingBookings.length === 0 ? (
-                <p className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">
-                  Nincs közelgő ügyfélfoglalás.
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-semibold text-ink">{nextEventSession.title}</h3>
+                <p className="mt-1 text-sm text-graphite/65">
+                  {formatMiniSessionEventSchedule(nextEventSession.eventDays, nextEventSession.startsAt, nextEventSession.endsAt)} · {nextEventSession.location}
                 </p>
-              ) : (
-                <div className="mt-5 divide-y divide-ink/10 overflow-hidden rounded-md border border-ink/10">
-                  {upcomingBookings.slice(0, 5).map(({ session, booking }) => (
-                    <Link
-                      key={booking.id}
-                      href={`/admin/mini-sessions/${session.id}?tab=bookings`}
-                      className="grid gap-2 bg-white px-4 py-3 transition hover:bg-paper sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ink">{booking.name}</p>
-                        <p className="mt-1 truncate text-xs text-graphite/60">{session.title} · {booking.attendeeCount} fő</p>
-                      </div>
-                      <p className="text-sm text-graphite/75 sm:text-right">{formatMiniSessionSlotWithDate(booking.startsAt, booking.endsAt)}</p>
-                    </Link>
-                  ))}
-                </div>
-              )}
+              </div>
+              <Link href={`/admin/mini-sessions/${nextEventSession.id}?tab=bookings`} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-4 text-sm font-medium text-ink transition hover:bg-ink/5">
+                Megnyitás <ArrowRight size={14} />
+              </Link>
             </section>
+          ) : null}
 
-            <aside className="space-y-5">
-              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
-                  <Plus size={15} />
-                  Gyors műveletek
-                </div>
-                <div className="mt-4 grid gap-2">
-                  <Link href={hubHref("create", "service")} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-medium text-white transition hover:bg-graphite">
-                    <BriefcaseBusiness size={15} />
-                    Állandó fotózás
-                  </Link>
-                  <Link href={hubHref("create", "mini")} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
-                    <CalendarClock size={15} />
-                    Mini session nap
-                  </Link>
-                  <Link href={hubHref("calendar", createMode)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
-                    <Ban size={15} />
-                    Naptár tiltása
-                  </Link>
-                </div>
-              </section>
-
-              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
-                  <CheckCircle2 size={15} />
-                  Állapot
-                </div>
-                {dashboardIssues.length === 0 ? (
-                  <p className="mt-4 rounded-md bg-sage/10 px-3 py-3 text-sm leading-6 text-sage">
-                    Minden rendben: van szabad idősáv, és nincs sürgős naptár figyelmeztetés.
-                  </p>
-                ) : (
-                  <div className="mt-4 space-y-2">
-                    {dashboardIssues.map((issue) => (
-                      <p key={issue} className="rounded-md bg-paper px-3 py-3 text-sm leading-6 text-graphite/75">
-                        {issue}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
-                  <CalendarDays size={15} />
-                  Normál projektek
-                </div>
-                {weekProjects.length === 0 ? (
-                  <p className="mt-4 text-sm leading-6 text-graphite/70">A következő 7 napban nincs ügyfélprojekt.</p>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    {weekProjects.slice(0, 4).map((project) => (
-                      <Link key={project.id} href={`/admin/clients/${project.customer.id}?tab=projects`} className="block rounded-md border border-ink/10 px-3 py-3 transition hover:bg-paper">
-                        <p className="truncate text-sm font-semibold text-ink">{project.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-graphite/65">
-                          {project.eventDate ? formatMiniSessionDate(project.eventDate) : "Nincs dátum"} · {customerProjectTypeLabel(project.projectType)}
-                          {formatProjectTime(project) ? ` · ${formatProjectTime(project)}` : ""}
-                        </p>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </aside>
+          <div className="flex flex-wrap gap-2 border-t border-ink/10 pt-5">
+            <Link href="/admin/mini-sessions/irismoment" className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+              <PlugZap size={14} /> irismoment kapcsolat
+            </Link>
+            <Link href={hubHref("calendar", createMode)} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5">
+              <Ban size={14} /> Globális naptárblokkolások
+            </Link>
           </div>
         </div>
       ) : null}
@@ -960,202 +839,90 @@ export default async function AdminMiniSessionsPage({
       ) : null}
 
       <div className="mt-6 space-y-8">
-        {sessions.length === 0 && currentTab !== "overview" && currentTab !== "calendar" && currentTab !== "create" ? (
-          <EmptyState
-            icon={<CalendarClock size={22} />}
-            title="Még nincs foglaló"
-            description="Hozz létre állandó szolgáltatást vagy mini session napot, majd oszd meg a publikus linket."
-          />
-        ) : null}
+        {selectedCategoryDefinition && (currentTab === "overview" || currentTab === "services" || currentTab === "mini") ? (
+          <section className="space-y-5">
+            <Link href="/admin/mini-sessions" className="inline-flex h-9 items-center gap-2 text-sm font-medium text-graphite transition hover:text-ink">
+              <ArrowRight size={14} className="rotate-180" /> Vissza a kategóriákhoz
+            </Link>
 
-        {[
-          {
-            id: "recurring-services",
-            title: "Állandó szolgáltatások",
-            description: "Mindig foglalható fotózások, saját heti elérhetőséggel.",
-            icon: BriefcaseBusiness,
-            items: recurringServices,
-            visible: showServices,
-            createHref: hubHref("create", "service"),
-            createLabel: "Új állandó fotózás"
-          },
-          {
-            id: "mini-session-days",
-            title: "Mini session napok",
-            description: "Egyszeri fotózási napok fix dátummal és idősávokkal.",
-            icon: CalendarClock,
-            items: miniSessionDays,
-            visible: showMiniDays,
-            createHref: hubHref("create", "mini"),
-            createLabel: "Új mini session nap"
-          }
-        ].map((group) => {
-          const GroupIcon = group.icon;
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-brass">
+                  <SelectedCategoryIcon size={15} /> Kiválasztott kategória
+                </div>
+                <h2 className="mt-2 text-2xl font-semibold text-ink">{selectedCategoryDefinition.title}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-graphite/70">{selectedCategoryDefinition.description}</p>
+              </div>
+              <Link href={hubHref("create", selectedCategoryDefinition.createMode)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
+                <Plus size={15} /> Új foglaló ebben a kategóriában
+              </Link>
+            </div>
 
-          if (!group.visible) {
-            return null;
-          }
-
-          if (group.items.length === 0) {
-            return currentTab === "services" || currentTab === "mini" ? (
+            {selectedCategoryDefinition.sessions.length === 0 ? (
               <EmptyState
-                key={group.id}
-                icon={<GroupIcon size={22} />}
-                title={`Még nincs ${group.title.toLowerCase()}`}
-                description="Hozz létre egy foglalási oldalt, majd oszd meg a publikus linket."
-                action={
-                  <Link href={group.createHref} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-white transition hover:bg-graphite">
-                    <Plus size={15} />
-                    {group.createLabel}
-                  </Link>
-                }
+                icon={<SelectedCategoryIcon size={22} />}
+                title="Ebben a kategóriában még nincs foglaló"
+                description="Hozz létre egy új foglalási oldalt. A többi kategória adatai változatlanok maradnak."
               />
-            ) : null;
-          }
+            ) : (
+              <div className="overflow-hidden rounded-lg border border-ink/10 bg-white shadow-soft">
+                {selectedCategoryDefinition.sessions.map((session) => {
+                  const metrics = sessionMetrics.get(session.id);
+                  const activeSessionBookings = session.bookings.filter(
+                    (booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED && booking.source !== MINI_SESSION_BOOKING_SOURCE_BLOCKED
+                  );
+                  const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
 
-          const groupActiveCount = group.items.filter((session) => session.isActive).length;
-          const groupBookedCount = group.items.reduce(
-            (total, session) => total + session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED).length,
-            0
-          );
-          const groupFreeSlotCount = group.items.reduce(
-            (total, session) => total + (sessionMetrics.get(session.id)?.freeSlotCount ?? 0),
-            0
-          );
-
-          return (
-            <section key={group.id} id={group.id} className="space-y-4">
-              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-                <div>
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-graphite/60">
-                    <GroupIcon size={15} />
-                    {group.title}
-                  </div>
-                  <p className="mt-2 text-sm text-graphite/70">{group.description}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                    {group.items.length} elem
-                  </span>
-                  <span className="inline-flex w-fit rounded-full bg-sage/10 px-3 py-1 text-xs font-medium text-sage">
-                    {groupActiveCount} aktív
-                  </span>
-                  <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                    {groupFreeSlotCount} szabad idősáv
-                  </span>
-                  <span className="inline-flex w-fit rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                    {groupBookedCount} foglalás
-                  </span>
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Link href={group.createHref} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 sm:w-auto">
-                  <Plus size={14} />
-                  {group.createLabel}
-                </Link>
-              </div>
-
-              {group.items.map((session) => {
-                const booked = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_BOOKED);
-                const cancelled = session.bookings.filter((booking) => booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
-                const metrics = sessionMetrics.get(session.id);
-                const bookableSlotCount = metrics?.bookableSlotCount ?? 0;
-                const freeSessionSlotCount = metrics?.freeSlotCount ?? 0;
-                const publicUrl = miniSessionPublicUrl(session.slug, publicSubdomain);
-                const embedCode = miniSessionEmbedCode(session.slug, session.title, publicSubdomain);
-                const isRecurring = session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING;
-
-                return (
-                  <section id={`mini-session-${session.id}`} key={session.id} className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
-                    <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-xl font-semibold text-ink">{session.title}</h2>
-                          <span className="rounded-full bg-ink/5 px-3 py-1 text-xs font-medium text-graphite">
-                            {miniSessionModeLabel(session.bookingMode)}
-                          </span>
-                          <span className={`rounded-full px-3 py-1 text-xs font-medium ${session.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
-                            {session.isActive ? "Aktív" : "Rejtett"}
-                          </span>
-                          {session.fulfillmentMode === IRIS_FULFILLMENT_MODE ? (
-                            <span className="rounded-full bg-brass/15 px-3 py-1 text-xs font-semibold text-brass">
-                              irismoment
+                  return (
+                    <article key={session.id} className="grid gap-4 border-b border-ink/10 p-4 last:border-b-0 lg:grid-cols-[minmax(240px,1.4fr)_minmax(180px,.9fr)_130px_auto] lg:items-center">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-paper text-brass">
+                          {isRecurring ? <Repeat2 size={17} /> : <MapPin size={17} />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="truncate text-base font-semibold text-ink">{session.title}</h3>
+                            <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${session.isActive ? "bg-sage/15 text-sage" : "bg-ink/5 text-graphite"}`}>
+                              {session.isActive ? "Aktív" : "Rejtett"}
                             </span>
-                          ) : null}
+                          </div>
+                          <p className="mt-1 flex items-center gap-1.5 truncate text-sm text-graphite/65"><MapPin size={13} /> {session.location}</p>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-3 text-sm text-graphite/70">
-                          <span className="inline-flex items-center gap-1.5">
-                            <CalendarClock size={15} />
-                            {isRecurring
-                              ? `Foglalható ${session.bookingWindowDays} napra előre`
-                              : formatMiniSessionEventSchedule(session.eventDays, session.startsAt, session.endsAt)}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5"><MapPin size={15} /> {session.location}</span>
-                          <span>LP nyelv: {miniSessionLanguageLabel(session.language)}</span>
-                          <span>Minimum foglalás: {miniSessionMinBookingNoticeLabel(session.minBookingNoticeMinutes)}</span>
-                        </div>
-                        <p className="mt-2 text-sm text-graphite/60">/mini-session/{session.slug}</p>
-                        {session.isActive && freeSessionSlotCount === 0 ? (
-                          <p className="mt-3 inline-flex items-center gap-2 rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                            <Ban size={13} />
-                            Nincs szabad idősáv, a publikus oldalon nem lesz foglalható időpont.
-                          </p>
-                        ) : null}
                       </div>
-                      <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 xl:w-auto xl:flex xl:flex-nowrap">
-                        <Link className="inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-ink px-2.5 text-xs font-medium text-white transition hover:bg-graphite sm:px-3 sm:text-sm xl:w-auto" href={`/admin/mini-sessions/${session.id}`}>
-                          <Settings2 size={14} />
-                          Kezelés
-                        </Link>
-                        {!isRecurring ? (
-                          <form action={duplicateMiniSessionAction.bind(null, session.id)} className="w-full xl:w-auto">
-                            <FormSubmitButton
-                              variant="secondary"
-                              pendingLabel="Másolás..."
-                              className={sessionActionButtonClass}
-                            >
-                              <CopyPlus size={14} />
-                              Duplikálás
-                            </FormSubmitButton>
-                          </form>
-                        ) : null}
-                        <Link className={sessionActionLinkClass} href={publicUrl} target="_blank">
-                          <ExternalLink size={14} />
-                          Megnyitás
-                        </Link>
-                        <CopyLinkButton url={publicUrl} label="Link másolása" className={sessionActionButtonClass} />
-                        <CopyLinkButton url={embedCode} label="HTML kód" className={sessionActionButtonClass} />
-                        <Link className={sessionActionLinkClass} href={`/admin/mini-sessions/${session.id}/export`}>
-                          <Download size={14} />
-                          CSV export
-                        </Link>
-                      </div>
-                    </div>
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-4">
-                      <Link href={`/admin/mini-sessions/${session.id}?tab=slots`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
-                        <p className="text-lg font-semibold text-ink">{bookableSlotCount}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><CalendarClock size={13} /> Foglalható idősáv</p>
-                      </Link>
-                      <Link href={`/admin/mini-sessions/${session.id}?tab=slots`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
-                        <p className="text-lg font-semibold text-sage">{freeSessionSlotCount}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><CheckCircle2 size={13} /> Szabad</p>
-                      </Link>
-                      <Link href={`/admin/mini-sessions/${session.id}?tab=bookings`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
-                        <p className="text-lg font-semibold text-ink">{booked.length}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><Users size={13} /> Foglalt</p>
-                      </Link>
-                      <Link href={`/admin/mini-sessions/${session.id}?tab=bookings`} className="rounded-md bg-paper px-3 py-3 transition hover:bg-ink/5">
-                        <p className="text-lg font-semibold text-graphite">{cancelled.length}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs uppercase tracking-[0.12em] text-graphite/55"><XCircle size={13} /> Törölt</p>
-                      </Link>
-                    </div>
-                  </section>
-                );
-              })}
-            </section>
-          );
-        })}
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.1em] text-graphite/50">Elérhetőség</p>
+                        <p className="mt-1 text-sm text-ink">
+                          {isRecurring
+                            ? `${session.bookingWindowDays} napra előre foglalható`
+                            : formatMiniSessionEventSchedule(session.eventDays, session.startsAt, session.endsAt)}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.1em] text-graphite/50">Foglalások</p>
+                        <p className="mt-1 text-sm font-medium text-ink">{activeSessionBookings.length} aktív</p>
+                        <p className="mt-1 text-xs text-graphite/55">{metrics?.freeSlotCount ?? 0} szabad idősáv</p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 lg:flex lg:justify-end">
+                        <Link href={`/admin/mini-sessions/${session.id}?tab=bookings`} className="inline-flex h-9 items-center justify-center rounded-md border border-ink/10 px-3 text-xs font-medium text-ink transition hover:bg-ink/5">
+                          Foglalók
+                        </Link>
+                        <Link href={`/admin/mini-sessions/${session.id}?tab=slots`} className="inline-flex h-9 items-center justify-center rounded-md border border-ink/10 px-3 text-xs font-medium text-ink transition hover:bg-ink/5">
+                          Időpontok
+                        </Link>
+                        <Link href={`/admin/mini-sessions/${session.id}?tab=settings`} className="inline-flex h-9 items-center justify-center rounded-md bg-ink px-3 text-xs font-medium text-white transition hover:bg-graphite">
+                          Beállítások
+                        </Link>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        ) : null}
 
         {showBookings ? (
           <section id="bookings" className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
