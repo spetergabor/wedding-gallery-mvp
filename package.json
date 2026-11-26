@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
-    "prisma:deploy": "node scripts/prisma-deploy.mjs",
+    "prisma:deploy": "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 prisma migrate deploy",
     "zip-worker": "tsx workers/zip-worker.ts",
     "prisma:migrate": "prisma migrate dev",
     "test:meta-ads": "node --import tsx --test lib/meta-ads/__tests__/*.test.ts",
