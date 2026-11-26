@@ -687,17 +687,19 @@ export default async function AdminMiniSessionsPage({
     })
   ]);
   const publicSubdomain = siteSettings?.publicSubdomain ?? null;
-  const sessionMetrics = new Map(
-    await Promise.all(
-      sessions.map(async (session) => {
-        const slots = createMiniSessionSlots(session);
-        const bookableSlots = filterMiniSessionSlotsByBookingNotice(slots, session.minBookingNoticeMinutes);
-        const availableSlots = await getAvailableMiniSessionSlots(session);
+  const shouldLoadSessionMetrics = currentTab === "overview" || currentTab === "services" || currentTab === "mini";
+  const sessionMetricEntries = shouldLoadSessionMetrics
+    ? await Promise.all(
+        sessions.map(async (session) => {
+          const slots = createMiniSessionSlots(session);
+          const bookableSlots = filterMiniSessionSlotsByBookingNotice(slots, session.minBookingNoticeMinutes);
+          const availableSlots = await getAvailableMiniSessionSlots(session);
 
-        return [session.id, { bookableSlotCount: bookableSlots.length, freeSlotCount: availableSlots.length }] as const;
-      })
-    )
-  );
+          return [session.id, { bookableSlotCount: bookableSlots.length, freeSlotCount: availableSlots.length }] as const;
+        })
+      )
+    : [];
+  const sessionMetrics = new Map(sessionMetricEntries);
   const recurringServices = sessions.filter((session) => session.bookingMode === MINI_SESSION_BOOKING_MODE_RECURRING);
   const miniSessionDays = sessions.filter((session) => session.bookingMode !== MINI_SESSION_BOOKING_MODE_RECURRING);
   const contactBookings = sessions
@@ -1309,6 +1311,7 @@ export default async function AdminMiniSessionsPage({
                         ) : null}
                         <Link
                           href={`/admin/mini-sessions/${session.id}?tab=bookings`}
+                          prefetch={false}
                           className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md border border-ink/10 px-3 text-sm font-medium text-ink transition hover:bg-ink/5 md:w-auto"
                         >
                           <Settings2 size={14} />

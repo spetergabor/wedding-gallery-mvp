@@ -32,6 +32,7 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+const GOOGLE_REQUEST_TIMEOUT_MS = 5_000;
 const GOOGLE_CALENDAR_SCOPES = [
   "openid",
   "email",
@@ -115,6 +116,26 @@ export class GoogleCalendarApiError extends Error {
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
+  }
+}
+
+async function googleFetch(input: string | URL, init: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GOOGLE_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new GoogleCalendarApiError(504, "Google Calendar request timed out.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -228,7 +249,7 @@ async function readGoogleTokenResponse(response: Response) {
 
 export async function exchangeGoogleCalendarCode(code: string) {
   const config = googleCalendarConfig();
-  const response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await googleFetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -245,7 +266,7 @@ export async function exchangeGoogleCalendarCode(code: string) {
 
 async function refreshGoogleCalendarToken(refreshToken: string) {
   const config = googleCalendarConfig();
-  const response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await googleFetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -313,7 +334,7 @@ async function getFreshGoogleCalendarAccessToken(integration: GoogleCalendarInte
 }
 
 export async function fetchGoogleCalendarProfile(accessToken: string) {
-  const response = await fetch(GOOGLE_USERINFO_URL, {
+  const response = await googleFetch(GOOGLE_USERINFO_URL, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   const payload = await response.json().catch(() => ({})) as GoogleProfileResponse;
@@ -326,7 +347,7 @@ export async function fetchGoogleCalendarProfile(accessToken: string) {
 }
 
 export async function fetchGoogleCalendarList(accessToken: string): Promise<GoogleCalendarOption[]> {
-  const response = await fetch(`${GOOGLE_CALENDAR_API_BASE}/users/me/calendarList`, {
+  const response = await googleFetch(`${GOOGLE_CALENDAR_API_BASE}/users/me/calendarList`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   const payload = await response.json().catch(() => ({})) as GoogleCalendarListResponse;
@@ -370,7 +391,7 @@ async function googleCalendarRequest<T>(
     throw new Error("Google Calendar access token is missing.");
   }
 
-  const response = await fetch(`${GOOGLE_CALENDAR_API_BASE}${path}`, {
+  const response = await googleFetch(`${GOOGLE_CALENDAR_API_BASE}${path}`, {
     method: options.method ?? "GET",
     headers: {
       Authorization: `Bearer ${accessToken}`,
