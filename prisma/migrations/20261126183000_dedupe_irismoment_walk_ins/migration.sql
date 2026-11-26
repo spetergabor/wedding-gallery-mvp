@@ -14,14 +14,13 @@ WITH "rankedWalkIns" AS (
         ("finalDeliveredAt" IS NOT NULL) DESC,
         ("irisFolderName" IS NOT NULL) DESC,
         ("workflowStatus" <> 'shoot_scheduled') DESC,
+        ("source" <> 'walk_in') DESC,
         "createdAt" ASC,
         "updatedAt" DESC,
         "id" ASC
     ) AS "duplicateRank"
   FROM "MiniSessionBooking"
-  WHERE
-    "source" = 'walk_in'
-    AND "irisExternalClientId" IS NOT NULL
+  WHERE "irisExternalClientId" IS NOT NULL
 )
 UPDATE "MiniSessionBooking" AS "booking"
 SET
