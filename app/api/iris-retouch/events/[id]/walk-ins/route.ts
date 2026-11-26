@@ -22,13 +22,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const email = text(payload?.email).toLowerCase();
   const phone = text(payload?.phone, 100);
   const attendeeCount = Math.min(10, Math.max(1, Number(payload?.attendeeCount) || 1));
+  const externalClientId = text(payload?.externalClientId, 100);
   if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ ok: false, code: "invalid_guest" }, { status: 400 });
   }
+  if (!externalClientId) {
+    return NextResponse.json({ ok: false, code: "invalid_external_client_id" }, { status: 400 });
+  }
   const startsAt = new Date();
   const endsAt = new Date(startsAt.getTime() + event.durationMinutes * 60_000);
-  const booking = await prisma.miniSessionBooking.create({
-    data: {
+  const booking = await prisma.miniSessionBooking.upsert({
+    where: {
+      miniSessionId_irisExternalClientId: {
+        miniSessionId: event.id,
+        irisExternalClientId: externalClientId
+      }
+    },
+    create: {
       miniSessionId: event.id,
       name,
       email,
@@ -40,7 +50,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       cancelToken: randomBytes(24).toString("hex"),
       irisStatus: "checked_in",
       irisCheckedInAt: startsAt,
-      irisExternalClientId: text(payload?.externalClientId, 100) || null
+      irisExternalClientId: externalClientId
+    },
+    update: {
+      name,
+      email,
+      phone,
+      attendeeCount
     }
   });
   return NextResponse.json({
@@ -52,5 +68,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       irisStatus: booking.irisStatus, irisCheckedInAt: booking.irisCheckedInAt?.toISOString(),
       updatedAt: booking.updatedAt.toISOString()
     }
-  }, { status: 201 });
+  }, { status: 200 });
 }

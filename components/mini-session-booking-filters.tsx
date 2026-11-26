@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 
 type BookingStatusFilter = "booked" | "completed" | "no_show" | "cancelled" | "all";
-type BookingSourceFilter = "all" | "client" | "manual";
+type BookingSourceFilter = "all" | "client" | "manual" | "walk_in";
 
 const filterInputClass =
   "h-10 w-full rounded-md border border-ink/15 bg-white px-3 text-sm text-ink outline-none transition placeholder:text-graphite/45 focus:border-ink/50";
@@ -21,7 +21,8 @@ export function MiniSessionBookingFilters({
   noShowCount,
   cancelledCount,
   clientCount,
-  manualCount
+  manualCount,
+  walkInCount = 0
 }: {
   totalCount: number;
   activeCount: number;
@@ -30,6 +31,7 @@ export function MiniSessionBookingFilters({
   cancelledCount: number;
   clientCount: number;
   manualCount: number;
+  walkInCount?: number;
 }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<BookingStatusFilter>("booked");
@@ -107,6 +109,7 @@ export function MiniSessionBookingFilters({
           <option value="all">Minden típus</option>
           <option value="client">Ügyfél ({clientCount})</option>
           <option value="manual">Kézi ({manualCount})</option>
+          <option value="walk_in">Helyszíni ({walkInCount})</option>
         </select>
       </div>
     </div>

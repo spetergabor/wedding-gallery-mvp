@@ -863,7 +863,7 @@ model MiniSessionBooking {
   adminEmailSentAt        DateTime?
   reminderEmailSentAt     DateTime?
   cancelledAt             DateTime?
-  cancellationReason     String?
+  cancellationReason      String?
   cancellationEmailSentAt DateTime?
   googleCalendarEventId   String?
   googleCalendarId        String?
@@ -889,6 +889,7 @@ model MiniSessionBooking {
   proofingGallery         Gallery?         @relation("MiniSessionProofingGallery", fields: [proofingGalleryId], references: [id], onDelete: SetNull)
   finalGallery            Gallery?         @relation("MiniSessionFinalGallery", fields: [finalGalleryId], references: [id], onDelete: SetNull)
 
+  @@unique([miniSessionId, irisExternalClientId])
   @@index([miniSessionId])
   @@index([customerId])
   @@index([projectId])

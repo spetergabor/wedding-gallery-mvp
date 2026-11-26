@@ -8,6 +8,7 @@ export const MINI_SESSION_BOOKING_STATUS_CANCELLED = "cancelled";
 export const MINI_SESSION_BOOKING_SOURCE_CLIENT = "client";
 export const MINI_SESSION_BOOKING_SOURCE_MANUAL = "manual";
 export const MINI_SESSION_BOOKING_SOURCE_BLOCKED = "blocked";
+export const MINI_SESSION_BOOKING_SOURCE_WALK_IN = "walk_in";
 export const MINI_SESSION_BOOKING_MODE_SINGLE_DAY = "single_day";
 export const MINI_SESSION_BOOKING_MODE_RECURRING = "recurring";
 export const MINI_SESSION_THEME_DEFAULT = "default";

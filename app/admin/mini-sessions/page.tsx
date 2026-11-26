@@ -48,6 +48,7 @@ import {
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
   MINI_SESSION_BOOKING_SOURCE_CLIENT,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
+  MINI_SESSION_BOOKING_SOURCE_WALK_IN,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_COMPLETED,
   MINI_SESSION_BOOKING_STATUS_NO_SHOW,
@@ -640,6 +641,7 @@ export default async function AdminMiniSessionsPage({
   const cancelledBookings = contactBookings.filter((item) => item.booking.status === MINI_SESSION_BOOKING_STATUS_CANCELLED);
   const clientBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_CLIENT);
   const manualBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL);
+  const walkInBookings = contactBookings.filter((item) => item.booking.source === MINI_SESSION_BOOKING_SOURCE_WALK_IN);
   const activeAttendeeCount = activeBookings.reduce((total, item) => total + item.booking.attendeeCount, 0);
   const uniqueContactCount = new Set(contactBookings.map((item) => item.booking.email.toLowerCase())).size;
   const activeCalendarBlocks = calendarBlocks.filter((block) => block.endsAt >= now);
@@ -969,6 +971,7 @@ export default async function AdminMiniSessionsPage({
               cancelledCount={cancelledBookings.length}
               clientCount={clientBookings.length}
               manualCount={manualBookings.length}
+              walkInCount={walkInBookings.length}
             />
 
             {contactBookings.length === 0 ? (

@@ -45,7 +45,9 @@ import {
   miniSessionModeLabel,
   MINI_SESSION_BOOKING_MODE_RECURRING,
   MINI_SESSION_BOOKING_SOURCE_BLOCKED,
+  MINI_SESSION_BOOKING_SOURCE_CLIENT,
   MINI_SESSION_BOOKING_SOURCE_MANUAL,
+  MINI_SESSION_BOOKING_SOURCE_WALK_IN,
   MINI_SESSION_BOOKING_STATUS_BOOKED,
   MINI_SESSION_BOOKING_STATUS_COMPLETED,
   MINI_SESSION_BOOKING_STATUS_NO_SHOW,
@@ -99,6 +101,10 @@ function sourceLabel(source: string) {
     return "Kézi";
   }
 
+  if (source === MINI_SESSION_BOOKING_SOURCE_WALK_IN) {
+    return "Helyszíni";
+  }
+
   return "Ügyfél";
 }
 
@@ -109,6 +115,10 @@ function sourceBadgeClass(source: string) {
 
   if (source === MINI_SESSION_BOOKING_SOURCE_MANUAL) {
     return "bg-brass/10 text-brass";
+  }
+
+  if (source === MINI_SESSION_BOOKING_SOURCE_WALK_IN) {
+    return "bg-blue-50 text-blue-700";
   }
 
   return "bg-sage/10 text-sage";
@@ -616,8 +626,9 @@ export default async function AdminMiniSessionDetailPage({
     { label: "Publikus megjegyzés", ok: Boolean(session.notes?.trim()) },
     { label: "Styling infó", ok: Boolean(session.stylingNotes?.trim()) }
   ];
-  const clientContactCount = contactBookings.filter((booking) => booking.source !== MINI_SESSION_BOOKING_SOURCE_MANUAL).length;
+  const clientContactCount = contactBookings.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_CLIENT).length;
   const manualContactCount = contactBookings.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL).length;
+  const walkInContactCount = contactBookings.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_WALK_IN).length;
   const tabs: Array<{ key: MiniSessionTab; label: string; icon: "CalendarClock" | "Users" | "CheckCircle2" | "Settings2" }> = [
     { key: "overview", label: "Áttekintés", icon: "CalendarClock" },
     { key: "bookings", label: "Foglalók", icon: "Users" },
@@ -891,6 +902,7 @@ export default async function AdminMiniSessionDetailPage({
                 cancelledCount={cancelledContactBookings.length}
                 clientCount={clientContactCount}
                 manualCount={manualContactCount}
+                walkInCount={walkInContactCount}
               />
               <div data-mini-session-booking-empty hidden={activeContactBookings.length > 0} className="mt-5 rounded-md border border-dashed border-ink/15 bg-paper px-4 py-5 text-sm text-graphite/70">
                 Nincs találat a jelenlegi szűrésre.
@@ -926,7 +938,7 @@ export default async function AdminMiniSessionDetailPage({
                       data-mini-session-booking-item
                       data-mini-session-booking-record={booking.id}
                       data-mini-session-booking-status={booking.status}
-                      data-mini-session-booking-source={booking.source === MINI_SESSION_BOOKING_SOURCE_MANUAL ? "manual" : "client"}
+                      data-mini-session-booking-source={booking.source}
                       data-mini-session-booking-search={searchText}
                       hidden={!isActive}
                       className={`${!isActive ? "hidden" : ""} rounded-lg border border-ink/10 bg-white shadow-[0_1px_0_rgba(17,17,17,0.02)] transition hover:border-ink/20`}
