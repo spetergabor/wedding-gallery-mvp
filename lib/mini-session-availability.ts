@@ -14,6 +14,8 @@ import { adminCalendarBlockAppliesToSession } from "@/lib/admin-calendar-blocks"
 import { getGoogleCalendarBusyTimesForAdmin } from "@/lib/google-calendar-api";
 import { prisma } from "@/lib/prisma";
 
+const GOOGLE_AVAILABILITY_DEADLINE_MS = 4_000;
+
 type MiniSessionAvailabilityInput = {
   id?: string;
   adminId: string;
@@ -63,6 +65,23 @@ function slotRange(slots: MiniSessionSlot[]) {
 
 function addOneDay(date: Date) {
   return new Date(date.getTime() + 24 * 60 * 60 * 1000);
+}
+
+async function getGoogleCalendarBusyTimesWithDeadline(adminId: string, startsAt: Date, endsAt: Date) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      getGoogleCalendarBusyTimesForAdmin(adminId, startsAt, endsAt),
+      new Promise<MiniSessionBusyTime[]>((resolve) => {
+        timeout = setTimeout(() => resolve([]), GOOGLE_AVAILABILITY_DEADLINE_MS);
+      })
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
 }
 
 function projectBusyTime(project: { eventDate: Date | null; startTime: string | null; endTime: string | null }) {
@@ -181,7 +200,7 @@ export async function getMiniSessionBusyTimes(
         endTime: true
       }
     }),
-    getGoogleCalendarBusyTimesForAdmin(adminId, range.startsAt, range.endsAt)
+    getGoogleCalendarBusyTimesWithDeadline(adminId, range.startsAt, range.endsAt)
   ]);
 
   const projectBusyTimes = projects

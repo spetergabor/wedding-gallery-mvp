@@ -80,6 +80,7 @@ const headerActionButtonClass =
   "h-9 w-full min-w-0 whitespace-nowrap px-2.5 text-xs sm:px-3 sm:text-sm md:w-auto";
 const bookingActionButtonClass =
   "h-9 w-full whitespace-nowrap px-3 text-xs";
+const MAX_RESCHEDULE_SLOT_OPTIONS = 48;
 
 function activeTab(value: string | undefined): MiniSessionTab {
   if (value === "bookings" || value === "slots" || value === "settings") {
@@ -535,14 +536,16 @@ export default async function AdminMiniSessionDetailPage({
   const blockedBookings = booked.filter((booking) => booking.source === MINI_SESSION_BOOKING_SOURCE_BLOCKED);
   const slots = createMiniSessionSlots(session);
   const bookableSlots = filterMiniSessionSlotsByBookingNotice(slots, session.minBookingNoticeMinutes);
+  const needsAvailability = currentTab !== "settings";
   const [freeSlots, siteSettings] = await Promise.all([
-    getAvailableMiniSessionSlots(session),
+    needsAvailability ? getAvailableMiniSessionSlots(session) : Promise.resolve([]),
     prisma.siteSettings.findUnique({
       where: { adminId: session.adminId },
       select: { publicSubdomain: true }
     })
   ]);
   const publicSubdomain = siteSettings?.publicSubdomain ?? null;
+  const rescheduleSlotOptions = freeSlots.slice(0, MAX_RESCHEDULE_SLOT_OPTIONS);
   const freeSlotTokens = new Set(freeSlots.map((slot) => slot.token));
   const bookableSlotTokens = new Set(bookableSlots.map((slot) => slot.token));
   const bookedBySlot = new Map(booked.map((booking) => [booking.startsAt.toISOString(), booking]));
@@ -716,7 +719,8 @@ export default async function AdminMiniSessionDetailPage({
         <MiniSessionTabController tabs={tabs} initialTab={currentTab} />
       </div>
 
-      <div data-mini-session-tab-panel="overview" hidden={currentTab !== "overview"}>
+      {currentTab === "overview" ? (
+      <div data-mini-session-tab-panel="overview">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-4">
@@ -845,8 +849,10 @@ export default async function AdminMiniSessionDetailPage({
           </aside>
         </div>
       </div>
+      ) : null}
 
-      <div data-mini-session-tab-panel="bookings" hidden={currentTab !== "bookings"}>
+      {currentTab === "bookings" ? (
+      <div data-mini-session-tab-panel="bookings">
         <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
@@ -887,7 +893,7 @@ export default async function AdminMiniSessionDetailPage({
                   const canCloseBooking = isActive && booking.endsAt <= now;
                   const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", booking.cancellationReason ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
                   const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
-                  const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
+                  const rescheduleSlots = [currentSlot, ...rescheduleSlotOptions.filter((slot) => slot.token !== currentSlot.token)];
                   const customerEmailDelivery = deliveryDisplay({
                     log: deliveryLogFor(booking.id, "email.mini_session.customer_confirmation"),
                     sentAt: booking.customerEmailSentAt
@@ -983,7 +989,7 @@ export default async function AdminMiniSessionDetailPage({
                       const canCloseBooking = isActive && booking.endsAt <= now;
                       const searchText = [booking.name, booking.email, booking.phone, booking.adminNote ?? "", booking.cancellationReason ?? "", slotLabel, statusLabel(booking.status)].join(" ").toLowerCase();
                       const currentSlot = { token: booking.startsAt.toISOString(), startsAt: booking.startsAt, endsAt: booking.endsAt };
-                      const rescheduleSlots = [currentSlot, ...freeSlots.filter((slot) => slot.token !== currentSlot.token)];
+                      const rescheduleSlots = [currentSlot, ...rescheduleSlotOptions.filter((slot) => slot.token !== currentSlot.token)];
                       const customerEmailDelivery = deliveryDisplay({
                         log: deliveryLogFor(booking.id, "email.mini_session.customer_confirmation"),
                         sentAt: booking.customerEmailSentAt
@@ -1066,8 +1072,10 @@ export default async function AdminMiniSessionDetailPage({
           )}
         </section>
       </div>
+      ) : null}
 
-      <div data-mini-session-tab-panel="slots" hidden={currentTab !== "slots"}>
+      {currentTab === "slots" ? (
+      <div data-mini-session-tab-panel="slots">
         <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
@@ -1233,8 +1241,10 @@ export default async function AdminMiniSessionDetailPage({
           </section>
         </div>
       </div>
+      ) : null}
 
-      <div data-mini-session-tab-panel="settings" hidden={currentTab !== "settings"}>
+      {currentTab === "settings" ? (
+      <div data-mini-session-tab-panel="settings">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
           <section className="rounded-lg border border-ink/10 bg-white p-5 shadow-soft sm:p-6">
             <h2 className="text-lg font-semibold text-ink">Esemény beállításai</h2>
@@ -1463,6 +1473,7 @@ export default async function AdminMiniSessionDetailPage({
           </aside>
         </div>
       </div>
+      ) : null}
     </AdminShell>
   );
 }
