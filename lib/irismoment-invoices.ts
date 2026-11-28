@@ -207,3 +207,161 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
   });
   return { invoice: responseInvoice(current), delivery, reused: false };
 }
+
+export async function cancelIrismomentInvoice(
+  adminId: string,
+  invoiceId: string,
+  cancellationReason?: string
+) {
+  const workspace = await loadInvoiceWorkspaceSettings(adminId);
+  if (!workspace) {
+    throw new IrismomentInvoiceError("workspace_not_found", "A Spetly workspace nem található.", 404);
+  }
+  const invoice = await prisma.customerInvoice.findFirst({
+    where: { id: invoiceId, adminId },
+    include: {
+      items: { orderBy: { position: "asc" } },
+      relatedDocuments: {
+        where: { documentType: "cancellation" },
+        select: { id: true },
+        take: 1
+      }
+    }
+  });
+  if (!invoice) {
+    throw new IrismomentInvoiceError("invoice_not_found", "A számla nem található.", 404);
+  }
+  if (invoice.documentType === "cancellation" || invoice.status === "draft") {
+    throw new IrismomentInvoiceError(
+      "invoice_not_cancellable",
+      "Ez a bizonylat nem sztornózható.",
+      409
+    );
+  }
+
+  const existingCancellationId = invoice.relatedDocuments[0]?.id;
+  if (existingCancellationId) {
+    const existingCancellation = await prisma.customerInvoice.findFirstOrThrow({
+      where: { id: existingCancellationId, adminId },
+      select: { id: true, number: true, status: true, totalCents: true, sentAt: true }
+    });
+    return {
+      invoice: responseInvoice(invoice),
+      cancellation: responseInvoice(existingCancellation),
+      reused: true
+    };
+  }
+  if (!["final", "sent", "partial", "paid"].includes(invoice.status)) {
+    throw new IrismomentInvoiceError(
+      "invoice_not_cancellable",
+      invoice.status === "cancelled" ? "A számlát már sztornózták." : "Ez a számla nem sztornózható.",
+      409
+    );
+  }
+
+  const issuerChoice = invoiceIssuerChoice(workspace, invoice.issuerKey) ??
+    invoiceIssuerChoice(workspace, "default");
+  if (!issuerChoice) {
+    throw new IrismomentInvoiceError("issuer_not_found", "A számlakibocsátó nem található.", 404);
+  }
+  const reason = cancellationReason?.trim().slice(0, 500) || null;
+  let cancellationId: string;
+  let reused = false;
+  try {
+    cancellationId = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const claimed = await tx.customerInvoice.updateMany({
+        where: {
+          id: invoice.id,
+          adminId,
+          status: { in: ["final", "sent", "partial", "paid"] }
+        },
+        data: { status: "cancelled", cancelledAt: now, cancellationReason: reason }
+      });
+      if (claimed.count !== 1) throw new Error("INVOICE_ALREADY_CANCELLED");
+      const number = await allocateInvoiceNumber(tx, {
+        adminId,
+        issueDate: now,
+        kind: "cancellation",
+        prefix: issuerChoice.invoiceSettings.invoiceCancellationPrefix,
+        sequenceStart: 1,
+        sequenceKey: invoice.issuerKey
+      });
+      const cancellation = await tx.customerInvoice.create({
+        data: {
+          adminId,
+          customerId: invoice.customerId,
+          projectId: invoice.projectId,
+          issuerKey: invoice.issuerKey,
+          title: `Stornorechnung ${number}`,
+          status: "final",
+          number,
+          issueDate: now,
+          dueDate: now,
+          serviceDateFrom: invoice.serviceDateFrom,
+          serviceDateTo: invoice.serviceDateTo,
+          currency: invoice.currency,
+          documentType: "cancellation",
+          relatedInvoiceId: invoice.id,
+          taxMode: invoice.taxMode,
+          issuerSnapshot: invoice.issuerSnapshot ?? issuerChoice.issuer,
+          customerSnapshot: invoice.customerSnapshot ?? {},
+          taxNotice: invoice.taxNotice,
+          subtotalCents: -(invoice.subtotalCents ?? invoice.totalCents ?? invoice.amountCents ?? 0),
+          taxCents: -(invoice.taxCents ?? 0),
+          totalCents: -(invoice.totalCents ?? invoice.amountCents ?? 0),
+          amountCents: -(invoice.totalCents ?? invoice.amountCents ?? 0),
+          publicToken: createInvoicePublicToken(),
+          finalizedAt: now,
+          cancellationReason: reason,
+          remindersEnabled: false,
+          items: {
+            create: invoice.items.map((item) => ({
+              position: item.position,
+              description: item.description,
+              quantity: item.quantity,
+              unit: item.unit,
+              unitPriceCents: -item.unitPriceCents,
+              vatRate: item.vatRate,
+              netAmountCents: -item.netAmountCents,
+              taxAmountCents: -item.taxAmountCents,
+              amountCents: -item.amountCents
+            }))
+          }
+        },
+        select: { id: true }
+      });
+      return cancellation.id;
+    });
+  } catch (error) {
+    if (!(error instanceof Error && error.message === "INVOICE_ALREADY_CANCELLED")) throw error;
+    const existing = await prisma.customerInvoice.findFirst({
+      where: { adminId, relatedInvoiceId: invoice.id, documentType: "cancellation" },
+      select: { id: true }
+    });
+    if (!existing) {
+      throw new IrismomentInvoiceError("invoice_already_cancelled", "A számlát már sztornózták.", 409);
+    }
+    cancellationId = existing.id;
+    reused = true;
+  }
+
+  await persistGeneratedInvoicePdf(cancellationId, adminId).catch((error) => {
+    console.error("irismoment cancellation PDF persistence failed", error);
+  });
+  const [currentInvoice, cancellation] = await Promise.all([
+    prisma.customerInvoice.findUniqueOrThrow({
+      where: { id: invoice.id },
+      select: { id: true, number: true, status: true, totalCents: true, sentAt: true }
+    }),
+    prisma.customerInvoice.findUniqueOrThrow({
+      where: { id: cancellationId },
+      select: { id: true, number: true, status: true, totalCents: true, sentAt: true }
+    })
+  ]);
+  return {
+    invoice: responseInvoice(currentInvoice),
+    cancellation: responseInvoice(cancellation),
+    reused
+  };
+}
