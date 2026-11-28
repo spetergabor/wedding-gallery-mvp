@@ -27,6 +27,11 @@ export type IrismomentInvoiceInput = {
   postalCode?: string;
   city?: string;
   country?: string;
+  lineItems?: Array<{
+    description: string;
+    quantity: number;
+    unitPriceCents: number;
+  }>;
 };
 
 export class IrismomentInvoiceError extends Error {
@@ -89,10 +94,34 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
   const dueDate = new Date(now);
   dueDate.setUTCDate(dueDate.getUTCDate() + issuerChoice.invoiceSettings.invoiceDueDays);
   const vatRate = taxMode === "taxable" ? issuerChoice.invoiceSettings.invoiceDefaultVatRate : 0;
-  const subtotalCents = vatRate > 0
-    ? Math.round(input.totalCents * 100 / (100 + vatRate))
-    : input.totalCents;
-  const taxCents = input.totalCents - subtotalCents;
+  const sourceItems = input.lineItems?.length ? input.lineItems : [{
+    description: input.description,
+    quantity: 1,
+    unitPriceCents: input.totalCents
+  }];
+  const calculatedItems = sourceItems.map((item, position) => {
+    const amountCents = item.quantity * item.unitPriceCents;
+    const netAmountCents = vatRate > 0
+      ? Math.round(amountCents * 100 / (100 + vatRate))
+      : amountCents;
+    const taxAmountCents = amountCents - netAmountCents;
+    const unitPriceCents = vatRate > 0
+      ? Math.round(item.unitPriceCents * 100 / (100 + vatRate))
+      : item.unitPriceCents;
+    return {
+      position,
+      description: item.description,
+      quantity: new Prisma.Decimal(item.quantity),
+      unit: "Stk.",
+      unitPriceCents,
+      vatRate,
+      netAmountCents,
+      taxAmountCents,
+      amountCents
+    };
+  });
+  const subtotalCents = calculatedItems.reduce((sum, item) => sum + item.netAmountCents, 0);
+  const taxCents = calculatedItems.reduce((sum, item) => sum + item.taxAmountCents, 0);
   const party = {
     name: input.customerName,
     email: input.customerEmail,
@@ -142,17 +171,7 @@ export async function createAndSendIrismomentInvoice(adminId: string, input: Iri
           finalizedAt: now,
           remindersEnabled: isPaid ? false : workspace.invoiceSettings.invoiceRemindersEnabled,
           items: {
-            create: [{
-              position: 0,
-              description: input.description,
-              quantity: new Prisma.Decimal(1),
-              unit: "pauschal",
-              unitPriceCents: subtotalCents,
-              vatRate,
-              netAmountCents: subtotalCents,
-              taxAmountCents: taxCents,
-              amountCents: input.totalCents
-            }]
+            create: calculatedItems
           },
           ...(isPaid ? {
             payments: {

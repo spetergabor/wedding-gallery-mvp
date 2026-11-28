@@ -12,6 +12,31 @@ function text(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+function lineItems(value: unknown, expectedTotalCents: number) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 30) {
+    throw new IrismomentInvoiceError("invalid_invoice_items", "Ellenőrizd a számla plusz tételeit.", 400);
+  }
+  const parsed = value.map((raw) => {
+    const item = raw && typeof raw === "object" && !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : {};
+    const description = text(item.description, 500);
+    const quantity = Number(item.quantity);
+    const unitPriceCents = Number(item.unitPriceCents);
+    if (!description || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 999 ||
+        !Number.isSafeInteger(unitPriceCents) || unitPriceCents < 1 || unitPriceCents > 1_000_000) {
+      throw new IrismomentInvoiceError("invalid_invoice_items", "Ellenőrizd a számla plusz tételeit.", 400);
+    }
+    return { description, quantity, unitPriceCents };
+  });
+  const calculatedTotal = parsed.reduce((sum, item) => sum + item.quantity * item.unitPriceCents, 0);
+  if (!Number.isSafeInteger(calculatedTotal) || calculatedTotal !== expectedTotalCents) {
+    throw new IrismomentInvoiceError("invalid_invoice_items", "A számlatételek összege nem egyezik a végösszeggel.", 400);
+  }
+  return parsed;
+}
+
 function parsePayload(value: unknown): IrismomentInvoiceInput {
   const payload = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -50,7 +75,8 @@ function parsePayload(value: unknown): IrismomentInvoiceInput {
     addressLine1: text(payload.addressLine1, 300) || undefined,
     postalCode: text(payload.postalCode, 30) || undefined,
     city: text(payload.city, 150) || undefined,
-    country: text(payload.country, 150) || undefined
+    country: text(payload.country, 150) || undefined,
+    lineItems: lineItems(payload.lineItems, totalCents)
   };
 }
 
